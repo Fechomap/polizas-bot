@@ -1,14 +1,27 @@
-// src/bot.js
 const { Telegraf } = require('telegraf');
+const express = require('express');
 const connectDB = require('./database');
 const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
 
+const app = express();
+const PORT = process.env.PORT || 3000;
+
 let isShuttingDown = false;
 
 async function initializeBot() {
     try {
+        // Configurar servidor web básico para Heroku
+        app.get('/', (req, res) => {
+            res.send('Bot is running!');
+        });
+
+        // Iniciar servidor web
+        app.listen(PORT, () => {
+            logger.info(`Servidor web iniciado en puerto ${PORT}`);
+        });
+
         // Conectar a la base de datos
         await connectDB();
         logger.info('✅ Base de datos conectada con éxito');
