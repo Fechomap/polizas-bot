@@ -1,0 +1,30 @@
+# Comandos para Desarrollo
+
+# Iniciar el Bot
+nodemon src/bot.js            # Modo desarrollo con recarga automática
+node src/bot.js              # Modo normal
+NODE_ENV=production node src/bot.js    # Modo producción
+
+# Base de Datos
+node scripts/export.js       # Exportar base de datos
+node scripts/import.js       # Importar base de datos
+node scripts/clearAll.js     # Limpiar base de datos
+
+# Logs
+tail -f logs/combined.log    # Ver todos los logs en tiempo real
+tail -f logs/error.log      # Ver solo logs de error
+
+# Respaldos
+node scripts/exportToExcel.js    # Exportar a Excel
+node scripts/exportToJson.js     # Exportar a JSON
+
+# Limpieza
+rm -rf node_modules/        # Limpiar módulos
+rm -f logs/*.log           # Limpiar logs
+
+# Instalación
+npm install                # Instalación normal
+npm install --include=dev  # Instalación con dependencias de desarrollo
+
+# Despliegue
+git pull && npm install && pm2 restart bot  # Actualizar y reiniciar
