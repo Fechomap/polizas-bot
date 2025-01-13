@@ -48,16 +48,14 @@ class CommandHandler {
         this.bot.use(async (ctx, next) => {
             const chatId = ctx.chat?.id;
             
-            // Si es chat privado, permitir
-            if (ctx.chat?.type === 'private') {
-                return next();
-            }
-    
-            // Verificar si el grupo está permitido
+            // Si NO es el grupo permitido, rechazar
             const isAllowed = allowedGroups.some(id => Number(id) === Number(chatId));
             if (!isAllowed) {
-                logger.warn(`Grupo no autorizado: ${chatId}`);
-                await ctx.reply('⛔️ Este bot solo puede ser usado en grupos autorizados.');
+                logger.warn(`Acceso no autorizado desde: ${chatId} (${ctx.chat?.type})`);
+                // Solo responder si es un grupo (no en privado)
+                if (ctx.chat?.type !== 'private') {
+                    await ctx.reply('⛔️ Este bot solo puede ser usado en el grupo autorizado.');
+                }
                 return;
             }
     

@@ -3,12 +3,8 @@ const logger = require('../utils/logger');
 
 const handleGroupUpdate = async (ctx, next) => {
     try {
-        // Si es un chat privado, continuar sin verificaciones
-        if (ctx.chat?.type === 'private') {
-            return next();
-        }
-
-        const chatId = ctx.chat.id;
+        const chatId = ctx.chat?.id;
+        const chatType = ctx.chat?.type;
 
         // Verificar si el grupo está permitido
         const isAllowed = config.telegram.allowedGroups.some(id => 
@@ -16,8 +12,11 @@ const handleGroupUpdate = async (ctx, next) => {
         );
 
         if (!isAllowed) {
-            logger.warn(`Grupo no autorizado: ${chatId}`);
-            await ctx.reply('⛔️ Este bot solo puede ser usado en grupos autorizados.');
+            logger.warn(`Intento de uso no autorizado: ${chatId} (${chatType})`);
+            // Solo responder si es un grupo (no en privado)
+            if (chatType !== 'private') {
+                await ctx.reply('⛔️ Este bot solo puede ser usado en el grupo autorizado.');
+            }
             return;
         }
 
@@ -27,6 +26,7 @@ const handleGroupUpdate = async (ctx, next) => {
             return next();
         }
 
+        // Verificar permisos de administrador
         try {
             const member = await ctx.telegram.getChatMember(chatId, ctx.botInfo.id);
             if (member.status !== 'administrator') {
