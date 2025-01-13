@@ -21,26 +21,30 @@ const handleGroupUpdate = async (ctx, next) => {
             return;
         }
 
-        // Verificar permisos de administrador solo si es necesario
-        if (ctx.message?.text?.startsWith('/')) {
-            try {
-                const member = await ctx.telegram.getChatMember(chatId, ctx.botInfo.id);
-                if (member.status !== 'administrator') {
-                    logger.warn(`Bot sin permisos de administrador en ${chatId}`);
-                    await ctx.reply('⚠️ Por favor, asegúrate de darme permisos de administrador.');
-                    return;
-                }
-            } catch (error) {
-                logger.error('Error verificando permisos:', error);
-                return;
-            }
+        // Si es una actualización del tipo "my_chat_member", solo registrar
+        if (ctx.update.my_chat_member) {
+            logger.info(`Actualización de estado en grupo ${chatId}`);
+            return next();
         }
 
-        // Si todo está bien, continuar
+        try {
+            const member = await ctx.telegram.getChatMember(chatId, ctx.botInfo.id);
+            if (member.status !== 'administrator') {
+                logger.warn(`Bot sin permisos de administrador en ${chatId}`);
+                await ctx.reply('⚠️ Por favor, asegúrate de darme permisos de administrador.');
+                return;
+            }
+        } catch (error) {
+            logger.error('Error verificando permisos:', error);
+            return;
+        }
+
         return next();
     } catch (error) {
         logger.error('Error en middleware de grupo:', error);
-        await ctx.reply('❌ Ocurrió un error inesperado.');
+        if (!error.message.includes('bot was kicked')) {
+            await ctx.reply('❌ Ocurrió un error inesperado.');
+        }
     }
 };
 

@@ -42,14 +42,22 @@ class CommandHandler {
     }
 
     setupGroupRestriction() {
-        const ALLOWED_GROUP = -4680062277; // Reemplaza este número con el ID de tu grupo
+        // Obtener los grupos permitidos del config
+        const allowedGroups = config.telegram.allowedGroups || [];
     
         this.bot.use(async (ctx, next) => {
             const chatId = ctx.chat?.id;
             
-            // Si no es el grupo permitido, rechazar
-            if (chatId !== ALLOWED_GROUP) {
-                await ctx.reply('⛔️ Este bot solo puede ser usado en el grupo autorizado.');
+            // Si no es un grupo, permitir
+            if (ctx.chat?.type === 'private') {
+                return next();
+            }
+    
+            // Verificar si el grupo está permitido
+            const isAllowed = allowedGroups.some(id => Number(id) === Number(chatId));
+            if (!isAllowed) {
+                logger.warn(`Grupo no autorizado: ${chatId}`);
+                await ctx.reply('⛔️ Este bot solo puede ser usado en grupos autorizados.');
                 return;
             }
     
