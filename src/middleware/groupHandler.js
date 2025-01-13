@@ -1,3 +1,4 @@
+const config = require('../config');
 const logger = require('../utils/logger');
 
 const MAX_RETRIES = 3;
@@ -15,44 +16,56 @@ const sendMessageWithRetry = async (bot, chatId, message, retryCount = 0) => {
     }
 };
 
-const handleGroupUpdate = async (ctx, next) => {
-    try {
-        // Manejar actualización de supergrupo
-        if (ctx.update.message?.migrate_to_chat_id) {
-            const oldChatId = ctx.chat.id;
-            const newChatId = ctx.update.message.migrate_to_chat_id;
-            logger.info(`Grupo migrado de ${oldChatId} a ${newChatId}`);
-            // Aquí podrías actualizar el ID en tu base de datos si lo necesitas
-        }
-
-        // Manejar cambios en el estado del bot en el grupo
-        if (ctx.update.my_chat_member) {
-            const chatId = ctx.update.my_chat_member.chat.id;
-            const newStatus = ctx.update.my_chat_member.new_chat_member.status;
-            logger.info(`Estado del bot actualizado en ${chatId}: ${newStatus}`);
-        }
-
-        await next();
-    } catch (error) {
-        logger.error('Error en el manejo del grupo:', error);
-    }
+const isAllowedGroup = (chatId) => {
+    if (!config.telegram.allowedGroups) return false;
+    const numericChatId = Number(chatId);
+    return config.telegram.allowedGroups.some(id => Number(id) === numericChatId);
 };
 
-const checkBotPermissions = async (ctx) => {
+const handleGroupUpdate = async (ctx, next) => {
     try {
-        const chatMember = await ctx.telegram.getChatMember(
-            ctx.chat.id,
-            ctx.botInfo.id
-        );
-        return chatMember.status === 'administrator';
+        if (ctx.chat?.type === 'private') {
+            return next();
+        }
+
+        const chatId = ctx.chat.id;
+
+        // Verificar si es un grupo permitido
+        if (!isAllowedGroup(chatId)) {
+            logger.warn(`Acceso denegado a grupo no autorizado: ${chatId}`);
+            await ctx.reply('⛔️ Este bot solo puede ser usado en grupos autorizados.');
+            return;
+        }
+
+        // Manejar actualización a supergrupo
+        if (ctx.update.message?.migrate_to_chat_id) {
+            const newChatId = ctx.update.message.migrate_to_chat_id;
+            logger.info(`Grupo migrado: ${chatId} -> ${newChatId}`);
+        }
+
+        // Solo verificar permisos para comandos
+        if (ctx.message?.text?.startsWith('/')) {
+            try {
+                const member = await ctx.telegram.getChatMember(chatId, ctx.botInfo.id);
+                if (member.status !== 'administrator') {
+                    logger.warn('Bot necesita permisos de administrador', { chatId });
+                    await ctx.reply('⚠️ Por favor, dame permisos de administrador para funcionar correctamente.');
+                    return;
+                }
+            } catch (error) {
+                logger.error('Error verificando permisos:', error);
+                return;
+            }
+        }
+
+        return next();
     } catch (error) {
-        logger.error('Error verificando permisos:', error);
-        return false;
+        logger.error('Error en middleware de grupo:', error);
     }
 };
 
 module.exports = {
     handleGroupUpdate,
-    checkBotPermissions,
-    sendMessageWithRetry
+    sendMessageWithRetry,
+    isAllowedGroup
 };
