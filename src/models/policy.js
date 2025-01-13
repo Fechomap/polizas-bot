@@ -1,6 +1,12 @@
 // src/models/policy.js
 const mongoose = require('mongoose');
 
+// Esquema para archivos sin _id
+const fileSchema = new mongoose.Schema({
+    data: Buffer,
+    contentType: String
+}, { _id: false }); // Esto es clave: deshabilitamos el _id automático
+
 const policySchema = new mongoose.Schema({
     // Datos del titular
     titular: { 
@@ -125,7 +131,7 @@ const policySchema = new mongoose.Schema({
     }],
     
     servicios: [{
-        numeroServicio: { type: Number, required: false }, // Cambiado a no requerido
+        numeroServicio: { type: Number, required: false },
         costo: { type: Number, required: false },
         fechaServicio: { type: Date, required: false },
         numeroExpediente: { type: String, required: false },
@@ -134,14 +140,8 @@ const policySchema = new mongoose.Schema({
 
     // Modificado el esquema de archivos para manejar datos binarios
     archivos: {
-        fotos: [{
-            data: Buffer,
-            contentType: String
-        }],
-        pdfs: [{
-            data: Buffer,
-            contentType: String
-        }]
+        fotos: [fileSchema],  // Usamos el esquema sin _id
+        pdfs: [fileSchema]    // Usamos el esquema sin _id
     }
 }, { 
     timestamps: true,
@@ -154,7 +154,6 @@ policySchema.index({ placas: 1 });
 
 // Middleware pre-save para limpieza de datos
 policySchema.pre('save', function(next) {
-    // Si el correo es "sin correo", lo guardamos como string vacío
     if (this.correo && this.correo.toLowerCase() === 'sin correo') {
         this.correo = '';
     }
