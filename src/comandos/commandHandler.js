@@ -1,9 +1,10 @@
 // src/comandos/commandHandler.js
 const { Markup } = require('telegraf');
+const config = require('../config');  // <-- Añadir esta línea
 const { getPolicyByNumber, savePolicy, addFileToPolicy, deletePolicyByNumber, addPaymentToPolicy, addServiceToPolicy,  getSusceptiblePolicies, getOldUnusedPolicies } = require('../controllers/policyController');
 const logger = require('../utils/logger');
 const FileHandler = require('../utils/fileHandler');
-const fetch = require('node-fetch'); // Asegúrate de tener 'node-fetch' instalado: npm install node-fetch
+const fetch = require('node-fetch');
 
 class CommandHandler {
     constructor(bot) {
@@ -42,13 +43,12 @@ class CommandHandler {
     }
 
     setupGroupRestriction() {
-        // Obtener los grupos permitidos del config
         const allowedGroups = config.telegram.allowedGroups || [];
     
         this.bot.use(async (ctx, next) => {
             const chatId = ctx.chat?.id;
             
-            // Si no es un grupo, permitir
+            // Si es chat privado, permitir
             if (ctx.chat?.type === 'private') {
                 return next();
             }
