@@ -89,8 +89,9 @@ class CommandHandler {
         this.bot.action(/verFotos:(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1];
-                const policy = await getPolicyByNumber(numeroPoliza);
+                logger.info(`Intentando mostrar fotos de póliza: ${numeroPoliza}`);
         
+                const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
                     return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
                 }
@@ -105,22 +106,15 @@ class CommandHandler {
                 for (const foto of fotos) {
                     try {
                         if (!foto.data) {
-                            logger.warn('Foto sin datos encontrada');
+                            logger.warn('Foto sin datos');
                             continue;
                         }
         
-                        // Modificación aquí: manejo correcto del Buffer
-                        const fileBuffer = foto.data instanceof Buffer ? 
-                            foto.data : 
-                            Buffer.from(foto.data.buffer || foto.data);
-        
-                        await ctx.replyWithPhoto({ 
-                            source: fileBuffer,
-                            filename: `foto_${numeroPoliza}.jpg`
+                        await ctx.replyWithPhoto({
+                            source: foto.data
                         });
                     } catch (error) {
-                        logger.error('Error al enviar foto individual:', error);
-                        await ctx.reply('❌ Error al enviar una foto');
+                        logger.error('Error al enviar foto:', error);
                     }
                 }
             } catch (error) {
@@ -252,7 +246,7 @@ class CommandHandler {
                     return await ctx.reply('⚠️ Primero usa /upload y proporciona el número de póliza.');
                 }
         
-                // Tomar la foto en la resolución más alta
+                // Tomar la foto en máxima resolución
                 const photos = ctx.message.photo;
                 const highestResPhoto = photos[photos.length - 1];
                 const fileId = highestResPhoto.file_id;
@@ -261,19 +255,30 @@ class CommandHandler {
                 const fileLink = await ctx.telegram.getFileLink(fileId);
                 const response = await fetch(fileLink.href);
                 if (!response.ok) throw new Error('Falló la descarga de la foto');
-                const fileBuffer = await response.buffer();
+                const buffer = await response.buffer();
         
-                // Log adicional para debug
-                logger.debug('Datos de foto:', {
-                    tamañoBuffer: fileBuffer.length,
-                    tieneData: !!fileBuffer
-                });
+                // Crear objeto de archivo directamente
+                const fileObject = {
+                    data: buffer,
+                    contentType: 'image/jpeg'
+                };
         
-                // Guardar en la base de datos
-                const updatedPolicy = await addFileToPolicy(numeroPoliza, fileBuffer, 'foto');
-                if (!updatedPolicy) {
+                // Buscar la póliza y actualizar
+                const policy = await getPolicyByNumber(numeroPoliza);
+                if (!policy) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 }
+        
+                // Inicializar archivos si no existe
+                if (!policy.archivos) {
+                    policy.archivos = { fotos: [], pdfs: [] };
+                }
+        
+                // Agregar la foto
+                policy.archivos.fotos.push(fileObject);
+        
+                // Guardar
+                await policy.save();
         
                 await ctx.reply('✅ Foto guardada correctamente.');
             } catch (error) {
@@ -294,8 +299,6 @@ class CommandHandler {
                 }
         
                 const { mime_type: mimeType = '' } = ctx.message.document || {};
-        
-                // Solo PDF
                 if (!mimeType.includes('pdf')) {
                     return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
                 }
@@ -305,19 +308,30 @@ class CommandHandler {
                 const fileLink = await ctx.telegram.getFileLink(fileId);
                 const response = await fetch(fileLink.href);
                 if (!response.ok) throw new Error('Falló la descarga del documento');
-                const fileBuffer = await response.buffer();
+                const buffer = await response.buffer();
         
-                // Log adicional para debug
-                logger.debug('Datos de PDF:', {
-                    tamañoBuffer: fileBuffer.length,
-                    tieneData: !!fileBuffer
-                });
+                // Crear objeto de archivo directamente
+                const fileObject = {
+                    data: buffer,
+                    contentType: 'application/pdf'
+                };
         
-                // Guardar en la base de datos
-                const updatedPolicy = await addFileToPolicy(numeroPoliza, fileBuffer, 'pdf');
-                if (!updatedPolicy) {
+                // Buscar la póliza y actualizar
+                const policy = await getPolicyByNumber(numeroPoliza);
+                if (!policy) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 }
+        
+                // Inicializar archivos si no existe
+                if (!policy.archivos) {
+                    policy.archivos = { fotos: [], pdfs: [] };
+                }
+        
+                // Agregar el PDF
+                policy.archivos.pdfs.push(fileObject);
+        
+                // Guardar
+                await policy.save();
         
                 await ctx.reply('✅ PDF guardado correctamente.');
             } catch (error) {
