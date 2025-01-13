@@ -90,23 +90,42 @@ class CommandHandler {
             try {
                 const numeroPoliza = ctx.match[1];
                 const policy = await getPolicyByNumber(numeroPoliza);
-
+        
                 if (!policy) {
                     return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
                 }
+        
                 const fotos = policy.archivos?.fotos || [];
                 if (fotos.length === 0) {
                     return await ctx.reply('📸 No hay fotos asociadas a esta póliza.');
                 }
+        
                 await ctx.reply(`📸 Mostrando ${fotos.length} foto(s):`);
-                for (const base64Foto of fotos) {
-                    const fotoBuffer = Buffer.from(base64Foto, 'base64');
-                    await ctx.replyWithPhoto({ source: fotoBuffer });
+        
+                // Enviar cada foto
+                for (const foto of fotos) {
+                    try {
+                        if (!foto.data) {
+                            logger.warn('Foto sin datos encontrada');
+                            continue;
+                        }
+        
+                        // Convertir el Buffer a un formato que Telegram pueda manejar
+                        const fileBuffer = Buffer.from(foto.data.buffer || foto.data);
+                        
+                        await ctx.replyWithPhoto({ 
+                            source: fileBuffer 
+                        });
+                    } catch (error) {
+                        logger.error('Error al enviar foto individual:', error);
+                        await ctx.reply('❌ Error al enviar una foto');
+                    }
                 }
             } catch (error) {
+                logger.error('Error al mostrar fotos:', error);
                 await ctx.reply('❌ Error al mostrar las fotos.');
             }
-            await ctx.answerCbQuery(); // Cierra la “carga” del botón
+            await ctx.answerCbQuery();
         });
 
         // Fragmento para manejar el callback de "Ver PDFs"
@@ -114,26 +133,43 @@ class CommandHandler {
             try {
                 const numeroPoliza = ctx.match[1];
                 const policy = await getPolicyByNumber(numeroPoliza);
-
+        
                 if (!policy) {
                     return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
                 }
+                
                 const pdfs = policy.archivos?.pdfs || [];
                 if (pdfs.length === 0) {
                     return await ctx.reply('📄 No hay PDFs asociados a esta póliza.');
                 }
+                
                 await ctx.reply(`📄 Mostrando ${pdfs.length} PDF(s):`);
-                for (const base64Pdf of pdfs) {
-                    const pdfBuffer = Buffer.from(base64Pdf, 'base64');
-                    // Forzamos la extensión .pdf al responder con el documento
-                    await ctx.replyWithDocument(
-                        { source: pdfBuffer, filename: 'Documento.pdf' }
-                    );
+        
+                // Enviar cada PDF
+                for (const pdf of pdfs) {
+                    try {
+                        if (!pdf.data) {
+                            logger.warn('PDF sin datos encontrado');
+                            continue;
+                        }
+        
+                        // Convertir el Buffer a un formato que Telegram pueda manejar
+                        const fileBuffer = Buffer.from(pdf.data.buffer || pdf.data);
+                        
+                        await ctx.replyWithDocument({
+                            source: fileBuffer,
+                            filename: `Documento_${numeroPoliza}.pdf`
+                        });
+                    } catch (error) {
+                        logger.error('Error al enviar PDF individual:', error);
+                        await ctx.reply('❌ Error al enviar un PDF');
+                    }
                 }
             } catch (error) {
+                logger.error('Error al mostrar PDFs:', error);
                 await ctx.reply('❌ Error al mostrar los PDFs.');
             }
-            await ctx.answerCbQuery(); // Cierra la “carga” del botón
+            await ctx.answerCbQuery();
         });
 
         // Comando GET (conversacional)
