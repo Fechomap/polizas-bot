@@ -89,7 +89,7 @@ const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
             logger.warn(`Póliza no encontrada al intentar añadir archivo: ${numeroPoliza}`);
-            return null; // Si no existe la póliza, retornamos null
+            return null;
         }
 
         // Aseguramos que el campo 'archivos' exista
@@ -97,23 +97,34 @@ const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
             policy.archivos = { fotos: [], pdfs: [] };
         }
 
-        // Convertimos el buffer a una cadena en Base64
-        const base64File = fileBuffer.toString('base64');
+        // Crear el objeto de archivo
+        const fileObject = {
+            data: fileBuffer,
+            contentType: fileType === 'foto' ? 'image/jpeg' : 'application/pdf'
+        };
 
-        // Añadimos el archivo al arreglo correspondiente
+        // Añadir el archivo al array correspondiente
         if (fileType === 'foto') {
-            policy.archivos.fotos.push(base64File);
+            policy.archivos.fotos.push(fileObject);
             logger.info(`Foto añadida a la póliza: ${numeroPoliza}`);
         } else if (fileType === 'pdf') {
-            policy.archivos.pdfs.push(base64File);
+            policy.archivos.pdfs.push(fileObject);
             logger.info(`PDF añadido a la póliza: ${numeroPoliza}`);
         } else {
             throw new Error(`Tipo de archivo inválido: ${fileType}`);
         }
 
-        // Guardamos los cambios en la base de datos
+        // Guardar cambios
         const updatedPolicy = await policy.save();
         logger.info(`Archivo guardado correctamente en la póliza: ${numeroPoliza}`);
+
+        // Log adicional para debug
+        logger.debug('Archivo guardado:', {
+            tieneData: !!fileObject.data,
+            tamañoData: fileObject.data ? fileObject.data.length : 0,
+            contentType: fileObject.contentType
+        });
+
         return updatedPolicy;
     } catch (error) {
         logger.error('Error al añadir archivo a la póliza:', {

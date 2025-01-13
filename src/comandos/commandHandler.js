@@ -254,11 +254,17 @@ class CommandHandler {
                 const highestResPhoto = photos[photos.length - 1];
                 const fileId = highestResPhoto.file_id;
         
-                // Descargar
+                // Descargar archivo
                 const fileLink = await ctx.telegram.getFileLink(fileId);
                 const response = await fetch(fileLink.href);
                 if (!response.ok) throw new Error('Falló la descarga de la foto');
                 const fileBuffer = await response.buffer();
+        
+                // Log adicional para debug
+                logger.debug('Datos de foto:', {
+                    tamañoBuffer: fileBuffer.length,
+                    tieneData: !!fileBuffer
+                });
         
                 // Guardar en la base de datos
                 const updatedPolicy = await addFileToPolicy(numeroPoliza, fileBuffer, 'foto');
@@ -268,9 +274,9 @@ class CommandHandler {
         
                 await ctx.reply('✅ Foto guardada correctamente.');
             } catch (error) {
+                logger.error('Error al procesar foto:', error);
                 await ctx.reply('❌ Error al procesar la foto.');
             } finally {
-                // Terminar el flujo de subida en cualquier caso
                 this.uploadTargets.delete(ctx.chat.id);
             }
         });
@@ -291,12 +297,18 @@ class CommandHandler {
                     return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
                 }
         
-                // Descargar
+                // Descargar archivo
                 const fileId = ctx.message.document.file_id;
                 const fileLink = await ctx.telegram.getFileLink(fileId);
                 const response = await fetch(fileLink.href);
                 if (!response.ok) throw new Error('Falló la descarga del documento');
                 const fileBuffer = await response.buffer();
+        
+                // Log adicional para debug
+                logger.debug('Datos de PDF:', {
+                    tamañoBuffer: fileBuffer.length,
+                    tieneData: !!fileBuffer
+                });
         
                 // Guardar en la base de datos
                 const updatedPolicy = await addFileToPolicy(numeroPoliza, fileBuffer, 'pdf');
@@ -306,9 +318,9 @@ class CommandHandler {
         
                 await ctx.reply('✅ PDF guardado correctamente.');
             } catch (error) {
+                logger.error('Error al procesar documento:', error);
                 await ctx.reply('❌ Error al procesar el documento.');
             } finally {
-                // Terminar el flujo de subida en cualquier caso
                 this.uploadTargets.delete(ctx.chat.id);
             }
         });
