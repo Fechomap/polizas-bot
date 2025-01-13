@@ -4,11 +4,7 @@ const connectDB = require('./database');
 const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
-const { 
-    handleGroupUpdate, 
-    checkBotPermissions, 
-    sendMessageWithRetry 
-} = require('./middleware/groupHandler');
+const handleGroupUpdate = require('./middleware/groupHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,10 +32,7 @@ async function initializeBot() {
             botId: botInfo.id
         });
 
-        // Middleware para manejar actualizaciones de grupo
-        bot.use(handleGroupUpdate);
-
-        // Middleware para logging y verificación de permisos
+        // Middleware para logging
         bot.use(async (ctx, next) => {
             const start = Date.now();
             logger.info('Procesando update', {
@@ -47,56 +40,35 @@ async function initializeBot() {
                 chatId: ctx.chat?.id,
                 text: ctx.message?.text
             });
-        
+
             try {
-                // Verificar si es un grupo y si el bot tiene los permisos necesarios
-                if (ctx.chat?.type !== 'private') {
-                    const hasPermissions = await checkBotPermissions(ctx);
-                    if (!hasPermissions) {
-                        logger.warn('Bot sin permisos de administrador', {
-                            chatId: ctx.chat.id
-                        });
-                        return await sendMessageWithRetry(
-                            bot,
-                            ctx.chat.id,
-                            '⚠️ El bot necesita permisos de administrador para funcionar correctamente.'
-                        );
-                    }
-                }
-        
                 await next();
                 const ms = Date.now() - start;
                 logger.info('Respuesta enviada', { ms });
             } catch (error) {
                 logger.error('Error en middleware:', error);
-                try {
-                    await sendMessageWithRetry(
-                        bot,
-                        ctx.chat.id,
-                        '❌ Error al procesar el comando.'
-                    );
-                } catch (sendError) {
-                    logger.error('Error enviando mensaje de error:', sendError);
-                }
+                await ctx.reply('❌ Error al procesar el comando.');
             }
         });
 
+        // Agregar middleware de grupo
+        bot.use(handleGroupUpdate);
+
+        // Registrar comandos
         logger.info('Registrando comandos...');
         new CommandHandler(bot);
         logger.info('✅ Comandos registrados');
 
+        // Manejador de errores global
         bot.catch((err, ctx) => {
             logger.error('Error no manejado:', {
                 error: err.message,
                 stack: err.stack
             });
-            return sendMessageWithRetry(
-                bot,
-                ctx.chat.id,
-                '❌ Ocurrió un error inesperado.'
-            );
+            return ctx.reply('❌ Ocurrió un error inesperado.');
         });
 
+        // Configurar graceful shutdown
         const handleShutdown = async (signal) => {
             if (isShuttingDown) return;
             
