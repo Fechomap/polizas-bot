@@ -102,7 +102,6 @@ class CommandHandler {
         
                 await ctx.reply(`📸 Mostrando ${fotos.length} foto(s):`);
         
-                // Enviar cada foto
                 for (const foto of fotos) {
                     try {
                         if (!foto.data) {
@@ -110,11 +109,14 @@ class CommandHandler {
                             continue;
                         }
         
-                        // Convertir el Buffer a un formato que Telegram pueda manejar
-                        const fileBuffer = Buffer.from(foto.data.buffer || foto.data);
-                        
+                        // Modificación aquí: manejo correcto del Buffer
+                        const fileBuffer = foto.data instanceof Buffer ? 
+                            foto.data : 
+                            Buffer.from(foto.data.buffer || foto.data);
+        
                         await ctx.replyWithPhoto({ 
-                            source: fileBuffer 
+                            source: fileBuffer,
+                            filename: `foto_${numeroPoliza}.jpg`
                         });
                     } catch (error) {
                         logger.error('Error al enviar foto individual:', error);
@@ -137,15 +139,14 @@ class CommandHandler {
                 if (!policy) {
                     return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
                 }
-                
+        
                 const pdfs = policy.archivos?.pdfs || [];
                 if (pdfs.length === 0) {
                     return await ctx.reply('📄 No hay PDFs asociados a esta póliza.');
                 }
-                
+        
                 await ctx.reply(`📄 Mostrando ${pdfs.length} PDF(s):`);
         
-                // Enviar cada PDF
                 for (const pdf of pdfs) {
                     try {
                         if (!pdf.data) {
@@ -153,9 +154,11 @@ class CommandHandler {
                             continue;
                         }
         
-                        // Convertir el Buffer a un formato que Telegram pueda manejar
-                        const fileBuffer = Buffer.from(pdf.data.buffer || pdf.data);
-                        
+                        // Modificación aquí: manejo correcto del Buffer
+                        const fileBuffer = pdf.data instanceof Buffer ? 
+                            pdf.data : 
+                            Buffer.from(pdf.data.buffer || pdf.data);
+        
                         await ctx.replyWithDocument({
                             source: fileBuffer,
                             filename: `Documento_${numeroPoliza}.pdf`

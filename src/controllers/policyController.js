@@ -97,41 +97,26 @@ const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
             policy.archivos = { fotos: [], pdfs: [] };
         }
 
+        // Asegurar que fileBuffer es un Buffer válido
+        const buffer = Buffer.isBuffer(fileBuffer) ? fileBuffer : Buffer.from(fileBuffer);
+
         // Crear el objeto de archivo
         const fileObject = {
-            data: fileBuffer,
+            data: buffer,
             contentType: fileType === 'foto' ? 'image/jpeg' : 'application/pdf'
         };
 
         // Añadir el archivo al array correspondiente
         if (fileType === 'foto') {
             policy.archivos.fotos.push(fileObject);
-            logger.info(`Foto añadida a la póliza: ${numeroPoliza}`);
         } else if (fileType === 'pdf') {
             policy.archivos.pdfs.push(fileObject);
-            logger.info(`PDF añadido a la póliza: ${numeroPoliza}`);
-        } else {
-            throw new Error(`Tipo de archivo inválido: ${fileType}`);
         }
 
-        // Guardar cambios
         const updatedPolicy = await policy.save();
-        logger.info(`Archivo guardado correctamente en la póliza: ${numeroPoliza}`);
-
-        // Log adicional para debug
-        logger.debug('Archivo guardado:', {
-            tieneData: !!fileObject.data,
-            tamañoData: fileObject.data ? fileObject.data.length : 0,
-            contentType: fileObject.contentType
-        });
-
         return updatedPolicy;
     } catch (error) {
-        logger.error('Error al añadir archivo a la póliza:', {
-            numeroPoliza,
-            fileType,
-            error: error.message
-        });
+        logger.error('Error al añadir archivo a la póliza:', error);
         throw error;
     }
 };
