@@ -138,13 +138,13 @@ const policySchema = new mongoose.Schema({
 
     // Archivos
     archivos: {
-        fotos: [{ 
-            type: String,
-            trim: true 
+        fotos: [{
+            data: Buffer,
+            contentType: String
         }],
-        pdfs: [{ 
-            type: String,
-            trim: true 
+        pdfs: [{
+            data: Buffer,
+            contentType: String
         }]
     }
 }, { 

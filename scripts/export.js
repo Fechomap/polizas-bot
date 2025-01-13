@@ -1,14 +1,13 @@
 // scripts/export.js
+// scripts/exportWithFiles.js
 
 const mongoose = require('mongoose');
 const XLSX = require('xlsx');
 const path = require('path');
+const fs = require('fs').promises;
+const Policy = require('../src/models/policy');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-// Importar el modelo de póliza
-const Policy = require('../src/models/policy');
-
-// Función para conectar a MongoDB
 const connectDB = async () => {
     try {
         const mongoURI = process.env.MONGO_URI;
@@ -29,9 +28,14 @@ const connectDB = async () => {
     }
 };
 
-// Función para exportar datos a Excel con 1 fila por póliza,
-// hasta 12 pagos (cada uno con 2 columnas: monto y fecha)
-// y hasta 12 servicios (cada uno con 3 columnas: costo, fecha, expediente).
+const ensureDirectoryExists = async (dirPath) => {
+    try {
+        await fs.access(dirPath);
+    } catch {
+        await fs.mkdir(dirPath, { recursive: true });
+    }
+};
+
 const exportData = async () => {
     try {
         const policies = await Policy.find().lean();
@@ -41,17 +45,21 @@ const exportData = async () => {
             process.exit(0);
         }
 
-        // Máximo de pagos y servicios a exportar en columnas
-        const MAX_PAGOS = 12;
-        const MAX_SERVICIOS = 12;
+        // Crear directorio para el backup
+        const backupDir = path.join(__dirname, 'backup');
+        const filesDir = path.join(backupDir, 'files');
+        await ensureDirectoryExists(backupDir);
+        await ensureDirectoryExists(filesDir);
 
         const rows = [];
+        let totalFiles = 0;
 
         for (const policy of policies) {
             const {
                 titular,
                 correo,
                 contraseña,
+                telefono,
                 calle,
                 colonia,
                 municipio,
@@ -69,14 +77,60 @@ const exportData = async () => {
                 numeroPoliza,
                 fechaEmision,
                 pagos = [],
-                servicios = []
+                servicios = [],
+                archivos = { fotos: [], pdfs: [] }
             } = policy;
 
-            // Datos base de la póliza
+            // Procesar archivos
+            const processedFiles = {
+                fotos: [],
+                pdfs: []
+            };
+
+            // Crear directorio específico para esta póliza
+            const policyDir = path.join(filesDir, numeroPoliza);
+            await ensureDirectoryExists(policyDir);
+
+            // Procesar fotos
+            if (archivos.fotos && archivos.fotos.length > 0) {
+                for (let i = 0; i < archivos.fotos.length; i++) {
+                    const foto = archivos.fotos[i];
+                    if (foto && foto.data) {
+                        const fileName = `foto_${i + 1}.${foto.contentType.split('/')[1]}`;
+                        const filePath = path.join(policyDir, fileName);
+                        await fs.writeFile(filePath, foto.data);
+                        processedFiles.fotos.push({
+                            nombre: fileName,
+                            contentType: foto.contentType
+                        });
+                        totalFiles++;
+                    }
+                }
+            }
+
+            // Procesar PDFs
+            if (archivos.pdfs && archivos.pdfs.length > 0) {
+                for (let i = 0; i < archivos.pdfs.length; i++) {
+                    const pdf = archivos.pdfs[i];
+                    if (pdf && pdf.data) {
+                        const fileName = `documento_${i + 1}.pdf`;
+                        const filePath = path.join(policyDir, fileName);
+                        await fs.writeFile(filePath, pdf.data);
+                        processedFiles.pdfs.push({
+                            nombre: fileName,
+                            contentType: pdf.contentType
+                        });
+                        totalFiles++;
+                    }
+                }
+            }
+
+            // Datos base de la póliza (igual que antes)
             const row = {
                 TITULAR: titular || '',
                 'CORREO ELECTRONICO': correo || '',
                 CONTRASEÑA: contraseña || '',
+                TELEFONO: telefono || '',
                 CALLE: calle || '',
                 COLONIA: colonia || '',
                 MUNICIPIO: municipio || '',
@@ -94,73 +148,48 @@ const exportData = async () => {
                 '# DE POLIZA': numeroPoliza || '',
                 'FECHA DE EMISION': fechaEmision
                     ? fechaEmision.toISOString().split('T')[0]
-                    : '',
-            
-                // NUEVA COLUMNA "TELEFONO"
-                TELEFONO: policy.telefono || ''
+                    : ''
             };
 
-            //
-            // 1) Expandir columnas de PAGOS
-            //
-            for (let i = 0; i < MAX_PAGOS; i++) {
-                const pago = pagos[i];
-                const colMonto = `PAGO${i + 1}_MONTO`;
-                const colFecha = `PAGO${i + 1}_FECHA`;
+            // Agregar información de archivos
+            row['FOTOS'] = JSON.stringify(processedFiles.fotos);
+            row['PDFS'] = JSON.stringify(processedFiles.pdfs);
 
-                if (pago) {
-                    row[colMonto] = pago.monto ?? '';
-                    row[colFecha] = pago.fechaPago
-                        ? pago.fechaPago.toISOString().split('T')[0]
-                        : '';
-                } else {
-                    row[colMonto] = '';
-                    row[colFecha] = '';
-                }
+            // Procesar pagos y servicios (igual que antes)
+            for (let i = 0; i < 12; i++) {
+                const pago = pagos[i];
+                row[`PAGO${i + 1}_MONTO`] = pago ? pago.monto : '';
+                row[`PAGO${i + 1}_FECHA`] = pago && pago.fechaPago
+                    ? pago.fechaPago.toISOString().split('T')[0]
+                    : '';
             }
 
-            //
-            // 2) Expandir columnas de SERVICIOS
-            //
-            for (let i = 0; i < MAX_SERVICIOS; i++) {
+            for (let i = 0; i < 12; i++) {
                 const servicio = servicios[i];
-                const colCosto = `SERVICIO${i + 1}_COSTO`;
-                const colFecha = `SERVICIO${i + 1}_FECHA`;
-                const colExped = `SERVICIO${i + 1}_EXPEDIENTE`;
-                const colOrigDest = `SERVICIO${i + 1}_ORIGEN_DESTINO`; // <-- COLUMNA NUEVA
-            
-                if (servicio) {
-                    row[colCosto] = servicio.costo ?? '';
-                    row[colFecha] = servicio.fechaServicio
-                        ? servicio.fechaServicio.toISOString().split('T')[0]
-                        : '';
-                    row[colExped] = servicio.numeroExpediente ?? '';
-                    row[colOrigDest] = servicio.origenDestino ?? '';  // <-- LLENAR con el nuevo campo
-                } else {
-                    row[colCosto] = '';
-                    row[colFecha] = '';
-                    row[colExped] = '';
-                    row[colOrigDest] = ''; // <-- Dejar vacío si no existe
-                }
+                row[`SERVICIO${i + 1}_COSTO`] = servicio ? servicio.costo : '';
+                row[`SERVICIO${i + 1}_FECHA`] = servicio && servicio.fechaServicio
+                    ? servicio.fechaServicio.toISOString().split('T')[0]
+                    : '';
+                row[`SERVICIO${i + 1}_EXPEDIENTE`] = servicio ? servicio.numeroExpediente : '';
+                row[`SERVICIO${i + 1}_ORIGEN_DESTINO`] = servicio ? servicio.origenDestino : '';
             }
 
             rows.push(row);
         }
 
-        // Crear un nuevo libro de trabajo
+        // Crear archivo Excel
         const workbook = XLSX.utils.book_new();
-        // Convertir 'rows' a una hoja de Excel
         const worksheet = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'PolizasCompletas');
+        
+        // Guardar Excel en el directorio de backup
+        const excelPath = path.join(backupDir, 'polizas_backup.xlsx');
+        XLSX.writeFile(workbook, excelPath);
 
-        // Agregar la hoja al libro de trabajo
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'PolizasConPagosServicios');
-
-        // Definir la ruta del archivo exportado
-        const exportPath = path.join(__dirname, 'polizas_backup.xlsx');
-
-        // Escribir el archivo Excel
-        XLSX.writeFile(workbook, exportPath);
-        console.log(`✅ Exportación completada exitosamente. Archivo guardado en ${exportPath}`);
+        console.log(`✅ Exportación completada exitosamente.`);
+        console.log(`📁 Directorio de backup: ${backupDir}`);
+        console.log(`📊 Pólizas exportadas: ${rows.length}`);
+        console.log(`📎 Archivos exportados: ${totalFiles}`);
         process.exit(0);
     } catch (error) {
         console.error('❌ Error durante la exportación:', error);
@@ -168,7 +197,6 @@ const exportData = async () => {
     }
 };
 
-// Ejecutar la exportación
 const run = async () => {
     await connectDB();
     await exportData();
