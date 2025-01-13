@@ -4,6 +4,16 @@ const logger = require('../utils/logger');
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 
+const checkBotPermissions = async (ctx) => {
+    try {
+        const member = await ctx.telegram.getChatMember(ctx.chat.id, ctx.botInfo.id);
+        return member.status === 'administrator';
+    } catch (error) {
+        logger.error('Error verificando permisos:', error);
+        return false;
+    }
+};
+
 const sendMessageWithRetry = async (bot, chatId, message, retryCount = 0) => {
     try {
         await bot.telegram.sendMessage(chatId, message);
@@ -45,15 +55,10 @@ const handleGroupUpdate = async (ctx, next) => {
 
         // Solo verificar permisos para comandos
         if (ctx.message?.text?.startsWith('/')) {
-            try {
-                const member = await ctx.telegram.getChatMember(chatId, ctx.botInfo.id);
-                if (member.status !== 'administrator') {
-                    logger.warn('Bot necesita permisos de administrador', { chatId });
-                    await ctx.reply('⚠️ Por favor, dame permisos de administrador para funcionar correctamente.');
-                    return;
-                }
-            } catch (error) {
-                logger.error('Error verificando permisos:', error);
+            const hasPermissions = await checkBotPermissions(ctx);
+            if (!hasPermissions) {
+                logger.warn('Bot necesita permisos de administrador', { chatId });
+                await ctx.reply('⚠️ Por favor, dame permisos de administrador para funcionar correctamente.');
                 return;
             }
         }
@@ -67,5 +72,6 @@ const handleGroupUpdate = async (ctx, next) => {
 module.exports = {
     handleGroupUpdate,
     sendMessageWithRetry,
-    isAllowedGroup
+    isAllowedGroup,
+    checkBotPermissions
 };

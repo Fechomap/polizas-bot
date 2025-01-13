@@ -4,7 +4,11 @@ const connectDB = require('./database');
 const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
-const { handleGroupUpdate, checkBotPermissions, sendMessageWithRetry } = require('./middleware/groupHandler');
+const { 
+    handleGroupUpdate, 
+    checkBotPermissions, 
+    sendMessageWithRetry 
+} = require('./middleware/groupHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,7 +47,7 @@ async function initializeBot() {
                 chatId: ctx.chat?.id,
                 text: ctx.message?.text
             });
-
+        
             try {
                 // Verificar si es un grupo y si el bot tiene los permisos necesarios
                 if (ctx.chat?.type !== 'private') {
@@ -59,15 +63,11 @@ async function initializeBot() {
                         );
                     }
                 }
-
+        
                 await next();
                 const ms = Date.now() - start;
                 logger.info('Respuesta enviada', { ms });
             } catch (error) {
-                if (error.code === 403) {
-                    logger.error('Error de permisos:', error);
-                    return;
-                }
                 logger.error('Error en middleware:', error);
                 try {
                     await sendMessageWithRetry(
