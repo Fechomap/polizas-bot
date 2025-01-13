@@ -4,6 +4,7 @@ const connectDB = require('./database');
 const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
+const { handleGroupUpdate, checkBotPermissions, sendMessageWithRetry } = require('./middleware/groupHandler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,31 +13,29 @@ let isShuttingDown = false;
 
 async function initializeBot() {
     try {
-        // Configurar servidor web básico para Heroku
         app.get('/', (req, res) => {
             res.send('Bot is running!');
         });
 
-        // Iniciar servidor web
         app.listen(PORT, () => {
             logger.info(`Servidor web iniciado en puerto ${PORT}`);
         });
 
-        // Conectar a la base de datos
         await connectDB();
         logger.info('✅ Base de datos conectada con éxito');
 
-        // Crear instancia del bot
         const bot = new Telegraf(config.telegram.token);
 
-        // Verificar conexión con Telegram
         const botInfo = await bot.telegram.getMe();
         logger.info('Bot conectado exitosamente a Telegram', {
             botName: botInfo.username,
             botId: botInfo.id
         });
 
-        // Middleware para logging
+        // Middleware para manejar actualizaciones de grupo
+        bot.use(handleGroupUpdate);
+
+        // Middleware para logging y verificación de permisos
         bot.use(async (ctx, next) => {
             const start = Date.now();
             logger.info('Procesando update', {
@@ -46,30 +45,58 @@ async function initializeBot() {
             });
 
             try {
+                // Verificar si es un grupo y si el bot tiene los permisos necesarios
+                if (ctx.chat?.type !== 'private') {
+                    const hasPermissions = await checkBotPermissions(ctx);
+                    if (!hasPermissions) {
+                        logger.warn('Bot sin permisos de administrador', {
+                            chatId: ctx.chat.id
+                        });
+                        return await sendMessageWithRetry(
+                            bot,
+                            ctx.chat.id,
+                            '⚠️ El bot necesita permisos de administrador para funcionar correctamente.'
+                        );
+                    }
+                }
+
                 await next();
                 const ms = Date.now() - start;
                 logger.info('Respuesta enviada', { ms });
             } catch (error) {
+                if (error.code === 403) {
+                    logger.error('Error de permisos:', error);
+                    return;
+                }
                 logger.error('Error en middleware:', error);
-                await ctx.reply('❌ Error al procesar el comando.');
+                try {
+                    await sendMessageWithRetry(
+                        bot,
+                        ctx.chat.id,
+                        '❌ Error al procesar el comando.'
+                    );
+                } catch (sendError) {
+                    logger.error('Error enviando mensaje de error:', sendError);
+                }
             }
         });
 
-        // Registrar comandos
         logger.info('Registrando comandos...');
         new CommandHandler(bot);
         logger.info('✅ Comandos registrados');
 
-        // Manejador de errores global
         bot.catch((err, ctx) => {
             logger.error('Error no manejado:', {
                 error: err.message,
                 stack: err.stack
             });
-            return ctx.reply('❌ Ocurrió un error inesperado.');
+            return sendMessageWithRetry(
+                bot,
+                ctx.chat.id,
+                '❌ Ocurrió un error inesperado.'
+            );
         });
 
-        // Configurar graceful shutdown
         const handleShutdown = async (signal) => {
             if (isShuttingDown) return;
             
@@ -91,7 +118,6 @@ async function initializeBot() {
         process.once('SIGINT', () => handleShutdown('SIGINT'));
         process.once('SIGTERM', () => handleShutdown('SIGTERM'));
 
-        // Iniciar el bot
         await bot.launch();
         logger.info('🤖 Bot iniciado exitosamente');
 
@@ -102,7 +128,6 @@ async function initializeBot() {
     }
 }
 
-// Iniciar el bot
 initializeBot().catch(error => {
     logger.error('Error fatal, deteniendo el proceso:', error);
     process.exit(1);

@@ -146,7 +146,7 @@ class CommandHandler {
         // Comando DELETE (conversacional)
         this.bot.command('delete', async (ctx) => {
             try {
-                const ADMIN_ID = 7143094298;  // <-- Pon AQUÍ tu ID de Telegram (numérico)
+                const ADMIN_ID = -1002291817096;  // <-- Pon AQUÍ tu ID de Telegram (numérico)
                 if (ctx.from.id !== ADMIN_ID) {
                     return await ctx.reply('❌ No tienes permiso para borrar pólizas.');
                 }
