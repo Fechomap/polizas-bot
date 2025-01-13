@@ -119,24 +119,20 @@ const policySchema = new mongoose.Schema({
         trim: true
     },
 
-    pagos: [
-        {
-          monto: { type: Number, required: true },
-          fechaPago: { type: Date, required: true }
-        }
-      ],
+    pagos: [{
+        monto: { type: Number, required: true },
+        fechaPago: { type: Date, required: true }
+    }],
     
-    servicios: [
-        {
-          numeroServicio: { type: Number, required: true }, // Contador interno
-          costo: { type: Number, required: true },
-          fechaServicio: { type: Date, required: true },
-          numeroExpediente: { type: String, required: true },
-          origenDestino: { type: String, required: false, trim: true }
-        }
-      ],
+    servicios: [{
+        numeroServicio: { type: Number, required: false }, // Cambiado a no requerido
+        costo: { type: Number, required: false },
+        fechaServicio: { type: Date, required: false },
+        numeroExpediente: { type: String, required: false },
+        origenDestino: { type: String, required: false, trim: true }
+    }],
 
-    // Archivos
+    // Modificado el esquema de archivos para manejar datos binarios
     archivos: {
         fotos: [{
             data: Buffer,
