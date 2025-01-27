@@ -5,14 +5,34 @@ nodemon src/bot.js            # Modo desarrollo con recarga automática
 node src/bot.js              # Modo normal
 NODE_ENV=production node src/bot.js    # Modo producción
 
-# Base de Datos
+# Gestión con PM2
+pm2 start src/bot.js --name "bot"  # Iniciar con PM2
+pm2 stop bot                       # Detener bot
+pm2 restart bot                    # Reiniciar bot
+pm2 logs bot                       # Ver logs en tiempo real
+pm2 monit                         # Monitorear recursos
+
+# Operaciones básicas
 node scripts/export.js       # Exportar base de datos
 node scripts/import.js       # Importar base de datos
 node scripts/clearAll.js     # Limpiar base de datos
 
+# Respaldos
+node scripts/backup.js       # Crear respaldo completo
+node scripts/restore.js      # Restaurar desde respaldo
+
 # Logs
 tail -f logs/combined.log    # Ver todos los logs en tiempo real
 tail -f logs/error.log      # Ver solo logs de error
+
+# Ver logs en tiempo real
+tail -f logs/combined.log    # Ver todos los logs
+tail -f logs/error.log      # Ver solo errores
+tail -f logs/debug.log      # Ver logs de depuración
+
+# Análisis de logs
+grep "ERROR" logs/combined.log  # Buscar errores
+grep "WARNING" logs/combined.log # Buscar advertencias
 
 # Respaldos
 node scripts/exportToExcel.js    # Exportar a Excel
@@ -21,10 +41,46 @@ node scripts/exportToJson.js     # Exportar a JSON
 # Limpieza
 rm -rf node_modules/        # Limpiar módulos
 rm -f logs/*.log           # Limpiar logs
+npm cache clean --force    # Limpiar caché de npm
 
 # Instalación
 npm install                # Instalación normal
 npm install --include=dev  # Instalación con dependencias de desarrollo
+npm ci                    # Instalación limpia (usa package-lock.json)
+
+# Configuración
+cp .env.example .env      # Crear archivo de configuración
+chmod +x scripts/*.js     # Dar permisos de ejecución a scripts
+
 
 # Despliegue
 git pull && npm install && pm2 restart bot  # Actualizar y reiniciar
+
+
+# Git básico
+git status                
+git add .                 
+git commit -m "se cambia correo por telfono en consulta de poliza"   
+git push origin main      
+
+# Ramas y fusiones
+git checkout -b feature   # Crear nueva rama
+git merge feature        # Fusionar rama
+git branch -d feature    # Eliminar rama
+
+# Despliegue básico
+git pull && npm install && pm2 restart bot  # Actualizar y reiniciar
+
+# Despliegue con respaldo
+node scripts/backup.js && git pull && npm install && pm2 restart bot
+
+# Despliegue con verificación
+npm test && git pull && npm install && pm2 restart bot
+
+# Verificación de salud
+curl http://localhost:3000/health  # Verificar estado del servidor
+node scripts/checkDependencies.js  # Verificar dependencias
+
+# Limpieza de caché
+node scripts/clearCache.js        # Limpiar caché
+node scripts/optimizeDb.js        # Optimizar base de datos

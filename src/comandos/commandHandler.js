@@ -1010,7 +1010,7 @@ class CommandHandler {
 📋 *Información de la Póliza*
 *Número:* ${policy.numeroPoliza}
 *Titular:* ${policy.titular}
-📧 *Correo:* ${policy.correo || 'No proporcionado'}
+📞 *Cel:* ${policy.telefono || 'No proporcionado'}
 
 🚗 *Datos del Vehículo:*
 *Marca:* ${policy.marca}
