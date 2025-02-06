@@ -416,69 +416,43 @@ class CommandHandler {
         });
 
         // Comando para reporte de pólizas "usadas"
+        // Dentro de la clase CommandHandler, en setupCommands()
         this.bot.command('reportUsed', async (ctx) => {
             try {
-                const oldUnused = await getOldUnusedPolicies();
+                const policies = await getOldUnusedPolicies();
 
-                if (!oldUnused.length) {
-                    return await ctx.reply('✅ No hay pólizas pendientes (todas tienen servicios recientes).');
+                if (!policies.length) {
+                    return await ctx.reply('✅ No hay pólizas pendientes para usar.');
                 }
 
-                // Función de ordenamiento según los criterios especificados
-                const sortPolicies = (policies) => {
-                    return policies.sort((a, b) => {
-                        // 1. Primero por días desde emisión (más de 25 días)
-                        const diasDesdeEmisionA = (new Date() - new Date(a.fechaEmision)) / (1000 * 60 * 60 * 24);
-                        const diasDesdeEmisionB = (new Date() - new Date(b.fechaEmision)) / (1000 * 60 * 60 * 24);
-                        
-                        // Si ambas tienen más de 25 días, seguimos con los siguientes criterios
-                        if (diasDesdeEmisionA > 25 && diasDesdeEmisionB > 25) {
-                            // 2. Por número de servicios (menor primero)
-                            const numServiciosA = a.servicios?.length || 0;
-                            const numServiciosB = b.servicios?.length || 0;
-                            if (numServiciosA !== numServiciosB) {
-                                return numServiciosA - numServiciosB;
-                            }
-                            
-                            // 3. Por fecha del último servicio (más antiguo primero)
-                            if (numServiciosA === 0 && numServiciosB === 0) {
-                                return 0; // Ambas sin servicios
-                            }
-                            
-                            const ultimoServicioA = numServiciosA > 0 ? 
-                                Math.max(...a.servicios.map(s => new Date(s.fechaServicio).getTime())) : 
-                                new Date().getTime();
-                            const ultimoServicioB = numServiciosB > 0 ? 
-                                Math.max(...b.servicios.map(s => new Date(s.fechaServicio).getTime())) : 
-                                new Date().getTime();
-                                
-                            return ultimoServicioA - ultimoServicioB;
-                        }
-                        
-                        // Si una tiene más de 25 días y la otra no, priorizar la que tiene más de 25
-                        return diasDesdeEmisionB - diasDesdeEmisionA;
-                    });
-                };
+                // Vamos a mandar un mensaje por cada póliza en el resultado
+                for (const pol of policies) {
+                    const now = new Date();
+                    const diasDesdeEmision = Math.floor(
+                        (now - new Date(pol.fechaEmision)) / (1000 * 60 * 60 * 24)
+                    );
 
-                // Ordenar las pólizas según los criterios
-                const sortedPolicies = sortPolicies(oldUnused);
-
-                // Tomar solo las primeras 10
-                const top10Policies = sortedPolicies.slice(0, 10);
-
-                // Vamos a mandar un mensaje por cada póliza en el Top 10
-                for (const pol of top10Policies) {
-                    // 1) Fecha de Emisión
+                    // Formatear fecha de emisión
                     const fEmision = pol.fechaEmision
                         ? new Date(pol.fechaEmision).toISOString().split('T')[0]
                         : '??';
 
-                    // 2) Datos de servicios
+                    // Preparar información de servicios
                     const servicios = pol.servicios || [];
+                    const pagos = pol.pagos || [];
 
-                    let infoServicio = '📋 *No existe reporte de servicio.*';
+                    // Determinar si está a punto de vencer
+                    const aPuntoDeVencer = diasDesdeEmision >= 29 && pagos.length === 0 && servicios.length === 0;
+
+                    // Preparar mensaje de alerta si aplica
+                    let alertaVencimiento = '';
+                    if (aPuntoDeVencer) {
+                        alertaVencimiento = '⚠️ *¡URGENTE! Póliza a punto de vencer*\n';
+                    }
+
+                    // Preparar información de servicios
+                    let infoServicio = '📋 *No tiene servicios registrados.*';
                     if (servicios.length > 0) {
-                        // Encontrar el último servicio por fecha
                         const ultimo = servicios.reduce((latest, current) => {
                             const currentDate = new Date(current.fechaServicio);
                             return !latest || currentDate > new Date(latest.fechaServicio) ? current : latest;
@@ -489,20 +463,24 @@ class CommandHandler {
                             : '??';
                         const origenDest = ultimo.origenDestino || '(Sin origen/destino)';
 
-                        infoServicio =
-                            `🕒 Último Serv: ${fechaServ}\n` +
-                            `📍 Origen/Destino: ${origenDest}\n` +
-                            `📊 Total de Servicios: ${servicios.length}`;
+                        infoServicio = `🕒 Último Serv: ${fechaServ}\n` +
+                                    `📍 Origen/Destino: ${origenDest}\n` +
+                                    `📊 Total Servicios: ${servicios.length}`;
                     }
 
-                    // 3) Construir el texto para esta póliza
-                    const msg = `
-        🔍 *Póliza:* ${pol.numeroPoliza}
-        📅 *Emisión:* ${fEmision}
-        ${infoServicio}
-                    `.trim();
+                    // Preparar información de pagos
+                    const infoPagos = pagos.length === 0
+                        ? '❌ *No tiene pagos registrados*'
+                        : `💰 Pagos realizados: ${pagos.length}`;
 
-                    // 4) Crear el botón para "Consultar"
+                    // Construir el mensaje completo
+                    const msg = `
+        ${alertaVencimiento}🔍 *Póliza:* ${pol.numeroPoliza}
+        📅 *Emisión:* ${fEmision} (${diasDesdeEmision} días)
+        ${infoServicio}
+        ${infoPagos}`.trim();
+
+                    // Crear botones inline
                     const inlineKeyboard = [
                         [
                             Markup.button.callback(
@@ -512,17 +490,18 @@ class CommandHandler {
                         ]
                     ];
 
-                    // 5) Enviar un mensaje individual por póliza
+                    // Enviar mensaje
                     await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
 
-                    // Pequeña pausa entre mensajes para evitar límites de rate
+                    // Pequeña pausa entre mensajes
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
             } catch (error) {
                 logger.error('Error en reportUsed:', error);
-                await ctx.reply('❌ Ocurrió un error al generar el reporte de pólizas usadas.');
+                await ctx.reply('❌ Ocurrió un error al generar el reporte de pólizas.');
             }
         });
+        
 
         // Manejador de callback "getPoliza:..."
         this.bot.action(/getPoliza:(.+)/, async (ctx) => {
