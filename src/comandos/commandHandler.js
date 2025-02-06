@@ -416,40 +416,42 @@ class CommandHandler {
         });
 
         // Comando para reporte de pólizas "usadas"
-        // Dentro de la clase CommandHandler, en setupCommands()
         this.bot.command('reportUsed', async (ctx) => {
             try {
                 const policies = await getOldUnusedPolicies();
-
+        
                 if (!policies.length) {
                     return await ctx.reply('✅ No hay pólizas pendientes para usar.');
                 }
-
+        
                 // Vamos a mandar un mensaje por cada póliza en el resultado
                 for (const pol of policies) {
                     const now = new Date();
-                    const diasDesdeEmision = Math.floor(
+                    const diasTotales = Math.floor(
                         (now - new Date(pol.fechaEmision)) / (1000 * 60 * 60 * 24)
                     );
-
+        
+                    // Los días efectivos vienen de la función getOldUnusedPolicies
+                    const diasEfectivos = pol._diasEfectivos;
+        
                     // Formatear fecha de emisión
                     const fEmision = pol.fechaEmision
                         ? new Date(pol.fechaEmision).toISOString().split('T')[0]
                         : '??';
-
+        
                     // Preparar información de servicios
                     const servicios = pol.servicios || [];
                     const pagos = pol.pagos || [];
-
-                    // Determinar si está a punto de vencer
-                    const aPuntoDeVencer = diasDesdeEmision >= 29 && pagos.length === 0 && servicios.length === 0;
-
+        
+                    // Determinar si está a punto de vencer (usando días efectivos)
+                    const aPuntoDeVencer = diasEfectivos >= 25 && pagos.length === 0 && servicios.length === 0;
+        
                     // Preparar mensaje de alerta si aplica
                     let alertaVencimiento = '';
                     if (aPuntoDeVencer) {
                         alertaVencimiento = '⚠️ *¡URGENTE! Póliza a punto de vencer*\n';
                     }
-
+        
                     // Preparar información de servicios
                     let infoServicio = '📋 *No tiene servicios registrados.*';
                     if (servicios.length > 0) {
@@ -457,29 +459,35 @@ class CommandHandler {
                             const currentDate = new Date(current.fechaServicio);
                             return !latest || currentDate > new Date(latest.fechaServicio) ? current : latest;
                         }, null);
-
+        
                         const fechaServ = ultimo.fechaServicio
                             ? new Date(ultimo.fechaServicio).toISOString().split('T')[0]
                             : '??';
                         const origenDest = ultimo.origenDestino || '(Sin origen/destino)';
-
+        
                         infoServicio = `🕒 Último Serv: ${fechaServ}\n` +
-                                    `📍 Origen/Destino: ${origenDest}\n` +
-                                    `📊 Total Servicios: ${servicios.length}`;
+                                     `📍 Origen/Destino: ${origenDest}\n` +
+                                     `📊 Total Servicios: ${servicios.length}`;
                     }
-
-                    // Preparar información de pagos
-                    const infoPagos = pagos.length === 0
-                        ? '❌ *No tiene pagos registrados*'
-                        : `💰 Pagos realizados: ${pagos.length}`;
-
+        
+                    // Preparar información de pagos con detalle de cobertura
+                    let infoPagos;
+                    if (pagos.length === 0) {
+                        infoPagos = '❌ *No tiene pagos registrados*';
+                    } else {
+                        const diasRestantes = Math.max(0, 30 - diasEfectivos);
+                        infoPagos = `💰 Pagos realizados: ${pagos.length}\n` +
+                                   `📅 Días efectivos sin cobertura: ${diasEfectivos}\n` +
+                                   `⏳ Días restantes del último pago: ${diasRestantes}`;
+                    }
+        
                     // Construir el mensaje completo
                     const msg = `
         ${alertaVencimiento}🔍 *Póliza:* ${pol.numeroPoliza}
-        📅 *Emisión:* ${fEmision} (${diasDesdeEmision} días)
+        📅 *Emisión:* ${fEmision} (${diasTotales} días totales)
         ${infoServicio}
         ${infoPagos}`.trim();
-
+        
                     // Crear botones inline
                     const inlineKeyboard = [
                         [
@@ -489,10 +497,10 @@ class CommandHandler {
                             )
                         ]
                     ];
-
+        
                     // Enviar mensaje
                     await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-
+        
                     // Pequeña pausa entre mensajes
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }

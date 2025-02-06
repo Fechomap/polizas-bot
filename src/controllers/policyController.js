@@ -295,7 +295,8 @@ const getSusceptiblePolicies = async () => {
  */
 const getOldUnusedPolicies = async () => {
     const now = new Date();
-    const THRESHOLD_DIAS_MINIMO = 25; // Mantenemos el umbral mínimo
+    const THRESHOLD_DIAS_MINIMO = 25;
+    const DIAS_POR_PAGO = 30;
 
     // 1) Obtener todas las pólizas
     const allPolicies = await Policy.find({}).lean();
@@ -303,30 +304,36 @@ const getOldUnusedPolicies = async () => {
     // 2) Preparar datos para ordenamiento
     const polConCampos = allPolicies.map((pol) => {
         const msDesdeEmision = now - new Date(pol.fechaEmision);
-        const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
+        const diasTotales = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
         
         const servicios = pol.servicios || [];
         const pagos = pol.pagos || [];
         
-        // Determinar si está a punto de vencer (30 días o más sin pago y sin servicios)
-        const aPuntoDeVencer = diasDesdeEmision >= 29 && pagos.length === 0 && servicios.length === 0;
+        // Calcular días efectivos restando 30 días por cada pago
+        const diasCubiertos = pagos.length * DIAS_POR_PAGO;
+        const diasEfectivos = Math.max(0, diasTotales - diasCubiertos);
+
+        // Una póliza está a punto de vencer si:
+        // 1. No tiene servicios
+        // 2. Los días efectivos (después de considerar pagos) son >= 25
+        const aPuntoDeVencer = servicios.length === 0 && diasEfectivos >= 25;
 
         return {
             pol,
-            diasDesdeEmision,
+            diasTotales,
+            diasEfectivos,
             numServicios: servicios.length,
             numPagos: pagos.length,
             aPuntoDeVencer,
-            // Si hay servicios, calculamos la fecha del último
             ultimoServicio: servicios.length > 0 ? 
                 Math.max(...servicios.map(s => new Date(s.fechaServicio).getTime())) : 
                 null
         };
     });
 
-    // 3) Filtrar pólizas muy recientes
-    const polFiltradas = polConCampos.filter(({ diasDesdeEmision }) => 
-        diasDesdeEmision >= THRESHOLD_DIAS_MINIMO
+    // 3) Filtrar pólizas según días efectivos
+    const polFiltradas = polConCampos.filter(({ diasEfectivos }) => 
+        diasEfectivos >= THRESHOLD_DIAS_MINIMO
     );
 
     // 4) Ordenar según nueva priorización
@@ -335,22 +342,22 @@ const getOldUnusedPolicies = async () => {
         if (a.aPuntoDeVencer && !b.aPuntoDeVencer) return -1;
         if (b.aPuntoDeVencer && !a.aPuntoDeVencer) return 1;
         
-        // 2. Priorizar pólizas sin servicios y más antiguas
+        // 2. Priorizar pólizas sin servicios y más días efectivos
         if (a.numServicios === 0 && b.numServicios !== 0) return -1;
         if (b.numServicios === 0 && a.numServicios !== 0) return 1;
         if (a.numServicios === 0 && b.numServicios === 0) {
-            return b.diasDesdeEmision - a.diasDesdeEmision;
+            return b.diasEfectivos - a.diasEfectivos;
         }
         
         // 3. Pólizas con un servicio pero sin pago
         if (a.numServicios === 1 && a.numPagos === 0 && 
             b.numServicios === 1 && b.numPagos === 0) {
-            return b.diasDesdeEmision - a.diasDesdeEmision;
+            return b.diasEfectivos - a.diasEfectivos;
         }
         
-        // 4. Priorizar por antigüedad si los días son diferentes
-        if (a.diasDesdeEmision !== b.diasDesdeEmision) {
-            return b.diasDesdeEmision - a.diasDesdeEmision;
+        // 4. Priorizar por días efectivos si son diferentes
+        if (a.diasEfectivos !== b.diasEfectivos) {
+            return b.diasEfectivos - a.diasEfectivos;
         }
 
         // 5. Pólizas con pagos van al final
@@ -361,12 +368,14 @@ const getOldUnusedPolicies = async () => {
         if (a.numServicios >= 2 && b.numServicios < 2) return 1;
         if (b.numServicios >= 2 && a.numServicios < 2) return -1;
         
-        // Si todo es igual, mantener orden original
         return 0;
     });
 
     // 5) Retornar top 10
-    return polFiltradas.slice(0, 10).map(x => x.pol);
+    return polFiltradas.slice(0, 10).map(x => ({
+        ...x.pol,
+        _diasEfectivos: x.diasEfectivos // Añadimos esta info para el reporte
+    }));
 };
 
 module.exports = {
