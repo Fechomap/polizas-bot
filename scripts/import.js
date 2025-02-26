@@ -64,7 +64,7 @@ const convertirFecha = (fecha) => {
 
 const toUpperIfExists = (value) => {
     if (value == null || value === '') return '';
-    return String(value).toUpperCase();
+    return String(value).toUpperCase().trim().replace(/[\r\n\t]/g, '');
 };
 
 // Función para calcular estado actual de la póliza
@@ -195,7 +195,7 @@ const importData = async () => {
                 }
             }
 
-            const numeroPoliza = toUpperIfExists(item['# DE POLIZA']);
+            const numeroPoliza = toUpperIfExists(item['# DE POLIZA']).trim().replace(/[\r\n\t]/g, '');
             if (!numeroPoliza) {
                 console.log('⚠️ Registro sin número de póliza, saltando...');
                 continue;
@@ -278,6 +278,20 @@ const importData = async () => {
                     estado: estadoInfo.estado,
                     fechaCalculoEstado: new Date()
                 };
+            }
+
+
+            // Verificación final antes de guardar
+            if (policyData.numeroPoliza.length > 20 || /[\r\n\t]/.test(policyData.numeroPoliza)) {
+                console.log(`⚠️ Detectado posible problema en número de póliza: "${policyData.numeroPoliza}"`);
+                policyData.numeroPoliza = policyData.numeroPoliza.trim().replace(/[\r\n\t]/g, '');
+                console.log(`   Corregido a: "${policyData.numeroPoliza}"`);
+            }
+
+            // Verificar y asignar estado solo si es necesario
+            if (!policyData.estado || !['ACTIVO', 'INACTIVO', 'ELIMINADO'].includes(policyData.estado)) {
+                console.log(`   ℹ️ Asignando estado ACTIVO a póliza sin estado válido: ${numeroPoliza}`);
+                policyData.estado = 'ACTIVO';
             }
 
             try {
