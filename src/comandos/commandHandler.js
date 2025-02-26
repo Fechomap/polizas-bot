@@ -1,7 +1,19 @@
 // src/comandos/commandHandler.js
 const { Markup } = require('telegraf');
 const config = require('../config');  // <-- Añadir esta línea
-const { getPolicyByNumber, savePolicy, addFileToPolicy, deletePolicyByNumber, addPaymentToPolicy, addServiceToPolicy,  getSusceptiblePolicies, getOldUnusedPolicies } = require('../controllers/policyController');
+const { 
+    getPolicyByNumber, 
+    savePolicy, 
+    addFileToPolicy, 
+    deletePolicyByNumber, 
+    addPaymentToPolicy, 
+    addServiceToPolicy,
+    getSusceptiblePolicies, 
+    getOldUnusedPolicies,
+    markPolicyAsDeleted,
+    getDeletedPolicies,
+    restorePolicy
+} = require('../controllers/policyController');
 const logger = require('../utils/logger');
 const FileHandler = require('../utils/fileHandler');
 const fetch = require('node-fetch');
@@ -185,20 +197,23 @@ class CommandHandler {
         // Comando DELETE (conversacional)
         this.bot.command('delete', async (ctx) => {
             try {
-                const ADMIN_ID = 7143094298;  // <-- Pon AQUÍ tu ID de Telegram (numérico)
+                const ADMIN_ID = 7143094298;  // <-- Asegúrate que sea el ID correcto
                 if (ctx.from.id !== ADMIN_ID) {
-                    return await ctx.reply('❌ No tienes permiso para borrar pólizas.');
+                    return await ctx.reply('❌ No tienes permiso para marcar pólizas como eliminadas.');
                 }
         
                 const chatId = ctx.chat.id;
                 // Marcamos que esperamos un número de póliza
                 this.awaitingDeletePolicyNumber.set(chatId, true);
-                await ctx.reply('Por favor, ingresa el número de póliza que deseas eliminar (ADMIN).');
+                await ctx.reply(
+                    '📝 Por favor, ingresa el número de póliza a marcar como ELIMINADA.\n' +
+                    'Esta póliza será excluida de todas las consultas y reportes, pero se conservará en la base de datos.'
+                );
             } catch (error) {
                 logger.error('Error al iniciar comando delete:', error);
-                await ctx.reply('❌ Error al iniciar la eliminación. Intenta nuevamente.');
+                await ctx.reply('❌ Error al iniciar el proceso. Intenta nuevamente.');
             }
-        });       
+        });     
 
         // Comando UPLOAD (conversacional)
         this.bot.command('upload', async (ctx) => {
@@ -419,39 +434,84 @@ class CommandHandler {
         this.bot.command('reportUsed', async (ctx) => {
             try {
                 const policies = await getOldUnusedPolicies();
-        
+
                 if (!policies.length) {
                     return await ctx.reply('✅ No hay pólizas pendientes para usar.');
                 }
-        
+
                 // Vamos a mandar un mensaje por cada póliza en el resultado
                 for (const pol of policies) {
-                    const now = new Date();
-                    const diasTotales = Math.floor(
-                        (now - new Date(pol.fechaEmision)) / (1000 * 60 * 60 * 24)
-                    );
-        
-                    // Los días efectivos vienen de la función getOldUnusedPolicies
-                    const diasEfectivos = pol._diasEfectivos;
-        
-                    // Formatear fecha de emisión
-                    const fEmision = pol.fechaEmision
-                        ? new Date(pol.fechaEmision).toISOString().split('T')[0]
-                        : '??';
-        
-                    // Preparar información de servicios
-                    const servicios = pol.servicios || [];
+                    const now = new Date(); // Fecha actual
+                    const fechaEmision = new Date(pol.fechaEmision);
+                    
+                    // Calcular días totales desde la emisión hasta hoy
+                    const diasTotales = Math.floor((now - fechaEmision) / (1000 * 60 * 60 * 24));
+                    
+                    // Obtener pagos y servicios
                     const pagos = pol.pagos || [];
-        
-                    // Determinar si está a punto de vencer (usando días efectivos)
-                    const aPuntoDeVencer = diasEfectivos >= 25 && pagos.length === 0 && servicios.length === 0;
-        
-                    // Preparar mensaje de alerta si aplica
-                    let alertaVencimiento = '';
-                    if (aPuntoDeVencer) {
-                        alertaVencimiento = '⚠️ *¡URGENTE! Póliza a punto de vencer*\n';
+                    const servicios = pol.servicios || [];
+                    
+                    // Calcular fecha límite del primer mes (cobertura inicial)
+                    const fechaLimitePrimerMes = new Date(fechaEmision);
+                    fechaLimitePrimerMes.setMonth(fechaLimitePrimerMes.getMonth() + 1);
+                    
+                    // Calcular fecha de cobertura real basada en emisión y pagos
+                    let fechaCobertura = new Date(fechaEmision);
+                    
+                    // Cada pago da un mes de cobertura real
+                    if (pagos.length > 0) {
+                        // La cobertura real es "pagos.length" meses desde la emisión
+                        fechaCobertura = new Date(fechaEmision);
+                        fechaCobertura.setMonth(fechaEmision.getMonth() + pagos.length);
+                    } else {
+                        // Si no hay pagos, solo hay el mes inicial desde emisión
+                        fechaCobertura = new Date(fechaEmision);
+                        fechaCobertura.setMonth(fechaEmision.getMonth() + 1);
                     }
-        
+                    
+                    // El periodo de gracia es un mes adicional después de la cobertura real
+                    const fechaVencimiento = new Date(fechaCobertura);
+                    fechaVencimiento.setMonth(fechaCobertura.getMonth() + 1);
+                    
+                    // Calcular días restantes hasta el fin de la cobertura
+                    const diasHastaFinCobertura = Math.ceil((fechaCobertura - now) / (1000 * 60 * 60 * 24));
+                    
+                    // Calcular días restantes hasta fin del periodo de gracia
+                    const diasHastaVencimiento = Math.ceil((fechaVencimiento - now) / (1000 * 60 * 60 * 24));
+                    
+                    // Verificar si ya pasó más de un mes desde la emisión y no tiene pagos
+                    const sinPagoYFueraDePlazo = pagos.length === 0 && now > fechaLimitePrimerMes;
+                    
+                    // Formatear fechas para mostrar
+                    const fEmision = fechaEmision.toISOString().split('T')[0];
+                    const fCobertura = fechaCobertura.toISOString().split('T')[0];
+                    const fVencimiento = fechaVencimiento.toISOString().split('T')[0];
+                    
+                    // Determinar estado de la póliza
+                    let estadoPago, alertaVencimiento = '';
+                    
+                    if (sinPagoYFueraDePlazo) {
+                        // Sin pagos y ya pasó el primer mes + periodo de gracia
+                        const diasFuera = Math.floor((now - fechaVencimiento) / (1000 * 60 * 60 * 24));
+                        estadoPago = `🔴 Fuera de cobertura (${diasFuera} días)`;
+                        alertaVencimiento = '*¡ATENCIÓN! Póliza FUERA DE COBERTURA*\n';
+                    } else if (diasHastaFinCobertura > 7) {
+                        // Más de una semana hasta fin de cobertura real
+                        estadoPago = `🟢 Vigente (${diasHastaFinCobertura} días restantes)`;
+                    } else if (diasHastaFinCobertura > 0) {
+                        // A punto de terminar cobertura real
+                        estadoPago = `🟡 Cobertura por terminar en ${diasHastaFinCobertura} día(s)`;
+                        alertaVencimiento = '*¡ATENCIÓN! Cobertura por terminar*\n';
+                    } else if (diasHastaVencimiento > 0) {
+                        // En periodo de gracia
+                        estadoPago = `🟠 En periodo de gracia (${diasHastaVencimiento} días restantes)`;
+                        alertaVencimiento = '*¡ATENCIÓN! Póliza en periodo de gracia*\n';
+                    } else {
+                        // Vencida (pasó periodo de gracia)
+                        estadoPago = `🔴 Vencida hace ${Math.abs(diasHastaVencimiento)} día(s)`;
+                        alertaVencimiento = '*¡ATENCIÓN! Póliza VENCIDA*\n';
+                    }
+
                     // Preparar información de servicios
                     let infoServicio = '📋 *No tiene servicios registrados.*';
                     if (servicios.length > 0) {
@@ -459,35 +519,43 @@ class CommandHandler {
                             const currentDate = new Date(current.fechaServicio);
                             return !latest || currentDate > new Date(latest.fechaServicio) ? current : latest;
                         }, null);
-        
+
                         const fechaServ = ultimo.fechaServicio
                             ? new Date(ultimo.fechaServicio).toISOString().split('T')[0]
                             : '??';
                         const origenDest = ultimo.origenDestino || '(Sin origen/destino)';
-        
-                        infoServicio = `🕒 Último Serv: ${fechaServ}\n` +
-                                     `📍 Origen/Destino: ${origenDest}\n` +
-                                     `📊 Total Servicios: ${servicios.length}`;
+
+                        infoServicio = `Último Servicio: ${fechaServ}\n` +
+                                    `Origen/Destino: ${origenDest}\n` +
+                                    `Total Servicios: ${servicios.length}`;
                     }
-        
-                    // Preparar información de pagos con detalle de cobertura
+
+                    // Preparar información de pagos
                     let infoPagos;
                     if (pagos.length === 0) {
-                        infoPagos = '❌ *No tiene pagos registrados*';
+                        if (sinPagoYFueraDePlazo) {
+                            infoPagos = '❌ *No tiene pagos registrados*\n' +
+                                    `Fin primer mes: ${fechaLimitePrimerMes.toISOString().split('T')[0]}\n` +
+                                    `Estado: ${estadoPago}`;
+                        } else {
+                            infoPagos = '❌ *No tiene pagos registrados*\n' +
+                                    `Fin primer mes: ${fechaLimitePrimerMes.toISOString().split('T')[0]}\n` +
+                                    `Estado: ${estadoPago}`;
+                        }
                     } else {
-                        const diasRestantes = Math.max(0, 30 - diasEfectivos);
-                        infoPagos = `💰 Pagos realizados: ${pagos.length}\n` +
-                                   `📅 Días efectivos sin cobertura: ${diasEfectivos}\n` +
-                                   `⏳ Días restantes del último pago: ${diasRestantes}`;
+                        infoPagos = `Pagos realizados: ${pagos.length}\n` +
+                                `Fin de cobertura: ${fCobertura}\n` +
+                                `Fin periodo gracia: ${fVencimiento}\n` +
+                                `Estado: ${estadoPago}`;
                     }
-        
+
                     // Construir el mensaje completo
                     const msg = `
         ${alertaVencimiento}🔍 *Póliza:* ${pol.numeroPoliza}
         📅 *Emisión:* ${fEmision} (${diasTotales} días totales)
         ${infoServicio}
         ${infoPagos}`.trim();
-        
+
                     // Crear botones inline
                     const inlineKeyboard = [
                         [
@@ -497,10 +565,10 @@ class CommandHandler {
                             )
                         ]
                     ];
-        
+
                     // Enviar mensaje
                     await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-        
+
                     // Pequeña pausa entre mensajes
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
@@ -525,30 +593,10 @@ class CommandHandler {
                 logger.error('Error en callback getPoliza:', error);
                 await ctx.reply('❌ Error al consultar la póliza desde callback.');
             }
-        });
+        });       
 
-        this.bot.action(/getPoliza:(.+)/, async (ctx) => {
-            try {
-                // 1) Extraemos el número de póliza desde el callback_data
-                const numeroPoliza = ctx.match[1]; 
-                logger.info(`Callback de getPoliza para: ${numeroPoliza}`);
-        
-                // 2) Usamos la misma lógica del /get, 
-                //    ya sea llamando directamente a handleGetPolicyFlow 
-                //    o reescribiendo su parte esencial aquí.
-        
-                // Opción A) Invocar directamente handleGetPolicyFlow (si está accesible).
-                //    NOTA: handleGetPolicyFlow espera (ctx, messageText).
-                //    Podemos pasarle (ctx, numeroPoliza).
-                await this.handleGetPolicyFlow(ctx, numeroPoliza);
-        
-                // 3) Notificamos que el callback finalizó
-                await ctx.answerCbQuery(); 
-            } catch (error) {
-                logger.error('Error en callback getPoliza:', error);
-                await ctx.reply('❌ Error al consultar la póliza desde callback.');
-            }
-        });        
+        // Comando Help
+        // Actualizar el comando help en src/comandos/commandHandler.js
 
         // Comando Help
         this.bot.command('help', async (ctx) => {
@@ -563,7 +611,7 @@ class CommandHandler {
         📝 *Gestión de Pólizas:*
         ➕ /save - Crea una nueva póliza
         🔍 /get - Consulta una póliza existente
-        🗑️ /delete - Elimina una póliza (ADMIN)
+        🗑️ /delete - Marca una póliza como eliminada (ADMIN)
 
         📁 *Gestión de Archivos:*
         📤 /upload - Sube fotos o PDFs para una póliza
@@ -575,6 +623,9 @@ class CommandHandler {
         📊 *Reportes:*
         ⚠️ /reportPayment - Muestra pólizas con pagos pendientes
         📈 /reportUsed - Muestra pólizas sin servicios recientes
+
+        🔄 *Gestión de Registros: (ADMIN)*
+        📋 /listdeleted - Muestra pólizas marcadas como eliminadas
 
         📱 *Ejemplos de Uso:*
         ✏️ Para crear póliza: /save
@@ -589,7 +640,11 @@ class CommandHandler {
 
         💵 Para registrar pago: /addpayment
         ↳ Ingresa número de póliza
-        ↳ Luego monto y fecha`;
+        ↳ Luego monto y fecha
+
+        🗑️ Para marcar como eliminada: /delete
+        ↳ La póliza se conservará en la base pero no
+        aparecerá en consultas ni reportes`;
 
                 await ctx.replyWithMarkdown(helpMessage);
                 logger.info('Comando help ejecutado', { chatId: ctx.chat.id });
@@ -733,12 +788,95 @@ class CommandHandler {
                     return;
                 }
 
+                if (this.awaitingDeleteReason && this.awaitingDeleteReason.get(chatId)) {
+                    const numeroPolizas = this.awaitingDeleteReason.get(chatId);
+                    const motivo = messageText.trim() === 'ninguno' ? '' : messageText.trim();
+                    
+                    try {
+                        let eliminadas = 0;
+                        let noEncontradas = 0;
+                        let errores = 0;
+                        let listadoNoEncontradas = [];
+                        
+                        // Mostrar mensaje inicial
+                        const msgInicial = await ctx.reply(
+                            `🔄 Procesando ${numeroPolizas.length} póliza(s)...`
+                        );
+                        
+                        // Procesamos cada póliza en la lista
+                        for (const numeroPoliza of numeroPolizas) {
+                            try {
+                                // Usar markPolicyAsDeleted para cada póliza
+                                const deletedPolicy = await markPolicyAsDeleted(numeroPoliza, motivo);
+                                
+                                if (!deletedPolicy) {
+                                    noEncontradas++;
+                                    listadoNoEncontradas.push(numeroPoliza);
+                                } else {
+                                    eliminadas++;
+                                }
+                                
+                                // Si son muchas pólizas, actualizamos el mensaje cada 5 procesadas
+                                if (numeroPolizas.length > 10 && eliminadas % 5 === 0) {
+                                    await ctx.telegram.editMessageText(
+                                        msgInicial.chat.id,
+                                        msgInicial.message_id,
+                                        undefined,
+                                        `🔄 Procesando ${numeroPolizas.length} póliza(s)...\n` +
+                                        `✅ Procesadas: ${eliminadas + noEncontradas + errores}/${numeroPolizas.length}\n` +
+                                        `⏱️ Por favor espere...`
+                                    );
+                                }
+                            } catch (error) {
+                                logger.error(`Error al marcar póliza ${numeroPoliza} como eliminada:`, error);
+                                errores++;
+                            }
+                        }
+                        
+                        // Editamos el mensaje inicial para mostrar el resultado final
+                        await ctx.telegram.editMessageText(
+                            msgInicial.chat.id,
+                            msgInicial.message_id,
+                            undefined,
+                            `✅ Proceso completado`
+                        );
+                        
+                        // Construimos el mensaje de resultados
+                        let mensajeResultado = `📊 *Resultados del proceso:*\n` +
+                            `✅ Pólizas eliminadas correctamente: ${eliminadas}\n`;
+                        
+                        if (noEncontradas > 0) {
+                            mensajeResultado += `⚠️ Pólizas no encontradas o ya eliminadas: ${noEncontradas}\n`;
+                            
+                            // Si hay pocas no encontradas, las listamos
+                            if (noEncontradas <= 10) {
+                                mensajeResultado += `📋 No encontradas:\n${listadoNoEncontradas.map(p => `- ${p}`).join('\n')}\n`;
+                            }
+                        }
+                        
+                        if (errores > 0) {
+                            mensajeResultado += `❌ Errores al procesar: ${errores}\n`;
+                        }
+                        
+                        await ctx.replyWithMarkdown(mensajeResultado);
+                        
+                    } catch (error) {
+                        logger.error('Error general al marcar pólizas como eliminadas:', error);
+                        await ctx.reply('❌ Hubo un error al marcar las pólizas como eliminadas. Intenta nuevamente.');
+                    } finally {
+                        // Limpiamos el estado de espera
+                        this.awaitingDeleteReason.delete(chatId);
+                    }
+                    return;
+                }
+        
                 // Si llega acá y no está en ninguno de los flujos anteriores, ignoramos o respondemos genérico
             } catch (error) {
                 logger.error('Error general al procesar mensaje de texto:', error);
                 await ctx.reply('❌ Error al procesar el mensaje. Intenta nuevamente.');
             }
         });
+        
     }
 
     // -------------------------------------------------------------------------
@@ -852,22 +990,65 @@ class CommandHandler {
     async handleDeletePolicyFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
-            const numeroPoliza = messageText.trim().toUpperCase();
-            logger.info('Intentando eliminar póliza:', { numeroPoliza });
-    
-            const deletedPolicy = await deletePolicyByNumber(numeroPoliza);
-            if (!deletedPolicy) {
-                await ctx.reply(`❌ No se encontró la póliza con número: ${numeroPoliza}. No se eliminó nada.`);
-            } else {
-                await ctx.reply(`✅ Póliza *${numeroPoliza}* eliminada exitosamente.`, {
-                    parse_mode: 'Markdown'
-                });
+            // Procesar la entrada del usuario para extraer múltiples números de póliza
+            // Aceptamos números separados por saltos de línea, comas o espacios
+            const inputText = messageText.trim();
+            
+            // Primero separamos por saltos de línea
+            let polizasArray = inputText.split('\n');
+            
+            // Si solo hay una línea, intentamos separar por comas o espacios
+            if (polizasArray.length === 1) {
+                // Primero intentamos separar por comas
+                if (inputText.includes(',')) {
+                    polizasArray = inputText.split(',');
+                } 
+                // Si no hay comas, separamos por espacios
+                else if (inputText.includes(' ')) {
+                    polizasArray = inputText.split(' ');
+                }
             }
+            
+            // Limpiamos y normalizamos cada número de póliza
+            const numeroPolizas = polizasArray
+                .map(num => num.trim().toUpperCase())
+                .filter(num => num.length > 0); // Eliminar espacios vacíos
+            
+            // Verificar que hay al menos una póliza para procesar
+            if (numeroPolizas.length === 0) {
+                await ctx.reply('❌ No se detectaron números de póliza válidos. Por favor, inténtalo de nuevo.');
+                this.awaitingDeletePolicyNumber.delete(chatId);
+                return;
+            }
+
+            // Si hay muchas pólizas, confirmamos antes de proceder
+            const esProcesoPesado = numeroPolizas.length > 5;
+            let mensajeConfirmacion = '';
+            
+            if (esProcesoPesado) {
+                mensajeConfirmacion = `🔄 Se procesarán ${numeroPolizas.length} pólizas.\n\n`;
+            }
+            
+            // Solicitamos motivo de eliminación
+            await ctx.reply(
+                `🗑️ Vas a marcar como ELIMINADAS ${numeroPolizas.length} póliza(s):\n` +
+                `${esProcesoPesado ? '(Mostrando las primeras 5 de ' + numeroPolizas.length + ')\n' : ''}` +
+                `${numeroPolizas.slice(0, 5).map(p => '- ' + p).join('\n')}` +
+                `${esProcesoPesado ? '\n...' : ''}\n\n` +
+                `${mensajeConfirmacion}` +
+                'Por favor, ingresa un motivo para la eliminación (o escribe "ninguno"):', 
+                { parse_mode: 'Markdown' }
+            );
+            
+            // Guardamos los números de póliza para usarlos cuando recibamos el motivo
+            this.awaitingDeleteReason = this.awaitingDeleteReason || new Map();
+            this.awaitingDeleteReason.set(chatId, numeroPolizas);
+            
+            // Limpiamos el estado de espera del número de póliza
+            this.awaitingDeletePolicyNumber.delete(chatId);
         } catch (error) {
             logger.error('Error en handleDeletePolicyFlow:', error);
-            await ctx.reply('❌ Hubo un error al intentar eliminar la póliza. Intenta nuevamente.');
-        } finally {
-            // Limpiamos el estado de espera
+            await ctx.reply('❌ Hubo un error al procesar la solicitud. Intenta nuevamente.');
             this.awaitingDeletePolicyNumber.delete(chatId);
         }
     }

@@ -49,10 +49,11 @@ const getPolicyByNumber = async (numeroPoliza) => {
         // Asegurarnos de que el número de póliza esté normalizado
         const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
         
-        // Log de depuración
-        logger.debug('Ejecutando consulta con número normalizado:', { normalizedNumero });
-        
-        const policy = await Policy.findOne({ numeroPoliza: normalizedNumero });
+        // Modificamos la consulta para solo retornar pólizas ACTIVAS
+        const policy = await Policy.findOne({ 
+            numeroPoliza: normalizedNumero,
+            estado: 'ACTIVO' // Solo traemos pólizas activas
+        });
         
         // Log del resultado
         if (policy) {
@@ -61,7 +62,7 @@ const getPolicyByNumber = async (numeroPoliza) => {
                 id: policy._id 
             });
         } else {
-            logger.warn('Póliza no encontrada:', { numeroPoliza });
+            logger.warn('Póliza no encontrada o no activa:', { numeroPoliza });
         }
         
         return policy;
@@ -73,6 +74,52 @@ const getPolicyByNumber = async (numeroPoliza) => {
         });
         throw error;
     }
+};
+
+/**
+ * Marca una póliza como ELIMINADA (borrado lógico)
+ * @param {string} numeroPoliza - El número de póliza a marcar como eliminada
+ * @param {string} motivo - Motivo opcional de la eliminación
+ * @returns {Promise<Object|null>} - La póliza actualizada o null si no existe
+ */
+const markPolicyAsDeleted = async (numeroPoliza, motivo = '') => {
+    try {
+        const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
+        logger.info(`Marcando póliza ${normalizedNumero} como ELIMINADA`);
+        
+        const policy = await Policy.findOne({ numeroPoliza: normalizedNumero, estado: 'ACTIVO' });
+        if (!policy) {
+            logger.warn(`No se encontró póliza activa con número: ${normalizedNumero}`);
+            return null;
+        }
+        
+        // Actualizamos estado y añadimos fecha y motivo
+        policy.estado = 'ELIMINADO';
+        policy.fechaEliminacion = new Date();
+        policy.motivoEliminacion = motivo;
+        
+        const updatedPolicy = await policy.save();
+        logger.info(`Póliza ${normalizedNumero} marcada como ELIMINADA exitosamente`);
+        
+        return updatedPolicy;
+    } catch (error) {
+        logger.error('Error al marcar póliza como eliminada:', {
+            numeroPoliza,
+            error: error.message
+        });
+        throw error;
+    }
+};
+
+/**
+ * Elimina físicamente una póliza por su número.
+ * @param {string} numeroPoliza - El número de póliza a eliminar.
+ * @returns {Promise<Object|null>} - La póliza eliminada o null si no existe.
+ * @deprecated Use markPolicyAsDeleted para borrado lógico
+ */
+const deletePolicyByNumber = async (numeroPoliza) => {
+    const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
+    return await Policy.findOneAndDelete({ numeroPoliza: normalizedNumero });
 };
 
 /**
@@ -119,16 +166,6 @@ const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
         logger.error('Error al añadir archivo a la póliza:', error);
         throw error;
     }
-};
-
-/**
- * Elimina una póliza por su número.
- * @param {string} numeroPoliza - El número de póliza a eliminar.
- * @returns {Promise<Object|null>} - La póliza eliminada o null si no existe.
- */
-const deletePolicyByNumber = async (numeroPoliza) => {
-    const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-    return await Policy.findOneAndDelete({ numeroPoliza: normalizedNumero });
 };
 
 /**
@@ -191,7 +228,7 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
             costo,
             fechaServicio,
             numeroExpediente,
-            origenDestino // <-- Asegúrate de incluir este campo
+            origenDestino
         });
 
         // Guardamos la póliza
@@ -204,7 +241,7 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
             costo,
             fechaServicio,
             numeroExpediente,
-            origenDestino, // <-- Añade también en el log
+            origenDestino,
             error: error.message
         });
         throw error;
@@ -218,7 +255,8 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
  */
 const getSusceptiblePolicies = async () => {
     try {
-        const allPolicies = await Policy.find({}).lean();
+        // Modificar para incluir solo pólizas ACTIVAS
+        const allPolicies = await Policy.find({ estado: 'ACTIVO' }).lean();
         const now = new Date(); // ← Fecha actual (día del reporte)
         const susceptibles = [];
 
@@ -280,112 +318,155 @@ const getSusceptiblePolicies = async () => {
         logger.error('Error en getSusceptiblePolicies:', { error: error.message });
         throw error;
     }
-
 };
 
 /**
- * Retorna las pólizas con mayor prioridad de uso.
- * Nueva Prioridad:
- *   1) Pólizas a punto de vencer (30 días o más) sin pagos ni servicios
- *   2) Pólizas sin servicios, ordenadas por antigüedad
- *   3) Pólizas con un servicio pero sin pago
- *   4) Pólizas más antiguas sin pagos
- *   5) Pólizas con pagos realizados
- *   6) Pólizas con dos o más servicios
+ * Retorna las 10 pólizas con mayor prioridad de uso.
+ * Prioridad:
+ *   1) Pólizas sin servicios (y mayores de 26 días de emisión si deseas).
+ *   2) Luego pólizas con servicios, ordenadas por fecha del último servicio (más antiguo primero).
+ *   3) Orden secundario por fechaEmision más antigua.
  */
 const getOldUnusedPolicies = async () => {
     const now = new Date();
-    const THRESHOLD_DIAS_MINIMO = 25;
-    const DIAS_POR_PAGO = 30;
+    const THRESHOLD_DIAS_MINIMO = 26; // Si deseas descartar pólizas que tengan < 26 días de emisión
 
-    // 1) Obtener todas las pólizas
-    const allPolicies = await Policy.find({}).lean();
+    // 1) Obtenemos todas las pólizas ACTIVAS
+    const allPolicies = await Policy.find({ estado: 'ACTIVO' }).lean();
 
-    // 2) Preparar datos para ordenamiento
+    // 2) Armamos un array con datos calculados
     const polConCampos = allPolicies.map((pol) => {
-        const msDesdeEmision = now - new Date(pol.fechaEmision);
-        const diasTotales = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
-        
+        const msDesdeEmision = now - pol.fechaEmision;
+        const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
+
         const servicios = pol.servicios || [];
-        const pagos = pol.pagos || [];
-        
-        // Calcular días efectivos restando 30 días por cada pago
-        const diasCubiertos = pagos.length * DIAS_POR_PAGO;
-        const diasEfectivos = Math.max(0, diasTotales - diasCubiertos);
-
-        // Una póliza está a punto de vencer si:
-        // 1. No tiene servicios
-        // 2. Los días efectivos (después de considerar pagos) son >= 25
-        const aPuntoDeVencer = servicios.length === 0 && diasEfectivos >= 25;
-
-        return {
-            pol,
-            diasTotales,
-            diasEfectivos,
-            numServicios: servicios.length,
-            numPagos: pagos.length,
-            aPuntoDeVencer,
-            ultimoServicio: servicios.length > 0 ? 
-                Math.max(...servicios.map(s => new Date(s.fechaServicio).getTime())) : 
-                null
-        };
+        if (servicios.length === 0) {
+            // Sin servicios
+            return {
+                pol,
+                priorityGroup: 1, // Mayor prioridad
+                lastServiceDate: null, // no existe
+                diasDesdeEmision
+            };
+        } else {
+            // Con servicios => calculamos fecha del último
+            let ultimoServicio = null;
+            for (const s of servicios) {
+                if (!ultimoServicio || s.fechaServicio < ultimoServicio) {
+                    ultimoServicio = s.fechaServicio;
+                }
+            }
+            return {
+                pol,
+                priorityGroup: 2,
+                lastServiceDate: ultimoServicio, 
+                diasDesdeEmision
+            };
+        }
     });
 
-    // 3) Filtrar pólizas según días efectivos
-    const polFiltradas = polConCampos.filter(({ diasEfectivos }) => 
-        diasEfectivos >= THRESHOLD_DIAS_MINIMO
-    );
+    // 3) Filtrar las pólizas muy recientes (si se desea)
+    const polFiltradas = polConCampos.filter(({ diasDesdeEmision }) => {
+        // Ej.: descartar si la póliza se emitió hace menos de 26 días
+        return diasDesdeEmision >= THRESHOLD_DIAS_MINIMO;
+    });
 
-    // 4) Ordenar según nueva priorización
+    // 4) Ordenar: 
+    //    - primero por priorityGroup asc (1 sin servicios, 2 con servicios)
+    //    - dentro de priorityGroup=1, por diasDesdeEmision desc (más antigua primero)
+    //    - para priorityGroup=2, ordenamos por lastServiceDate asc (más antiguo primero),
+    //      y secundario diasDesdeEmision desc (más antigua primero)
     polFiltradas.sort((a, b) => {
-        // 1. Priorizar pólizas a punto de vencer
-        if (a.aPuntoDeVencer && !b.aPuntoDeVencer) return -1;
-        if (b.aPuntoDeVencer && !a.aPuntoDeVencer) return 1;
-        
-        // 2. Priorizar pólizas sin servicios y más días efectivos
-        if (a.numServicios === 0 && b.numServicios !== 0) return -1;
-        if (b.numServicios === 0 && a.numServicios !== 0) return 1;
-        if (a.numServicios === 0 && b.numServicios === 0) {
-            return b.diasEfectivos - a.diasEfectivos;
-        }
-        
-        // 3. Pólizas con un servicio pero sin pago
-        if (a.numServicios === 1 && a.numPagos === 0 && 
-            b.numServicios === 1 && b.numPagos === 0) {
-            return b.diasEfectivos - a.diasEfectivos;
-        }
-        
-        // 4. Priorizar por días efectivos si son diferentes
-        if (a.diasEfectivos !== b.diasEfectivos) {
-            return b.diasEfectivos - a.diasEfectivos;
+        // Comparar por priorityGroup
+        if (a.priorityGroup !== b.priorityGroup) {
+            return a.priorityGroup - b.priorityGroup;
         }
 
-        // 5. Pólizas con pagos van al final
-        if (a.numPagos > 0 && b.numPagos === 0) return 1;
-        if (b.numPagos > 0 && a.numPagos === 0) return -1;
+        // Ambos en priorityGroup=1 => ordenamos por diasDesdeEmision desc
+        if (a.priorityGroup === 1) {
+            return b.diasDesdeEmision - a.diasDesdeEmision;
+        }
 
-        // 6. Pólizas con dos o más servicios al final
-        if (a.numServicios >= 2 && b.numServicios < 2) return 1;
-        if (b.numServicios >= 2 && a.numServicios < 2) return -1;
-        
-        return 0;
+        // Ambos en priorityGroup=2 => comparamos lastServiceDate asc
+        if (a.lastServiceDate && b.lastServiceDate) {
+            const diff = a.lastServiceDate - b.lastServiceDate;
+            if (diff !== 0) return diff;
+        } else if (a.lastServiceDate && !b.lastServiceDate) {
+            // si uno no tiene lastServiceDate, lo ponemos después
+            return -1;
+        } else if (!a.lastServiceDate && b.lastServiceDate) {
+            return 1;
+        }
+
+        // si lastServiceDate es igual o ambos nulos, desempatar con diasDesdeEmision desc
+        return b.diasDesdeEmision - a.diasDesdeEmision;
     });
 
-    // 5) Retornar top 10
-    return polFiltradas.slice(0, 10).map(x => ({
-        ...x.pol,
-        _diasEfectivos: x.diasEfectivos // Añadimos esta info para el reporte
-    }));
+    // 5) Tomar top 10
+    const top10 = polFiltradas.slice(0, 10).map(x => x.pol);
+    return top10;
+};
+
+/**
+ * Obtiene las pólizas marcadas como eliminadas
+ * @returns {Promise<Array>} - Array de pólizas eliminadas
+ */
+const getDeletedPolicies = async () => {
+    try {
+        return await Policy.find({ estado: 'ELIMINADO' }).lean();
+    } catch (error) {
+        logger.error('Error al obtener pólizas eliminadas:', error);
+        throw error;
+    }
+};
+
+/**
+ * Restaura una póliza previamente marcada como eliminada
+ * @param {string} numeroPoliza - Número de la póliza a restaurar
+ * @returns {Promise<Object|null>} - La póliza restaurada o null si no existe
+ */
+const restorePolicy = async (numeroPoliza) => {
+    try {
+        const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
+        
+        const policy = await Policy.findOne({ 
+            numeroPoliza: normalizedNumero,
+            estado: 'ELIMINADO'
+        });
+        
+        if (!policy) {
+            logger.warn(`No se encontró póliza eliminada con número: ${normalizedNumero}`);
+            return null;
+        }
+        
+        policy.estado = 'ACTIVO';
+        policy.fechaEliminacion = null;
+        policy.motivoEliminacion = '';
+        
+        const updatedPolicy = await policy.save();
+        logger.info(`Póliza ${normalizedNumero} restaurada exitosamente`);
+        
+        return updatedPolicy;
+    } catch (error) {
+        logger.error('Error al restaurar póliza:', {
+            numeroPoliza,
+            error: error.message
+        });
+        throw error;
+    }
 };
 
 module.exports = {
     savePolicy,
     getPolicyByNumber,
-    addFileToPolicy, // Exportar la nueva función
-    addPaymentToPolicy, // <-- Asegúrate de incluirla aquí
-    addServiceToPolicy, // <-- Asegurarte de exportarla
-    DuplicatePolicyError, // Exportar la clase de error para uso externo
+    addFileToPolicy,
+    addPaymentToPolicy,
+    addServiceToPolicy,
+    DuplicatePolicyError,
     getSusceptiblePolicies,
     getOldUnusedPolicies,
-    deletePolicyByNumber
+    deletePolicyByNumber,
+    markPolicyAsDeleted,  // Nueva función de borrado lógico
+    getDeletedPolicies,   // Función para obtener pólizas eliminadas
+    restorePolicy         // Función para restaurar pólizas eliminadas
 };

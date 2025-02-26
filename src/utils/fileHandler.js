@@ -56,10 +56,11 @@ class FileHandler {
                 return null;
             }
 
-            const files = fileType === 'fotos' ? policy.archivos.fotos : policy.archivos.pdfs;
+            // Ahora se usa "foto" (singular) para imágenes
+            const files = fileType === 'foto' ? policy.archivos.fotos : policy.archivos.pdfs;
             
             if (!files || files.length === 0) {
-                logger.info(`ℹ️ No hay ${fileType} para la póliza: ${numeroPoliza}`);
+                logger.info(`ℹ️ No hay ${fileType === 'foto' ? 'fotos' : 'PDFs'} para la póliza: ${numeroPoliza}`);
                 return [];
             }
 
@@ -89,11 +90,11 @@ class FileHandler {
                 tipo: fileType
             });
 
-            if (fileType === 'fotos') {
+            if (fileType === 'foto') {
                 await ctx.replyWithPhoto({ 
                     source: fileBuffer 
                 });
-            } else {
+            } else if (fileType === 'pdf') {
                 await ctx.replyWithDocument({ 
                     source: fileBuffer,
                     filename: `documento_${numeroPoliza}.pdf`
@@ -113,7 +114,9 @@ class FileHandler {
         await this.ensureDirectory(fileDir);
         
         const timestamp = Date.now();
-        const fileName = `${timestamp}.${fileType}`;
+        // Para fotos, usamos extensión jpg; para pdf se conserva
+        const extension = fileType === 'foto' ? 'jpg' : fileType;
+        const fileName = `${timestamp}.${extension}`;
         const filePath = path.join(fileDir, fileName);
         
         try {
@@ -121,8 +124,16 @@ class FileHandler {
             await fs.writeFile(filePath, response.data);
             logger.info(`✅ Archivo guardado: ${filePath}`);
             
+            // Determinar el contentType basado en fileType
+            let contentType = '';
+            if (fileType === 'foto') {
+                contentType = 'image/jpeg';
+            } else if (fileType === 'pdf') {
+                contentType = 'application/pdf';
+            }
+            
             // También guardamos en MongoDB
-            await this.saveFileToMongo(numeroPoliza, fileType, response.data, 'application/' + fileType);
+            await this.saveFileToMongo(numeroPoliza, fileType, response.data, contentType);
             
             return filePath;
         } catch (error) {

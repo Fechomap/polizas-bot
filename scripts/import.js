@@ -67,6 +67,72 @@ const toUpperIfExists = (value) => {
     return String(value).toUpperCase();
 };
 
+// Función para calcular estado actual de la póliza
+const calcularEstadoPoliza = (policyData) => {
+    const now = new Date();
+    const fechaEmision = new Date(policyData.fechaEmision);
+    const pagos = policyData.pagos || [];
+    
+    // Calcular fecha límite del primer mes (cobertura inicial)
+    const fechaLimitePrimerMes = new Date(fechaEmision);
+    fechaLimitePrimerMes.setMonth(fechaLimitePrimerMes.getMonth() + 1);
+    
+    // Calcular fecha de cobertura real basada en emisión y pagos
+    let fechaCobertura = new Date(fechaEmision);
+    
+    // Cada pago da un mes de cobertura real
+    if (pagos.length > 0) {
+        // La cobertura real es "pagos.length" meses desde la emisión
+        fechaCobertura = new Date(fechaEmision);
+        fechaCobertura.setMonth(fechaEmision.getMonth() + pagos.length);
+    } else {
+        // Si no hay pagos, solo hay el mes inicial desde emisión
+        fechaCobertura = new Date(fechaEmision);
+        fechaCobertura.setMonth(fechaEmision.getMonth() + 1);
+    }
+    
+    // El periodo de gracia es un mes adicional después de la cobertura real
+    const fechaVencimiento = new Date(fechaCobertura);
+    fechaVencimiento.setMonth(fechaCobertura.getMonth() + 1);
+    
+    // Calcular días restantes hasta el fin de la cobertura
+    const diasHastaFinCobertura = Math.ceil((fechaCobertura - now) / (1000 * 60 * 60 * 24));
+    
+    // Calcular días restantes hasta fin del periodo de gracia
+    const diasHastaVencimiento = Math.ceil((fechaVencimiento - now) / (1000 * 60 * 60 * 24));
+    
+    // Verificar si ya pasó más de un mes desde la emisión y no tiene pagos
+    const sinPagoYFueraDePlazo = pagos.length === 0 && now > fechaLimitePrimerMes;
+    
+    let estado = '';
+    
+    if (sinPagoYFueraDePlazo) {
+        // Sin pagos y ya pasó el primer mes + periodo de gracia
+        estado = "FUERA_DE_COBERTURA";
+    } else if (diasHastaFinCobertura > 7) {
+        // Más de una semana hasta fin de cobertura real
+        estado = "VIGENTE";
+    } else if (diasHastaFinCobertura > 0) {
+        // A punto de terminar cobertura real
+        estado = "POR_TERMINAR";
+    } else if (diasHastaVencimiento > 0) {
+        // En periodo de gracia
+        estado = "PERIODO_GRACIA";
+    } else {
+        // Vencida (pasó periodo de gracia)
+        estado = "VENCIDA";
+    }
+
+    return {
+        estado,
+        fechaCobertura: fechaCobertura,
+        fechaVencimiento: fechaVencimiento,
+        diasHastaFinCobertura,
+        diasHastaVencimiento,
+        fechaLimitePrimerMes
+    };
+};
+
 const importData = async () => {
     try {
         const filePath = path.join(__dirname, 'backup', 'polizas_backup.xlsx');
@@ -83,6 +149,15 @@ const importData = async () => {
         let updatedCount = 0;
         let processedCount = 0;
         let totalFiles = 0;
+        
+        // Contadores por estado
+        const estadisticas = {
+            VIGENTE: 0,
+            POR_TERMINAR: 0,
+            PERIODO_GRACIA: 0,
+            VENCIDA: 0,
+            FUERA_DE_COBERTURA: 0
+        };
 
         for (const item of data) {
             processedCount++;
@@ -158,6 +233,8 @@ const importData = async () => {
                 }
             }
 
+            const fechaEmision = convertirFecha(item['FECHA DE EMISION']);
+            
             const policyData = {
                 titular: toUpperIfExists(item['TITULAR']),
                 correo: item['CORREO ELECTRONICO']?.toLowerCase() || '',
@@ -178,11 +255,30 @@ const importData = async () => {
                 agenteCotizador: toUpperIfExists(item['AGENTE COTIZADOR']),
                 aseguradora: toUpperIfExists(item['ASEGURADORA']),
                 numeroPoliza: numeroPoliza,
-                fechaEmision: convertirFecha(item['FECHA DE EMISION']),
+                fechaEmision: fechaEmision,
                 pagos,
                 servicios,
                 archivos
             };
+            
+            // Calcular estado actual de la póliza
+            if (fechaEmision) {
+                const estadoInfo = calcularEstadoPoliza({
+                    fechaEmision: fechaEmision,
+                    pagos: pagos
+                });
+                
+                // Actualizar contadores para estadísticas
+                if (estadoInfo.estado && estadisticas.hasOwnProperty(estadoInfo.estado)) {
+                    estadisticas[estadoInfo.estado]++;
+                }
+                
+                // Agregar el estado calculado como metadatos en la póliza (opcional)
+                policyData.metadatos = {
+                    estado: estadoInfo.estado,
+                    fechaCalculoEstado: new Date()
+                };
+            }
 
             try {
                 const result = await Policy.findOneAndUpdate(
@@ -213,6 +309,34 @@ const importData = async () => {
         console.log(`📥 Pólizas insertadas: ${insertedCount}`);
         console.log(`🔄 Pólizas actualizadas: ${updatedCount}`);
         console.log(`📎 Archivos procesados: ${totalFiles}`);
+        
+        // Mostrar estadísticas de estados
+        console.log('\n📊 Estadísticas por estado:');
+        console.log(`   - Vigentes: ${estadisticas.VIGENTE}`);
+        console.log(`   - Por terminar: ${estadisticas.POR_TERMINAR}`);
+        console.log(`   - En periodo de gracia: ${estadisticas.PERIODO_GRACIA}`);
+        console.log(`   - Vencidas: ${estadisticas.VENCIDA}`);
+        console.log(`   - Fuera de cobertura: ${estadisticas.FUERA_DE_COBERTURA}`);
+        
+        // Guardar estadísticas en un archivo JSON
+        try {
+            const resumen = {
+                fecha_importacion: new Date().toISOString(),
+                total_polizas: insertedCount + updatedCount,
+                insertadas: insertedCount,
+                actualizadas: updatedCount,
+                total_archivos: totalFiles,
+                estados: estadisticas
+            };
+            
+            await fs.writeFile(
+                path.join(__dirname, 'backup', 'resumen_importacion.json'),
+                JSON.stringify(resumen, null, 2)
+            );
+            console.log('📄 Archivo de resumen guardado');
+        } catch (error) {
+            console.error('❌ Error al guardar resumen:', error);
+        }
         
         process.exit(0);
     } catch (error) {

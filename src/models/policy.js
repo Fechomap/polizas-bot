@@ -142,6 +142,23 @@ const policySchema = new mongoose.Schema({
     archivos: {
         fotos: [fileSchema],  // Usamos el esquema sin _id
         pdfs: [fileSchema]    // Usamos el esquema sin _id
+    },
+
+    // Campo de estado para "borrado lógico"
+    estado: {
+        type: String,
+        enum: ['ACTIVO', 'INACTIVO', 'ELIMINADO'],
+        default: 'ACTIVO'
+    },
+    
+    // Fecha y motivo de eliminación (para cuando se marca como ELIMINADO)
+    fechaEliminacion: {
+        type: Date,
+        default: null
+    },
+    motivoEliminacion: {
+        type: String,
+        default: ''
     }
 }, { 
     timestamps: true,
@@ -151,6 +168,7 @@ const policySchema = new mongoose.Schema({
 // Índices
 policySchema.index({ rfc: 1 });
 policySchema.index({ placas: 1 });
+policySchema.index({ estado: 1 }); // Agregar índice para estado
 
 // Middleware pre-save para limpieza de datos
 policySchema.pre('save', function(next) {

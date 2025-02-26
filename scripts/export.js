@@ -45,6 +45,72 @@ const ensureDirectoryExists = async (dirPath) => {
     }
 };
 
+// Función para calcular estado actual de la póliza
+const calcularEstadoPoliza = (policy) => {
+    const now = new Date();
+    const fechaEmision = new Date(policy.fechaEmision);
+    const pagos = policy.pagos || [];
+    
+    // Calcular fecha límite del primer mes (cobertura inicial)
+    const fechaLimitePrimerMes = new Date(fechaEmision);
+    fechaLimitePrimerMes.setMonth(fechaLimitePrimerMes.getMonth() + 1);
+    
+    // Calcular fecha de cobertura real basada en emisión y pagos
+    let fechaCobertura = new Date(fechaEmision);
+    
+    // Cada pago da un mes de cobertura real
+    if (pagos.length > 0) {
+        // La cobertura real es "pagos.length" meses desde la emisión
+        fechaCobertura = new Date(fechaEmision);
+        fechaCobertura.setMonth(fechaEmision.getMonth() + pagos.length);
+    } else {
+        // Si no hay pagos, solo hay el mes inicial desde emisión
+        fechaCobertura = new Date(fechaEmision);
+        fechaCobertura.setMonth(fechaEmision.getMonth() + 1);
+    }
+    
+    // El periodo de gracia es un mes adicional después de la cobertura real
+    const fechaVencimiento = new Date(fechaCobertura);
+    fechaVencimiento.setMonth(fechaCobertura.getMonth() + 1);
+    
+    // Calcular días restantes hasta el fin de la cobertura
+    const diasHastaFinCobertura = Math.ceil((fechaCobertura - now) / (1000 * 60 * 60 * 24));
+    
+    // Calcular días restantes hasta fin del periodo de gracia
+    const diasHastaVencimiento = Math.ceil((fechaVencimiento - now) / (1000 * 60 * 60 * 24));
+    
+    // Verificar si ya pasó más de un mes desde la emisión y no tiene pagos
+    const sinPagoYFueraDePlazo = pagos.length === 0 && now > fechaLimitePrimerMes;
+    
+    let estado = '';
+    
+    if (sinPagoYFueraDePlazo) {
+        // Sin pagos y ya pasó el primer mes + periodo de gracia
+        estado = "FUERA_DE_COBERTURA";
+    } else if (diasHastaFinCobertura > 7) {
+        // Más de una semana hasta fin de cobertura real
+        estado = "VIGENTE";
+    } else if (diasHastaFinCobertura > 0) {
+        // A punto de terminar cobertura real
+        estado = "POR_TERMINAR";
+    } else if (diasHastaVencimiento > 0) {
+        // En periodo de gracia
+        estado = "PERIODO_GRACIA";
+    } else {
+        // Vencida (pasó periodo de gracia)
+        estado = "VENCIDA";
+    }
+
+    return {
+        estado,
+        fechaCobertura: fechaCobertura.toISOString().split('T')[0],
+        fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
+        diasHastaFinCobertura,
+        diasHastaVencimiento,
+        fechaLimitePrimerMes: fechaLimitePrimerMes.toISOString().split('T')[0]
+    };
+};
+
 const exportData = async () => {
     try {
         const policies = await Policy.find().lean();
@@ -136,6 +202,9 @@ const exportData = async () => {
                 }
             }
 
+            // Calcular estado de la póliza
+            const estadoPoliza = calcularEstadoPoliza(policy);
+
             // Crear fila de Excel
             const row = {
                 TITULAR: policy.titular || '',
@@ -160,6 +229,13 @@ const exportData = async () => {
                 'FECHA DE EMISION': policy.fechaEmision
                     ? new Date(policy.fechaEmision).toISOString().split('T')[0]
                     : '',
+                // Nuevos campos para el estado de la póliza
+                'ESTADO_POLIZA': estadoPoliza.estado,
+                'FECHA_FIN_COBERTURA': estadoPoliza.fechaCobertura,
+                'FECHA_FIN_GRACIA': estadoPoliza.fechaVencimiento,
+                'DIAS_RESTANTES_COBERTURA': estadoPoliza.diasHastaFinCobertura,
+                'DIAS_RESTANTES_GRACIA': estadoPoliza.diasHastaVencimiento,
+                // Guardar también los archivos
                 'FOTOS': JSON.stringify(processedFiles.fotos),
                 'PDFS': JSON.stringify(processedFiles.pdfs)
             };
@@ -202,10 +278,35 @@ const exportData = async () => {
         const excelPath = path.join(backupDir, 'polizas_backup.xlsx');
         XLSX.writeFile(workbook, excelPath);
 
+        // Crear un archivo de resumen con estadísticas
+        const resumen = {
+            fecha_exportacion: new Date().toISOString(),
+            total_polizas: rows.length,
+            total_archivos: totalFiles,
+            estados: {
+                VIGENTE: rows.filter(row => row.ESTADO_POLIZA === 'VIGENTE').length,
+                POR_TERMINAR: rows.filter(row => row.ESTADO_POLIZA === 'POR_TERMINAR').length,
+                PERIODO_GRACIA: rows.filter(row => row.ESTADO_POLIZA === 'PERIODO_GRACIA').length,
+                VENCIDA: rows.filter(row => row.ESTADO_POLIZA === 'VENCIDA').length,
+                FUERA_DE_COBERTURA: rows.filter(row => row.ESTADO_POLIZA === 'FUERA_DE_COBERTURA').length,
+            }
+        };
+
+        await fs.writeFile(
+            path.join(backupDir, 'resumen_exportacion.json'),
+            JSON.stringify(resumen, null, 2)
+        );
+
         console.log(`\n✅ Exportación completada exitosamente.`);
         console.log(`📁 Directorio de backup: ${backupDir}`);
         console.log(`📊 Pólizas exportadas: ${rows.length}`);
         console.log(`📎 Archivos exportados: ${totalFiles}`);
+        console.log(`📊 Estadísticas por estado:`);
+        console.log(`   - Vigentes: ${resumen.estados.VIGENTE}`);
+        console.log(`   - Por terminar: ${resumen.estados.POR_TERMINAR}`);
+        console.log(`   - En periodo de gracia: ${resumen.estados.PERIODO_GRACIA}`);
+        console.log(`   - Vencidas: ${resumen.estados.VENCIDA}`);
+        console.log(`   - Fuera de cobertura: ${resumen.estados.FUERA_DE_COBERTURA}`);
         process.exit(0);
     } catch (error) {
         console.error('❌ Error durante la exportación:', error);
