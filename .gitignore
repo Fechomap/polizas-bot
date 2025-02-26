@@ -4,3 +4,4 @@ logs/
 *.log
 files/
 polizas_backup.xlsx
+.DS_Store
