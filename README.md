@@ -151,3 +151,5 @@ node scripts/import.js
 - Mantén al menos 3 versiones de respaldo
 - Monitorea los logs de errores periódicamente
 - Para evitar gastos innecesarios en Heroku, escala a 0 cuando no se use: `heroku ps:scale web=0`
+
+pendientes # Cambio menor para forzar despliegue
