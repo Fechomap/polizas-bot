@@ -1,4 +1,89 @@
-# Guía de Comandos Esenciales para Bot de Pólizas
+# Bot de Pólizas para Telegram
+
+Bot para gestionar pólizas de seguros a través de Telegram. Permite registrar y consultar pólizas, subir documentación, hacer seguimiento de pagos y servicios.
+
+## Instalación Rápida
+
+```bash
+# Clonar repositorio
+git clone [repositorio]
+cd polizas-bot
+
+# Instalar dependencias
+npm install
+
+# Configurar
+cp .env.example .env
+# Editar el archivo .env con las credenciales correctas
+
+# Iniciar
+npm start
+```
+
+## Configuración (.env)
+
+```
+# Configuración de MongoDB
+MONGO_URI=mongodb+srv://[usuario]:[contraseña]@[cluster]/[database]
+
+# Token de Telegram Bot
+TELEGRAM_TOKEN=[tu_token_de_telegram]
+
+# Grupo autorizado (ID numérico)
+TELEGRAM_GROUP_ID=-1002291817096
+```
+
+## Desarrollo Local
+
+```bash
+# Iniciar el Bot
+npm start                           # Iniciar en modo normal
+npm run dev                         # Iniciar con recarga automática (nodemon)
+npm run reinstall                   # Reinstalar dependencias (limpia node_modules y package-lock.json)
+```
+
+## Comandos del Bot
+
+| Comando | Descripción |
+|---------|-------------|
+| `/start` | Bienvenida e introducción |
+| `/save` | Registrar nueva póliza |
+| `/get` | Consultar una póliza |
+| `/upload` | Subir fotos y PDFs |
+| `/addpayment` | Registrar un pago |
+| `/addservice` | Registrar un servicio |
+| `/reportPayment` | Mostrar pólizas con pagos pendientes |
+| `/reportUsed` | Mostrar pólizas sin servicios recientes |
+| `/delete` | Marcar póliza como eliminada (Admin) |
+| `/help` | Mostrar lista de comandos |
+
+## Estructura del Bot
+
+### Principales Archivos
+- `src/bot.js`: Punto de entrada principal
+- `src/comandos/commandHandler.js`: Manejo de comandos
+- `src/controllers/policyController.js`: Lógica de negocio
+- `src/models/policy.js`: Modelo de datos
+- `src/database.js`: Conexión a MongoDB
+- `src/config.js`: Configuración general
+- `src/middleware/groupHandler.js`: Manejo de restricciones de grupo
+- `src/utils/fileHandler.js`: Manejo de archivos
+- `src/utils/logger.js`: Sistema de logs
+
+## Gestión de la Base de Datos
+
+```bash
+# Exportar/Importar
+node scripts/export.js              # Exportar base de datos a Excel y archivos
+node scripts/import.js              # Importar base de datos desde Excel y archivos
+node scripts/importExcel.js backup/polizas_backup.xlsx  # Importar solo desde Excel
+
+# Limpiar base de datos
+node scripts/clearAll.js            # Borrar todos los documentos (¡PELIGROSO!)
+
+# Migración
+node scripts/migrateDb.js           # Ejecutar migración con respaldo automático
+```
 
 ## Despliegue y Gestión
 
@@ -6,7 +91,7 @@
 ```bash
 # Básico
 git add .                           # Agregar cambios
-git commit -m "mensaje"             # Hacer commit
+git commit -m "mejoras en exportar e importar"             # Hacer commit
 git push origin main                # Empujar cambios
 
 # Ramas
@@ -43,79 +128,6 @@ heroku maintenance:on               # Activar modo mantenimiento
 heroku maintenance:off              # Desactivar modo mantenimiento
 ```
 
-## Desarrollo Local
-
-```bash
-# Iniciar el Bot
-npm start                           # Iniciar en modo normal
-npm run dev                         # Iniciar con recarga automática (nodemon)
-```
-
-## Base de Datos
-
-```bash
-# Exportar/Importar
-node scripts/export.js              # Exportar base de datos a Excel y archivos
-node scripts/import.js              # Importar base de datos desde Excel y archivos
-
-# Limpiar base de datos
-node scripts/clearAll.js            # Borrar todos los documentos
-
-# Migración
-node scripts/migrateDb.js           # Ejecutar migración con respaldo automático
-```
-
-## Estructura del Bot
-
-### Principales Archivos
-- `src/bot.js`: Punto de entrada principal
-- `src/comandos/commandHandler.js`: Manejo de comandos
-- `src/controllers/policyController.js`: Lógica de negocio
-- `src/models/policy.js`: Modelo de datos
-- `src/database.js`: Conexión a MongoDB
-- `src/config.js`: Configuración general
-
-### Comandos del Bot
-- `/start`: Bienvenida e introducción
-- `/save`: Registrar nueva póliza
-- `/get`: Consultar una póliza
-- `/upload`: Subir fotos y PDFs
-- `/addpayment`: Registrar un pago
-- `/addservice`: Registrar un servicio
-- `/reportPayment`: Mostrar pólizas con pagos pendientes
-- `/reportUsed`: Mostrar pólizas sin servicios recientes
-- `/delete`: Marcar póliza como eliminada (Admin)
-- `/help`: Mostrar lista de comandos
-
-## Variables de Entorno (.env)
-```
-# Configuración de MongoDB
-MONGO_URI=mongodb+srv://[usuario]:[contraseña]@[cluster]/[database]
-
-# Token de Telegram Bot
-TELEGRAM_TOKEN=[tu_token_de_telegram]
-
-# Grupo autorizado (ID numérico)
-TELEGRAM_GROUP_ID=-1002291817096
-```
-
-## Instalación Rápida
-```bash
-# Clonar repositorio
-git clone [repositorio]
-cd polizas-bot
-
-# Instalar dependencias
-npm install
-
-# Configurar
-cp .env.example .env
-# Editar el archivo .env con las credenciales correctas
-
-# Iniciar
-npm start
-```
-
 ## Mantenimiento
 
 ### Respaldos
@@ -133,7 +145,9 @@ node scripts/import.js
 ```
 
 ### Consejos
-- Realiza respaldos antes de cada despliegue
+
+- El bot solo responde en el grupo autorizado mediante TELEGRAM_GROUP_ID
+- Realiza respaldos antes de cada despliegue con `node scripts/export.js`
 - Mantén al menos 3 versiones de respaldo
 - Monitorea los logs de errores periódicamente
-- Escala a 0 los dynos cuando no se necesite el bot para ahorrar recursos
+- Para evitar gastos innecesarios en Heroku, escala a 0 cuando no se use: `heroku ps:scale web=0`

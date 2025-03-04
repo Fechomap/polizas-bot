@@ -172,7 +172,6 @@ const policySchema = new mongoose.Schema({
 policySchema.index({ rfc: 1 });
 policySchema.index({ placas: 1 });
 policySchema.index({ estado: 1 }); // Agregar índice para estado
-policySchema.index({ numeroPoliza: 1 }); // Índice para búsquedas eficientes
 
 // Middleware pre-save para limpieza de datos
 policySchema.pre('save', function(next) {

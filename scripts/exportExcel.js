@@ -1,225 +1,202 @@
 // scripts/exportExcel.js
 const mongoose = require('mongoose');
-const XLSX = require('xlsx');
+const ExcelJS = require('exceljs');
 const path = require('path');
 const fs = require('fs').promises;
-const Policy = require('../src/models/policy');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require('dotenv').config();
 
-// Función para esperar
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const Policy = require('../src/models/policy'); // Asegúrate de la ruta correcta a tu modelo
 
-const connectDB = async () => {
-    try {
-        const mongoURI = process.env.MONGO_URI;
-        if (!mongoURI) {
-            throw new Error('La variable de entorno MONGO_URI no está definida');
-        }
-
-        console.log('✅ Intentando conectar a MongoDB para la exportación...');
-        await mongoose.connect(mongoURI);
-        console.log('✅ Conectado a MongoDB para la exportación');
-    } catch (error) {
-        console.error('❌ Error al conectar a MongoDB:', error);
-        process.exit(1);
+// Conecta a la DB
+async function connectDB() {
+  try {
+    const mongoURI = process.env.MONGO_URI;
+    if (!mongoURI) {
+      throw new Error('La variable de entorno MONGO_URI no está definida');
     }
-};
+    console.log('✅ Conectando a MongoDB para exportación (streaming)...');
+    await mongoose.connect(mongoURI);
+    console.log('✅ Conectado a MongoDB');
+  } catch (err) {
+    console.error('❌ Error al conectar a MongoDB:', err);
+    process.exit(1);
+  }
+}
 
-const ensureDirectoryExists = async (dirPath) => {
-    try {
-        await fs.access(dirPath);
-    } catch {
-        await fs.mkdir(dirPath, { recursive: true });
-    }
-};
+// Asegura que exista el directorio donde se va a guardar el Excel
+async function ensureDirectoryExists(dirPath) {
+  try {
+    await fs.access(dirPath);
+  } catch {
+    await fs.mkdir(dirPath, { recursive: true });
+  }
+}
 
-// Función para calcular el estado actual de la póliza
-const calcularEstadoPoliza = (policy) => {
-    const now = new Date();
-    const fechaEmision = new Date(policy.fechaEmision);
-    const pagos = policy.pagos || [];
+// Exportación con streaming
+async function exportExcelStream() {
+  try {
+    console.log('🔍 Buscando pólizas en la base de datos...');
     
-    // Calcular la fecha límite del mes de emisión (último día del mes)
-    const fechaLimitePrimerMes = new Date(fechaEmision);
-    fechaLimitePrimerMes.setMonth(fechaEmision.getMonth() + 1);
-    fechaLimitePrimerMes.setDate(0); // Último día del mes de emisión
+    // Antes de hacer el cursor, podemos contar cuántas existen (opcional).
+    const totalPolicies = await Policy.countDocuments();
+    if (!totalPolicies) {
+      console.log('⚠️ No se encontraron pólizas para exportar.');
+      process.exit(0);
+    }
+    console.log(`📊 Se exportarán ${totalPolicies} pólizas mediante streaming...`);
 
-    // Determinar la fecha de cobertura real en función de los pagos
-    let fechaCobertura = new Date(fechaEmision);
-    fechaCobertura.setMonth(fechaEmision.getMonth() + pagos.length);
+    const backupDir = path.join(__dirname, 'backup');
+    await ensureDirectoryExists(backupDir);
 
-    // Calcular la fecha de vencimiento (período de gracia de 1 mes después de la cobertura)
-    const fechaVencimiento = new Date(fechaCobertura);
-    fechaVencimiento.setMonth(fechaCobertura.getMonth() + 1);
+    // Creamos un nombre de archivo con timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+    const excelPath = path.join(backupDir, `polizas_backup_stream_${timestamp}.xlsx`);
 
-    // Calcular días restantes
-    const diasHastaFinCobertura = Math.ceil((fechaCobertura - now) / (1000 * 60 * 60 * 24));
-    const diasHastaVencimiento = Math.ceil((fechaVencimiento - now) / (1000 * 60 * 60 * 24));
+    // Configuramos el workbook para modo streaming
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      filename: excelPath,
+      useStyles: true,     // Opcional: si quieres usar estilos
+      useSharedStrings: true // Opcional: reduce duplicados de strings
+    });
 
-    // Determinar el estado de la póliza
-    let estado = '';
+    // Creamos la hoja (worksheet)
+    const worksheet = workbook.addWorksheet('PolizasStreaming');
 
-    if (pagos.length === 0 && now > fechaLimitePrimerMes) {
-        estado = "VENCIDA";
-    } else if (diasHastaFinCobertura > 7) {
-        estado = "VIGENTE";
-    } else if (diasHastaFinCobertura > 0) {
-        estado = "POR_TERMINAR";
-    } else if (diasHastaVencimiento > 0) {
-        estado = "PERIODO_GRACIA";
-    } else {
-        estado = "VENCIDA";
+    // Define las columnas (encabezados) según tus campos
+    worksheet.columns = [
+      { header: 'TITULAR', key: 'titular', width: 20 },
+      { header: 'CORREO ELECTRONICO', key: 'correo', width: 25 },
+      { header: 'CONTRASEÑA', key: 'contraseña', width: 15 },
+      { header: 'TELEFONO', key: 'telefono', width: 15 },
+      { header: 'CALLE', key: 'calle', width: 20 },
+      { header: 'COLONIA', key: 'colonia', width: 20 },
+      { header: 'MUNICIPIO', key: 'municipio', width: 20 },
+      { header: 'ESTADO', key: 'estadoRegion', width: 20 },
+      { header: 'CP', key: 'cp', width: 10 },
+      { header: 'RFC', key: 'rfc', width: 15 },
+      { header: 'MARCA', key: 'marca', width: 15 },
+      { header: 'SUBMARCA', key: 'submarca', width: 15 },
+      { header: 'AÑO', key: 'año', width: 10 },
+      { header: 'COLOR', key: 'color', width: 15 },
+      { header: 'SERIE', key: 'serie', width: 25 },
+      { header: 'PLACAS', key: 'placas', width: 15 },
+      { header: 'AGENTE COTIZADOR', key: 'agenteCotizador', width: 20 },
+      { header: 'ASEGURADORA', key: 'aseguradora', width: 20 },
+      { header: '# DE POLIZA', key: 'numeroPoliza', width: 20 },
+      { header: 'FECHA DE EMISION', key: 'fechaEmision', width: 15 },
+      { header: 'ESTADO_POLIZA', key: 'estadoPoliza', width: 15 },
+      { header: 'FECHA_FIN_COBERTURA', key: 'fechaFinCobertura', width: 15 },
+      { header: 'FECHA_FIN_GRACIA', key: 'fechaFinGracia', width: 15 },
+      { header: 'DIAS_RESTANTES_COBERTURA', key: 'diasRestantesCobertura', width: 10 },
+      { header: 'DIAS_RESTANTES_GRACIA', key: 'diasRestantesGracia', width: 10 },
+      { header: 'NUM_FOTOS', key: 'numFotos', width: 10 },
+      { header: 'NUM_PDFS', key: 'numPdfs', width: 10 },
+      { header: 'ESTADO_DB', key: 'estadoDB', width: 10 },
+
+      // Si quieres manejar los pagos en columnas (12 pagos), agrégalos también:
+      ...Array.from({ length: 12 }).flatMap((_, i) => [
+        { header: `PAGO${i + 1}_MONTO`, key: `pago${i + 1}Monto`, width: 12 },
+        { header: `PAGO${i + 1}_FECHA`, key: `pago${i + 1}Fecha`, width: 12 },
+      ]),
+
+      // Si quieres manejar los servicios en columnas (12 servicios):
+      ...Array.from({ length: 12 }).flatMap((_, i) => [
+        { header: `SERVICIO${i + 1}_COSTO`, key: `servicio${i + 1}Costo`, width: 12 },
+        { header: `SERVICIO${i + 1}_FECHA`, key: `servicio${i + 1}Fecha`, width: 12 },
+        { header: `SERVICIO${i + 1}_EXPEDIENTE`, key: `servicio${i + 1}Expediente`, width: 15 },
+        { header: `SERVICIO${i + 1}_ORIGEN_DESTINO`, key: `servicio${i + 1}OrigenDestino`, width: 20 },
+      ]),
+    ];
+
+    // Creamos un cursor para leer los datos uno a uno
+    const cursor = Policy.find().lean().cursor();
+    
+    // Recorremos los documentos usando el cursor
+    for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
+      
+      // Prepara las propiedades directas
+      const rowData = {
+        titular: doc.titular || '',
+        correo: doc.correo || '',
+        contraseña: doc.contraseña || '',
+        telefono: doc.telefono || '',
+        calle: doc.calle || '',
+        colonia: doc.colonia || '',
+        municipio: doc.municipio || '',
+        estadoRegion: doc.estadoRegion || '',
+        cp: doc.cp || '',
+        rfc: doc.rfc || '',
+        marca: doc.marca || '',
+        submarca: doc.submarca || '',
+        año: doc.año || '',
+        color: doc.color || '',
+        serie: doc.serie || '',
+        placas: doc.placas || '',
+        agenteCotizador: doc.agenteCotizador || '',
+        aseguradora: doc.aseguradora || '',
+        numeroPoliza: doc.numeroPoliza || '',
+        fechaEmision: doc.fechaEmision
+          ? new Date(doc.fechaEmision).toISOString().split('T')[0]
+          : '',
+        estadoPoliza: doc.estadoPoliza || '',
+        fechaFinCobertura: doc.fechaFinCobertura
+          ? new Date(doc.fechaFinCobertura).toISOString().split('T')[0]
+          : '',
+        fechaFinGracia: doc.fechaFinGracia
+          ? new Date(doc.fechaFinGracia).toISOString().split('T')[0]
+          : '',
+        diasRestantesCobertura: doc.diasRestantesCobertura || '',
+        diasRestantesGracia: doc.diasRestantesGracia || '',
+        numFotos: doc.archivos?.fotos ? doc.archivos.fotos.length : 0,
+        numPdfs: doc.archivos?.pdfs ? doc.archivos.pdfs.length : 0,
+        estadoDB: doc.estado || 'ACTIVO'
+      };
+
+      // Manejo de pagos (hasta 12)
+      const pagos = doc.pagos || [];
+      for (let i = 0; i < 12; i++) {
+        const pago = pagos[i];
+        rowData[`pago${i + 1}Monto`] = pago ? pago.monto : '';
+        rowData[`pago${i + 1}Fecha`] = (pago && pago.fechaPago)
+          ? new Date(pago.fechaPago).toISOString().split('T')[0]
+          : '';
+      }
+
+      // Manejo de servicios (hasta 12)
+      const servicios = doc.servicios || [];
+      for (let i = 0; i < 12; i++) {
+        const servicio = servicios[i];
+        rowData[`servicio${i + 1}Costo`] = servicio ? servicio.costo : '';
+        rowData[`servicio${i + 1}Fecha`] = (servicio && servicio.fechaServicio)
+          ? new Date(servicio.fechaServicio).toISOString().split('T')[0]
+          : '';
+        rowData[`servicio${i + 1}Expediente`] = servicio ? servicio.numeroExpediente : '';
+        rowData[`servicio${i + 1}OrigenDestino`] = servicio ? servicio.origenDestino : '';
+      }
+
+      // Agregamos la fila al worksheet (stream)
+      const row = worksheet.addRow(rowData);
+      row.commit(); // Importante para streaming
     }
 
-    return {
-        estado,
-        fechaCobertura: fechaCobertura.toISOString().split('T')[0],
-        fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
-        diasHastaFinCobertura,
-        diasHastaVencimiento,
-        fechaLimitePrimerMes: fechaLimitePrimerMes.toISOString().split('T')[0]
-    };
-};
+    // Cerramos el cursor
+    await cursor.close();
 
-const exportExcel = async () => {
-    try {
-        console.log('🔍 Buscando pólizas en la base de datos...');
-        const policies = await Policy.find().lean();
+    // Terminamos la escritura del workbook
+    await workbook.commit();
 
-        if (!policies.length) {
-            console.log('⚠️ No se encontraron pólizas para exportar.');
-            process.exit(0);
-        }
+    console.log(`\n✅ Exportación (stream) completada exitosamente.`);
+    console.log(`📁 Archivo Excel guardado en: ${excelPath}`);
 
-        console.log(`📊 Encontradas ${policies.length} pólizas. Procesando datos...`);
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error durante la exportación (stream):', error);
+    process.exit(1);
+  }
+}
 
-        // Asegurar que existe el directorio para el Excel
-        const backupDir = path.join(__dirname, 'backup');
-        await ensureDirectoryExists(backupDir);
-
-        const rows = [];
-        let processedCount = 0;
-        let totalFotos = 0;
-        let totalPdfs = 0;
-
-        for (const policy of policies) {
-            processedCount++;
-            
-            // Contar archivos para estadísticas
-            const numFotos = policy.archivos?.fotos?.length || 0;
-            const numPdfs = policy.archivos?.pdfs?.length || 0;
-            totalFotos += numFotos;
-            totalPdfs += numPdfs;
-
-            // Calcular estado de la póliza
-            const estadoPoliza = calcularEstadoPoliza(policy);
-
-            // Crear fila de Excel con todos los datos de la póliza
-            const row = {
-                TITULAR: policy.titular || '',
-                'CORREO ELECTRONICO': policy.correo || '',
-                CONTRASEÑA: policy.contraseña || '',
-                TELEFONO: policy.telefono || '',
-                CALLE: policy.calle || '',
-                COLONIA: policy.colonia || '',
-                MUNICIPIO: policy.municipio || '',
-                ESTADO: policy.estado || '',
-                CP: policy.cp || '',
-                RFC: policy.rfc || '',
-                MARCA: policy.marca || '',
-                SUBMARCA: policy.submarca || '',
-                AÑO: policy.año || '',
-                COLOR: policy.color || '',
-                SERIE: policy.serie || '',
-                PLACAS: policy.placas || '',
-                'AGENTE COTIZADOR': policy.agenteCotizador || '',
-                ASEGURADORA: policy.aseguradora || '',
-                '# DE POLIZA': policy.numeroPoliza || '',
-                'FECHA DE EMISION': policy.fechaEmision
-                    ? new Date(policy.fechaEmision).toISOString().split('T')[0]
-                    : '',
-                // Datos de estado y fechas importantes
-                'ESTADO_POLIZA': estadoPoliza.estado,
-                'FECHA_FIN_COBERTURA': estadoPoliza.fechaCobertura,
-                'FECHA_FIN_GRACIA': estadoPoliza.fechaVencimiento,
-                'DIAS_RESTANTES_COBERTURA': estadoPoliza.diasHastaFinCobertura,
-                'DIAS_RESTANTES_GRACIA': estadoPoliza.diasHastaVencimiento,
-                // Conteo de archivos (sin exportar su contenido)
-                'NUM_FOTOS': numFotos,
-                'NUM_PDFS': numPdfs,
-                'ESTADO_DB': policy.estado || 'ACTIVO'
-            };
-
-            // Procesar pagos
-            const pagos = policy.pagos || [];
-            for (let i = 0; i < 12; i++) {
-                const pago = pagos[i];
-                row[`PAGO${i + 1}_MONTO`] = pago ? pago.monto : '';
-                row[`PAGO${i + 1}_FECHA`] = pago && pago.fechaPago
-                    ? new Date(pago.fechaPago).toISOString().split('T')[0]
-                    : '';
-            }
-
-            // Procesar servicios
-            const servicios = policy.servicios || [];
-            for (let i = 0; i < 12; i++) {
-                const servicio = servicios[i];
-                row[`SERVICIO${i + 1}_COSTO`] = servicio ? servicio.costo : '';
-                row[`SERVICIO${i + 1}_FECHA`] = servicio && servicio.fechaServicio
-                    ? new Date(servicio.fechaServicio).toISOString().split('T')[0]
-                    : '';
-                row[`SERVICIO${i + 1}_EXPEDIENTE`] = servicio ? servicio.numeroExpediente : '';
-                row[`SERVICIO${i + 1}_ORIGEN_DESTINO`] = servicio ? servicio.origenDestino : '';
-            }
-
-            rows.push(row);
-
-            // Mostrar progreso cada 20 pólizas
-            if (processedCount % 20 === 0 || processedCount === policies.length) {
-                console.log(`⏳ Procesadas ${processedCount}/${policies.length} pólizas...`);
-            }
-        }
-
-        // Crear y guardar Excel (solo con timestamp)
-        console.log('📝 Generando archivo Excel...');
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.json_to_sheet(rows);
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'PolizasCompletas');
-        
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-        const excelPath = path.join(backupDir, `polizas_backup_${timestamp}.xlsx`);
-        XLSX.writeFile(workbook, excelPath);
-
-        // Eliminado: Ya no guardamos la versión sin timestamp
-
-        // Crear estadísticas
-        const stats = {
-            VIGENTE: rows.filter(row => row.ESTADO_POLIZA === 'VIGENTE').length,
-            POR_TERMINAR: rows.filter(row => row.ESTADO_POLIZA === 'POR_TERMINAR').length,
-            PERIODO_GRACIA: rows.filter(row => row.ESTADO_POLIZA === 'PERIODO_GRACIA').length,
-            VENCIDA: rows.filter(row => row.ESTADO_POLIZA === 'VENCIDA').length
-        };
-
-        console.log(`\n✅ Exportación completada exitosamente.`);
-        console.log(`📊 Resumen:`);
-        console.log(`   - Total pólizas: ${rows.length}`);
-        console.log(`   - Archivos en la base de datos: ${totalFotos} fotos, ${totalPdfs} PDFs`);
-        console.log(`   - Vigentes: ${stats.VIGENTE}`);
-        console.log(`   - Por terminar: ${stats.POR_TERMINAR}`);
-        console.log(`   - En periodo de gracia: ${stats.PERIODO_GRACIA}`);
-        console.log(`   - Vencidas: ${stats.VENCIDA}`);
-        console.log(`📁 Archivo Excel guardado en: ${excelPath}`);
-        
-        process.exit(0);
-    } catch (error) {
-        console.error('❌ Error durante la exportación:', error);
-        process.exit(1);
-    }
-};
-
-const run = async () => {
-    await connectDB();
-    await exportExcel();
-};
-
-run();
+// Ejecutamos
+(async () => {
+  await connectDB();
+  await exportExcelStream();
+})();
