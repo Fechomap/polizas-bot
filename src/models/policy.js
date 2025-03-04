@@ -48,10 +48,11 @@ const policySchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    estado: { 
+    estadoRegion: {  // CAMBIO: Renombramos este campo para evitar conflictos
         type: String, 
         required: true,
-        trim: true
+        trim: true,
+        uppercase: true
     },
     cp: { 
         type: String, 
@@ -112,7 +113,9 @@ const policySchema = new mongoose.Schema({
     numeroPoliza: { 
         type: String, 
         required: true, 
-        unique: true
+        unique: true,
+        trim: true,
+        uppercase: true
     },
     fechaEmision: { 
         type: Date, 
@@ -169,12 +172,19 @@ const policySchema = new mongoose.Schema({
 policySchema.index({ rfc: 1 });
 policySchema.index({ placas: 1 });
 policySchema.index({ estado: 1 }); // Agregar índice para estado
+policySchema.index({ numeroPoliza: 1 }); // Índice para búsquedas eficientes
 
 // Middleware pre-save para limpieza de datos
 policySchema.pre('save', function(next) {
     if (this.correo && this.correo.toLowerCase() === 'sin correo') {
         this.correo = '';
     }
+    
+    // Asegurar que no haya espacios ni caracteres especiales en el número de póliza
+    if (this.numeroPoliza) {
+        this.numeroPoliza = this.numeroPoliza.trim().replace(/[\r\n\t]/g, '');
+    }
+    
     next();
 });
 
