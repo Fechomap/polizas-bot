@@ -50,7 +50,7 @@ const policySchema = new mongoose.Schema({
     },
     estadoRegion: {  // CAMBIO: Renombramos este campo para evitar conflictos
         type: String, 
-        required: true,
+        required: false,
         trim: true,
         uppercase: true
     },
