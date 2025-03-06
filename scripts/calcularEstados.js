@@ -28,6 +28,26 @@ const contarPagos = (row) => {
   return count;
 };
 
+// Función para contar servicios (basada en las columnas relacionadas)
+const contarServicios = (row) => {
+  let count = 0;
+
+  // Iterar sobre los 12 posibles servicios
+  for (let i = 1; i <= 12; i++) {
+    const costo = row[`SERVICIO${i}_COSTO`];
+    const fecha = row[`SERVICIO${i}_FECHA`];
+    const expediente = row[`SERVICIO${i}_EXPEDIENTE`];
+    const origenDestino = row[`SERVICIO${i}_ORIGEN_DESTINO`];
+
+    // Si al menos uno de los campos relacionados con el servicio tiene un valor, se cuenta como un servicio
+    if (costo || fecha || expediente || origenDestino) {
+      count++;
+    }
+  }
+
+  return count;
+};
+
 // Función para convertir fecha (asume formato ISO o DD/MM/YY[YY])
 const convertirFecha = (fecha) => {
   if (!fecha) return null;
@@ -93,6 +113,44 @@ const calcularCampos = (fechaEmision, numPagos, ahora) => {
   };
 };
 
+// Función para calcular la calificación (puntaje) de la póliza
+// Se utiliza el estado, los días restantes (de gracia o cobertura según corresponda)
+// y el número de servicios usados.
+const calcularPuntaje = (estado, diasCobertura, diasGracia, servicios) => {
+  // Si la póliza ya tiene 2 servicios, se asigna la calificación mínima
+  if (servicios >= 2) return 10;
+  // Si la póliza está vencida, no es prioritaria
+  if (estado === "VENCIDA") return 0;
+
+  // Seleccionar días según el estado:
+  // - Para periodo de gracia usamos DIAS_RESTANTES_GRACIA
+  // - Para vigentes usamos DIAS_RESTANTES_COBERTURA
+  let dias = (estado === "PERIODO DE GRACIA") ? diasGracia : diasCobertura;
+
+  let puntaje = 0;
+  // Para pólizas sin servicios
+  if (servicios === 0) {
+    if (dias <= 1) puntaje = 100;
+    else if (dias <= 3) puntaje = 80;
+    else if (dias <= 7) puntaje = 60;
+    else puntaje = 40;
+  }
+  // Para pólizas con 1 servicio
+  else if (servicios === 1) {
+    if (dias <= 1) puntaje = 90;
+    else if (dias <= 3) puntaje = 70;
+    else if (dias <= 7) puntaje = 50;
+    else puntaje = 30;
+  }
+  
+  // Ajuste: Si la póliza es vigente, se le resta 10 puntos para darle prioridad a las de periodo de gracia
+  if (estado === "VIGENTE") {
+    puntaje = Math.max(puntaje - 10, 0);
+  }
+
+  return puntaje;
+};
+
 const main = () => {
   try {
     console.log('🔍 Leyendo archivo Excel...');
@@ -112,14 +170,27 @@ const main = () => {
       }
       // Contar pagos (se asume que las columnas se llaman "PAGO1_FECHA", etc.)
       const numPagos = contarPagos(row);
+      // Calcular campos de fechas y estado
       const calculo = calcularCampos(fechaEmision, numPagos, ahora);
+      // Contar servicios (se asume que las columnas se llaman "SERVICIO1_COSTO", etc.)
+      const servicios = contarServicios(row);
+      // Calcular puntaje o calificación según la lógica completa
+      const puntaje = calcularPuntaje(
+        calculo.ESTADO_POLIZA,
+        calculo.DIAS_RESTANTES_COBERTURA,
+        calculo.DIAS_RESTANTES_GRACIA,
+        servicios
+      );
+
       return {
         ...row,
         ESTADO_POLIZA: calculo.ESTADO_POLIZA,
         FECHA_FIN_COBERTURA: calculo.FECHA_FIN_COBERTURA,
         FECHA_FIN_GRACIA: calculo.FECHA_FIN_GRACIA,
         DIAS_RESTANTES_COBERTURA: calculo.DIAS_RESTANTES_COBERTURA,
-        DIAS_RESTANTES_GRACIA: calculo.DIAS_RESTANTES_GRACIA
+        DIAS_RESTANTES_GRACIA: calculo.DIAS_RESTANTES_GRACIA,
+        SERVICIOS: servicios,
+        CALIFICACION: puntaje
       };
     });
 
