@@ -1,6 +1,8 @@
 // src/comandos/commandHandler.js
+const { spawn } = require('child_process');
+const path = require('path');
 const { Markup } = require('telegraf');
-const config = require('../config');  // <-- Añadir esta línea
+const config = require('../config');
 const { 
     getPolicyByNumber, 
     savePolicy, 
@@ -17,6 +19,9 @@ const {
 const logger = require('../utils/logger');
 const FileHandler = require('../utils/fileHandler');
 const fetch = require('node-fetch');
+
+// Añade esta línea para importar el modelo Policy directamente
+const Policy = require('../models/policy');
 
 class CommandHandler {
     constructor(bot) {
@@ -433,148 +438,262 @@ class CommandHandler {
         // Comando para reporte de pólizas "usadas"
         this.bot.command('reportUsed', async (ctx) => {
             try {
-                const policies = await getOldUnusedPolicies();
-
-                if (!policies.length) {
-                    return await ctx.reply('✅ No hay pólizas pendientes para usar.');
-                }
-
-                // Vamos a mandar un mensaje por cada póliza en el resultado
-                for (const pol of policies) {
-                    const now = new Date(); // Fecha actual
-                    const fechaEmision = new Date(pol.fechaEmision);
-                    
-                    // Calcular días totales desde la emisión hasta hoy
-                    const diasTotales = Math.floor((now - fechaEmision) / (1000 * 60 * 60 * 24));
-                    
-                    // Obtener pagos y servicios
-                    const pagos = pol.pagos || [];
-                    const servicios = pol.servicios || [];
-                    
-                    // Calcular fecha límite del primer mes (cobertura inicial)
-                    const fechaLimitePrimerMes = new Date(fechaEmision);
-                    fechaLimitePrimerMes.setMonth(fechaLimitePrimerMes.getMonth() + 1);
-                    
-                    // Calcular fecha de cobertura real basada en emisión y pagos
-                    let fechaCobertura = new Date(fechaEmision);
-                    
-                    // Cada pago da un mes de cobertura real
-                    if (pagos.length > 0) {
-                        // La cobertura real es "pagos.length" meses desde la emisión
-                        fechaCobertura = new Date(fechaEmision);
-                        fechaCobertura.setMonth(fechaEmision.getMonth() + pagos.length);
-                    } else {
-                        // Si no hay pagos, solo hay el mes inicial desde emisión
-                        fechaCobertura = new Date(fechaEmision);
-                        fechaCobertura.setMonth(fechaEmision.getMonth() + 1);
+                // Enviar mensaje inicial
+                const waitMsg = await ctx.reply(
+                    '🔄 Iniciando cálculo de estados de pólizas...\n' +
+                    'Este proceso puede tardar varios minutos, se enviarán actualizaciones periódicas.'
+                );
+        
+                // Variables para seguimiento y mensajes de progreso
+                let lastProgressUpdate = Date.now();
+                let scriptRunning = true;
+                let updateCount = 0;
+        
+                // Iniciar el temporizador de progreso que enviará actualizaciones cada 30 segundos
+                // Esto evita que Telegram piense que el bot está inactivo
+                const progressInterval = setInterval(async () => {
+                    if (!scriptRunning) {
+                        clearInterval(progressInterval);
+                        return;
                     }
                     
-                    // El periodo de gracia es un mes adicional después de la cobertura real
-                    const fechaVencimiento = new Date(fechaCobertura);
-                    fechaVencimiento.setMonth(fechaCobertura.getMonth() + 1);
+                    updateCount++;
+                    const elapsedSeconds = Math.floor((Date.now() - lastProgressUpdate) / 1000);
                     
-                    // Calcular días restantes hasta el fin de la cobertura
-                    const diasHastaFinCobertura = Math.ceil((fechaCobertura - now) / (1000 * 60 * 60 * 24));
-                    
-                    // Calcular días restantes hasta fin del periodo de gracia
-                    const diasHastaVencimiento = Math.ceil((fechaVencimiento - now) / (1000 * 60 * 60 * 24));
-                    
-                    // Verificar si ya pasó más de un mes desde la emisión y no tiene pagos
-                    const sinPagoYFueraDePlazo = pagos.length === 0 && now > fechaLimitePrimerMes;
-                    
-                    // Formatear fechas para mostrar
-                    const fEmision = fechaEmision.toISOString().split('T')[0];
-                    const fCobertura = fechaCobertura.toISOString().split('T')[0];
-                    const fVencimiento = fechaVencimiento.toISOString().split('T')[0];
-                    
-                    // Determinar estado de la póliza
-                    let estadoPago, alertaVencimiento = '';
-                    
-                    if (sinPagoYFueraDePlazo) {
-                        // Sin pagos y ya pasó el primer mes + periodo de gracia
-                        const diasFuera = Math.floor((now - fechaVencimiento) / (1000 * 60 * 60 * 24));
-                        estadoPago = `🔴 Fuera de cobertura (${diasFuera} días)`;
-                        alertaVencimiento = '*¡ATENCIÓN! Póliza FUERA DE COBERTURA*\n';
-                    } else if (diasHastaFinCobertura > 7) {
-                        // Más de una semana hasta fin de cobertura real
-                        estadoPago = `🟢 Vigente (${diasHastaFinCobertura} días restantes)`;
-                    } else if (diasHastaFinCobertura > 0) {
-                        // A punto de terminar cobertura real
-                        estadoPago = `🟡 Cobertura por terminar en ${diasHastaFinCobertura} día(s)`;
-                        alertaVencimiento = '*¡ATENCIÓN! Cobertura por terminar*\n';
-                    } else if (diasHastaVencimiento > 0) {
-                        // En periodo de gracia
-                        estadoPago = `🟠 En periodo de gracia (${diasHastaVencimiento} días restantes)`;
-                        alertaVencimiento = '*¡ATENCIÓN! Póliza en periodo de gracia*\n';
-                    } else {
-                        // Vencida (pasó periodo de gracia)
-                        estadoPago = `🔴 Vencida hace ${Math.abs(diasHastaVencimiento)} día(s)`;
-                        alertaVencimiento = '*¡ATENCIÓN! Póliza VENCIDA*\n';
+                    try {
+                        await ctx.telegram.editMessageText(
+                            waitMsg.chat.id,
+                            waitMsg.message_id,
+                            undefined,
+                            `🔄 Cálculo de estados en progreso...\n` +
+                            `⏱️ Tiempo transcurrido: ${elapsedSeconds} segundos\n` +
+                            `Actualización #${updateCount} - Por favor espere, esto puede tardar varios minutos.`
+                        );
+                        lastProgressUpdate = Date.now();
+                    } catch (e) {
+                        logger.error('Error al actualizar mensaje de progreso:', e);
+                        // No detenemos el proceso por errores de actualización de mensajes
                     }
-
-                    // Preparar información de servicios
-                    let infoServicio = '📋 *No tiene servicios registrados.*';
-                    if (servicios.length > 0) {
-                        const ultimo = servicios.reduce((latest, current) => {
-                            const currentDate = new Date(current.fechaServicio);
-                            return !latest || currentDate > new Date(latest.fechaServicio) ? current : latest;
-                        }, null);
-
-                        const fechaServ = ultimo.fechaServicio
-                            ? new Date(ultimo.fechaServicio).toISOString().split('T')[0]
-                            : '??';
-                        const origenDest = ultimo.origenDestino || '(Sin origen/destino)';
-
-                        infoServicio = `Último Servicio: ${fechaServ}\n` +
-                                    `Origen/Destino: ${origenDest}\n` +
-                                    `Total Servicios: ${servicios.length}`;
+                }, 30000); // Actualizar cada 30 segundos
+        
+                // Ejecutar el script calculoEstadosDB.js como proceso separado
+                const scriptPath = path.join(__dirname, '../../scripts/calculoEstadosDB.js');
+                
+                const executeScript = () => {
+                    return new Promise((resolve, reject) => {
+                        logger.info(`Ejecutando script: ${scriptPath}`);
+                        
+                        const childProcess = spawn('node', [scriptPath], {
+                            detached: true, // Esto permite que el proceso hijo continúe incluso si el padre termina
+                            stdio: ['ignore', 'pipe', 'pipe'] // Redirigir la salida para poder capturarla
+                        });
+                        
+                        // Capturar la salida para logs
+                        childProcess.stdout.on('data', (data) => {
+                            const output = data.toString().trim();
+                            logger.info(`calculoEstadosDB stdout: ${output}`);
+                        });
+                        
+                        childProcess.stderr.on('data', (data) => {
+                            const errorOutput = data.toString().trim();
+                            logger.error(`calculoEstadosDB stderr: ${errorOutput}`);
+                        });
+                        
+                        // Manejar la finalización del proceso
+                        childProcess.on('close', (code) => {
+                            scriptRunning = false;
+                            if (code === 0) {
+                                logger.info(`Script calculoEstadosDB completado exitosamente (código ${code})`);
+                                resolve();
+                            } else {
+                                logger.error(`Script calculoEstadosDB falló con código de salida ${code}`);
+                                reject(new Error(`Script falló con código ${code}`));
+                            }
+                        });
+                        
+                        // Manejar errores
+                        childProcess.on('error', (err) => {
+                            scriptRunning = false;
+                            logger.error(`Error al ejecutar calculoEstadosDB: ${err.message}`);
+                            reject(err);
+                        });
+        
+                        // Aplicar un timeout más largo para este proceso
+                        setTimeout(() => {
+                            if (scriptRunning) {
+                                logger.warn('Tiempo límite para script excedido, pero continuando ejecución');
+                                // No matamos el proceso, solo notificamos y continuamos con la ejecución
+                                resolve();
+                            }
+                        }, 420000); // 7 minutos de timeout
+                    });
+                };
+        
+                try {
+                    // Ejecutar el script con un manejador de tiempo específico
+                    // Incluso si el script toma demasiado tiempo, continuaremos con el flujo
+                    try {
+                        await executeScript();
+                    } catch (scriptError) {
+                        logger.error('Error o timeout en el script, continuando con consulta de pólizas:', scriptError);
+                        // Seguimos el flujo incluso con error
                     }
-
-                    // Preparar información de pagos
-                    let infoPagos;
-                    if (pagos.length === 0) {
-                        if (sinPagoYFueraDePlazo) {
-                            infoPagos = '❌ *No tiene pagos registrados*\n' +
-                                    `Fin primer mes: ${fechaLimitePrimerMes.toISOString().split('T')[0]}\n` +
-                                    `Estado: ${estadoPago}`;
-                        } else {
-                            infoPagos = '❌ *No tiene pagos registrados*\n' +
-                                    `Fin primer mes: ${fechaLimitePrimerMes.toISOString().split('T')[0]}\n` +
-                                    `Estado: ${estadoPago}`;
+                    
+                    // Detener el intervalo de progreso
+                    clearInterval(progressInterval);
+                    scriptRunning = false;
+                    
+                    // Actualizar mensaje para indicar que estamos consultando las pólizas
+                    try {
+                        await ctx.telegram.editMessageText(
+                            waitMsg.chat.id,
+                            waitMsg.message_id,
+                            undefined,
+                            '✅ Proceso de cálculo completado o tiempo límite alcanzado.\n' +
+                            '🔍 Consultando las pólizas prioritarias...'
+                        );
+                    } catch (msgError) {
+                        logger.error('Error al actualizar mensaje final:', msgError);
+                        // Intentar enviar un nuevo mensaje si la edición falla
+                        await ctx.reply('🔍 Consultando las pólizas prioritarias...');
+                    }
+        
+                    // Pequeña pausa para asegurar que la base de datos tenga los cambios
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Buscar el top 10 de pólizas con mejor calificación
+                    const topPolicies = await Policy.find({ 
+                        estado: 'ACTIVO'  // Solo pólizas activas
+                    })
+                    .sort({ calificacion: -1 })  // Ordenar por calificación (mayor a menor)
+                    .limit(10)  // Top 10
+                    .lean();
+                    
+                    if (!topPolicies.length) {
+                        return await ctx.reply('✅ No hay pólizas prioritarias que mostrar.');
+                    }
+        
+                    // Enviar mensaje final de éxito
+                    await ctx.reply('📊 TOP 10 PÓLIZAS POR PRIORIDAD:');
+                    
+                    // Enviamos un mensaje por cada póliza prioritaria, con pequeñas pausas entre mensajes
+                    for (const pol of topPolicies) {
+                        // Obtener datos simples sin cálculos adicionales
+                        const fEmision = pol.fechaEmision 
+                            ? new Date(pol.fechaEmision).toISOString().split('T')[0] 
+                            : 'No disponible';
+                        
+                        const fechaFinCobertura = pol.fechaFinCobertura 
+                            ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0] 
+                            : 'No disponible';
+                        
+                        const fechaFinGracia = pol.fechaFinGracia 
+                            ? new Date(pol.fechaFinGracia).toISOString().split('T')[0] 
+                            : 'No disponible';
+                        
+                        // Contar servicios
+                        const servicios = pol.servicios || [];
+                        const totalServicios = servicios.length;
+                        
+                        // Formatear puntaje y estado
+                        let alertaPrioridad = '';
+                        if (pol.calificacion >= 80) {
+                            alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
+                        } else if (pol.calificacion >= 60) {
+                            alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
                         }
-                    } else {
-                        infoPagos = `Pagos realizados: ${pagos.length}\n` +
-                                `Fin de cobertura: ${fCobertura}\n` +
-                                `Fin periodo gracia: ${fVencimiento}\n` +
-                                `Estado: ${estadoPago}`;
+                        
+                        // Construir el mensaje directamente con datos ya calculados
+                        const msg = `
+        ${alertaPrioridad}🏆 *Calificación: ${pol.calificacion || 0}*
+        🔍 *Póliza:* ${pol.numeroPoliza}
+        📅 *Emisión:* ${fEmision}
+        🚗 *Vehículo:* ${pol.marca} ${pol.submarca} (${pol.año})
+        📊 *Estado:* ${pol.estadoPoliza || 'No calculado'}
+        🗓️ *Fin Cobertura:* ${fechaFinCobertura} (${pol.diasRestantesCobertura || 'N/A'} días)
+        ⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
+        🔧 *Servicios:* ${totalServicios}
+        💰 *Pagos:* ${pol.pagos?.length || 0}`.trim();
+        
+                        // Crear botones inline
+                        const inlineKeyboard = [
+                            [
+                                Markup.button.callback(
+                                    `👀 Consultar ${pol.numeroPoliza}`,
+                                    `getPoliza:${pol.numeroPoliza}`
+                                )
+                            ]
+                        ];
+        
+                        try {
+                            // Enviar mensaje
+                            await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                            
+                            // Pequeña pausa entre mensajes para evitar limitaciones de Telegram
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        } catch (sendError) {
+                            logger.error(`Error al enviar mensaje para póliza ${pol.numeroPoliza}:`, sendError);
+                            // Intentar con formato más simple si hay error
+                            await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`);
+                        }
                     }
-
-                    // Construir el mensaje completo
-                    const msg = `
-        ${alertaVencimiento}🔍 *Póliza:* ${pol.numeroPoliza}
-        📅 *Emisión:* ${fEmision} (${diasTotales} días totales)
-        ${infoServicio}
-        ${infoPagos}`.trim();
-
-                    // Crear botones inline
-                    const inlineKeyboard = [
-                        [
-                            Markup.button.callback(
-                                `👀 Consultar ${pol.numeroPoliza}`,
-                                `getPoliza:${pol.numeroPoliza}`
-                            )
-                        ]
-                    ];
-
-                    // Enviar mensaje
-                    await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-
-                    // Pequeña pausa entre mensajes
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    // Mensaje final
+                    await ctx.reply('✅ Se han mostrado las pólizas prioritarias según su calificación actual.');
+                    
+                } catch (error) {
+                    // Detener el intervalo si hay error
+                    clearInterval(progressInterval);
+                    scriptRunning = false;
+                    
+                    logger.error('Error en proceso de cálculo o consulta:', error);
+                    
+                    // Notificar al usuario
+                    try {
+                        await ctx.telegram.editMessageText(
+                            waitMsg.chat.id,
+                            waitMsg.message_id,
+                            undefined,
+                            '❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...'
+                        );
+                    } catch (e) {
+                        // Si no se puede editar el mensaje, enviar uno nuevo
+                        await ctx.reply('❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...');
+                    }
+                    
+                    // Intentar obtener pólizas de todas formas
+                    try {
+                        const fallbackPolicies = await Policy.find({ estado: 'ACTIVO' })
+                            .sort({ calificacion: -1 })
+                            .limit(10)
+                            .lean();
+                            
+                        if (fallbackPolicies.length > 0) {
+                            await ctx.reply('⚠️ Mostrando pólizas disponibles (orden actual en base de datos):');
+                            
+                            // Mostrar versión simplificada de cada póliza
+                            for (const pol of fallbackPolicies) {
+                                await ctx.replyWithMarkdown(
+                                    `*Póliza:* ${pol.numeroPoliza}\n` +
+                                    `*Calificación:* ${pol.calificacion || 'No calculada'}\n` +
+                                    `*Vehículo:* ${pol.marca} ${pol.submarca}`,
+                                    Markup.inlineKeyboard([
+                                        [Markup.button.callback(`👀 Consultar ${pol.numeroPoliza}`, `getPoliza:${pol.numeroPoliza}`)]
+                                    ])
+                                );
+                                await new Promise(resolve => setTimeout(resolve, 300));
+                            }
+                        } else {
+                            await ctx.reply('❌ No se pudieron obtener las pólizas.');
+                        }
+                    } catch (fallbackError) {
+                        logger.error('Error al obtener pólizas de respaldo:', fallbackError);
+                        await ctx.reply('❌ Error crítico al intentar obtener pólizas.');
+                    }
                 }
             } catch (error) {
-                logger.error('Error en reportUsed:', error);
-                await ctx.reply('❌ Ocurrió un error al generar el reporte de pólizas.');
+                logger.error('Error general en reportUsed:', error);
+                await ctx.reply('❌ Ocurrió un error al generar el reporte de pólizas. Intente nuevamente más tarde.');
             }
         });
         

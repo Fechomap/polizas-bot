@@ -1,45 +1,54 @@
 # Bot de Pólizas para Telegram
 
-Bot para gestionar pólizas de seguros a través de Telegram. Permite registrar y consultar pólizas, subir documentación, hacer seguimiento de pagos y servicios.
+Bot para gestión de pólizas de seguros a través de Telegram. Permite registrar, consultar y dar seguimiento a pólizas, incluyendo pagos, servicios y documentación asociada.
 
-## Instalación Rápida
+## Características Principales
+
+- Registro completo de pólizas de seguros
+- Gestión de pagos y servicios
+- Carga de fotos y documentos PDF
+- Reportes de estado y alertas automáticas
+- Almacenamiento de datos en MongoDB
+- Borrado lógico de pólizas
+- Exportación e importación en formato Excel
+
+## Requisitos
+
+- Node.js 16 o superior
+- MongoDB
+- Token de Bot de Telegram
+- Grupo autorizado en Telegram
+
+## Instalación
 
 ```bash
 # Clonar repositorio
-git clone [repositorio]
+git clone [url-repositorio]
 cd polizas-bot
 
 # Instalar dependencias
 npm install
 
-# Configurar
+# Configurar variables de entorno
 cp .env.example .env
-# Editar el archivo .env con las credenciales correctas
-
-# Iniciar
-npm start
+# Editar .env con tus credenciales
 ```
 
-## Configuración (.env)
+## Configuración
+
+Edita el archivo `.env` con las siguientes variables:
 
 ```
-# Configuración de MongoDB
+# MongoDB
 MONGO_URI=mongodb+srv://[usuario]:[contraseña]@[cluster]/[database]
 
-# Token de Telegram Bot
+# Telegram
 TELEGRAM_TOKEN=[tu_token_de_telegram]
-
-# Grupo autorizado (ID numérico)
 TELEGRAM_GROUP_ID=-1002291817096
-```
 
-## Desarrollo Local
-
-```bash
-# Iniciar el Bot
-npm start                           # Iniciar en modo normal
-npm run dev                         # Iniciar con recarga automática (nodemon)
-npm run reinstall                   # Reinstalar dependencias (limpia node_modules y package-lock.json)
+# Opcional
+PORT=3000
+NODE_ENV=production
 ```
 
 ## Comandos del Bot
@@ -47,109 +56,133 @@ npm run reinstall                   # Reinstalar dependencias (limpia node_modul
 | Comando | Descripción |
 |---------|-------------|
 | `/start` | Bienvenida e introducción |
+| `/help` | Mostrar todos los comandos disponibles |
 | `/save` | Registrar nueva póliza |
-| `/get` | Consultar una póliza |
-| `/upload` | Subir fotos y PDFs |
-| `/addpayment` | Registrar un pago |
-| `/addservice` | Registrar un servicio |
+| `/get` | Consultar una póliza existente |
+| `/upload` | Subir fotos o PDFs para una póliza |
+| `/addpayment` | Registrar un nuevo pago |
+| `/addservice` | Registrar un nuevo servicio |
 | `/reportPayment` | Mostrar pólizas con pagos pendientes |
 | `/reportUsed` | Mostrar pólizas sin servicios recientes |
 | `/delete` | Marcar póliza como eliminada (Admin) |
-| `/help` | Mostrar lista de comandos |
+| `/listdeleted` | Listar pólizas eliminadas (Admin) |
 
-## Estructura del Bot
+## Estructura del Proyecto
 
-### Principales Archivos
-- `src/bot.js`: Punto de entrada principal
-- `src/comandos/commandHandler.js`: Manejo de comandos
-- `src/controllers/policyController.js`: Lógica de negocio
-- `src/models/policy.js`: Modelo de datos
-- `src/database.js`: Conexión a MongoDB
-- `src/config.js`: Configuración general
-- `src/middleware/groupHandler.js`: Manejo de restricciones de grupo
-- `src/utils/fileHandler.js`: Manejo de archivos
-- `src/utils/logger.js`: Sistema de logs
-
-## Gestión de la Base de Datos
-
-```bash
-# Exportar/Importar
-node scripts/export.js              # Exportar base de datos a Excel y archivos
-node scripts/import.js              # Importar base de datos desde Excel y archivos
-node scripts/importExcel.js backup/polizas_backup.xlsx  # Importar solo desde Excel
-
-# Limpiar base de datos
-node scripts/clearAll.js            # Borrar todos los documentos (¡PELIGROSO!)
-
-# Migración
-node scripts/migrateDb.js           # Ejecutar migración con respaldo automático
+```
+polizas-bot/
+├── src/
+│   ├── bot.js             # Punto de entrada principal
+│   ├── config.js          # Configuración general
+│   ├── database.js        # Conexión a MongoDB
+│   ├── comandos/
+│   │   └── commandHandler.js  # Manejo de comandos del bot
+│   ├── controllers/
+│   │   └── policyController.js # Lógica de negocio
+│   ├── middleware/
+│   │   └── groupHandler.js   # Validación de grupos
+│   ├── models/
+│   │   └── policy.js       # Modelo de datos
+│   └── utils/
+│       ├── fileHandler.js  # Manejo de archivos
+│       └── logger.js       # Sistema de logs
+├── scripts/
+│   ├── backup/            # Directorio para respaldos
+│   ├── calculoEstadosDB.js # Cálculo de estados de pólizas
+│   ├── clearAll.js        # Limpieza de base de datos
+│   ├── deletePolicy.js    # Eliminar póliza permanentemente
+│   ├── estados.js         # Coordinador de cálculo y exportación
+│   ├── export.js          # Exportación completa (datos y archivos)
+│   ├── exportExcel.js     # Exportación solo a Excel
+│   ├── import.js          # Importación completa
+│   └── importExcel.js     # Importación solo desde Excel
+└── logs/                  # Directorio para logs
 ```
 
-## Despliegue y Gestión
+## Ejecución
 
-### Git
 ```bash
-# Básico
-git add .                           # Agregar cambios
-git commit -m "mejoras en exportar e importar"             # Hacer commit
-git push origin main                # Empujar cambios
+# Desarrollo (con recarga automática)
+npm run dev
 
-# Ramas
-git checkout -b feature             # Crear nueva rama
-git merge feature                   # Fusionar rama
-git branch -d feature               # Eliminar rama
-```
+# Producción
+npm start
 
-### Heroku
-```bash
-# Login
-heroku login                        # Login interactivo
-heroku login -i                     # Login desde terminal
-
-# Despliegue
-git push heroku main                # Desplegar a Heroku
-git push heroku rama:main           # Desplegar desde otra rama
-
-# Configuración
-heroku config                       # Ver variables de entorno
-heroku config:set CLAVE=valor       # Establecer variable de entorno
-heroku config:unset CLAVE           # Eliminar variable de entorno
-heroku config:pull                  # Descargar config a .env
-
-# Gestión de dynos
-heroku ps                           # Ver estado de dynos
-heroku ps:scale web=1               # Escalar dynos (activar)
-heroku ps:scale web=0               # Desactivar dynos
-heroku ps:restart                   # Reiniciar dynos
-
-# Logs y monitoreo
-heroku logs --tail                  # Ver logs en tiempo real
-heroku maintenance:on               # Activar modo mantenimiento
-heroku maintenance:off              # Desactivar modo mantenimiento
+# Reinstalación de dependencias
+npm run reinstall
 ```
 
 ## Mantenimiento
 
 ### Respaldos
+
 ```bash
-# Crear respaldo completo
+# Crear respaldo completo (archivos y datos)
 node scripts/export.js
-# Los datos se guardan en scripts/backup/
+
+# Exportar solo a Excel (más rápido)
+node scripts/exportExcel.js
 ```
 
 ### Restauración
+
 ```bash
 # Restaurar desde respaldo
 node scripts/import.js
-# Lee datos desde scripts/backup/
+
+# Importar solo desde Excel
+node scripts/importExcel.js scripts/backup/polizas_backup.xlsx
 ```
 
-### Consejos
+### Cálculo de Estados
 
-- El bot solo responde en el grupo autorizado mediante TELEGRAM_GROUP_ID
-- Realiza respaldos antes de cada despliegue con `node scripts/export.js`
-- Mantén al menos 3 versiones de respaldo
-- Monitorea los logs de errores periódicamente
-- Para evitar gastos innecesarios en Heroku, escala a 0 cuando no se use: `heroku ps:scale web=0`
+```bash
+# Actualizar estados de pólizas
+node scripts/calculoEstadosDB.js
 
-pendientes # Cambio menor para forzar despliegue
+# Actualizar estados y exportar a Excel
+node scripts/estados.js
+```
+
+### Administración
+
+```bash
+# Eliminar TODOS los datos (¡PELIGROSO!)
+node scripts/clearAll.js
+
+# Eliminar una póliza permanentemente
+node scripts/deletePolicy.js
+```
+
+## Despliegue en Heroku
+
+```bash
+# Login
+heroku login
+
+# Despliegue
+git push heroku main
+
+# Gestión de dynos
+heroku ps:scale web=1  # Activar
+heroku ps:scale web=0  # Desactivar
+
+# Logs
+heroku logs --tail
+```
+
+## Consideraciones
+
+- **Respaldos**: Realiza respaldos periódicos con `node scripts/export.js`
+- **Monitoreo**: Revisa regularmente los logs en `/logs`
+- **Seguridad**: Solo usuarios en el grupo autorizado pueden usar el bot
+- **Borrado**: Las pólizas se marcan como "ELIMINADO" pero no se borran de la base
+- **Escalado**: Cuando no uses el bot, escala a 0 los dynos para ahorrar recursos
+
+## Licencia
+
+ISC
+
+## Soporte
+
+Para soporte técnico, contacta al desarrollador.
