@@ -1,4 +1,5 @@
 // node scripts/importExcel.js scripts/backup/polizas_backup.xlsx
+// scripts/importExcel.js
 const mongoose = require('mongoose');
 const XLSX = require('xlsx');
 const path = require('path');
@@ -66,17 +67,14 @@ const importExcel = async (excelPath) => {
       // --- OBTENER POLICY EXISTENTE PARA CONSERVAR ESTADO ---
       const existingPolicy = await Policy.findOne({ numeroPoliza }).lean();
 
-      // Obtenemos posible estado desde Excel
+      // Obtener posible estado desde Excel
       const newStateFromExcel = toUpperIfExists(item['ESTADO_DB']);
       let finalState;
       if (newStateFromExcel) {
-        // Si Excel trae un valor, usamos ese
         finalState = newStateFromExcel;
       } else if (existingPolicy) {
-        // Si Excel NO trae valor y la póliza existe, conservamos su estado
         finalState = existingPolicy.estado;
       } else {
-        // Si no existe la póliza y Excel no trae valor, usamos 'ACTIVO'
         finalState = 'ACTIVO';
       }
 
@@ -111,7 +109,7 @@ const importExcel = async (excelPath) => {
         }
       }
 
-      // Construir datos de la póliza
+      // Construir datos de la póliza (solo los campos del Excel)
       const policyData = {
         titular: toUpperIfExists(item['TITULAR']),
         correo: item['CORREO ELECTRONICO']?.toLowerCase() || '',
@@ -133,28 +131,20 @@ const importExcel = async (excelPath) => {
         aseguradora: toUpperIfExists(item['ASEGURADORA']),
         numeroPoliza,
         fechaEmision: convertirFecha(item['FECHA DE EMISION']),
-        estadoPoliza: toUpperIfExists(item['ESTADO_POLIZA']),
-        fechaFinCobertura: convertirFecha(item['FECHA_FIN_COBERTURA']),
-        fechaFinGracia: convertirFecha(item['FECHA_FIN_GRACIA']),
-        diasRestantesCobertura: Number(item['DIAS_RESTANTES_COBERTURA']) || 0,
-        diasRestantesGracia: Number(item['DIAS_RESTANTES_GRACIA']) || 0,
-        estado: finalState, // Usamos la lógica que evita sobrescribir
+        estado: finalState,
         pagos,
         servicios,
       };
 
-      // Actualizar o insertar en MongoDB
+      // Actualizar o insertar usando $set para no sobrescribir campos adicionales que no vienen en el Excel
       try {
         const result = await Policy.findOneAndUpdate(
           { numeroPoliza },
-          policyData,
+          { $set: policyData },
           { upsert: true, new: true }
         );
-        // Notas:
-        // - findOneAndUpdate con { upsert: true } crea la póliza si no existe.
-        // - finalState será 'ACTIVO' solo si no había estado en Excel y la póliza no existía.
-        
-        if (result._id && !result.__v) {
+
+        if (!existingPolicy) {
           inserted++;
           console.log(`✅ Póliza ${numeroPoliza} insertada`);
         } else {
@@ -167,11 +157,14 @@ const importExcel = async (excelPath) => {
     }
 
     console.log('\n✅ Importación finalizada:');
-    console.log(`📥 Insertadas: ${inserted}`);
-    console.log(`🔄 Actualizadas: ${updated}`);
+    console.log(`📥 Pólizas insertadas: ${inserted}`);
+    console.log(`🔄 Pólizas actualizadas: ${updated}`);
+    console.log(`\n⚠️ RECORDATORIO: Para calcular estados y calificaciones, ejecuta:`);
+    console.log(`   node scripts/estados.js`);
+
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error en la importación:', error.message);
+    console.error('❌ Error durante la importación:', error.message);
     process.exit(1);
   }
 };

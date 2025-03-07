@@ -92,6 +92,9 @@ async function exportExcelStream() {
       { header: 'NUM_FOTOS', key: 'numFotos', width: 10 },
       { header: 'NUM_PDFS', key: 'numPdfs', width: 10 },
       { header: 'ESTADO_DB', key: 'estadoDB', width: 10 },
+      // Nuevos campos agregados al esquema
+      { header: 'SERVICIOS', key: 'totalServicios', width: 10 },
+      { header: 'CALIFICACION', key: 'calificacion', width: 10 },
 
       // Si quieres manejar los pagos en columnas (12 pagos), agrégalos también:
       ...Array.from({ length: 12 }).flatMap((_, i) => [
@@ -145,11 +148,14 @@ async function exportExcelStream() {
         fechaFinGracia: doc.fechaFinGracia
           ? new Date(doc.fechaFinGracia).toISOString().split('T')[0]
           : '',
-        diasRestantesCobertura: doc.diasRestantesCobertura || '',
-        diasRestantesGracia: doc.diasRestantesGracia || '',
+        diasRestantesCobertura: doc.diasRestantesCobertura !== undefined ? doc.diasRestantesCobertura : 0,
+        diasRestantesGracia: doc.diasRestantesGracia !== undefined ? doc.diasRestantesGracia : 0,
         numFotos: doc.archivos?.fotos ? doc.archivos.fotos.length : 0,
         numPdfs: doc.archivos?.pdfs ? doc.archivos.pdfs.length : 0,
-        estadoDB: doc.estado || 'ACTIVO'
+        estadoDB: doc.estado || 'ACTIVO',
+        // Campos nuevos 
+        totalServicios: doc.totalServicios !== undefined ? doc.totalServicios : (doc.servicios ? doc.servicios.length : 0),
+        calificacion: doc.calificacion !== undefined ? doc.calificacion : 0
       };
 
       // Manejo de pagos (hasta 12)

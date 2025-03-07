@@ -128,6 +128,39 @@ const policySchema = new mongoose.Schema({
         trim: true
     },
 
+    // CAMPOS ADICIONALES - Para exportar a Excel e importar
+    estadoPoliza: {
+        type: String,
+        required: false,
+        trim: true
+    },
+    fechaFinCobertura: {
+        type: Date,
+        required: false
+    },
+    fechaFinGracia: {
+        type: Date,
+        required: false
+    },
+    diasRestantesCobertura: {
+        type: Number,
+        default: 0
+    },
+    diasRestantesGracia: {
+        type: Number,
+        default: 0
+    },
+    
+    // CALIFICACION y SERVICIOS
+    calificacion: {
+        type: Number,
+        default: 0
+    },
+    totalServicios: {
+        type: Number,
+        default: 0
+    },
+
     pagos: [{
         monto: { type: Number, required: true },
         fechaPago: { type: Date, required: true }
@@ -182,6 +215,11 @@ policySchema.pre('save', function(next) {
     // Asegurar que no haya espacios ni caracteres especiales en el número de póliza
     if (this.numeroPoliza) {
         this.numeroPoliza = this.numeroPoliza.trim().replace(/[\r\n\t]/g, '');
+    }
+    
+    // Actualizar totalServicios automáticamente si no está definido
+    if (this.servicios && this.totalServicios === undefined) {
+        this.totalServicios = this.servicios.length;
     }
     
     next();
