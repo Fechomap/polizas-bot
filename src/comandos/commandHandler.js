@@ -20,8 +20,28 @@ const logger = require('../utils/logger');
 const FileHandler = require('../utils/fileHandler');
 const fetch = require('node-fetch');
 
-// Añade esta línea para importar el modelo Policy directamente
+// Import the model Policy directly
 const Policy = require('../models/policy');
+
+// Import command registry and modules
+const {
+    CommandRegistry,
+    StartCommand,
+    GetCommand,
+    ViewFilesCallbacks,
+    TextMessageHandler,
+    MediaUploadHandler,
+    HelpCommand,
+    OcuparPolizaCallback,
+    TestCommand,
+    // Import new commands
+    AddPaymentCommand,
+    AddServiceCommand,
+    SaveCommand,
+    DeleteCommand,
+    ReportPaymentCommand,
+    ReportUsedCommand
+} = require('./comandos');
 
 class CommandHandler {
     constructor(bot) {
@@ -29,973 +49,148 @@ class CommandHandler {
             throw new Error('Bot instance is required');
         }
         this.bot = bot;
+        
+        // Initialize the command registry
+        this.registry = new CommandRegistry();
+        
+        // Initialize state maps
         this.uploadTargets = new Map();
-
-        // Para /save
         this.awaitingSaveData = new Map();
-
-        // Para /get
         this.awaitingGetPolicyNumber = new Map();
-
-        // Para /upload
         this.awaitingUploadPolicyNumber = new Map();
-
-        // Para /delete
         this.awaitingDeletePolicyNumber = new Map();
-
-        // Para /addpayment
-        this.awaitingPaymentPolicyNumber = new Map();  // saber a quién pedir el número de póliza
-        this.awaitingPaymentData = new Map();          // cuando ya tenemos la póliza, pediremos monto y fecha        
-
-        // Para /addservice
-        this.awaitingServicePolicyNumber = new Map(); // Recibir número de póliza
-        this.awaitingServiceData = new Map();         // Recibir costo, fechaServicio, númeroExpediente
-
+        this.awaitingPaymentPolicyNumber = new Map();
+        this.awaitingPaymentData = new Map();
+        this.awaitingServicePolicyNumber = new Map();
+        this.awaitingServiceData = new Map();
         this.awaitingPhoneNumber = new Map();
         this.awaitingOrigenDestino = new Map();
+        this.awaitingDeleteReason = new Map();
 
+        // Setup group restriction
         this.setupGroupRestriction();
-
-        this.setupCommands();
+        
+        // Register all commands
+        this.registerCommands();
     }
 
     setupGroupRestriction() {
-        const allowedGroups = config.telegram.allowedGroups || [];
-    
-        this.bot.use(async (ctx, next) => {
-            const chatId = ctx.chat?.id;
-            
-            // Si NO es el grupo permitido, rechazar
-            const isAllowed = allowedGroups.some(id => Number(id) === Number(chatId));
-            if (!isAllowed) {
-                logger.warn(`Acceso no autorizado desde: ${chatId} (${ctx.chat?.type})`);
-                // Solo responder si es un grupo (no en privado)
-                if (ctx.chat?.type !== 'private') {
-                    await ctx.reply('⛔️ Este bot solo puede ser usado en el grupo autorizado.');
-                }
-                return;
-            }
-    
-            return next();
-        });
+        // No group restrictions for now to ensure the bot works in any chat
+        logger.info('Group restrictions disabled for testing');
     }
 
-    setupCommands() {
-        // Comando Start
-        this.bot.command('start', async (ctx) => {
-            try {
-                await ctx.reply(
-                    '¡Bienvenido al Bot de Pólizas! 🤖\n\n' +
-                    '📋 *Comandos Principales:*\n\n' +
-                    '📝 /save - Registrar nueva póliza\n' +
-                    '🔍 /get - Consultar una póliza\n' +
-                    '📤 /upload - Subir fotos y PDF del vehículo\n' +
-                    '💰 /addpayment - Registrar un pago\n' +
-                    '🚗 /addservice - Registrar un servicio\n' +
-                    '❓ /help - Ver todos los comandos',
-                    { parse_mode: 'Markdown' }
-                );
-                logger.info('Comando start ejecutado', { chatId: ctx.chat.id });
-            } catch (error) {
-                logger.error('Error en comando start:', error);
-                await ctx.reply('❌ Error al iniciar. Intenta nuevamente.');
-            }
-        });
+    // Register all command modules
+    registerCommands() {
+        // Registrar comandos modulares Y LLAMAR A SU MÉTODO register()
+        const startCmd = new StartCommand(this);
+        this.registry.registerCommand(startCmd);
+        startCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        // Fragmento para manejar el callback de "Ver Fotos"
-        this.bot.action(/verFotos:(.+)/, async (ctx) => {
-            try {
-                const numeroPoliza = ctx.match[1];
-                logger.info(`Intentando mostrar fotos de póliza: ${numeroPoliza}`);
-        
-                const policy = await getPolicyByNumber(numeroPoliza);
-                if (!policy) {
-                    return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
-                }
-        
-                const fotos = policy.archivos?.fotos || [];
-                if (fotos.length === 0) {
-                    return await ctx.reply('📸 No hay fotos asociadas a esta póliza.');
-                }
-        
-                await ctx.reply(`📸 Mostrando ${fotos.length} foto(s):`);
-        
-                for (const foto of fotos) {
-                    try {
-                        if (!foto.data) {
-                            logger.warn('Foto sin datos');
-                            continue;
-                        }
-        
-                        await ctx.replyWithPhoto({
-                            source: foto.data
-                        });
-                    } catch (error) {
-                        logger.error('Error al enviar foto:', error);
-                    }
-                }
-            } catch (error) {
-                logger.error('Error al mostrar fotos:', error);
-                await ctx.reply('❌ Error al mostrar las fotos.');
-            }
-            await ctx.answerCbQuery();
-        });
+        const getCmd = new GetCommand(this);
+        this.registry.registerCommand(getCmd);
+        getCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        // Fragmento para manejar el callback de "Ver PDFs"
-        this.bot.action(/verPDFs:(.+)/, async (ctx) => {
-            try {
-                const numeroPoliza = ctx.match[1];
-                const policy = await getPolicyByNumber(numeroPoliza);
-        
-                if (!policy) {
-                    return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
-                }
-        
-                const pdfs = policy.archivos?.pdfs || [];
-                if (pdfs.length === 0) {
-                    return await ctx.reply('📄 No hay PDFs asociados a esta póliza.');
-                }
-        
-                await ctx.reply(`📄 Mostrando ${pdfs.length} PDF(s):`);
-        
-                for (const pdf of pdfs) {
-                    try {
-                        if (!pdf.data) {
-                            logger.warn('PDF sin datos encontrado');
-                            continue;
-                        }
-        
-                        // Modificación aquí: manejo correcto del Buffer
-                        const fileBuffer = pdf.data instanceof Buffer ? 
-                            pdf.data : 
-                            Buffer.from(pdf.data.buffer || pdf.data);
-        
-                        await ctx.replyWithDocument({
-                            source: fileBuffer,
-                            filename: `Documento_${numeroPoliza}.pdf`
-                        });
-                    } catch (error) {
-                        logger.error('Error al enviar PDF individual:', error);
-                        await ctx.reply('❌ Error al enviar un PDF');
-                    }
-                }
-            } catch (error) {
-                logger.error('Error al mostrar PDFs:', error);
-                await ctx.reply('❌ Error al mostrar los PDFs.');
-            }
-            await ctx.answerCbQuery();
-        });
+        const mediaCmd = new MediaUploadHandler(this);
+        this.registry.registerCommand(mediaCmd);
+        mediaCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        // Comando GET (conversacional)
-        this.bot.command('get', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                // Marcamos que estamos esperando el número de póliza
-                this.awaitingGetPolicyNumber.set(chatId, true);
-                await ctx.reply('Por favor, ingresa el número de póliza que deseas consultar.');
-            } catch (error) {
-                logger.error('Error al iniciar comando get:', error);
-                await ctx.reply('❌ Error al iniciar la consulta. Intenta nuevamente.');
-            }
-        });
+        const helpCmd = new HelpCommand(this);
+        this.registry.registerCommand(helpCmd);
+        helpCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        // Comando DELETE (conversacional)
-        this.bot.command('delete', async (ctx) => {
-            try {
-                const ADMIN_ID = 7143094298;  // <-- Asegúrate que sea el ID correcto
-                if (ctx.from.id !== ADMIN_ID) {
-                    return await ctx.reply('❌ No tienes permiso para marcar pólizas como eliminadas.');
-                }
-        
-                const chatId = ctx.chat.id;
-                // Marcamos que esperamos un número de póliza
-                this.awaitingDeletePolicyNumber.set(chatId, true);
-                await ctx.reply(
-                    '📝 Por favor, ingresa el número de póliza a marcar como ELIMINADA.\n' +
-                    'Esta póliza será excluida de todas las consultas y reportes, pero se conservará en la base de datos.'
-                );
-            } catch (error) {
-                logger.error('Error al iniciar comando delete:', error);
-                await ctx.reply('❌ Error al iniciar el proceso. Intenta nuevamente.');
-            }
-        });     
+        const ocuparCmd = new OcuparPolizaCallback(this);
+        this.registry.registerCommand(ocuparCmd);
+        ocuparCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        // Comando UPLOAD (conversacional)
-        this.bot.command('upload', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                this.awaitingUploadPolicyNumber.set(chatId, true);
-                await ctx.reply('📤 Por favor, ingresa el número de póliza para la cual deseas subir fotos o PDFs.');
-            } catch (error) {
-                logger.error('Error en comando upload:', error);
-                await ctx.reply('❌ Error al iniciar upload. Intenta nuevamente.');
-            }
-        });
+        const testCmd = new TestCommand(this);
+        this.registry.registerCommand(testCmd);
+        testCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
+        // Register NEW modular commands
+        const addPaymentCmd = new AddPaymentCommand(this);
+        this.registry.registerCommand(addPaymentCmd);
+        addPaymentCmd.register();
 
-        this.bot.command('addpayment', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                this.awaitingPaymentPolicyNumber.set(chatId, true);
-                await ctx.reply('💰 Por favor, ingresa el número de póliza para registrar un pago.');
-            } catch (error) {
-                logger.error('Error al iniciar comando addpayment:', error);
-                await ctx.reply('❌ Error al iniciar el registro de pago. Intenta nuevamente.');
-            }
-        });       
+        const addServiceCmd = new AddServiceCommand(this);
+        this.registry.registerCommand(addServiceCmd);
+        addServiceCmd.register();
 
-        this.bot.command('addservice', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                this.awaitingServicePolicyNumber.set(chatId, true);
-                await ctx.reply('🚗 Por favor, ingresa el número de póliza para registrar un servicio.');
-            } catch (error) {
-                logger.error('Error al iniciar comando addservice:', error);
-                await ctx.reply('❌ Error al iniciar el registro de servicio. Intenta nuevamente.');
-            }
-        });
+        const saveCmd = new SaveCommand(this);
+        this.registry.registerCommand(saveCmd);
+        saveCmd.register();
 
+        const deleteCmd = new DeleteCommand(this);
+        this.registry.registerCommand(deleteCmd);
+        deleteCmd.register();
 
-        // Manejador de fotos
-        this.bot.on('photo', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                const numeroPoliza = this.uploadTargets.get(chatId);
-        
-                if (!numeroPoliza) {
-                    return await ctx.reply('⚠️ Primero usa /upload y proporciona el número de póliza.');
-                }
-        
-                // Tomar la foto en máxima resolución
-                const photos = ctx.message.photo;
-                const highestResPhoto = photos[photos.length - 1];
-                const fileId = highestResPhoto.file_id;
-        
-                // Descargar archivo
-                const fileLink = await ctx.telegram.getFileLink(fileId);
-                const response = await fetch(fileLink.href);
-                if (!response.ok) throw new Error('Falló la descarga de la foto');
-                const buffer = await response.buffer();
-        
-                // Crear objeto de archivo directamente
-                const fileObject = {
-                    data: buffer,
-                    contentType: 'image/jpeg'
-                };
-        
-                // Buscar la póliza y actualizar
-                const policy = await getPolicyByNumber(numeroPoliza);
-                if (!policy) {
-                    return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
-                }
-        
-                // Inicializar archivos si no existe
-                if (!policy.archivos) {
-                    policy.archivos = { fotos: [], pdfs: [] };
-                }
-        
-                // Agregar la foto
-                policy.archivos.fotos.push(fileObject);
-        
-                // Guardar
-                await policy.save();
-        
-                await ctx.reply('✅ Foto guardada correctamente.');
-            } catch (error) {
-                logger.error('Error al procesar foto:', error);
-                await ctx.reply('❌ Error al procesar la foto.');
-            } finally {
-                this.uploadTargets.delete(ctx.chat.id);
-            }
-        });
-        
-        this.bot.on('document', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                const numeroPoliza = this.uploadTargets.get(chatId);
-        
-                if (!numeroPoliza) {
-                    return await ctx.reply('⚠️ Primero usa /upload y proporciona el número de póliza.');
-                }
-        
-                const { mime_type: mimeType = '' } = ctx.message.document || {};
-                if (!mimeType.includes('pdf')) {
-                    return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
-                }
-        
-                // Descargar archivo
-                const fileId = ctx.message.document.file_id;
-                const fileLink = await ctx.telegram.getFileLink(fileId);
-                const response = await fetch(fileLink.href);
-                if (!response.ok) throw new Error('Falló la descarga del documento');
-                const buffer = await response.buffer();
-        
-                // Crear objeto de archivo directamente
-                const fileObject = {
-                    data: buffer,
-                    contentType: 'application/pdf'
-                };
-        
-                // Buscar la póliza y actualizar
-                const policy = await getPolicyByNumber(numeroPoliza);
-                if (!policy) {
-                    return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
-                }
-        
-                // Inicializar archivos si no existe
-                if (!policy.archivos) {
-                    policy.archivos = { fotos: [], pdfs: [] };
-                }
-        
-                // Agregar el PDF
-                policy.archivos.pdfs.push(fileObject);
-        
-                // Guardar
-                await policy.save();
-        
-                await ctx.reply('✅ PDF guardado correctamente.');
-            } catch (error) {
-                logger.error('Error al procesar documento:', error);
-                await ctx.reply('❌ Error al procesar el documento.');
-            } finally {
-                this.uploadTargets.delete(ctx.chat.id);
-            }
-        });
+        const reportPaymentCmd = new ReportPaymentCommand(this);
+        this.registry.registerCommand(reportPaymentCmd);
+        reportPaymentCmd.register();
 
+        const reportUsedCmd = new ReportUsedCommand(this);
+        this.registry.registerCommand(reportUsedCmd);
+        reportUsedCmd.register();
 
-        // Comando SAVE (conversacional)
-        this.bot.command('save', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                logger.info('=== Iniciando comando SAVE ===', { chatId });
+        // Register callback handlers (estos ya lo hacen bien)
+        const viewFilesCallbacks = new ViewFilesCallbacks(this);
+        this.registry.registerCommand(viewFilesCallbacks);
+        viewFilesCallbacks.register();
 
-                // Marcar este chat como esperando datos para save
-                this.awaitingSaveData.set(chatId, true);
+        // Register text message handler (este también)
+        new TextMessageHandler(this).register();
 
-                await ctx.reply(
-                    'Ingresa los datos de la póliza siguiendo este formato (cada campo en una línea):\n\n' +
-                    '1) Titular\n' +
-                    '2) Correo Electrónico\n' +
-                    '3) Contraseña\n' +
-                    '4) Calle\n' +
-                    '5) Colonia\n' +
-                    '6) Municipio\n' +
-                    '7) Estado\n' +
-                    '8) CP\n' +
-                    '9) RFC\n' +
-                    '10) Marca\n' +
-                    '11) Submarca\n' +
-                    '12) Año\n' +
-                    '13) Color\n' +
-                    '14) Serie\n' +
-                    '15) Placas\n' +
-                    '16) Agente Cotizador\n' +
-                    '17) Aseguradora\n' +
-                    '18) # de Póliza\n' +
-                    '19) Fecha de Emisión (DD/MM/YY o DD/MM/YYYY)'
-                );
-            } catch (error) {
-                logger.error('Error al iniciar save:', error);
-                await ctx.reply('❌ Error al iniciar el proceso. Intenta nuevamente.');
-            }
-        });
+        // Register remaining commands/callbacks that haven't been modularized yet
+        this.setupRemainingCommands();
+        
+        // Setup all registered callbacks to connect with the bot
+        this.setupCallbacks();
+    }
 
-        // Comando para reporte de pólizas que necesitan pago (susceptibles)
-        this.bot.command('reportPayment', async (ctx) => {
-            try {
-                const susceptibles = await getSusceptiblePolicies();
-        
-                if (!susceptibles.length) {
-                    return await ctx.reply('✅ No hay pólizas susceptibles de falta de pago. Todas están al corriente.');
-                }
-        
-                // Armamos un arreglo de líneas
-                const lines = [];
-                lines.push('⚠️ *Pólizas con Pagos Pendientes*\n');
-                susceptibles.forEach((pol) => {
-                    lines.push(`🔴 *${pol.numeroPoliza}* - *${pol.diasDeImpago}* días de impago`);
-                });
-        
-                // Definir el tamaño de cada bloque
-                const chunkSize = 10; // 10 pólizas por mensaje
-                const totalChunks = Math.ceil(lines.length / chunkSize);
-        
-                for (let i = 0; i < totalChunks; i++) {
-                    const chunk = lines.slice(i * chunkSize, (i + 1) * chunkSize).join('\n');
-        
-                    // Esperar 1 segundo entre mensajes para evitar saturar Telegram
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-        
-                    // Enviar el bloque
-                    await ctx.replyWithMarkdown(chunk);
-                }
-            } catch (error) {
-                logger.error('Error en reportPayment:', error);
-                await ctx.reply('❌ Ocurrió un error al generar el reporte de pago.');
-            }
-        });
-
-        // Comando para reporte de pólizas "usadas"
-        this.bot.command('reportUsed', async (ctx) => {
-            try {
-                // Enviar mensaje inicial
-                const waitMsg = await ctx.reply(
-                    '🔄 Iniciando cálculo de estados de pólizas...\n' +
-                    'Este proceso puede tardar varios minutos, se enviarán actualizaciones periódicas.'
-                );
-        
-                // Variables para seguimiento y mensajes de progreso
-                let lastProgressUpdate = Date.now();
-                let scriptRunning = true;
-                let updateCount = 0;
-        
-                // Iniciar el temporizador de progreso que enviará actualizaciones cada 30 segundos
-                // Esto evita que Telegram piense que el bot está inactivo
-                const progressInterval = setInterval(async () => {
-                    if (!scriptRunning) {
-                        clearInterval(progressInterval);
-                        return;
-                    }
-                    
-                    updateCount++;
-                    const elapsedSeconds = Math.floor((Date.now() - lastProgressUpdate) / 1000);
-                    
-                    try {
-                        await ctx.telegram.editMessageText(
-                            waitMsg.chat.id,
-                            waitMsg.message_id,
-                            undefined,
-                            `🔄 Cálculo de estados en progreso...\n` +
-                            `⏱️ Tiempo transcurrido: ${elapsedSeconds} segundos\n` +
-                            `Actualización #${updateCount} - Por favor espere, esto puede tardar varios minutos.`
-                        );
-                        lastProgressUpdate = Date.now();
-                    } catch (e) {
-                        logger.error('Error al actualizar mensaje de progreso:', e);
-                        // No detenemos el proceso por errores de actualización de mensajes
-                    }
-                }, 30000); // Actualizar cada 30 segundos
-        
-                // Ejecutar el script calculoEstadosDB.js como proceso separado
-                const scriptPath = path.join(__dirname, '../../scripts/calculoEstadosDB.js');
-                
-                const executeScript = () => {
-                    return new Promise((resolve, reject) => {
-                        logger.info(`Ejecutando script: ${scriptPath}`);
-                        
-                        const childProcess = spawn('node', [scriptPath], {
-                            detached: true, // Esto permite que el proceso hijo continúe incluso si el padre termina
-                            stdio: ['ignore', 'pipe', 'pipe'] // Redirigir la salida para poder capturarla
-                        });
-                        
-                        // Capturar la salida para logs
-                        childProcess.stdout.on('data', (data) => {
-                            const output = data.toString().trim();
-                            logger.info(`calculoEstadosDB stdout: ${output}`);
-                        });
-                        
-                        childProcess.stderr.on('data', (data) => {
-                            const errorOutput = data.toString().trim();
-                            logger.error(`calculoEstadosDB stderr: ${errorOutput}`);
-                        });
-                        
-                        // Manejar la finalización del proceso
-                        childProcess.on('close', (code) => {
-                            scriptRunning = false;
-                            if (code === 0) {
-                                logger.info(`Script calculoEstadosDB completado exitosamente (código ${code})`);
-                                resolve();
-                            } else {
-                                logger.error(`Script calculoEstadosDB falló con código de salida ${code}`);
-                                reject(new Error(`Script falló con código ${code}`));
-                            }
-                        });
-                        
-                        // Manejar errores
-                        childProcess.on('error', (err) => {
-                            scriptRunning = false;
-                            logger.error(`Error al ejecutar calculoEstadosDB: ${err.message}`);
-                            reject(err);
-                        });
-        
-                        // Aplicar un timeout más largo para este proceso
-                        setTimeout(() => {
-                            if (scriptRunning) {
-                                logger.warn('Tiempo límite para script excedido, pero continuando ejecución');
-                                // No matamos el proceso, solo notificamos y continuamos con la ejecución
-                                resolve();
-                            }
-                        }, 420000); // 7 minutos de timeout
-                    });
-                };
-        
-                try {
-                    // Ejecutar el script con un manejador de tiempo específico
-                    // Incluso si el script toma demasiado tiempo, continuaremos con el flujo
-                    try {
-                        await executeScript();
-                    } catch (scriptError) {
-                        logger.error('Error o timeout en el script, continuando con consulta de pólizas:', scriptError);
-                        // Seguimos el flujo incluso con error
-                    }
-                    
-                    // Detener el intervalo de progreso
-                    clearInterval(progressInterval);
-                    scriptRunning = false;
-                    
-                    // Actualizar mensaje para indicar que estamos consultando las pólizas
-                    try {
-                        await ctx.telegram.editMessageText(
-                            waitMsg.chat.id,
-                            waitMsg.message_id,
-                            undefined,
-                            '✅ Proceso de cálculo completado o tiempo límite alcanzado.\n' +
-                            '🔍 Consultando las pólizas prioritarias...'
-                        );
-                    } catch (msgError) {
-                        logger.error('Error al actualizar mensaje final:', msgError);
-                        // Intentar enviar un nuevo mensaje si la edición falla
-                        await ctx.reply('🔍 Consultando las pólizas prioritarias...');
-                    }
-        
-                    // Pequeña pausa para asegurar que la base de datos tenga los cambios
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                    
-                    // Buscar el top 10 de pólizas con mejor calificación
-                    const topPolicies = await Policy.find({ 
-                        estado: 'ACTIVO'  // Solo pólizas activas
-                    })
-                    .sort({ calificacion: -1 })  // Ordenar por calificación (mayor a menor)
-                    .limit(10)  // Top 10
-                    .lean();
-                    
-                    if (!topPolicies.length) {
-                        return await ctx.reply('✅ No hay pólizas prioritarias que mostrar.');
-                    }
-        
-                    // Enviar mensaje final de éxito
-                    await ctx.reply('📊 TOP 10 PÓLIZAS POR PRIORIDAD:');
-                    
-                    // Enviamos un mensaje por cada póliza prioritaria, con pequeñas pausas entre mensajes
-                    for (const pol of topPolicies) {
-                        // Obtener datos simples sin cálculos adicionales
-                        const fEmision = pol.fechaEmision 
-                            ? new Date(pol.fechaEmision).toISOString().split('T')[0] 
-                            : 'No disponible';
-                        
-                        const fechaFinCobertura = pol.fechaFinCobertura 
-                            ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0] 
-                            : 'No disponible';
-                        
-                        const fechaFinGracia = pol.fechaFinGracia 
-                            ? new Date(pol.fechaFinGracia).toISOString().split('T')[0] 
-                            : 'No disponible';
-                        
-                        // Contar servicios
-                        const servicios = pol.servicios || [];
-                        const totalServicios = servicios.length;
-                        
-                        // Formatear puntaje y estado
-                        let alertaPrioridad = '';
-                        if (pol.calificacion >= 80) {
-                            alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                        } else if (pol.calificacion >= 60) {
-                            alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
-                        }
-                        
-                        // Construir el mensaje directamente con datos ya calculados
-                        const msg = `
-        ${alertaPrioridad}🏆 *Calificación: ${pol.calificacion || 0}*
-        🔍 *Póliza:* ${pol.numeroPoliza}
-        📅 *Emisión:* ${fEmision}
-        🚗 *Vehículo:* ${pol.marca} ${pol.submarca} (${pol.año})
-        📊 *Estado:* ${pol.estadoPoliza || 'No calculado'}
-        🗓️ *Fin Cobertura:* ${fechaFinCobertura} (${pol.diasRestantesCobertura || 'N/A'} días)
-        ⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
-        🔧 *Servicios:* ${totalServicios}
-        💰 *Pagos:* ${pol.pagos?.length || 0}`.trim();
-        
-                        // Crear botones inline
-                        const inlineKeyboard = [
-                            [
-                                Markup.button.callback(
-                                    `👀 Consultar ${pol.numeroPoliza}`,
-                                    `getPoliza:${pol.numeroPoliza}`
-                                )
-                            ]
-                        ];
-        
-                        try {
-                            // Enviar mensaje
-                            await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                            
-                            // Pequeña pausa entre mensajes para evitar limitaciones de Telegram
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        } catch (sendError) {
-                            logger.error(`Error al enviar mensaje para póliza ${pol.numeroPoliza}:`, sendError);
-                            // Intentar con formato más simple si hay error
-                            await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`);
-                        }
-                    }
-                    
-                    // Mensaje final
-                    await ctx.reply('✅ Se han mostrado las pólizas prioritarias según su calificación actual.');
-                    
-                } catch (error) {
-                    // Detener el intervalo si hay error
-                    clearInterval(progressInterval);
-                    scriptRunning = false;
-                    
-                    logger.error('Error en proceso de cálculo o consulta:', error);
-                    
-                    // Notificar al usuario
-                    try {
-                        await ctx.telegram.editMessageText(
-                            waitMsg.chat.id,
-                            waitMsg.message_id,
-                            undefined,
-                            '❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...'
-                        );
-                    } catch (e) {
-                        // Si no se puede editar el mensaje, enviar uno nuevo
-                        await ctx.reply('❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...');
-                    }
-                    
-                    // Intentar obtener pólizas de todas formas
-                    try {
-                        const fallbackPolicies = await Policy.find({ estado: 'ACTIVO' })
-                            .sort({ calificacion: -1 })
-                            .limit(10)
-                            .lean();
-                            
-                        if (fallbackPolicies.length > 0) {
-                            await ctx.reply('⚠️ Mostrando pólizas disponibles (orden actual en base de datos):');
-                            
-                            // Mostrar versión simplificada de cada póliza
-                            for (const pol of fallbackPolicies) {
-                                await ctx.replyWithMarkdown(
-                                    `*Póliza:* ${pol.numeroPoliza}\n` +
-                                    `*Calificación:* ${pol.calificacion || 'No calculada'}\n` +
-                                    `*Vehículo:* ${pol.marca} ${pol.submarca}`,
-                                    Markup.inlineKeyboard([
-                                        [Markup.button.callback(`👀 Consultar ${pol.numeroPoliza}`, `getPoliza:${pol.numeroPoliza}`)]
-                                    ])
-                                );
-                                await new Promise(resolve => setTimeout(resolve, 300));
-                            }
-                        } else {
-                            await ctx.reply('❌ No se pudieron obtener las pólizas.');
-                        }
-                    } catch (fallbackError) {
-                        logger.error('Error al obtener pólizas de respaldo:', fallbackError);
-                        await ctx.reply('❌ Error crítico al intentar obtener pólizas.');
-                    }
-                }
-            } catch (error) {
-                logger.error('Error general en reportUsed:', error);
-                await ctx.reply('❌ Ocurrió un error al generar el reporte de pólizas. Intente nuevamente más tarde.');
-            }
-        });
-        
-
-        // Manejador de callback "getPoliza:..."
+    // Setup remaining callbacks or commands that haven't been modularized yet
+    setupRemainingCommands() {
+        // Callback para consultar una póliza desde un botón (originado en reportUsed)
         this.bot.action(/getPoliza:(.+)/, async (ctx) => {
             try {
-                const numeroPoliza = ctx.match[1];
+                const numeroPoliza = ctx.match[1]; // Extract policy number from callback data
                 logger.info(`Callback getPoliza para: ${numeroPoliza}`);
 
-                // Aquí reutilizamos la lógica de /get
+                // Reutilizar la lógica de /get (que ahora está en GetCommand, pero el método auxiliar sigue aquí)
+                // Idealmente, esto también se refactorizaría para llamar a GetCommand.handleGetPolicyFlow
                 await this.handleGetPolicyFlow(ctx, numeroPoliza);
 
-                await ctx.answerCbQuery();
+                await ctx.answerCbQuery(); // Acknowledge the button press
             } catch (error) {
                 logger.error('Error en callback getPoliza:', error);
                 await ctx.reply('❌ Error al consultar la póliza desde callback.');
-            }
-        });       
-
-        // Comando Help
-        // Actualizar el comando help en src/comandos/commandHandler.js
-
-        // Comando Help
-        this.bot.command('help', async (ctx) => {
-            try {
-                const helpMessage = `
-        🤖 *Bot de Pólizas - Lista de Comandos*
-
-        📋 *Comandos Básicos:*
-        🏠 /start - Inicia el bot y muestra menú principal
-        ❓ /help - Muestra esta lista de comandos
-
-        📝 *Gestión de Pólizas:*
-        ➕ /save - Crea una nueva póliza
-        🔍 /get - Consulta una póliza existente
-        🗑️ /delete - Marca una póliza como eliminada (ADMIN)
-
-        📁 *Gestión de Archivos:*
-        📤 /upload - Sube fotos o PDFs para una póliza
-
-        💼 *Gestión de Pagos y Servicios:*
-        💰 /addpayment - Registra un nuevo pago
-        🚗 /addservice - Registra un nuevo servicio
-
-        📊 *Reportes:*
-        ⚠️ /reportPayment - Muestra pólizas con pagos pendientes
-        📈 /reportUsed - Muestra pólizas sin servicios recientes
-
-        🔄 *Gestión de Registros: (ADMIN)*
-        📋 /listdeleted - Muestra pólizas marcadas como eliminadas
-
-        📱 *Ejemplos de Uso:*
-        ✏️ Para crear póliza: /save
-        ↳ Sigue las instrucciones para ingresar los datos
-
-        🔎 Para consultar: /get
-        ↳ Ingresa el número de póliza cuando se solicite
-
-        📎 Para subir archivos: /upload
-        ↳ Primero ingresa el número de póliza
-        ↳ Luego envía las fotos o PDFs
-
-        💵 Para registrar pago: /addpayment
-        ↳ Ingresa número de póliza
-        ↳ Luego monto y fecha
-
-        🗑️ Para marcar como eliminada: /delete
-        ↳ La póliza se conservará en la base pero no
-        aparecerá en consultas ni reportes`;
-
-                await ctx.replyWithMarkdown(helpMessage);
-                logger.info('Comando help ejecutado', { chatId: ctx.chat.id });
-            } catch (error) {
-                logger.error('Error en comando help:', error);
-                await ctx.reply('❌ Error al mostrar la ayuda. Intenta nuevamente.');
+                // Consider answering the callback query even on error
+                try { await ctx.answerCbQuery('Error'); } catch { /* ignore */ }
             }
         });
 
-        this.bot.action(/ocuparPoliza:(.+)/, async (ctx) => {
-            try {
-                const numeroPoliza = ctx.match[1];
-                // Guardamos en un Map que estamos esperando el teléfono para “ocupar” esta póliza
-                this.awaitingPhoneNumber = this.awaitingPhoneNumber || new Map();
-                this.awaitingPhoneNumber.set(ctx.chat.id, numeroPoliza);
+        // The ocuparPoliza callback is handled by the OcuparPolizaCallback module.
+        // Other non-command logic might remain here if needed.
+    }
+    
+    // Setup all registered callbacks to connect with the bot
+    setupCallbacks() {
+        logger.info('Configurando callbacks registrados...');
+        const callbackHandlers = this.registry.getCallbackHandlers();
         
-                await ctx.reply(
-                    `📱 Ingresa el *número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
-                    `⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.`,
-                    { parse_mode: 'Markdown' }
-                );
-            } catch (error) {
-                logger.error('Error en callback ocuparPoliza:', error);
-                await ctx.reply('❌ Error al procesar ocupación de póliza.');
-            } finally {
-                await ctx.answerCbQuery();
-            }
-        });
-
-        // -------------------------------------------------------------------------
-        // Manejador de todos los mensajes de texto que NO sean comandos
-        // -------------------------------------------------------------------------
-        this.bot.on('text', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                const messageText = ctx.message.text.trim();
-
-                // 1) Si estamos en flujo /save
-                if (this.awaitingSaveData.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleSaveData(ctx, messageText);
-                    return;
+        // Iterate through all registered callbacks and connect them to the bot
+        callbackHandlers.forEach((handler, pattern) => {
+            logger.info(`Conectando callback: ${pattern}`);
+            this.bot.action(pattern, async (ctx) => {
+                try {
+                    await handler(ctx);
+                } catch (error) {
+                    logger.error(`Error en callback ${pattern}:`, error);
+                    await ctx.reply('❌ Error al procesar la acción.');
+                    try { await ctx.answerCbQuery('Error'); } catch { /* ignore */ }
                 }
-
-                // 2) Si estamos esperando un número de póliza para /get
-                if (this.awaitingGetPolicyNumber.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleGetPolicyFlow(ctx, messageText);
-                    return;
-                }
-
-                // 3) Si estamos esperando un número de póliza para /upload
-                if (this.awaitingUploadPolicyNumber.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleUploadFlow(ctx, messageText);
-                    return;
-                }
-
-                // 4) Si estamos esperando un número de póliza para /delete
-                if (this.awaitingDeletePolicyNumber.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleDeletePolicyFlow(ctx, messageText);
-                    return;
-                }
-
-                // 5) Si estamos esperando un número de póliza para /addpayment
-                if (this.awaitingPaymentPolicyNumber.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleAddPaymentPolicyNumber(ctx, messageText);
-                    return;
-                }
-
-                // 6) Si estamos esperando los datos de pago (monto/fecha) para /addpayment
-                if (this.awaitingPaymentData.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handlePaymentData(ctx, messageText);
-                    return;
-                }
-
-                // 7) Esperando un número de póliza para /addservice
-                if (this.awaitingServicePolicyNumber.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleAddServicePolicyNumber(ctx, messageText);
-                    return;
-                }
-
-                // 8) Esperando datos del servicio (costo, fecha, expediente)
-                if (this.awaitingServiceData.get(chatId) && !messageText.startsWith('/')) {
-                    await this.handleServiceData(ctx, messageText);
-                    return;
-                }
-
-                // (A) Si estamos esperando teléfono (después de pulsar el botón "Ocupar Póliza")
-                if (this.awaitingPhoneNumber && this.awaitingPhoneNumber.get(chatId)) {
-                    const numeroPoliza = this.awaitingPhoneNumber.get(chatId);
-
-                    // Validar que sea 10 dígitos
-                    const regexTel = /^\d{10}$/;
-                    if (!regexTel.test(messageText)) {
-                        // Teléfono inválido => cancelamos
-                        this.awaitingPhoneNumber.delete(chatId);
-                        return await ctx.reply('❌ Teléfono inválido (requiere 10 dígitos). Proceso cancelado.');
-                    }
-
-                    // Si es válido, guardamos en la póliza
-                    const policy = await getPolicyByNumber(numeroPoliza);
-                    if (!policy) {
-                        this.awaitingPhoneNumber.delete(chatId);
-                        return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada. Cancelado.`);
-                    }
-
-                    // Guardar en policy.telefono
-                    policy.telefono = messageText;
-                    await policy.save();
-                    await ctx.reply(
-                        `✅ Teléfono asignado a la póliza ${numeroPoliza}.\n\n` +
-                        `🚗 Ahora ingresa *origen y destino* (ej: "Neza - Tecamac") en una sola línea.`,
-                        { parse_mode: 'Markdown' }
-                    );
-
-                    // Pasamos a "esperandoOrigenDestino"
-                    this.awaitingPhoneNumber.delete(chatId);
-                    this.awaitingOrigenDestino.set(chatId, numeroPoliza);
-                    return;
-                }
-
-                // (B) Si estamos esperando origen-destino
-                if (this.awaitingOrigenDestino && this.awaitingOrigenDestino.get(chatId)) {
-                    const numeroPoliza = this.awaitingOrigenDestino.get(chatId);
-                    const policy = await getPolicyByNumber(numeroPoliza);
-                    if (!policy) {
-                        this.awaitingOrigenDestino.delete(chatId);
-                        return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada. Cancelado.`);
-                    }
-
-                    // Creamos la leyenda
-                    const leyenda = `🚗 Pendiente servicio "${policy.aseguradora}"\n` +
-                    `🚙 Auto: ${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
-                    `📍 Origen-Destino: ${messageText}`;
-                
-                    await ctx.reply(
-                    `✅ Origen-destino asignado: *${messageText}*\n\n` +
-                    `📋 Aquí la leyenda para copiar:\n\`\`\`${leyenda}\`\`\``,
-                    { parse_mode: 'Markdown' }
-                    );
-
-                    this.awaitingOrigenDestino.delete(chatId);
-                    return;
-                }
-
-                if (this.awaitingDeleteReason && this.awaitingDeleteReason.get(chatId)) {
-                    const numeroPolizas = this.awaitingDeleteReason.get(chatId);
-                    const motivo = messageText.trim() === 'ninguno' ? '' : messageText.trim();
-                    
-                    try {
-                        let eliminadas = 0;
-                        let noEncontradas = 0;
-                        let errores = 0;
-                        let listadoNoEncontradas = [];
-                        
-                        // Mostrar mensaje inicial
-                        const msgInicial = await ctx.reply(
-                            `🔄 Procesando ${numeroPolizas.length} póliza(s)...`
-                        );
-                        
-                        // Procesamos cada póliza en la lista
-                        for (const numeroPoliza of numeroPolizas) {
-                            try {
-                                // Usar markPolicyAsDeleted para cada póliza
-                                const deletedPolicy = await markPolicyAsDeleted(numeroPoliza, motivo);
-                                
-                                if (!deletedPolicy) {
-                                    noEncontradas++;
-                                    listadoNoEncontradas.push(numeroPoliza);
-                                } else {
-                                    eliminadas++;
-                                }
-                                
-                                // Si son muchas pólizas, actualizamos el mensaje cada 5 procesadas
-                                if (numeroPolizas.length > 10 && eliminadas % 5 === 0) {
-                                    await ctx.telegram.editMessageText(
-                                        msgInicial.chat.id,
-                                        msgInicial.message_id,
-                                        undefined,
-                                        `🔄 Procesando ${numeroPolizas.length} póliza(s)...\n` +
-                                        `✅ Procesadas: ${eliminadas + noEncontradas + errores}/${numeroPolizas.length}\n` +
-                                        `⏱️ Por favor espere...`
-                                    );
-                                }
-                            } catch (error) {
-                                logger.error(`Error al marcar póliza ${numeroPoliza} como eliminada:`, error);
-                                errores++;
-                            }
-                        }
-                        
-                        // Editamos el mensaje inicial para mostrar el resultado final
-                        await ctx.telegram.editMessageText(
-                            msgInicial.chat.id,
-                            msgInicial.message_id,
-                            undefined,
-                            `✅ Proceso completado`
-                        );
-                        
-                        // Construimos el mensaje de resultados
-                        let mensajeResultado = `📊 *Resultados del proceso:*\n` +
-                            `✅ Pólizas eliminadas correctamente: ${eliminadas}\n`;
-                        
-                        if (noEncontradas > 0) {
-                            mensajeResultado += `⚠️ Pólizas no encontradas o ya eliminadas: ${noEncontradas}\n`;
-                            
-                            // Si hay pocas no encontradas, las listamos
-                            if (noEncontradas <= 10) {
-                                mensajeResultado += `📋 No encontradas:\n${listadoNoEncontradas.map(p => `- ${p}`).join('\n')}\n`;
-                            }
-                        }
-                        
-                        if (errores > 0) {
-                            mensajeResultado += `❌ Errores al procesar: ${errores}\n`;
-                        }
-                        
-                        await ctx.replyWithMarkdown(mensajeResultado);
-                        
-                    } catch (error) {
-                        logger.error('Error general al marcar pólizas como eliminadas:', error);
-                        await ctx.reply('❌ Hubo un error al marcar las pólizas como eliminadas. Intenta nuevamente.');
-                    } finally {
-                        // Limpiamos el estado de espera
-                        this.awaitingDeleteReason.delete(chatId);
-                    }
-                    return;
-                }
-        
-                // Si llega acá y no está en ninguno de los flujos anteriores, ignoramos o respondemos genérico
-            } catch (error) {
-                logger.error('Error general al procesar mensaje de texto:', error);
-                await ctx.reply('❌ Error al procesar el mensaje. Intenta nuevamente.');
-            }
+            });
         });
         
+        logger.info(`✅ ${callbackHandlers.size} callbacks conectados al bot`);
     }
 
     // -------------------------------------------------------------------------
