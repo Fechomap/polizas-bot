@@ -17,18 +17,10 @@ class AddPaymentCommand extends BaseCommand {
     }
 
     register() {
-        // Register the main /addpayment command
-        this.handler.bot.command(this.getCommandName(), async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                // Set state to wait for policy number
-                this.handler.awaitingPaymentPolicyNumber.set(chatId, true);
-                await ctx.reply('💰 Por favor, ingresa el número de póliza para registrar un pago.');
-            } catch (error) {
-                this.logError('Error al iniciar comando addpayment:', error);
-                await this.replyError(ctx, 'Error al iniciar el registro de pago.');
-            }
-        });
+        // No longer registering the /addpayment command directly.
+        // The flow is initiated by the 'accion:addpayment' button in CommandHandler,
+        // which sets the awaitingPaymentPolicyNumber state.
+        this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
 
         // Note: The actual handling of the text inputs (policy number, payment data)
         // is done within TextMessageHandler.js by checking the state flags

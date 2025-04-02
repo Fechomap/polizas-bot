@@ -67,6 +67,11 @@ class CommandHandler {
         this.awaitingOrigenDestino = new Map();
         this.awaitingDeleteReason = new Map();
 
+        // Store instances of commands needed for actions
+        this.startCommandInstance = null;
+        this.helpCommandInstance = null;
+        // Add other command instances if needed for direct calls from actions
+
         // Setup group restriction
         this.setupGroupRestriction();
         
@@ -82,9 +87,9 @@ class CommandHandler {
     // Register all command modules
     registerCommands() {
         // Registrar comandos modulares Y LLAMAR A SU MÉTODO register()
-        const startCmd = new StartCommand(this);
-        this.registry.registerCommand(startCmd);
-        startCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
+        this.startCommandInstance = new StartCommand(this); // Store instance
+        this.registry.registerCommand(this.startCommandInstance);
+        this.startCommandInstance.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
         const getCmd = new GetCommand(this);
         this.registry.registerCommand(getCmd);
@@ -94,9 +99,9 @@ class CommandHandler {
         this.registry.registerCommand(mediaCmd);
         mediaCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        const helpCmd = new HelpCommand(this);
-        this.registry.registerCommand(helpCmd);
-        helpCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
+        this.helpCommandInstance = new HelpCommand(this); // Store instance
+        this.registry.registerCommand(this.helpCommandInstance);
+        this.helpCommandInstance.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
         const ocuparCmd = new OcuparPolizaCallback(this);
         this.registry.registerCommand(ocuparCmd);
@@ -143,8 +148,219 @@ class CommandHandler {
         this.setupRemainingCommands();
         
         // Setup all registered callbacks to connect with the bot
-        this.setupCallbacks();
+        this.setupCallbacks(); // Handles callbacks defined within command modules
+
+        // Setup main action handlers for the menu buttons
+        this.setupActionHandlers(); // NEW: Handles 'accion:...' callbacks
     }
+
+    // Setup main action handlers for menu buttons
+    setupActionHandlers() {
+        logger.info('Configurando manejadores de acciones principales...');
+
+        // Volver al menú principal
+        this.bot.action('accion:volver_menu', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                // Limpiar cualquier estado pendiente antes de volver al menú
+                this.clearChatState(ctx.chat.id);
+                await this.startCommandInstance.showMainMenu(ctx); // Usa la instancia guardada
+            } catch (error) {
+                logger.error('Error en accion:volver_menu:', error);
+                await ctx.reply('❌ Error al volver al menú.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Consultar Póliza
+        this.bot.action('accion:consultar', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                this.clearChatState(ctx.chat.id); // Limpiar estado previo
+                this.awaitingGetPolicyNumber.set(ctx.chat.id, true);
+                await ctx.reply('🔍 Por favor, introduce el número de póliza que deseas consultar:');
+            } catch (error) {
+                logger.error('Error en accion:consultar:', error);
+                await ctx.reply('❌ Error al iniciar la consulta.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Registrar Nueva Póliza
+        this.bot.action('accion:registrar', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                this.clearChatState(ctx.chat.id);
+                this.awaitingSaveData.set(ctx.chat.id, true);
+                await ctx.reply(
+                    '📝 Por favor, pega la información completa de la nueva póliza (19 líneas):',
+                    Markup.inlineKeyboard([ // Añadir botón cancelar
+                        Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
+                    ])
+                );
+            } catch (error) {
+                logger.error('Error en accion:registrar:', error);
+                await ctx.reply('❌ Error al iniciar el registro.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+         // Callback para cancelar registro
+        this.bot.action('accion:cancelar_registro', async (ctx) => {
+            try {
+                await ctx.answerCbQuery('Registro cancelado');
+                this.clearChatState(ctx.chat.id);
+                await ctx.editMessageText('Registro cancelado.'); // Editar mensaje original
+                // Opcional: mostrar menú principal de nuevo
+                // await this.startCommandInstance.showMainMenu(ctx);
+            } catch (error) {
+                logger.error('Error en accion:cancelar_registro:', error);
+                // No enviar reply si falla la edición
+                 try { await ctx.answerCbQuery('Error al cancelar'); } catch {}
+            }
+        });
+
+
+        // Añadir Pago
+        this.bot.action('accion:addpayment', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                this.clearChatState(ctx.chat.id);
+                this.awaitingPaymentPolicyNumber.set(ctx.chat.id, true);
+                await ctx.reply('💰 Introduce el número de póliza para añadir el pago:');
+            } catch (error) {
+                logger.error('Error en accion:addpayment:', error);
+                await ctx.reply('❌ Error al iniciar el registro de pago.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Añadir Servicio
+        this.bot.action('accion:addservice', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                this.clearChatState(ctx.chat.id);
+                this.awaitingServicePolicyNumber.set(ctx.chat.id, true);
+                await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
+            } catch (error) {
+                logger.error('Error en accion:addservice:', error);
+                await ctx.reply('❌ Error al iniciar el registro de servicio.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Subir Archivos
+        this.bot.action('accion:upload', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                this.clearChatState(ctx.chat.id);
+                this.awaitingUploadPolicyNumber.set(ctx.chat.id, true);
+                await ctx.reply('📤 Introduce el número de póliza para subir archivos:');
+            } catch (error) {
+                logger.error('Error en accion:upload:', error);
+                await ctx.reply('❌ Error al iniciar la subida de archivos.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Eliminar Póliza
+        this.bot.action('accion:delete', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                this.clearChatState(ctx.chat.id);
+                this.awaitingDeletePolicyNumber.set(ctx.chat.id, true);
+                await ctx.reply('🗑️ Introduce el número (o números separados por espacio/coma/línea) de la(s) póliza(s) a eliminar:');
+            } catch (error) {
+                logger.error('Error en accion:delete:', error);
+                await ctx.reply('❌ Error al iniciar la eliminación.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Ayuda
+        this.bot.action('accion:help', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                // Llamar a la lógica del comando de ayuda existente
+                // Asumiendo que HelpCommand tiene un método execute o similar
+                 if (this.helpCommandInstance && typeof this.helpCommandInstance.sendHelpMessage === 'function') {
+                    await this.helpCommandInstance.sendHelpMessage(ctx); // Ajustar si el método es diferente
+                 } else {
+                     logger.warn('No se pudo encontrar o ejecutar el comando de ayuda desde la acción.');
+                     await ctx.reply('Comando de ayuda no disponible en este momento.');
+                 }
+                 // Añadir botón para volver al menú
+                 await ctx.reply('Pulsa el botón para regresar:', Markup.inlineKeyboard([
+                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                 ]));
+
+            } catch (error) {
+                logger.error('Error en accion:help:', error);
+                await ctx.reply('❌ Error al mostrar la ayuda.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // Submenú de Reportes
+        this.bot.action('accion:reportes', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                // Mostrar submenú de reportes
+                await ctx.reply('📊 *Reportes Disponibles*', {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('💰 Pólizas con Pagos Pendientes', 'accion:reportPayment')],
+                        [Markup.button.callback('🚗 Pólizas Prioritarias', 'accion:reportUsed')],
+                        [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
+                    ])
+                });
+            } catch (error) {
+                logger.error('Error en accion:reportes:', error);
+                try { await ctx.answerCbQuery('Error'); } catch {}
+                await ctx.reply('❌ Error al mostrar el menú de reportes.');
+            }
+        });
+
+        // Acción para el reporte de pagos pendientes
+        this.bot.action('accion:reportPayment', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                // Buscar la instancia del comando ReportPaymentCommand
+                const reportPaymentCmd = this.registry.getCommand('reportPayment');
+                if (reportPaymentCmd && typeof reportPaymentCmd.generateReport === 'function') {
+                    await reportPaymentCmd.generateReport(ctx);
+                } else {
+                    logger.warn('No se encontró el comando reportPayment o su método generateReport');
+                    await ctx.reply('❌ Reporte no disponible en este momento.');
+                }
+            } catch (error) {
+                logger.error('Error en accion:reportPayment:', error);
+                try { await ctx.answerCbQuery('Error'); } catch {}
+                await ctx.reply('❌ Error al generar el reporte de pagos pendientes.');
+            }
+        });
+
+        // Acción para el reporte de pólizas prioritarias
+        this.bot.action('accion:reportUsed', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                // Buscar la instancia del comando ReportUsedCommand
+                const reportUsedCmd = this.registry.getCommand('reportUsed');
+                if (reportUsedCmd && typeof reportUsedCmd.generateReport === 'function') {
+                    await reportUsedCmd.generateReport(ctx);
+                } else {
+                    logger.warn('No se encontró el comando reportUsed o su método generateReport');
+                    await ctx.reply('❌ Reporte no disponible en este momento.');
+                }
+            } catch (error) {
+                logger.error('Error en accion:reportUsed:', error);
+                try { await ctx.answerCbQuery('Error'); } catch {}
+                await ctx.reply('❌ Error al generar el reporte de pólizas prioritarias.');
+            }
+        });
+
+        logger.info('✅ Manejadores de acciones principales configurados.');
+    }
+
 
     // Setup remaining callbacks or commands that haven't been modularized yet
     setupRemainingCommands() {
@@ -169,9 +385,27 @@ class CommandHandler {
 
         // The ocuparPoliza callback is handled by the OcuparPolizaCallback module.
         // Other non-command logic might remain here if needed.
+
+        // Añadir botón Volver al Menú en la respuesta de getPoliza callback
+         this.bot.action(/getPoliza:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                logger.info(`Callback getPoliza para: ${numeroPoliza}`);
+                await this.handleGetPolicyFlow(ctx, numeroPoliza); // Muestra info y botones Ver/Ocupar
+                 // Añadimos el botón de volver explícitamente aquí también si handleGetPolicyFlow no lo hace siempre
+                 await ctx.reply('Acciones adicionales:', Markup.inlineKeyboard([
+                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                 ]));
+                await ctx.answerCbQuery();
+            } catch (error) {
+                logger.error('Error en callback getPoliza:', error);
+                await ctx.reply('❌ Error al consultar la póliza desde callback.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
     }
-    
-    // Setup all registered callbacks to connect with the bot
+
+    // Setup all registered callbacks from command modules
     setupCallbacks() {
         logger.info('Configurando callbacks registrados...');
         const callbackHandlers = this.registry.getCallbackHandlers();
@@ -181,6 +415,8 @@ class CommandHandler {
             logger.info(`Conectando callback: ${pattern}`);
             this.bot.action(pattern, async (ctx) => {
                 try {
+                    // Asegurarse de limpiar el estado si un callback inicia un nuevo flujo
+                    // this.clearChatState(ctx.chat.id); // Quizás no aquí, depende del callback
                     await handler(ctx);
                 } catch (error) {
                     logger.error(`Error en callback ${pattern}:`, error);
@@ -189,15 +425,33 @@ class CommandHandler {
                 }
             });
         });
-        
-        logger.info(`✅ ${callbackHandlers.size} callbacks conectados al bot`);
+
+        logger.info(`✅ ${callbackHandlers.size} callbacks de módulos conectados al bot`);
     }
 
+     // Helper para limpiar todos los estados de espera de un chat
+    clearChatState(chatId) {
+        this.uploadTargets.delete(chatId);
+        this.awaitingSaveData.delete(chatId);
+        this.awaitingGetPolicyNumber.delete(chatId);
+        this.awaitingUploadPolicyNumber.delete(chatId);
+        this.awaitingDeletePolicyNumber.delete(chatId);
+        this.awaitingPaymentPolicyNumber.delete(chatId);
+        this.awaitingPaymentData.delete(chatId);
+        this.awaitingServicePolicyNumber.delete(chatId);
+        this.awaitingServiceData.delete(chatId);
+        this.awaitingPhoneNumber.delete(chatId);
+        this.awaitingOrigenDestino.delete(chatId);
+        this.awaitingDeleteReason.delete(chatId);
+        logger.debug(`Estado limpiado para chatId: ${chatId}`);
+    }
+
+
     // -------------------------------------------------------------------------
-    // Métodos auxiliares para manejar cada flujo
+    // Métodos auxiliares para manejar cada flujo (invocados por TextMessageHandler)
     // -------------------------------------------------------------------------
 
-    // Manejo del flujo /save
+    // Manejo del flujo INICIADO por accion:registrar
     async handleSaveData(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
@@ -210,10 +464,14 @@ class CommandHandler {
     
             const EXPECTED_LINES = 19;
             if (lines.length < EXPECTED_LINES) {
-                this.awaitingSaveData.delete(chatId);  // ✅ Limpia el estado
+                // No limpiar estado aquí, permitir corrección o cancelación
+                // this.awaitingSaveData.delete(chatId);
                 await ctx.reply(
                     `❌ Los datos no están completos. Se requieren ${EXPECTED_LINES} líneas de información.\n` +
-                    'Proceso cancelado. Usa /save para intentar nuevamente.'
+                    'Puedes corregir y reenviar la información, o cancelar.',
+                    Markup.inlineKeyboard([
+                        Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
+                    ])
                 );
                 return;
             }
@@ -221,10 +479,13 @@ class CommandHandler {
             const fechaStr = lines[18];
             const fechaParts = fechaStr.split(/[/-]/);
             if (fechaParts.length !== 3) {
-                this.awaitingSaveData.delete(chatId);  // ✅ Limpia el estado
+                 // No limpiar estado aquí
                 await ctx.reply(
-                    '❌ Formato de fecha inválido. Use DD/MM/YY o DD/MM/YYYY\n' +
-                    'Proceso cancelado. Usa /save para intentar nuevamente.'
+                    '❌ Formato de fecha inválido en la línea 19. Use DD/MM/YY o DD/MM/YYYY.\n' +
+                    'Puedes corregir y reenviar la información, o cancelar.',
+                     Markup.inlineKeyboard([
+                        Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
+                    ])
                 );
                 return;
             }
@@ -233,7 +494,8 @@ class CommandHandler {
             if (year.length === 2) {
                 year = '20' + year; // 23 -> 2023
             }
-            const fecha = new Date(`${year}-${month}-${day}`);
+            const 
+            fecha = new Date(`${year}-${month}-${day}`);
 
             const policyData = {
                 titular: lines[0],
@@ -270,10 +532,13 @@ class CommandHandler {
             // NUEVA VALIDACIÓN: Verificar que no exista ya la póliza
             const existingPolicy = await getPolicyByNumber(policyData.numeroPoliza);
             if (existingPolicy) {
-                this.awaitingSaveData.delete(chatId);  // ✅ Limpia el estado
+                 // No limpiar estado aquí
                 await ctx.reply(
-                    `❌ La póliza con número *${policyData.numeroPoliza}* ya existe en la base de datos. No se puede duplicar.\n` +
-                    'Proceso cancelado. Usa /save para intentar nuevamente.'
+                    `❌ La póliza con número *${policyData.numeroPoliza}* (línea 18) ya existe. No se puede duplicar.\n` +
+                    'Verifica el número o cancela el registro.',
+                     Markup.inlineKeyboard([
+                        Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
+                    ])
                 );
                 return;
             }
@@ -287,20 +552,25 @@ class CommandHandler {
 
             await ctx.reply(
                 `✅ Póliza guardada exitosamente:\n` +
-                `Número: ${savedPolicy.numeroPoliza}\n\n` +
-                `Puedes subir fotos y el PDF del vehículo usando:\n` +
-                `/upload`
+                `Número: ${savedPolicy.numeroPoliza}`,
+                 Markup.inlineKeyboard([ // Botón para volver al menú
+                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                 ])
             );
         } catch (error) {
             logger.error('Error al procesar datos de póliza (handleSaveData):', error);
-            this.awaitingSaveData.delete(chatId);  // ✅ Limpia el estado
+             // No limpiar estado aquí, el usuario podría querer corregir
             await ctx.reply(
-                `❌ Error: ${error.message}\n` +
-                'Proceso cancelado. Usa /save para intentar nuevamente.'
+                `❌ Error al guardar: ${error.message}\n` +
+                'Verifica los datos e intenta reenviar, o cancela.',
+                 Markup.inlineKeyboard([
+                    Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
+                ])
             );
         }
     }
 
+    // Manejo del flujo INICIADO por accion:delete (recibe N° póliza)
     async handleDeletePolicyFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
@@ -319,10 +589,11 @@ class CommandHandler {
                 } 
                 // Si no hay comas, separamos por espacios
                 else if (inputText.includes(' ')) {
-                    polizasArray = inputText.split(' ');
+                    // Si no hay comas ni espacios, asumimos una sola póliza
+                    polizasArray = [inputText];
                 }
             }
-            
+
             // Limpiamos y normalizamos cada número de póliza
             const numeroPolizas = polizasArray
                 .map(num => num.trim().toUpperCase())
@@ -330,12 +601,33 @@ class CommandHandler {
             
             // Verificar que hay al menos una póliza para procesar
             if (numeroPolizas.length === 0) {
-                await ctx.reply('❌ No se detectaron números de póliza válidos. Por favor, inténtalo de nuevo.');
-                this.awaitingDeletePolicyNumber.delete(chatId);
+                await ctx.reply('❌ No se detectaron números de póliza válidos. Por favor, inténtalo de nuevo o cancela.');
+                // No limpiar estado, permitir reintento
                 return;
             }
 
-            // Si hay muchas pólizas, confirmamos antes de proceder
+             // Verificar que todas las pólizas existan ANTES de pedir el motivo
+            const results = await Promise.all(numeroPolizas.map(async num => {
+                const policy = await getPolicyByNumber(num);
+                return { numero: num, existe: !!policy };
+            }));
+
+            const noEncontradas = results.filter(r => !r.existe);
+            const encontradas = results.filter(r => r.existe).map(r => r.numero);
+
+            if (noEncontradas.length > 0) {
+                await ctx.reply(
+                    `❌ Las siguientes pólizas no se encontraron y no serán procesadas:\n` +
+                    `${noEncontradas.map(p => `- ${p.numero}`).join('\n')}\n\n` +
+                    `${encontradas.length > 0 ? 'Se procederá con las encontradas.' : 'Ninguna póliza válida para eliminar. Proceso cancelado.'}`
+                );
+                 if (encontradas.length === 0) {
+                     this.awaitingDeletePolicyNumber.delete(chatId); // Cancelar si ninguna es válida
+                     return;
+                 }
+            }
+
+            // Si hay muchas pólizas válidas, confirmamos antes de proceder
             const esProcesoPesado = numeroPolizas.length > 5;
             let mensajeConfirmacion = '';
             
@@ -343,31 +635,44 @@ class CommandHandler {
                 mensajeConfirmacion = `🔄 Se procesarán ${numeroPolizas.length} pólizas.\n\n`;
             }
             
-            // Solicitamos motivo de eliminación
+            // Estas variables ya fueron declaradas arriba con 'let', así que solo las reasignamos si es necesario.
+            // const esProcesoPesado = encontradas.length > 5; // Eliminar 'const'
+            // let mensajeConfirmacion = ''; // Eliminar 'let'
+            esProcesoPesado = encontradas.length > 5; // Reasignar
+            mensajeConfirmacion = ''; // Reasignar
+
+            if (esProcesoPesado) {
+                mensajeConfirmacion = `🔄 Se procesarán ${encontradas.length} pólizas.\n\n`; // Reasignar
+            }
+
+            // Solicitamos motivo de eliminación para las pólizas encontradas
             await ctx.reply(
-                `🗑️ Vas a marcar como ELIMINADAS ${numeroPolizas.length} póliza(s):\n` +
-                `${esProcesoPesado ? '(Mostrando las primeras 5 de ' + numeroPolizas.length + ')\n' : ''}` +
-                `${numeroPolizas.slice(0, 5).map(p => '- ' + p).join('\n')}` +
+                `🗑️ Vas a marcar como ELIMINADAS ${encontradas.length} póliza(s):\n` +
+                `${esProcesoPesado ? '(Mostrando las primeras 5 de ' + encontradas.length + ')\n' : ''}` +
+                `${encontradas.slice(0, 5).map(p => '- ' + p).join('\n')}` +
                 `${esProcesoPesado ? '\n...' : ''}\n\n` +
                 `${mensajeConfirmacion}` +
-                'Por favor, ingresa un motivo para la eliminación (o escribe "ninguno"):', 
+                'Por favor, ingresa un motivo para la eliminación (o escribe "ninguno"):',
                 { parse_mode: 'Markdown' }
             );
-            
-            // Guardamos los números de póliza para usarlos cuando recibamos el motivo
+
+            // Guardamos los números de póliza VÁLIDOS para usarlos cuando recibamos el motivo
             this.awaitingDeleteReason = this.awaitingDeleteReason || new Map();
-            this.awaitingDeleteReason.set(chatId, numeroPolizas);
-            
+            this.awaitingDeleteReason.set(chatId, encontradas); // Guardar solo las válidas
+
             // Limpiamos el estado de espera del número de póliza
             this.awaitingDeletePolicyNumber.delete(chatId);
         } catch (error) {
             logger.error('Error en handleDeletePolicyFlow:', error);
             await ctx.reply('❌ Hubo un error al procesar la solicitud. Intenta nuevamente.');
+            // Limpiar estados en caso de error inesperado
             this.awaitingDeletePolicyNumber.delete(chatId);
+            if (this.awaitingDeleteReason) this.awaitingDeleteReason.delete(chatId);
         }
     }
 
-    // Paso 1: Recibimos la póliza
+
+    // Manejo del flujo INICIADO por accion:addpayment (recibe N° póliza)
     async handleAddPaymentPolicyNumber(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
@@ -376,7 +681,8 @@ class CommandHandler {
             // Verificamos si existe
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
-                await ctx.reply(`❌ No se encontró la póliza con número: ${numeroPoliza}. Proceso cancelado.`);
+                await ctx.reply(`❌ No se encontró la póliza con número: ${numeroPoliza}. Verifica el número e intenta de nuevo, o cancela.`);
+                 // No limpiar estado, permitir reintento
             } else {
                 // Guardamos la póliza en un Map, junto al chatId
                 this.awaitingPaymentData.set(chatId, numeroPoliza);
@@ -391,24 +697,27 @@ class CommandHandler {
                     `345.00\n12/01/2024`,
                     { parse_mode: 'Markdown' }
                 );
+                 // Ya no esperamos la póliza, ahora esperamos los datos
+                 this.awaitingPaymentPolicyNumber.delete(chatId);
             }
         } catch (error) {
             logger.error('Error en handleAddPaymentPolicyNumber:', error);
             await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
-        } finally {
-            // Ya no esperamos la póliza
-            this.awaitingPaymentPolicyNumber.delete(chatId);
+             // Limpiar ambos estados en caso de error
+             this.awaitingPaymentPolicyNumber.delete(chatId);
+             this.awaitingPaymentData.delete(chatId);
         }
     }
 
-    // Paso 2: Recibimos los datos de pago (2 líneas)
+    // Manejo del flujo INICIADO por accion:addpayment (recibe datos de pago)
     async handlePaymentData(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
             const numeroPoliza = this.awaitingPaymentData.get(chatId);
             if (!numeroPoliza) {
-                // Algo salió mal o se reinició el bot
-                return await ctx.reply('❌ No se encontró la referencia de la póliza. Usa /addpayment de nuevo.');
+                // El estado se perdió, guiar al usuario
+                 logger.warn(`Se recibieron datos de pago sin una póliza en espera para chatId: ${chatId}`);
+                return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir pago desde el menú principal.');
             }
 
             // Separar las líneas
@@ -444,31 +753,34 @@ class CommandHandler {
             }
 
             // Responder éxito
-            await ctx.reply(`✅ Se ha registrado un pago de $${monto.toFixed(2)} con fecha ${fechaStr} en la póliza *${numeroPoliza}*.`, {
-                parse_mode: 'Markdown'
-            });
+            await ctx.reply(`✅ Se ha registrado un pago de $${monto.toFixed(2)} con fecha ${fechaStr} en la póliza *${numeroPoliza}*.`,
+                Markup.inlineKeyboard([ // Botón para volver al menú
+                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                ]).parse_mode('Markdown') // Aplicar parse_mode al final
+            );
+             // Limpiar el estado al finalizar correctamente
+             this.awaitingPaymentData.delete(chatId);
         } catch (error) {
             logger.error('Error en handlePaymentData:', error);
-            await ctx.reply('❌ Error al procesar el pago. Intenta nuevamente.');
-        } finally {
-            // Limpiar el estado
-            this.awaitingPaymentData.delete(chatId);
+            await ctx.reply('❌ Error al procesar el pago. Verifica los datos e intenta nuevamente.');
+             // No limpiar estado en error, permitir corrección
         }
-    }    
+    }
 
-    // Manejo del flujo /get
+    // Manejo del flujo INICIADO por accion:consultar (recibe N° póliza)
     async handleGetPolicyFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
+            const chatId = ctx.chat.id; // Asegurarse de tener chatId
             const numeroPoliza = messageText.trim().toUpperCase();
-            logger.info('Buscando póliza:', { numeroPoliza });
-    
+            logger.info('Buscando póliza:', { numeroPoliza, chatId });
+
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
-                await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}`);
+                await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
+                 // No limpiar estado, permitir reintento
             } else {
-                // ============= BLOQUE NUEVO PARA SERVICIOS =============
-                // Determinar cuántos servicios hay
+                // ============= BLOQUE PARA SERVICIOS =============
                 const servicios = policy.servicios || [];
                 const totalServicios = servicios.length;
     
@@ -511,33 +823,38 @@ ${serviciosInfo}
                 await ctx.replyWithMarkdown(
                     mensaje,
                     Markup.inlineKeyboard([
-                        [ Markup.button.callback('📸 Ver Fotos', `verFotos:${policy.numeroPoliza}`) ],
-                        [ Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
-                        [ Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`) ]
+                        [ Markup.button.callback('📸 Ver Fotos', `verFotos:${policy.numeroPoliza}`),
+                          Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
+                        [ Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`) ],
+                        [ Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu') ] // Añadir botón volver
                     ])
                 );
-                logger.info('Información de póliza enviada', { numeroPoliza });
+                logger.info('Información de póliza enviada', { numeroPoliza, chatId });
+                 // Limpiar estado al mostrar la info correctamente
+                 this.awaitingGetPolicyNumber.delete(chatId);
             }
         } catch (error) {
-            logger.error('Error en comando get (handleGetPolicyFlow):', error);
+            logger.error('Error en handleGetPolicyFlow:', error);
             await ctx.reply('❌ Error al buscar la póliza. Intenta nuevamente.');
-        } finally {
-            this.awaitingGetPolicyNumber.delete(chatId);
+             // No limpiar estado en error
         }
     }
 
-    // 1) Recibir número de póliza
+
+    // Manejo del flujo INICIADO por accion:addservice (recibe N° póliza)
     async handleAddServicePolicyNumber(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
+            const chatId = ctx.chat.id; // Asegurarse de tener chatId
             const numeroPoliza = messageText.trim().toUpperCase();
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
-                await ctx.reply(`❌ No se encontró la póliza con número: ${numeroPoliza}. Proceso cancelado.`);
+                await ctx.reply(`❌ No se encontró la póliza con número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
+                 // No limpiar estado
             } else {
                 // Guardamos en un Map la póliza destino
                 this.awaitingServiceData.set(chatId, numeroPoliza);
-                // Pedimos los 3 datos en 3 líneas
+                // Pedimos los 4 datos en 4 líneas
                 await ctx.reply(
                     `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
                     `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
@@ -549,22 +866,27 @@ ${serviciosInfo}
                     `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
                     { parse_mode: 'Markdown' }
                 );
+                 // Ya no esperamos la póliza, ahora esperamos los datos
+                 this.awaitingServicePolicyNumber.delete(chatId);
             }
         } catch (error) {
             logger.error('Error en handleAddServicePolicyNumber:', error);
             await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
-        } finally {
-            this.awaitingServicePolicyNumber.delete(chatId);
+             // Limpiar ambos estados en caso de error
+             this.awaitingServicePolicyNumber.delete(chatId);
+             this.awaitingServiceData.delete(chatId);
         }
     }
 
-    // 2) Recibimos costo, fecha, expediente y origen-destino
+    // Manejo del flujo INICIADO por accion:addservice (recibe datos del servicio)
     async handleServiceData(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
+            const chatId = ctx.chat.id; // Asegurarse de tener chatId
             const numeroPoliza = this.awaitingServiceData.get(chatId);
             if (!numeroPoliza) {
-                return await ctx.reply('❌ No se encontró la referencia de la póliza. Usa /addservice de nuevo.');
+                 logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`);
+                return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.');
             }
 
             // Dividir en líneas
@@ -626,47 +948,56 @@ ${serviciosInfo}
                 `Fecha: ${fechaStr}\n` +
                 `Expediente: ${expediente}\n` +
                 `Origen y Destino: ${origenDestino}`,
-                { parse_mode: 'Markdown' }
+                 Markup.inlineKeyboard([ // Botón para volver al menú
+                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                 ]).parse_mode('Markdown') // Aplicar parse_mode al final
             );
+             // Limpiar el estado al finalizar correctamente
+             this.awaitingServiceData.delete(chatId);
         } catch (error) {
             logger.error('Error en handleServiceData:', error);
-            await ctx.reply('❌ Error al procesar el servicio. Intenta nuevamente.');
-        } finally {
-            // Limpiar el estado
-            this.awaitingServiceData.delete(chatId);
+            await ctx.reply('❌ Error al procesar el servicio. Verifica los datos e intenta nuevamente.');
+             // No limpiar estado en error, permitir corrección
         }
     }
 
-        // Función que maneja la respuesta del usuario con el número de póliza
+        // Manejo del flujo INICIADO por accion:upload (recibe N° póliza)
         async handleUploadFlow(ctx, messageText) {
             const chatId = ctx.chat.id;
             try {
-                const numeroPoliza = messageText.trim().toUpperCase();
-                logger.info('Iniciando upload para póliza:', { numeroPoliza });
+            const chatId = ctx.chat.id; // Asegurarse de tener chatId
+            const numeroPoliza = messageText.trim().toUpperCase();
+            logger.info('Iniciando upload para póliza:', { numeroPoliza, chatId });
 
-                // Verificamos si la póliza existe
-                const policy = await getPolicyByNumber(numeroPoliza);
-                if (!policy) {
-                    await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}`);
-                    return;
-                }
+            // Verificamos si la póliza existe
+            const policy = await getPolicyByNumber(numeroPoliza);
+            if (!policy) {
+                await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
+                 // No limpiar estado, permitir reintento
+                return;
+            }
 
-                // Guardamos en un Map qué póliza está usando este chat
+            // Guardamos en un Map qué póliza está usando este chat
                 this.uploadTargets.set(chatId, numeroPoliza);
 
                 // Avisamos al usuario que puede subir los archivos
                 await ctx.reply(
                     `📤 *Subida de Archivos - Póliza ${numeroPoliza}*\n\n` +
                     `📸 Puedes enviar múltiples fotos.\n` +
-                    `📄 También puedes enviar archivos PDF.`,
-                    { parse_mode: 'Markdown' }
+                    `📄 También puedes enviar archivos PDF.\n\n` +
+                    `Cuando termines, puedes volver al menú principal.`,
+                     Markup.inlineKeyboard([ // Botón para volver al menú
+                         Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                     ]).parse_mode('Markdown') // Aplicar parse_mode al final
                 );
+                 // Ya no esperamos el número de póliza, ahora esperamos archivos
+                 this.awaitingUploadPolicyNumber.delete(chatId);
             } catch (error) {
                 logger.error('Error en handleUploadFlow:', error);
                 await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
-            } finally {
-                // Quitamos el estado de "awaiting" para el número de póliza
-                this.awaitingUploadPolicyNumber.delete(chatId);
+                 // Limpiar ambos estados en caso de error
+                 this.awaitingUploadPolicyNumber.delete(chatId);
+                 this.uploadTargets.delete(chatId);
             }
         }
 

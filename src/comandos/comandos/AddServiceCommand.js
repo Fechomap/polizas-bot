@@ -17,18 +17,11 @@ class AddServiceCommand extends BaseCommand {
     }
 
     register() {
-        // Register the main /addservice command
-        this.handler.bot.command(this.getCommandName(), async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                // Set state to wait for policy number
-                this.handler.awaitingServicePolicyNumber.set(chatId, true);
-                await ctx.reply('🚗 Por favor, ingresa el número de póliza para registrar un servicio.');
-            } catch (error) {
-                this.logError('Error al iniciar comando addservice:', error);
-                await this.replyError(ctx, 'Error al iniciar el registro de servicio.');
-            }
-        });
+        // No longer registering the /addservice command directly.
+        // The flow is initiated by the 'accion:addservice' button in CommandHandler,
+        // which sets the awaitingServicePolicyNumber state.
+        this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
+
 
         // Note: The actual handling of the text inputs (policy number, service data)
         // is done within TextMessageHandler.js by checking the state flags

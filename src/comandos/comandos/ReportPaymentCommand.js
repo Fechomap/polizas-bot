@@ -16,11 +16,11 @@ class ReportPaymentCommand extends BaseCommand {
         return 'Genera un reporte de pólizas con pagos pendientes.';
     }
 
-    register() {
-        this.handler.bot.command(this.getCommandName(), async (ctx) => {
-            try {
-                this.logInfo(`Ejecutando comando ${this.getCommandName()}`);
-                const susceptibles = await getSusceptiblePolicies();
+    // Method to generate and send the report, callable if needed
+    async generateReport(ctx) {
+         try {
+            this.logInfo(`Generando reporte ${this.getCommandName()}`);
+            const susceptibles = await getSusceptiblePolicies();
 
                 if (!susceptibles.length) {
                     return await ctx.reply('✅ No hay pólizas susceptibles de falta de pago. Todas están al corriente.');
@@ -49,13 +49,25 @@ class ReportPaymentCommand extends BaseCommand {
                     // Enviar el bloque
                     await ctx.replyWithMarkdown(chunk);
                 }
-                this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
+            this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
 
-            } catch (error) {
-                this.logError(`Error en ${this.getCommandName()}:`, error);
-                await this.replyError(ctx, 'Ocurrió un error al generar el reporte de pago.');
-            }
+        } catch (error) {
+            this.logError(`Error en ${this.getCommandName()}:`, error);
+            await this.replyError(ctx, 'Ocurrió un error al generar el reporte de pago.');
+        }
+    }
+
+
+    register() {
+        // No longer registering the /reportPayment command directly.
+        // This could be triggered by a button in a future 'Reportes' submenu.
+        this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
+
+        /* Código anterior eliminado:
+         this.handler.bot.command(this.getCommandName(), async (ctx) => {
+            await this.generateReport(ctx);
         });
+        */
     }
 }
 

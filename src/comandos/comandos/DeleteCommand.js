@@ -19,26 +19,12 @@ class DeleteCommand extends BaseCommand {
     }
 
     register() {
-        // Register the main /delete command
-        this.handler.bot.command(this.getCommandName(), async (ctx) => {
-            try {
-                // Admin check
-                if (ctx.from.id !== this.ADMIN_ID) {
-                    return await ctx.reply('❌ No tienes permiso para marcar pólizas como eliminadas.');
-                }
+        // No longer registering the /delete command directly.
+        // The flow is initiated by the 'accion:delete' button in CommandHandler,
+        // which sets the awaitingDeletePolicyNumber state.
+        // The admin check should ideally happen within the action handler in CommandHandler.js
+        this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
 
-                const chatId = ctx.chat.id;
-                // Set state to wait for policy number(s)
-                this.handler.awaitingDeletePolicyNumber.set(chatId, true);
-                await ctx.reply(
-                    '📝 Por favor, ingresa el número o números de póliza a marcar como ELIMINADAS (separados por espacio, coma o salto de línea).\n' +
-                    'Estas pólizas serán excluidas de consultas y reportes, pero se conservarán en la base de datos.'
-                );
-            } catch (error) {
-                this.logError('Error al iniciar comando delete:', error);
-                await this.replyError(ctx, 'Error al iniciar el proceso de eliminación.');
-            }
-        });
 
         // Note: The actual handling of the text inputs (policy number, delete reason)
         // is done within TextMessageHandler.js by checking the state flags

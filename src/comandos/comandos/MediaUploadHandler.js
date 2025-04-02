@@ -18,29 +18,21 @@ class MediaUploadHandler extends BaseCommand {
     }
 
     register() {
-        // Register the upload command
-        this.bot.command('upload', async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                this.handler.awaitingUploadPolicyNumber.set(chatId, true);
-                await ctx.reply('📤 Por favor, ingresa el número de póliza para la cual deseas subir fotos o PDFs.');
-                this.logInfo('Iniciando flujo de upload', { chatId });
-            } catch (error) {
-                this.logError('Error en comando upload:', error);
-                await ctx.reply('❌ Error al iniciar upload. Intenta nuevamente.');
-            }
-        });
+        // No longer registering the /upload command.
+        // The flow is initiated by 'accion:upload' in CommandHandler.
+        this.logInfo(`Comando ${this.getCommandName()} cargado, registrando manejadores de 'photo' y 'document'.`);
 
         // Register photo handler
         this.bot.on('photo', async (ctx) => {
             try {
                 const chatId = ctx.chat.id;
                 const numeroPoliza = this.uploadTargets.get(chatId);
-        
+
                 if (!numeroPoliza) {
-                    return await ctx.reply('⚠️ Primero usa /upload y proporciona el número de póliza.');
+                    // Guide user to the button flow if state is missing
+                    return await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
                 }
-        
+
                 // Take the photo in maximum resolution
                 const photos = ctx.message.photo;
                 const highestResPhoto = photos[photos.length - 1];
@@ -77,24 +69,27 @@ class MediaUploadHandler extends BaseCommand {
         
                 await ctx.reply('✅ Foto guardada correctamente.');
                 this.logInfo('Foto guardada', { numeroPoliza });
+                // No limpiar uploadTargets aquí, permitir subir múltiples archivos
+                // this.uploadTargets.delete(ctx.chat.id);
             } catch (error) {
                 this.logError('Error al procesar foto:', error);
                 await ctx.reply('❌ Error al procesar la foto.');
-            } finally {
-                this.uploadTargets.delete(ctx.chat.id);
+                // Considerar limpiar estado en error
+                 this.uploadTargets.delete(ctx.chat.id);
             }
         });
-        
+
         // Register document handler
         this.bot.on('document', async (ctx) => {
             try {
                 const chatId = ctx.chat.id;
                 const numeroPoliza = this.uploadTargets.get(chatId);
-        
+
                 if (!numeroPoliza) {
-                    return await ctx.reply('⚠️ Primero usa /upload y proporciona el número de póliza.');
+                     // Guide user to the button flow
+                    return await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
                 }
-        
+
                 const { mime_type: mimeType = '' } = ctx.message.document || {};
                 if (!mimeType.includes('pdf')) {
                     return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
@@ -132,47 +127,18 @@ class MediaUploadHandler extends BaseCommand {
         
                 await ctx.reply('✅ PDF guardado correctamente.');
                 this.logInfo('PDF guardado', { numeroPoliza });
+                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
+                 // this.uploadTargets.delete(ctx.chat.id);
             } catch (error) {
                 this.logError('Error al procesar documento:', error);
                 await ctx.reply('❌ Error al procesar el documento.');
-            } finally {
-                this.uploadTargets.delete(ctx.chat.id);
+                 // Considerar limpiar estado en error
+                 this.uploadTargets.delete(ctx.chat.id);
             }
         });
     }
 
-    // Function that handles the user's response with the policy number
-    async handleUploadFlow(ctx, messageText) {
-        const chatId = ctx.chat.id;
-        try {
-            const numeroPoliza = messageText.trim().toUpperCase();
-            this.logInfo('Iniciando upload para póliza:', { numeroPoliza });
-
-            // Check if the policy exists
-            const policy = await getPolicyByNumber(numeroPoliza);
-            if (!policy) {
-                await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}`);
-                return;
-            }
-
-            // Save in a Map which policy this chat is using
-            this.uploadTargets.set(chatId, numeroPoliza);
-
-            // Tell the user they can upload files
-            await ctx.reply(
-                `📤 *Subida de Archivos - Póliza ${numeroPoliza}*\n\n` +
-                `📸 Puedes enviar múltiples fotos.\n` +
-                `📄 También puedes enviar archivos PDF.`,
-                { parse_mode: 'Markdown' }
-            );
-        } catch (error) {
-            this.logError('Error en handleUploadFlow:', error);
-            await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
-        } finally {
-            // Remove the "awaiting" state for the policy number
-            this.handler.awaitingUploadPolicyNumber.delete(chatId);
-        }
-    }
+    // Removed handleUploadFlow method as it's now handled in CommandHandler.js
 }
 
 module.exports = MediaUploadHandler;

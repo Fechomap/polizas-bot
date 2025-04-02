@@ -19,35 +19,14 @@ class GetCommand extends BaseCommand {
     }
 
     register() {
-        // Register the main command
-        this.bot.command(this.getCommandName(), async (ctx) => {
-            try {
-                const chatId = ctx.chat.id;
-                // Mark that we're waiting for the policy number
-                this.awaitingGetPolicyNumber.set(chatId, true);
-                await ctx.reply('Por favor, ingresa el número de póliza que deseas consultar.');
-                this.logInfo('Iniciando flujo de consulta', { chatId });
-            } catch (error) {
-                this.logError('Error al iniciar comando get:', error);
-                await ctx.reply('❌ Error al iniciar la consulta. Intenta nuevamente.');
-            }
-        });
-
-        // Register the callback for "getPoliza" button
-        this.handler.registry.registerCallback(/getPoliza:(.+)/, async (ctx) => {
-            try {
-                const numeroPoliza = ctx.match[1];
-                this.logInfo(`Callback getPoliza para: ${numeroPoliza}`);
-                await this.handleGetPolicyFlow(ctx, numeroPoliza);
-                await ctx.answerCbQuery();
-            } catch (error) {
-                this.logError('Error en callback getPoliza:', error);
-                await ctx.reply('❌ Error al consultar la póliza desde callback.');
-            }
-        });
+        // No longer registering the /get command directly.
+        // The flow is initiated by the 'accion:consultar' button in CommandHandler.
+        // The 'getPoliza:' callback is also handled centrally in CommandHandler.
+        this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando ni callback aquí.`);
     }
 
-    // This method is called both from the command and the callback
+    // This method is now primarily called by TextMessageHandler when awaitingGetPolicyNumber is true.
+    // It might also be called by other specific callbacks if needed.
     async handleGetPolicyFlow(ctx, messageText) {
         const chatId = ctx.chat?.id;
         try {
@@ -100,9 +79,11 @@ ${serviciosInfo}
                 await ctx.replyWithMarkdown(
                     mensaje,
                     Markup.inlineKeyboard([
-                        [ Markup.button.callback('📸 Ver Fotos', `verFotos:${policy.numeroPoliza}`) ],
-                        [ Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
-                        [ Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`) ]
+                        [ Markup.button.callback('📸 Ver Fotos', `verFotos:${policy.numeroPoliza}`), // Keep existing buttons
+                          Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
+                        [ Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`) ],
+                        // The 'Volver al Menú' button is added in CommandHandler's action handlers
+                        // or TextMessageHandler where this function is called.
                     ])
                 );
                 this.logInfo('Información de póliza enviada', { numeroPoliza });

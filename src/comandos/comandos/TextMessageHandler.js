@@ -42,14 +42,10 @@ class TextMessageHandler extends BaseCommand {
                     return;
                 }
 
-                // 2) If we're waiting for a policy number for /get
+                // 2) If we're waiting for a policy number for 'accion:consultar'
                 if (this.handler.awaitingGetPolicyNumber.get(chatId)) {
-                    const getCommand = this.handler.registry.getCommand('get');
-                    if (getCommand) {
-                        await getCommand.handleGetPolicyFlow(ctx, messageText);
-                    } else {
-                        await this.handler.handleGetPolicyFlow(ctx, messageText);
-                    }
+                    // Directly call the handler's method, which now contains the logic
+                    await this.handler.handleGetPolicyFlow(ctx, messageText);
                     return;
                 }
 
@@ -89,74 +85,29 @@ class TextMessageHandler extends BaseCommand {
                     return;
                 }
 
-                // (A) If we're waiting for a phone number (after pressing "Ocupar Póliza" button)
+                // (A) If we're waiting for a phone number (part of 'ocuparPoliza' flow)
                 if (this.handler.awaitingPhoneNumber && this.handler.awaitingPhoneNumber.get(chatId)) {
-                    // Use the OcuparPolizaCallback handler if available
-                    if (this.ocuparPolizaCallback) {
-                        const handled = await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText);
-                        if (handled) return;
+                    // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
+                    // Lazy load the ocuparPolizaCallback if needed (already done above)
+                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
+                        await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText);
                     } else {
-                        const numeroPoliza = this.handler.awaitingPhoneNumber.get(chatId);
-
-                        // Validate that it's 10 digits
-                        const regexTel = /^\d{10}$/;
-                        if (!regexTel.test(messageText)) {
-                            // Invalid phone => cancel
-                            this.handler.awaitingPhoneNumber.delete(chatId);
-                            return await ctx.reply('❌ Teléfono inválido (requiere 10 dígitos). Proceso cancelado.');
-                        }
-
-                        // If valid, save to the policy
-                        const policy = await getPolicyByNumber(numeroPoliza);
-                        if (!policy) {
-                            this.handler.awaitingPhoneNumber.delete(chatId);
-                            return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada. Cancelado.`);
-                        }
-
-                        // Save to policy.telefono
-                        policy.telefono = messageText;
-                        await policy.save();
-                        await ctx.reply(
-                            `✅ Teléfono asignado a la póliza ${numeroPoliza}.\n\n` +
-                            `🚗 Ahora ingresa *origen y destino* (ej: "Neza - Tecamac") en una sola línea.`,
-                            { parse_mode: 'Markdown' }
-                        );
-
-                        // Move to "awaitingOrigenDestino"
-                        this.handler.awaitingPhoneNumber.delete(chatId);
-                        this.handler.awaitingOrigenDestino.set(chatId, numeroPoliza);
-                        return;
+                        this.logWarn('OcuparPolizaCallback or handlePhoneNumber not found, cannot process phone number.');
+                        // Avoid replying here, let the flow handle errors or timeouts
                     }
+                    return; // Let the specific handler manage state and replies
                 }
 
-                // (B) If we're waiting for origin-destination
+                // (B) If we're waiting for origin-destination (part of 'ocuparPoliza' flow)
                 if (this.handler.awaitingOrigenDestino && this.handler.awaitingOrigenDestino.get(chatId)) {
-                    // Use the OcuparPolizaCallback handler if available
-                    if (this.ocuparPolizaCallback) {
-                        const handled = await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText);
-                        if (handled) return;
+                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
+                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
+                        await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText);
                     } else {
-                        const numeroPoliza = this.handler.awaitingOrigenDestino.get(chatId);
-                        const policy = await getPolicyByNumber(numeroPoliza);
-                        if (!policy) {
-                            this.handler.awaitingOrigenDestino.delete(chatId);
-                            return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada. Cancelado.`);
-                        }
-
-                        // Create the legend
-                        const leyenda = `🚗 Pendiente servicio "${policy.aseguradora}"\n` +
-                        `🚙 Auto: ${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
-                        `📍 Origen-Destino: ${messageText}`;
-                    
-                        await ctx.reply(
-                        `✅ Origen-destino asignado: *${messageText}*\n\n` +
-                        `📋 Aquí la leyenda para copiar:\n\`\`\`${leyenda}\`\`\``,
-                        { parse_mode: 'Markdown' }
-                        );
-
-                        this.handler.awaitingOrigenDestino.delete(chatId);
-                        return;
+                        this.logWarn('OcuparPolizaCallback or handleOrigenDestino not found, cannot process origin/destination.');
+                         // Avoid replying here
                     }
+                    return; // Let the specific handler manage state and replies
                 }
 
                 // Handle delete reason
@@ -230,14 +181,20 @@ class TextMessageHandler extends BaseCommand {
                             mensajeResultado += `❌ Errores al procesar: ${errores}\n`;
                         }
                         
-                        await ctx.replyWithMarkdown(mensajeResultado);
+                        // Add "Volver al Menú" button
+                        await ctx.replyWithMarkdown(mensajeResultado, Markup.inlineKeyboard([
+                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                        ]));
                         
                     } catch (error) {
                         this.logError('Error general al marcar pólizas como eliminadas:', error);
-                        await ctx.reply('❌ Hubo un error al marcar las pólizas como eliminadas. Intenta nuevamente.');
+                        // Add "Volver al Menú" button even on error
+                        await ctx.reply('❌ Hubo un error al marcar las pólizas como eliminadas. Intenta nuevamente.', Markup.inlineKeyboard([
+                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                        ]));
                     } finally {
                         // Clean up the waiting state
-                        this.handler.awaitingDeleteReason.delete(chatId);
+                        this.handler.awaitingDeleteReason.delete(chatId); // Clean state regardless of success/error
                     }
                     return;
                 }
