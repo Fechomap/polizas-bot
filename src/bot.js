@@ -32,6 +32,31 @@ async function initializeBot() {
             botId: botInfo.id
         });
 
+        // Middleware para filtrar mensajes antiguos
+        bot.use(async (ctx, next) => {
+            // Si no hay mensaje o no tiene fecha, continuar
+            if (!ctx.message || !ctx.message.date) {
+                return next();
+            }
+            
+            // Calcular la antigüedad del mensaje en segundos
+            const now = Math.floor(Date.now() / 1000);
+            const messageTime = ctx.message.date;
+            const messageAge = now - messageTime;
+            
+            // Descartar mensajes más antiguos que 5 minutos (300 segundos)
+            const MAX_MESSAGE_AGE = 300;
+            if (messageAge > MAX_MESSAGE_AGE) {
+                logger.info(`Descartando mensaje antiguo (${messageAge} segundos)`, {
+                    chatId: ctx.chat?.id,
+                    text: ctx.message?.text
+                });
+                return; // No procesar este mensaje
+            }
+            
+            return next();
+        });
+
         // Middleware para logging
         bot.use(async (ctx, next) => {
             const start = Date.now();

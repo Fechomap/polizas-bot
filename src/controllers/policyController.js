@@ -219,8 +219,14 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
             return null;
         }
 
-        // Determinar el siguiente número de servicio
-        const nextServiceNumber = (policy.servicios?.length || 0) + 1;
+        // Inicializar contador de servicios si no existe
+        if (policy.servicioCounter === undefined) {
+            policy.servicioCounter = 0;
+        }
+        
+        // Incrementar el contador para este nuevo servicio
+        policy.servicioCounter += 1;
+        const nextServiceNumber = policy.servicioCounter;
 
         // Añadir el servicio al arreglo incluyendo origenDestino
         policy.servicios.push({

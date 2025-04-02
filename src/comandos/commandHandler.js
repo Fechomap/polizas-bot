@@ -754,9 +754,12 @@ class CommandHandler {
 
             // Responder éxito
             await ctx.reply(`✅ Se ha registrado un pago de $${monto.toFixed(2)} con fecha ${fechaStr} en la póliza *${numeroPoliza}*.`,
-                Markup.inlineKeyboard([ // Botón para volver al menú
-                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                ]).parse_mode('Markdown') // Aplicar parse_mode al final
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                    ])
+                }
             );
              // Limpiar el estado al finalizar correctamente
              this.awaitingPaymentData.delete(chatId);
@@ -948,9 +951,12 @@ ${serviciosInfo}
                 `Fecha: ${fechaStr}\n` +
                 `Expediente: ${expediente}\n` +
                 `Origen y Destino: ${origenDestino}`,
-                 Markup.inlineKeyboard([ // Botón para volver al menú
-                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                 ]).parse_mode('Markdown') // Aplicar parse_mode al final
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                    ])
+                }
             );
              // Limpiar el estado al finalizar correctamente
              this.awaitingServiceData.delete(chatId);
@@ -986,9 +992,12 @@ ${serviciosInfo}
                     `📸 Puedes enviar múltiples fotos.\n` +
                     `📄 También puedes enviar archivos PDF.\n\n` +
                     `Cuando termines, puedes volver al menú principal.`,
-                     Markup.inlineKeyboard([ // Botón para volver al menú
-                         Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                     ]).parse_mode('Markdown') // Aplicar parse_mode al final
+                    {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                        ])
+                    }
                 );
                  // Ya no esperamos el número de póliza, ahora esperamos archivos
                  this.awaitingUploadPolicyNumber.delete(chatId);

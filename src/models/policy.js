@@ -160,6 +160,12 @@ const policySchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    
+    // Contador para asignar números de servicio secuenciales
+    servicioCounter: {
+        type: Number,
+        default: 0
+    },
 
     pagos: [{
         monto: { type: Number, required: true },
