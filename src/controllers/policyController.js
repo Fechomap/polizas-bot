@@ -87,20 +87,27 @@ const markPolicyAsDeleted = async (numeroPoliza, motivo = '') => {
         const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
         logger.info(`Marcando póliza ${normalizedNumero} como ELIMINADA`);
         
-        const policy = await Policy.findOne({ numeroPoliza: normalizedNumero, estado: 'ACTIVO' });
-        if (!policy) {
+        // Usamos findOneAndUpdate en lugar de findOne + save para evitar validaciones
+        // que podrían fallar en pólizas con datos incompletos
+        const updatedPolicy = await Policy.findOneAndUpdate(
+            { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
+            { 
+                estado: 'ELIMINADO',
+                fechaEliminacion: new Date(),
+                motivoEliminacion: motivo
+            },
+            { 
+                new: true,          // Retorna el documento actualizado
+                runValidators: false // No ejecuta validadores de esquema
+            }
+        );
+        
+        if (!updatedPolicy) {
             logger.warn(`No se encontró póliza activa con número: ${normalizedNumero}`);
             return null;
         }
         
-        // Actualizamos estado y añadimos fecha y motivo
-        policy.estado = 'ELIMINADO';
-        policy.fechaEliminacion = new Date();
-        policy.motivoEliminacion = motivo;
-        
-        const updatedPolicy = await policy.save();
         logger.info(`Póliza ${normalizedNumero} marcada como ELIMINADA exitosamente`);
-        
         return updatedPolicy;
     } catch (error) {
         logger.error('Error al marcar póliza como eliminada:', {

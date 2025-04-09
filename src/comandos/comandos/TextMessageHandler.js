@@ -153,6 +153,30 @@ class TextMessageHandler extends BaseCommand {
                                 }
                             } catch (error) {
                                 this.logError(`Error al marcar póliza ${numeroPoliza} como eliminada:`, error);
+                                
+                                // Mostrar mensaje de error específico para esta póliza
+                                let mensajeError = `❌ No se pudo eliminar la póliza ${numeroPoliza}`;
+                                
+                                // Extraer mensaje de error en lenguaje claro
+                                if (error.name === 'ValidationError') {
+                                    // Errores de validación de Mongoose
+                                    const camposFaltantes = Object.keys(error.errors || {})
+                                        .map(campo => `\`${campo}\``)
+                                        .join(', ');
+                                    
+                                    if (camposFaltantes) {
+                                        mensajeError += `: falta(n) el/los campo(s) obligatorio(s) ${camposFaltantes}.`;
+                                    } else {
+                                        mensajeError += `: error de validación.`;
+                                    }
+                                } else {
+                                    // Otros tipos de errores
+                                    mensajeError += '.';
+                                }
+                                
+                                // Enviar mensaje de error específico para esta póliza
+                                await ctx.reply(mensajeError);
+                                
                                 errores++;
                             }
                         }
