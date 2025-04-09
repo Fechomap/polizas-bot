@@ -152,7 +152,7 @@ async function exportExcelStream() {
         diasRestantesGracia: doc.diasRestantesGracia !== undefined ? doc.diasRestantesGracia : 0,
         numFotos: doc.archivos?.fotos ? doc.archivos.fotos.length : 0,
         numPdfs: doc.archivos?.pdfs ? doc.archivos.pdfs.length : 0,
-        estadoDB: doc.estado || 'ACTIVO',
+        estadoDB: doc.estado,
         // Campos nuevos 
         totalServicios: doc.totalServicios !== undefined ? doc.totalServicios : (doc.servicios ? doc.servicios.length : 0),
         calificacion: doc.calificacion !== undefined ? doc.calificacion : 0
