@@ -628,21 +628,14 @@ class CommandHandler {
             }
 
             // Si hay muchas pólizas válidas, confirmamos antes de proceder
-            const esProcesoPesado = numeroPolizas.length > 5;
+            // const esProcesoPesado = numeroPolizas.length > 5; // REMOVED initial declaration
             let mensajeConfirmacion = '';
             
-            if (esProcesoPesado) {
-                mensajeConfirmacion = `🔄 Se procesarán ${numeroPolizas.length} pólizas.\n\n`;
-            }
-            
-            // Estas variables ya fueron declaradas arriba con 'let', así que solo las reasignamos si es necesario.
-            // const esProcesoPesado = encontradas.length > 5; // Eliminar 'const'
-            // let mensajeConfirmacion = ''; // Eliminar 'let'
-            esProcesoPesado = encontradas.length > 5; // Reasignar
-            mensajeConfirmacion = ''; // Reasignar
+            // Determine if it's a heavy process based on FOUND policies
+            let esProcesoPesado = encontradas.length > 5; // CHANGED to let declaration
 
             if (esProcesoPesado) {
-                mensajeConfirmacion = `🔄 Se procesarán ${encontradas.length} pólizas.\n\n`; // Reasignar
+                mensajeConfirmacion = `🔄 Se procesarán ${encontradas.length} pólizas.\n\n`;
             }
 
             // Solicitamos motivo de eliminación para las pólizas encontradas
