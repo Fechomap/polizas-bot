@@ -15,6 +15,7 @@ const SaveCommand = require('./SaveCommand');
 const DeleteCommand = require('./DeleteCommand');
 const ReportPaymentCommand = require('./ReportPaymentCommand');
 const ReportUsedCommand = require('./ReportUsedCommand');
+const ExcelUploadHandler = require('./ExcelUploadHandler'); // Añadir esta línea
 
 module.exports = {
     BaseCommand,
@@ -32,5 +33,6 @@ module.exports = {
     SaveCommand,
     DeleteCommand,
     ReportPaymentCommand,
-    ReportUsedCommand
+    ReportUsedCommand,
+    ExcelUploadHandler // Añadir esta línea
 };

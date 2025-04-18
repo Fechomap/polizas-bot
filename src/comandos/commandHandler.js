@@ -34,6 +34,7 @@ const {
     HelpCommand,
     OcuparPolizaCallback,
     TestCommand,
+    ExcelUploadHandler, // Añadir esta línea
     // Import new commands
     AddPaymentCommand,
     AddServiceCommand,
@@ -135,6 +136,10 @@ class CommandHandler {
         const reportUsedCmd = new ReportUsedCommand(this);
         this.registry.registerCommand(reportUsedCmd);
         reportUsedCmd.register();
+        
+        const excelUploadCmd = new ExcelUploadHandler(this);
+        this.registry.registerCommand(excelUploadCmd);
+        excelUploadCmd.register();
 
         // Register callback handlers (estos ya lo hacen bien)
         const viewFilesCallbacks = new ViewFilesCallbacks(this);
@@ -191,13 +196,41 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 this.clearChatState(ctx.chat.id);
-                this.awaitingSaveData.set(ctx.chat.id, true);
+                
+                // Obtener la instancia de ExcelUploadHandler
+                const excelUploadCmd = this.registry.getCommand('excelUpload');
+                if (!excelUploadCmd) {
+                    logger.error('ExcelUploadHandler no encontrado en registry');
+                    throw new Error('ExcelUploadHandler no encontrado');
+                }
+                
+                logger.info(`Activando flujo de subida de Excel para chatId: ${ctx.chat.id}`);
+                
+                // Activar el estado de espera de Excel
+                excelUploadCmd.setAwaitingExcelUpload(ctx.chat.id, true);
+                
+                // Solicitar el archivo Excel
                 await ctx.reply(
-                    '📝 Por favor, pega la información completa de la nueva póliza (19 líneas):',
-                    Markup.inlineKeyboard([ // Añadir botón cancelar
-                        Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
-                    ])
+                    '📊 *Registro de Pólizas por Excel*\n\n' +
+                    'Por favor, sube un archivo Excel (.xlsx) con las pólizas a registrar.\n\n' +
+                    'El archivo debe contener todos los campos necesarios con los siguientes encabezados:\n' +
+                    '- TITULAR\n' +
+                    '- RFC\n' +
+                    '- MARCA, SUBMARCA, AÑO, COLOR, SERIE, PLACAS\n' +
+                    '- AGENTE COTIZADOR\n' +
+                    '- ASEGURADORA\n' +
+                    '- # DE POLIZA\n' +
+                    '- FECHA DE EMISION\n\n' +
+                    'Se procesarán todas las filas del archivo y se registrarán como pólizas activas.',
+                    {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
+                        ])
+                    }
                 );
+                
+                logger.info(`Flujo de subida de Excel iniciado para chatId: ${ctx.chat.id}`);
             } catch (error) {
                 logger.error('Error en accion:registrar:', error);
                 await ctx.reply('❌ Error al iniciar el registro.');
@@ -208,14 +241,20 @@ class CommandHandler {
         this.bot.action('accion:cancelar_registro', async (ctx) => {
             try {
                 await ctx.answerCbQuery('Registro cancelado');
+                
+                // Limpiar estado de espera de Excel
+                const excelUploadCmd = this.registry.getCommand('excelUpload');
+                if (excelUploadCmd) {
+                    excelUploadCmd.setAwaitingExcelUpload(ctx.chat.id, false);
+                }
+                
+                // Limpiar otros estados
                 this.clearChatState(ctx.chat.id);
+                
                 await ctx.editMessageText('Registro cancelado.'); // Editar mensaje original
-                // Opcional: mostrar menú principal de nuevo
-                // await this.startCommandInstance.showMainMenu(ctx);
             } catch (error) {
                 logger.error('Error en accion:cancelar_registro:', error);
-                // No enviar reply si falla la edición
-                 try { await ctx.answerCbQuery('Error al cancelar'); } catch {}
+                try { await ctx.answerCbQuery('Error al cancelar'); } catch {}
             }
         });
 

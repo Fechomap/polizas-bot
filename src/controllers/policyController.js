@@ -469,6 +469,91 @@ const restorePolicy = async (numeroPoliza) => {
     }
 };
 
+/**
+ * Guarda múltiples pólizas en la base de datos de forma eficiente
+ * @param {Array} policiesData - Array de objetos con datos de pólizas
+ * @returns {Promise<Object>} - Resultados del procesamiento
+ */
+const savePoliciesBatch = async (policiesData) => {
+    const results = {
+        total: policiesData.length,
+        successful: 0,
+        failed: 0,
+        details: []
+    };
+
+    try {
+        logger.info(`Procesando lote de ${policiesData.length} pólizas`);
+        
+        for (const policyData of policiesData) {
+            try {
+                if (!policyData.numeroPoliza) {
+                    throw new Error('Número de póliza es requerido');
+                }
+
+                policyData.numeroPoliza = policyData.numeroPoliza.trim().toUpperCase();
+
+                const existingPolicy = await Policy.findOne({ 
+                    numeroPoliza: policyData.numeroPoliza 
+                });
+
+                if (existingPolicy) {
+                    throw new DuplicatePolicyError(`Ya existe una póliza con el número: ${policyData.numeroPoliza}`);
+                }
+
+                const newPolicy = new Policy(policyData);
+                const savedPolicy = await newPolicy.save();
+
+                logger.info('Póliza guardada exitosamente:', { 
+                    numeroPoliza: savedPolicy.numeroPoliza,
+                    _id: savedPolicy._id
+                });
+
+                results.successful++;
+                results.details.push({
+                    numeroPoliza: savedPolicy.numeroPoliza,
+                    status: 'SUCCESS',
+                    message: 'Registrada correctamente'
+                });
+            } catch (error) {
+                results.failed++;
+
+                let errorMessage = 'Error desconocido';
+                if (error instanceof DuplicatePolicyError) {
+                    errorMessage = 'Póliza duplicada';
+                } else if (error.name === 'ValidationError') {
+                    const campos = Object.keys(error.errors || {});
+                    errorMessage = `Error de validación: ${campos.join(', ')}`;
+                } else {
+                    errorMessage = error.message;
+                }
+
+                logger.error('Error al guardar póliza:', {
+                    numeroPoliza: policyData?.numeroPoliza,
+                    error: errorMessage
+                });
+
+                results.details.push({
+                    numeroPoliza: policyData?.numeroPoliza || 'Desconocido',
+                    status: 'ERROR',
+                    message: errorMessage
+                });
+            }
+        }
+
+        logger.info('Procesamiento de lote completado', {
+            total: results.total,
+            exitosas: results.successful,
+            fallidas: results.failed
+        });
+
+        return results;
+    } catch (error) {
+        logger.error('Error general en savePoliciesBatch:', error);
+        throw error;
+    }
+};
+
 module.exports = {
     savePolicy,
     getPolicyByNumber,
@@ -481,5 +566,6 @@ module.exports = {
     deletePolicyByNumber,
     markPolicyAsDeleted,  // Nueva función de borrado lógico
     getDeletedPolicies,   // Función para obtener pólizas eliminadas
-    restorePolicy         // Función para restaurar pólizas eliminadas
+    restorePolicy,        // Función para restaurar pólizas eliminadas
+    savePoliciesBatch
 };

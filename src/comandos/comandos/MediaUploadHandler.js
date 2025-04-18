@@ -80,13 +80,22 @@ class MediaUploadHandler extends BaseCommand {
         });
 
         // Register document handler
-        this.bot.on('document', async (ctx) => {
+        this.bot.on('document', async (ctx, next) => { // Added 'next' parameter
             try {
                 const chatId = ctx.chat.id;
+                
+                // NUEVO: Verificar si estamos esperando un Excel para registro
+                const excelUploadCmd = this.handler.registry.getCommand('excelUpload');
+                if (excelUploadCmd && typeof excelUploadCmd.awaitingExcelUpload?.get === 'function' && 
+                    excelUploadCmd.awaitingExcelUpload.get(chatId)) {
+                    // Si estamos esperando un Excel, no procesamos aquí, dejamos que lo maneje ExcelUploadHandler
+                    this.logInfo('Documento recibido, pero estamos en flujo de carga Excel. Pasando a ExcelUploadHandler', { chatId }); // Log updated
+                    return next(); // Call next() to pass control
+                }
+                
                 const numeroPoliza = this.uploadTargets.get(chatId);
 
                 if (!numeroPoliza) {
-                     // Guide user to the button flow
                     return await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
                 }
 
