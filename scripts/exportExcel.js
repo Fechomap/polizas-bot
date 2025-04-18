@@ -1,4 +1,4 @@
-// scripts/exportExcel.js
+// scripts/exportExcel.js (MODIFICADO)
 const mongoose = require('mongoose');
 const ExcelJS = require('exceljs');
 const path = require('path');
@@ -111,6 +111,21 @@ async function exportExcelStream() {
       ]),
     ];
 
+    // Aplicar formato de fecha a las columnas de fecha
+    // Cambios para columnas específicas (T, V, W)
+    worksheet.getColumn('fechaEmision').numFmt = 'dd/mm/yyyy';
+    worksheet.getColumn('fechaFinCobertura').numFmt = 'dd/mm/yyyy';
+    worksheet.getColumn('fechaFinGracia').numFmt = 'dd/mm/yyyy';
+    
+    // Formato para columnas de pagos y servicios
+    for (let i = 1; i <= 12; i++) {
+      const pagoFechaCol = worksheet.getColumn(`pago${i}Fecha`);
+      const servicioFechaCol = worksheet.getColumn(`servicio${i}Fecha`);
+      
+      if (pagoFechaCol) pagoFechaCol.numFmt = 'dd/mm/yyyy';
+      if (servicioFechaCol) servicioFechaCol.numFmt = 'dd/mm/yyyy';
+    }
+
     // Creamos un cursor para leer los datos uno a uno
     const cursor = Policy.find().lean().cursor();
     
@@ -138,16 +153,19 @@ async function exportExcelStream() {
         agenteCotizador: doc.agenteCotizador || '',
         aseguradora: doc.aseguradora || '',
         numeroPoliza: doc.numeroPoliza || '',
+        // CAMBIO: Exportar fechas como objetos Date, no como strings
         fechaEmision: doc.fechaEmision
-          ? new Date(doc.fechaEmision).toISOString().split('T')[0]
-          : '',
+          ? new Date(doc.fechaEmision)
+          : null,
         estadoPoliza: doc.estadoPoliza || '',
+        // CAMBIO: Exportar fechas como objetos Date, no como strings
         fechaFinCobertura: doc.fechaFinCobertura
-          ? new Date(doc.fechaFinCobertura).toISOString().split('T')[0]
-          : '',
+          ? new Date(doc.fechaFinCobertura)
+          : null,
+        // CAMBIO: Exportar fechas como objetos Date, no como strings
         fechaFinGracia: doc.fechaFinGracia
-          ? new Date(doc.fechaFinGracia).toISOString().split('T')[0]
-          : '',
+          ? new Date(doc.fechaFinGracia)
+          : null,
         diasRestantesCobertura: doc.diasRestantesCobertura !== undefined ? doc.diasRestantesCobertura : 0,
         diasRestantesGracia: doc.diasRestantesGracia !== undefined ? doc.diasRestantesGracia : 0,
         numFotos: doc.archivos?.fotos ? doc.archivos.fotos.length : 0,
@@ -163,9 +181,10 @@ async function exportExcelStream() {
       for (let i = 0; i < 12; i++) {
         const pago = pagos[i];
         rowData[`pago${i + 1}Monto`] = pago ? pago.monto : '';
+        // CAMBIO: Exportar fechas como objetos Date, no como strings
         rowData[`pago${i + 1}Fecha`] = (pago && pago.fechaPago)
-          ? new Date(pago.fechaPago).toISOString().split('T')[0]
-          : '';
+          ? new Date(pago.fechaPago)
+          : null;
       }
 
       // Manejo de servicios (hasta 12)
@@ -173,9 +192,10 @@ async function exportExcelStream() {
       for (let i = 0; i < 12; i++) {
         const servicio = servicios[i];
         rowData[`servicio${i + 1}Costo`] = servicio ? servicio.costo : '';
+        // CAMBIO: Exportar fechas como objetos Date, no como strings
         rowData[`servicio${i + 1}Fecha`] = (servicio && servicio.fechaServicio)
-          ? new Date(servicio.fechaServicio).toISOString().split('T')[0]
-          : '';
+          ? new Date(servicio.fechaServicio)
+          : null;
         rowData[`servicio${i + 1}Expediente`] = servicio ? servicio.numeroExpediente : '';
         rowData[`servicio${i + 1}OrigenDestino`] = servicio ? servicio.origenDestino : '';
       }
