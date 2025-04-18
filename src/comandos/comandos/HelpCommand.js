@@ -25,7 +25,7 @@ class HelpCommand extends BaseCommand {
         *Descripción de las Opciones:*
 
         🔹 *Consultar Póliza:* Busca y muestra la información de una póliza existente por su número.
-        🔹 *Registrar Nueva Póliza:* Inicia el proceso para añadir una póliza nueva a la base de datos.
+        🔹 *Registrar Póliza:* Inicia el proceso para añadir una póliza nueva a la base de datos.
         🔹 *Añadir Pago:* Registra un pago realizado para una póliza específica.
         🔹 *Añadir Servicio:* Registra un servicio (grúa, etc.) asociado a una póliza.
         🔹 *Subir Archivos:* Permite adjuntar fotos o PDFs a una póliza existente.

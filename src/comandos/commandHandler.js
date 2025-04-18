@@ -186,7 +186,7 @@ class CommandHandler {
             }
         });
 
-        // Registrar Nueva Póliza
+        // Registrar Póliza
         this.bot.action('accion:registrar', async (ctx) => {
             try {
                 await ctx.answerCbQuery();

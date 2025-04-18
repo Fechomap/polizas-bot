@@ -57,7 +57,7 @@ NODE_ENV=production
 |---------|-------------|
 | `/start` | Bienvenida e introducción |
 | `/help` | Mostrar todos los comandos disponibles |
-| `/save` | Registrar nueva póliza |
+| `/save` | Registrar Póliza |
 | `/get` | Consultar una póliza existente |
 | `/upload` | Subir fotos o PDFs para una póliza |
 | `/addpayment` | Registrar un nuevo pago |

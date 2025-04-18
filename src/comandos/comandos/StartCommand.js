@@ -22,7 +22,7 @@ class StartCommand extends BaseCommand {
                 const mainMenu = Markup.inlineKeyboard([
                     [
                         Markup.button.callback('Consultar Póliza', 'accion:consultar'),
-                        Markup.button.callback('Registrar Nueva Póliza', 'accion:registrar')
+                        Markup.button.callback('Registrar Póliza', 'accion:registrar')
                     ],
                     [
                         Markup.button.callback('Añadir Pago', 'accion:addpayment'),
@@ -56,7 +56,7 @@ class StartCommand extends BaseCommand {
             const mainMenu = Markup.inlineKeyboard([
                  [
                     Markup.button.callback('Consultar Póliza', 'accion:consultar'),
-                    Markup.button.callback('Registrar Nueva Póliza', 'accion:registrar')
+                    Markup.button.callback('Registrar Póliza', 'accion:registrar')
                 ],
                 [
                     Markup.button.callback('Añadir Pago', 'accion:addpayment'),
