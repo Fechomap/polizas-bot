@@ -86,6 +86,13 @@ class TextMessageHandler extends BaseCommand {
                     return;
                 }
 
+                // (A.0) If user is deciding whether to update the phone number (awaitingPhoneDecision)
+                if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingPhoneDecision && this.ocuparPolizaCallback.awaitingPhoneDecision.get(chatId)) {
+                    if (typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
+                        await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText);
+                        return;
+                    }
+                }
                 // (A) If we're waiting for a phone number (part of 'ocuparPoliza' flow)
                 if (this.handler.awaitingPhoneNumber && this.handler.awaitingPhoneNumber.get(chatId)) {
                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method

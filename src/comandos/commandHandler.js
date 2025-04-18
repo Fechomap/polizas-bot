@@ -443,6 +443,11 @@ class CommandHandler {
         this.awaitingPhoneNumber.delete(chatId);
         this.awaitingOrigenDestino.delete(chatId);
         this.awaitingDeleteReason.delete(chatId);
+        const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
+        if (ocuparPolizaCmd) {
+            if (ocuparPolizaCmd.awaitingPhoneDecision) ocuparPolizaCmd.awaitingPhoneDecision.delete(chatId);
+            if (ocuparPolizaCmd.pendingLeyendas) ocuparPolizaCmd.pendingLeyendas.delete(chatId);
+        }
         logger.debug(`Estado limpiado para chatId: ${chatId}`);
     }
 
