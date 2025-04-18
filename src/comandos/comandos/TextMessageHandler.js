@@ -32,6 +32,9 @@ class TextMessageHandler extends BaseCommand {
                 const chatId = ctx.chat.id;
                 const messageText = ctx.message.text.trim();
 
+                // Log para depuración
+                this.logInfo(`Procesando mensaje de texto: "${messageText}"`, { chatId });
+
                 // Ignore commands
                 if (messageText.startsWith('/')) {
                     return;
@@ -86,18 +89,11 @@ class TextMessageHandler extends BaseCommand {
                     return;
                 }
 
-                // (A.0) If user is deciding whether to update the phone number (awaitingPhoneDecision)
-                if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingPhoneDecision && this.ocuparPolizaCallback.awaitingPhoneDecision.get(chatId)) {
-                    if (typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
-                        await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText);
-                        return;
-                    }
-                }
                 // (A) If we're waiting for a phone number (part of 'ocuparPoliza' flow)
                 if (this.handler.awaitingPhoneNumber && this.handler.awaitingPhoneNumber.get(chatId)) {
                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
-                    // Lazy load the ocuparPolizaCallback if needed (already done above)
                     if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
+                        this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId });
                         await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handlePhoneNumber not found, cannot process phone number.');
@@ -108,12 +104,26 @@ class TextMessageHandler extends BaseCommand {
 
                 // (B) If we're waiting for origin-destination (part of 'ocuparPoliza' flow)
                 if (this.handler.awaitingOrigenDestino && this.handler.awaitingOrigenDestino.get(chatId)) {
-                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
+                    // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
                     if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
+                        this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId });
                         await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handleOrigenDestino not found, cannot process origin/destination.');
-                         // Avoid replying here
+                        // Avoid replying here
+                    }
+                    return; // Let the specific handler manage state and replies
+                }
+
+                // (C) If we're waiting for contact time (part of 'ocuparPoliza' flow after service assignment)
+                if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime && 
+                    this.ocuparPolizaCallback.awaitingContactTime.get(chatId)) {
+                    if (typeof this.ocuparPolizaCallback.handleContactTime === 'function') {
+                        this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, hora: messageText });
+                        await this.ocuparPolizaCallback.handleContactTime(ctx, messageText);
+                    } else {
+                        this.logWarn('OcuparPolizaCallback or handleContactTime not found, cannot process contact time.');
+                        await ctx.reply('❌ Error: No se puede procesar la hora de contacto. Por favor, inténtalo de nuevo desde el menú principal.');
                     }
                     return; // Let the specific handler manage state and replies
                 }

@@ -13,6 +13,10 @@ class OcuparPolizaCallback extends BaseCommand {
         this.pendingLeyendas = new Map();
         this.polizaCache = new Map(); // Para guardar la póliza en proceso
         this.messageIds = new Map(); // Para guardar los IDs de mensajes con botones
+        
+        // Nuevos mapas para asignación de servicio
+        this.awaitingContactTime = new Map(); // Para esperar la hora de contacto
+        this.scheduledServiceInfo = new Map(); // Para guardar info del servicio a programar
     }
 
     getCommandName() {
@@ -120,45 +124,191 @@ class OcuparPolizaCallback extends BaseCommand {
                 }
                 
                 // Send the leyenda to the predefined group
-                const targetGroupId = -1002212807945; // ID fijo del grupo actualizado
+                const targetGroupId = -1002212807945; // ID fijo del grupo
                 
                 try {
                     await ctx.telegram.sendMessage(targetGroupId, leyenda);
+                    this.logInfo(`Leyenda enviada al grupo: ${targetGroupId}`, { numeroPoliza });
                     
                     // Get the message ID to edit
                     const messageId = this.messageIds.get(chatId);
                     if (messageId) {
-                        // Edit the original message to disable buttons
+                        // Edit the original message to show new buttons
                         await ctx.telegram.editMessageText(
                             chatId,
                             messageId,
                             undefined,
                             `✅ Origen-destino asignado.\n\n` +
                             `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
-                            `✅ Leyenda enviada exitosamente al grupo de servicios.`,
+                            `✅ Leyenda enviada al grupo de servicios.\n\n` +
+                            `¿El servicio fue asignado?`,
                             { 
-                                parse_mode: 'Markdown'
-                                // Sin botones
+                                parse_mode: 'Markdown',
+                                ...Markup.inlineKeyboard([
+                                    [
+                                        Markup.button.callback('✅ Asignado', `assignedService:${numeroPoliza}`),
+                                        Markup.button.callback('❌ No asignado', `unassignedService:${numeroPoliza}`)
+                                    ]
+                                ])
                             }
                         );
                     } else {
                         // Fallback if message ID not found
-                        await ctx.reply('✅ Leyenda enviada exitosamente al grupo de servicios.');
+                        await ctx.reply(
+                            '✅ Leyenda enviada exitosamente al grupo de servicios.\n\n' +
+                            '¿El servicio fue asignado?',
+                            Markup.inlineKeyboard([
+                                [
+                                    Markup.button.callback('✅ Asignado', `assignedService:${numeroPoliza}`),
+                                    Markup.button.callback('❌ No asignado', `unassignedService:${numeroPoliza}`)
+                                ]
+                            ])
+                        );
                     }
                 } catch (sendError) {
                     this.logError('Error al enviar leyenda al grupo o editar mensaje:', sendError);
                     await ctx.reply('❌ No se pudo enviar la leyenda al grupo. Verifica que el bot esté en el grupo.');
+                    // Clean up states on error
+                    this.pendingLeyendas.delete(chatId);
+                    return;
                 }
                 
-                // Clean up all states
+                // Don't clean up everything yet, as we need to continue the flow
+                // Just clean up the leyenda as we don't need it anymore
                 this.pendingLeyendas.delete(chatId);
-                this.polizaCache.delete(chatId);
-                this.messageIds.delete(chatId);
             } catch (error) {
                 this.logError('Error en callback sendLeyenda:', error);
                 await ctx.reply('❌ Error al enviar la leyenda.');
+                // Clean up on error
+                this.cleanupAllStates(chatId);
             } finally {
                 await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for "Asignado" button
+        this.handler.registry.registerCallback(/assignedService:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                
+                this.logInfo(`Servicio marcado como asignado para póliza: ${numeroPoliza}`, { chatId });
+                
+                // First get the cached policy or fetch it again
+                let policy;
+                const cachedData = this.polizaCache.get(chatId);
+                
+                if (cachedData && cachedData.numeroPoliza === numeroPoliza) {
+                    policy = cachedData.policy;
+                } else {
+                    policy = await getPolicyByNumber(numeroPoliza);
+                    if (!policy) {
+                        return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    }
+                }
+                
+                // Store the service info for later use
+                this.scheduledServiceInfo.set(chatId, {
+                    numeroPoliza,
+                    policy,
+                    origen: cachedData?.origen || '',  // Get the origen if available
+                    destino: cachedData?.destino || '' // Get the destino if available
+                });
+                
+                // Set state to awaiting contact time
+                this.awaitingContactTime.set(chatId, numeroPoliza);
+                
+                // Get the message ID to edit
+                const messageId = this.messageIds.get(chatId);
+                if (messageId) {
+                    // Edit the original message
+                    await ctx.telegram.editMessageText(
+                        chatId,
+                        messageId,
+                        undefined,
+                        `✅ Servicio marcado como asignado.\n\n` +
+                        `📝 Por favor, ingresa la *hora de contacto* en formato HH:mm\n` +
+                        `⏰ Ejemplo: 15:30 (para las 3:30 PM, hora CDMX)`,
+                        { parse_mode: 'Markdown' }
+                    );
+                } else {
+                    // Fallback
+                    await ctx.reply(
+                        `✅ Servicio marcado como asignado.\n\n` +
+                        `📝 Por favor, ingresa la *hora de contacto* en formato HH:mm\n` +
+                        `⏰ Ejemplo: 15:30 (para las 3:30 PM, hora CDMX)`,
+                        { parse_mode: 'Markdown' }
+                    );
+                }
+            } catch (error) {
+                this.logError('Error en callback assignedService:', error);
+                await ctx.reply('❌ Error al procesar la asignación del servicio.');
+                this.cleanupAllStates(ctx.chat.id);
+            } finally {
+                await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for "No asignado" button
+        this.handler.registry.registerCallback(/unassignedService:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                
+                // Get the message ID to edit
+                const messageId = this.messageIds.get(chatId);
+                if (messageId) {
+                    // Edit the original message
+                    await ctx.telegram.editMessageText(
+                        chatId,
+                        messageId,
+                        undefined,
+                        `🚫 Servicio marcado como no asignado. Flujo finalizado.`,
+                        { parse_mode: 'Markdown' }
+                    );
+                } else {
+                    // Fallback
+                    await ctx.reply('🚫 Servicio marcado como no asignado. Flujo finalizado.');
+                }
+                
+                // Clean up all states
+                this.cleanupAllStates(chatId);
+            } catch (error) {
+                this.logError('Error en callback unassignedService:', error);
+                await ctx.reply('❌ Error al procesar la acción.');
+                this.cleanupAllStates(ctx.chat.id);
+            } finally {
+                await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for "Añadir servicio" 
+        this.handler.registry.registerCallback(/addServiceFromTime:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                
+                this.logInfo(`Iniciando flujo de añadir servicio para póliza: ${numeroPoliza}`, { chatId });
+                
+                // Activar el estado para el flujo de añadir servicio
+                this.cleanupAllStates(chatId);
+                
+                // Ejecutar el flujo estándar de 'accion:addservice'
+                await ctx.answerCbQuery();
+                
+                // Iniciar el flujo de añadir servicio usando el handler existente
+                if (this.handler && typeof this.handler.handleAddServiceStart === 'function') {
+                    // Si existe un método específico, usarlo
+                    await this.handler.handleAddServiceStart(ctx, numeroPoliza);
+                } else {
+                    // Si no, simular accion:addservice
+                    this.handler.awaitingServicePolicyNumber.set(chatId, true);
+                    await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
+                }
+            } catch (error) {
+                this.logError('Error al iniciar flujo addService:', error);
+                await ctx.reply('❌ Error al iniciar el proceso de añadir servicio.');
+                this.cleanupAllStates(ctx.chat.id);
             }
         });
 
@@ -186,16 +336,98 @@ class OcuparPolizaCallback extends BaseCommand {
                 }
                 
                 // Clean up all states
-                this.pendingLeyendas.delete(chatId);
-                this.polizaCache.delete(chatId);
-                this.messageIds.delete(chatId);
+                this.cleanupAllStates(chatId);
             } catch (error) {
                 this.logError('Error en callback cancelLeyenda:', error);
                 await ctx.reply('❌ Error al cancelar la operación.');
+                this.cleanupAllStates(ctx.chat.id);
             } finally {
                 await ctx.answerCbQuery();
             }
         });
+    }
+
+    // Helper method to clean up all states
+    cleanupAllStates(chatId) {
+        this.pendingLeyendas.delete(chatId);
+        this.polizaCache.delete(chatId);
+        this.messageIds.delete(chatId);
+        this.awaitingPhoneNumber.delete(chatId);
+        this.awaitingOrigenDestino.delete(chatId);
+        this.awaitingContactTime.delete(chatId);
+        this.scheduledServiceInfo.delete(chatId);
+    }
+
+    // Method to schedule a contact message to be sent at the specified time
+    scheduleContactMessage(ctx, numeroPoliza, contactTime, expedienteNum) {
+        try {
+            // Parse the contact time (HH:mm)
+            const [hours, minutes] = contactTime.split(':').map(Number);
+            
+            // Create a Date object for today with the specified time
+            const now = new Date();
+            const scheduledTime = new Date(
+                now.getFullYear(),
+                now.getMonth(),
+                now.getDate(),
+                hours,
+                minutes,
+                0
+            );
+            
+            // If the time is already past for today, don't schedule
+            if (scheduledTime < now) {
+                this.logError('Hora de contacto ya pasó para hoy:', {
+                    numeroPoliza,
+                    contactTime,
+                    now: now.toISOString()
+                });
+                return;
+            }
+            
+            // Calculate milliseconds until the scheduled time
+            const timeToWait = scheduledTime.getTime() - now.getTime();
+            
+            // Log scheduling info
+            this.logInfo('Programando mensaje de contacto:', {
+                numeroPoliza,
+                expedienteNum,
+                contactTime,
+                scheduledTime: scheduledTime.toISOString(),
+                timeToWaitMs: timeToWait
+            });
+            
+            // Schedule the message using setTimeout
+            setTimeout(async () => {
+                try {
+                    // Prepare the contact message
+                    const contactMessage = 
+                        `🕒 **Servicio en contacto**\n` +
+                        `📄 Expediente: ${expedienteNum}\n` +
+                        `🗓 Hora de contacto: ${contactTime}\n` +
+                        `✅ Favor de dar seguimiento en este chat.`;
+                    
+                    // Send the message to the group
+                    const targetGroupId = -1002212807945; // ID fijo del grupo
+                    await ctx.telegram.sendMessage(targetGroupId, contactMessage, {
+                        parse_mode: 'Markdown'
+                    });
+                    
+                    this.logInfo('Mensaje de contacto enviado exitosamente:', {
+                        numeroPoliza,
+                        expedienteNum,
+                        contactTime
+                    });
+                } catch (error) {
+                    this.logError('Error al enviar mensaje de contacto programado:', error);
+                }
+            }, timeToWait);
+            
+            return true;
+        } catch (error) {
+            this.logError('Error al programar mensaje de contacto:', error);
+            return false;
+        }
     }
 
     // Method to handle phone number input (called from TextMessageHandler)
@@ -278,6 +510,25 @@ class OcuparPolizaCallback extends BaseCommand {
                 return await ctx.reply(`❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`);
             }
 
+            // Parse origen and destino from input
+            const parts = messageText.split('-').map(part => part.trim());
+            let origen = '', destino = '';
+            
+            if (parts.length >= 2) {
+                origen = parts[0];
+                destino = parts[1];
+            } else {
+                origen = 'No especificado';
+                destino = messageText;
+            }
+            
+            // Update policy cache with origen and destino
+            if (cachedData) {
+                cachedData.origen = origen;
+                cachedData.destino = destino;
+                this.polizaCache.set(chatId, cachedData);
+            }
+
             // Create the legend
             const leyenda = `🚗 Pendiente servicio "${policy.aseguradora}"\n` +
             `🚙 Auto: ${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
@@ -312,6 +563,89 @@ class OcuparPolizaCallback extends BaseCommand {
             this.logError(`Error procesando origen-destino para póliza ${numeroPoliza}:`, error);
             this.awaitingOrigenDestino.delete(chatId);
             await ctx.reply('❌ Error al procesar origen-destino. Operación cancelada.');
+            return true;
+        }
+    }
+
+    // Method to handle contact time input (called from TextMessageHandler)
+    async handleContactTime(ctx, messageText) {
+        const chatId = ctx.chat.id;
+        const numeroPoliza = this.awaitingContactTime.get(chatId);
+        
+        this.logInfo(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, { chatId });
+        
+        try {
+            // Validate time format (HH:mm)
+            const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+            if (!timeRegex.test(messageText)) {
+                return await ctx.reply(
+                    '⚠️ Formato de hora inválido. Debe ser HH:mm (24 horas).\n' +
+                    'Ejemplos válidos: 09:30, 14:45, 23:15'
+                );
+            }
+            
+            // Get service info
+            const serviceInfo = this.scheduledServiceInfo.get(chatId);
+            if (!serviceInfo) {
+                this.logError(`No se encontró info de servicio para póliza: ${numeroPoliza}`);
+                this.awaitingContactTime.delete(chatId);
+                return await ctx.reply('❌ Error al procesar la hora. Operación cancelada.');
+            }
+            
+            // Update service info with contact time
+            serviceInfo.contactTime = messageText;
+            this.scheduledServiceInfo.set(chatId, serviceInfo);
+            
+            this.logInfo(`Hora de contacto registrada: ${messageText}`, { 
+                chatId, 
+                numeroPoliza
+            });
+            
+            // Get the message ID to edit
+            const messageId = this.messageIds.get(chatId);
+            if (messageId) {
+                // Edit the original message to show Añadir servicio button
+                await ctx.telegram.editMessageText(
+                    chatId,
+                    messageId,
+                    undefined,
+                    `✅ Hora de contacto registrada: *${messageText}*\n\n` +
+                    `Para guardar el servicio en la base de datos y programar la notificación automática, presiona el botón:`,
+                    { 
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('➕ Añadir servicio', `accion:addservice`)]
+                        ])
+                    }
+                );
+            } else {
+                // Fallback if message ID not found
+                await ctx.reply(
+                    `✅ Hora de contacto registrada: *${messageText}*\n\n` +
+                    `Para guardar el servicio en la base de datos y programar la notificación automática, presiona el botón:`,
+                    { 
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('➕ Añadir servicio', `accion:addservice`)]
+                        ])
+                    }
+                );
+            }
+            
+            // Store the contact time in a global context for the addservice flow
+            global.pendingContactTime = {
+                chatId,
+                numeroPoliza,
+                time: messageText
+            };
+            
+            // Clean up contact time state
+            this.awaitingContactTime.delete(chatId);
+            return true;
+        } catch (error) {
+            this.logError(`Error al procesar hora de contacto para póliza ${numeroPoliza}:`, error);
+            this.awaitingContactTime.delete(chatId);
+            await ctx.reply('❌ Error al procesar la hora de contacto. Operación cancelada.');
             return true;
         }
     }

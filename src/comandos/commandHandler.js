@@ -239,8 +239,35 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 this.clearChatState(ctx.chat.id);
-                this.awaitingServicePolicyNumber.set(ctx.chat.id, true);
-                await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
+                
+                // Comprobar si hay una hora de contacto pendiente del flujo de ocupar póliza
+                if (global.pendingContactTime && global.pendingContactTime.chatId === ctx.chat.id) {
+                    // Guardar los datos para usarlos después
+                    const { numeroPoliza, time } = global.pendingContactTime;
+                    
+                    // Limpiar el estado global
+                    global.pendingContactTime = null;
+                    
+                    // Establecer el número de póliza directamente y omitir la pregunta
+                    this.awaitingServicePolicyNumber.delete(ctx.chat.id);
+                    this.awaitingServiceData.set(ctx.chat.id, numeroPoliza);
+                    
+                    // Continuar el flujo directamente
+                    await ctx.reply(
+                        `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
+                        `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
+                        `1️⃣ Costo (ej. 550.00)\n` +
+                        `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
+                        `3️⃣ Número de expediente\n` +
+                        `4️⃣ Origen y Destino\n\n` +
+                        `📝 Ejemplo:\n\n` +
+                        `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                        { parse_mode: 'Markdown' }
+                    );
+                } else {
+                    this.awaitingServicePolicyNumber.set(ctx.chat.id, true);
+                    await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
+                }
             } catch (error) {
                 logger.error('Error en accion:addservice:', error);
                 await ctx.reply('❌ Error al iniciar el registro de servicio.');
@@ -956,8 +983,32 @@ ${serviciosInfo}
                     ])
                 }
             );
-             // Limpiar el estado al finalizar correctamente
-             this.awaitingServiceData.delete(chatId);
+            // Si hay hora de contacto pendiente del flujo de ocupar póliza, programarla
+            const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
+            if (ocuparPolizaCmd && typeof ocuparPolizaCmd.scheduleContactMessage === 'function' && 
+                global.pendingContactTime && global.pendingContactTime.numeroPoliza === numeroPoliza) {
+                
+                // Programar el mensaje con la hora de contacto
+                ocuparPolizaCmd.scheduleContactMessage(
+                    ctx,
+                    numeroPoliza,
+                    global.pendingContactTime.time,
+                    expediente
+                );
+                
+                // Mostrar mensaje adicional
+                await ctx.reply(
+                    `✅ Se ha programado una notificación automática para las ${global.pendingContactTime.time}.\n` +
+                    `El sistema enviará una alerta al grupo de servicios a esa hora.`,
+                    { parse_mode: 'Markdown' }
+                );
+                
+                // Limpiar el estado global
+                global.pendingContactTime = null;
+            }
+
+            // Limpiar el estado al finalizar correctamente
+            this.awaitingServiceData.delete(chatId);
         } catch (error) {
             logger.error('Error en handleServiceData:', error);
             await ctx.reply('❌ Error al procesar el servicio. Verifica los datos e intenta nuevamente.');
