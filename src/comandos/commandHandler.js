@@ -910,13 +910,12 @@ ${serviciosInfo}
     async handleServiceData(ctx, messageText) {
         const chatId = ctx.chat.id;
         try {
-            const chatId = ctx.chat.id; // Asegurarse de tener chatId
             const numeroPoliza = this.awaitingServiceData.get(chatId);
             if (!numeroPoliza) {
-                 logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`);
+                logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`);
                 return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.');
             }
-
+    
             // Dividir en líneas
             const lines = messageText.split('\n').map(l => l.trim()).filter(Boolean);
             // Necesitamos 4 líneas: Costo, Fecha, Expediente, Origen-Destino
@@ -929,15 +928,15 @@ ${serviciosInfo}
                     '4) Origen y Destino (ej. "Los Reyes - Tlalnepantla")'
                 );
             }
-
+    
             const [costoStr, fechaStr, expediente, origenDestino] = lines;
-
+    
             // Validar costo
             const costo = parseFloat(costoStr.replace(',', '.'));
             if (isNaN(costo) || costo <= 0) {
                 return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
             }
-
+    
             // Validar fecha
             const [dia, mes, anio] = fechaStr.split(/[/-]/);
             if (!dia || !mes || !anio) {
@@ -947,29 +946,28 @@ ${serviciosInfo}
             if (isNaN(fechaJS.getTime())) {
                 return await ctx.reply('❌ Fecha inválida. Verifica día, mes y año correctos.');
             }
-
+    
             // Validar expediente
             if (!expediente || expediente.length < 3) {
                 return await ctx.reply('❌ Número de expediente inválido. Ingresa al menos 3 caracteres.');
             }
-
+    
             // Validar origen-destino
             if (!origenDestino || origenDestino.length < 3) {
                 return await ctx.reply('❌ Origen y destino inválidos. Ingresa al menos 3 caracteres.');
             }
-
+    
             // Llamar la función para añadir el servicio
-            // Nota: Asegúrate de actualizar tu 'addServiceToPolicy' para recibir este 4º dato
             const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
             if (!updatedPolicy) {
                 return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
             }
-
+    
             // Averiguar el número de servicio recién insertado
             const totalServicios = updatedPolicy.servicios.length;
             const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
             const numeroServicio = servicioInsertado.numeroServicio;
-
+    
             await ctx.reply(
                 `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
                 `Costo: $${costo.toFixed(2)}\n` +
@@ -983,36 +981,64 @@ ${serviciosInfo}
                     ])
                 }
             );
-            // Si hay hora de contacto pendiente del flujo de ocupar póliza, programarla
-            const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
-            if (ocuparPolizaCmd && typeof ocuparPolizaCmd.scheduleContactMessage === 'function' && 
-                global.pendingContactTime && global.pendingContactTime.numeroPoliza === numeroPoliza) {
+    
+            // Verificar si existe una hora de contacto programada usando FlowStateManager
+            const flowStateManager = require('../utils/FlowStateManager');
+            
+            if (flowStateManager.hasState(chatId, numeroPoliza)) {
+                const stateData = flowStateManager.getState(chatId, numeroPoliza);
                 
-                // Programar el mensaje con la hora de contacto
-                ocuparPolizaCmd.scheduleContactMessage(
-                    ctx,
-                    numeroPoliza,
-                    global.pendingContactTime.time,
-                    expediente
-                );
-                
-                // Mostrar mensaje adicional
-                await ctx.reply(
-                    `✅ Se ha programado una notificación automática para las ${global.pendingContactTime.time}.\n` +
-                    `El sistema enviará una alerta al grupo de servicios a esa hora.`,
-                    { parse_mode: 'Markdown' }
-                );
-                
-                // Limpiar el estado global
-                global.pendingContactTime = null;
+                if (stateData && stateData.time) {
+                    try {
+                        // Importar NotificationManager y obtener instancia
+                        const { getInstance } = require('../services/NotificationManager');
+                        const notificationManager = getInstance(this.bot);
+                        
+                        // Asegurar que esté inicializado
+                        if (!notificationManager.isInitialized) {
+                            await notificationManager.initialize();
+                        }
+                        
+                        // Obtener datos de usuario para tracking
+                        const username = ctx.from?.username || '';
+                        
+                        // Programar notificación con todos los datos necesarios
+                        const notification = await notificationManager.scheduleNotification({
+                            numeroPoliza,
+                            expedienteNum: expediente,
+                            contactTime: stateData.time,
+                            origenDestino: origenDestino,
+                            targetGroupId: -1002212807945, // ID fijo del grupo
+                            createdBy: {
+                                chatId,
+                                username
+                            }
+                        });
+                        
+                        // Mostrar mensaje adicional con info de la notificación programada
+                        await ctx.reply(
+                            `✅ Se ha programado una notificación automática para las ${stateData.time}.\n` +
+                            `El sistema enviará una alerta al grupo de servicios a esa hora.\n` +
+                            `ID de la notificación: ${notification._id}`,
+                            { parse_mode: 'Markdown' }
+                        );
+                        
+                    } catch (notifyError) {
+                        logger.error('Error al programar notificación persistente:', notifyError);
+                        await ctx.reply('⚠️ Se registró el servicio pero hubo un error al programar la notificación automática.');
+                    }
+                    
+                    // Limpiar el estado específico para esta póliza
+                    flowStateManager.clearState(chatId, numeroPoliza);
+                }
             }
-
+    
             // Limpiar el estado al finalizar correctamente
             this.awaitingServiceData.delete(chatId);
         } catch (error) {
             logger.error('Error en handleServiceData:', error);
             await ctx.reply('❌ Error al procesar el servicio. Verifica los datos e intenta nuevamente.');
-             // No limpiar estado en error, permitir corrección
+            // No limpiar estado en error, permitir corrección
         }
     }
 

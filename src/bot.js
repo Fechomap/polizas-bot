@@ -5,6 +5,7 @@ const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
 const handleGroupUpdate = require('./middleware/groupHandler');
+const { getInstance: getNotificationManager } = require('./services/NotificationManager');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +26,16 @@ async function initializeBot() {
         logger.info('✅ Base de datos conectada con éxito');
 
         const bot = new Telegraf(config.telegram.token);
+
+        // AÑADIR AQUÍ: Inicializar NotificationManager
+        try {
+            const notificationManager = getNotificationManager(bot);
+            await notificationManager.initialize();
+            logger.info('✅ Sistema de notificaciones inicializado correctamente');
+        } catch (notifyError) {
+            logger.error('⚠️ Error al inicializar sistema de notificaciones:', notifyError);
+            // No bloquear el inicio del bot si falla el notificationManager
+        }
 
         const botInfo = await bot.telegram.getMe();
         logger.info('Bot conectado exitosamente a Telegram', {
@@ -99,6 +110,17 @@ async function initializeBot() {
             
             logger.info(`Iniciando apagado graceful`, { signal });
             isShuttingDown = true;
+
+            // AÑADIR AQUÍ: Detener NotificationManager antes del bot
+            try {
+                const notificationManager = getNotificationManager();
+                if (notificationManager.isInitialized) {
+                    notificationManager.stop();
+                    logger.info('✅ Sistema de notificaciones detenido correctamente');
+                }
+            } catch (stopError) {
+                logger.error('Error al detener sistema de notificaciones:', stopError);
+            }
 
             setTimeout(async () => {
                 try {

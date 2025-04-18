@@ -2,6 +2,7 @@
 const BaseCommand = require('./BaseCommand');
 const { getPolicyByNumber } = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
+const flowStateManager = require('../../utils/FlowStateManager');
 
 class OcuparPolizaCallback extends BaseCommand {
     constructor(handler) {
@@ -356,6 +357,9 @@ class OcuparPolizaCallback extends BaseCommand {
         this.awaitingOrigenDestino.delete(chatId);
         this.awaitingContactTime.delete(chatId);
         this.scheduledServiceInfo.delete(chatId);
+        
+        // También limpiar cualquier estado en el FlowStateManager
+        flowStateManager.clearAllStates(chatId);
     }
 
     // Method to schedule a contact message to be sent at the specified time
@@ -596,6 +600,13 @@ class OcuparPolizaCallback extends BaseCommand {
             serviceInfo.contactTime = messageText;
             this.scheduledServiceInfo.set(chatId, serviceInfo);
             
+            // Guardar estado en FlowStateManager para uso posterior en "addservice"
+            flowStateManager.saveState(chatId, numeroPoliza, {
+                time: messageText,
+                origin: serviceInfo.origen,
+                destination: serviceInfo.destino
+            });
+            
             this.logInfo(`Hora de contacto registrada: ${messageText}`, { 
                 chatId, 
                 numeroPoliza
@@ -631,13 +642,6 @@ class OcuparPolizaCallback extends BaseCommand {
                     }
                 );
             }
-            
-            // Store the contact time in a global context for the addservice flow
-            global.pendingContactTime = {
-                chatId,
-                numeroPoliza,
-                time: messageText
-            };
             
             // Clean up contact time state
             this.awaitingContactTime.delete(chatId);
