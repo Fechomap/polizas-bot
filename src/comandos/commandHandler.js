@@ -1024,10 +1024,11 @@ ${serviciosInfo}
             // Verificar si existe una hora de contacto programada usando FlowStateManager
             const flowStateManager = require('../utils/FlowStateManager');
             
+            // Reemplaza esta parte en handleServiceData con este código:
             if (flowStateManager.hasState(chatId, numeroPoliza)) {
                 const stateData = flowStateManager.getState(chatId, numeroPoliza);
                 
-                if (stateData && stateData.time) {
+                if (stateData) {
                     try {
                         // Importar NotificationManager y obtener instancia
                         const { getInstance } = require('../services/NotificationManager');
@@ -1041,8 +1042,8 @@ ${serviciosInfo}
                         // Obtener datos de usuario para tracking
                         const username = ctx.from?.username || '';
                         
-                        // Programar notificación con todos los datos necesarios
-                        const notification = await notificationManager.scheduleNotification({
+                        // CAMBIO: Preparar datos para la notificación, incluyendo fecha completa si existe
+                        const notificationData = {
                             numeroPoliza,
                             expedienteNum: expediente,
                             contactTime: stateData.time,
@@ -1052,11 +1053,29 @@ ${serviciosInfo}
                                 chatId,
                                 username
                             }
-                        });
+                        };
+                        
+                        // Si hay una fecha específica, añadirla
+                        if (stateData.date) {
+                            notificationData.scheduledDate = new Date(stateData.date);
+                        }
+                        
+                        // Programar notificación con todos los datos necesarios
+                        const notification = await notificationManager.scheduleNotification(notificationData);
+                        
+                        // Preparar mensaje con fecha formateada
+                        let fechaTexto = "hoy";
+                        if (stateData.date) {
+                            const fechaProg = new Date(stateData.date);
+                            const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                            const dayName = dayNames[fechaProg.getDay()];
+                            const dateStr = `${fechaProg.getDate()}/${fechaProg.getMonth() + 1}`;
+                            fechaTexto = `${dayName} ${dateStr}`;
+                        }
                         
                         // Mostrar mensaje adicional con info de la notificación programada
                         await ctx.reply(
-                            `✅ Se ha programado una notificación automática para las ${stateData.time}.\n` +
+                            `✅ Se ha programado una notificación automática para ${fechaTexto} a las ${stateData.time}.\n` +
                             `El sistema enviará una alerta al grupo de servicios a esa hora.\n` +
                             `ID de la notificación: ${notification._id}`,
                             { parse_mode: 'Markdown' }

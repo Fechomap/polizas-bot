@@ -1,3 +1,4 @@
+// scripts/clearAll.js
 const mongoose = require('mongoose');
 const path = require('path');
 const readline = require('readline'); // Para capturar la confirmación del usuario

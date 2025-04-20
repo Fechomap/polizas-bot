@@ -114,6 +114,7 @@ class NotificationManager {
      * @param {Object} data - Datos de la notificación
      * @returns {Promise<Object>} Notificación creada
      */
+    // Reemplaza el método scheduleNotification con este:
     async scheduleNotification(data) {
         try {
             // Validaciones básicas
@@ -142,11 +143,21 @@ class NotificationManager {
                 logger.warn(`No se pudo obtener datos de póliza ${data.numeroPoliza}:`, err);
             }
             
-            // Calcular fecha programada
-            const scheduledDate = this.parseContactTime(data.contactTime);
+            // CAMBIO: Determinar la fecha programada según los datos proporcionados
+            let scheduledDate;
             
-            if (!scheduledDate) {
-                throw new Error(`Formato de hora inválido: ${data.contactTime}`);
+            // Si se proporciona una fecha completa (como Date o string ISO), usarla directamente
+            if (data.scheduledDate) {
+                scheduledDate = new Date(data.scheduledDate);
+                logger.info(`Usando fecha programada proporcionada: ${scheduledDate.toISOString()}`);
+            } else {
+                // Comportamiento anterior: usar solo la hora
+                scheduledDate = this.parseContactTime(data.contactTime);
+                logger.info(`Usando solo hora (comportamiento anterior): ${scheduledDate.toISOString()}`);
+            }
+            
+            if (!scheduledDate || isNaN(scheduledDate.getTime())) {
+                throw new Error(`Formato de fecha/hora inválido: ${data.scheduledDate || data.contactTime}`);
             }
             
             // Crear la notificación en la BD
@@ -163,6 +174,14 @@ class NotificationManager {
             // Programar el envío
             const now = new Date();
             const timeToWait = scheduledDate.getTime() - now.getTime();
+            
+            // Asegurar que el tiempo de espera sea positivo
+            if (timeToWait <= 0) {
+                logger.warn(`Tiempo de espera negativo (${timeToWait}ms) para notificación ${notification._id}, ajustando...`);
+                // Si la fecha ya pasó, marcar como fallida
+                await notification.markAsFailed('La fecha programada ya pasó');
+                return notification;
+            }
             
             const timerId = setTimeout(
                 () => this.sendNotification(notification._id.toString()),

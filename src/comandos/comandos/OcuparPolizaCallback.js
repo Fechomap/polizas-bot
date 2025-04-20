@@ -346,6 +346,88 @@ class OcuparPolizaCallback extends BaseCommand {
                 await ctx.answerCbQuery();
             }
         });
+
+        // Callback para procesar la selección de día
+        this.handler.registry.registerCallback(/selectDay:(\d+):(.+)/, async (ctx) => {
+            try {
+                const daysOffset = parseInt(ctx.match[1], 10);
+                const numeroPoliza = ctx.match[2];
+                const chatId = ctx.chat.id;
+                
+                await ctx.answerCbQuery();
+                
+                // Obtener información del servicio
+                const serviceInfo = this.scheduledServiceInfo.get(chatId);
+                if (!serviceInfo || !serviceInfo.contactTime) {
+                    return await ctx.reply('❌ Error: No se encontró la información de la hora de contacto.');
+                }
+                
+                // Calcular la fecha programada completa
+                const today = new Date();
+                const scheduledDate = new Date(today);
+                scheduledDate.setDate(scheduledDate.getDate() + daysOffset);
+                
+                // Asignar la hora al día seleccionado
+                const [hours, minutes] = serviceInfo.contactTime.split(':').map(Number);
+                scheduledDate.setHours(hours, minutes, 0, 0);
+                
+                // Actualizar el serviceInfo con la fecha completa
+                serviceInfo.scheduledDate = scheduledDate;
+                this.scheduledServiceInfo.set(chatId, serviceInfo);
+                
+                // Guardar en FlowStateManager para uso posterior
+                flowStateManager.saveState(chatId, numeroPoliza, {
+                    time: serviceInfo.contactTime,
+                    date: scheduledDate.toISOString(),
+                    origin: serviceInfo.origen,
+                    destination: serviceInfo.destino
+                });
+                
+                // Formatear la fecha para mostrar
+                const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                const dayName = dayNames[scheduledDate.getDay()];
+                const dateStr = `${scheduledDate.getDate()}/${scheduledDate.getMonth() + 1}/${scheduledDate.getFullYear()}`;
+                
+                // Mostrar confirmación y botón para continuar
+                await ctx.editMessageText(
+                    `✅ Alerta programada para: *${dayName}, ${dateStr} a las ${serviceInfo.contactTime}*\n\n` +
+                    `Para guardar el servicio en la base de datos y programar la notificación automática, presiona el botón:`,
+                    { 
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('➕ Añadir servicio', `accion:addservice`)]
+                        ])
+                    }
+                );
+                
+                // Limpiar estado de espera de hora de contacto
+                this.awaitingContactTime.delete(chatId);
+                
+            } catch (error) {
+                this.logError(`Error al procesar selección de día:`, error);
+                await ctx.reply('❌ Error al procesar la selección de día. Operación cancelada.');
+                this.cleanupAllStates(ctx.chat.id);
+            }
+        });
+
+        // Callback para cancelar la selección de día
+        this.handler.registry.registerCallback(/cancelSelectDay:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                
+                await ctx.answerCbQuery('Operación cancelada');
+                await ctx.editMessageText('❌ Programación de alerta cancelada.');
+                
+                // Limpiar estados
+                this.awaitingContactTime.delete(chatId);
+                this.cleanupAllStates(chatId);
+                
+            } catch (error) {
+                this.logError(`Error al cancelar selección de día:`, error);
+                await ctx.reply('❌ Error al cancelar. Intente nuevamente.');
+            }
+        });
     }
 
     // Helper method to clean up all states
@@ -600,51 +682,56 @@ class OcuparPolizaCallback extends BaseCommand {
             serviceInfo.contactTime = messageText;
             this.scheduledServiceInfo.set(chatId, serviceInfo);
             
-            // Guardar estado en FlowStateManager para uso posterior en "addservice"
-            flowStateManager.saveState(chatId, numeroPoliza, {
-                time: messageText,
-                origin: serviceInfo.origen,
-                destination: serviceInfo.destino
-            });
+            // CAMBIO: En lugar de continuar directamente, preguntar por el día
             
-            this.logInfo(`Hora de contacto registrada: ${messageText}`, { 
-                chatId, 
-                numeroPoliza
-            });
+            // Preparar opciones de días
+            const today = new Date();
             
-            // Get the message ID to edit
-            const messageId = this.messageIds.get(chatId);
-            if (messageId) {
-                // Edit the original message to show Añadir servicio button
-                await ctx.telegram.editMessageText(
-                    chatId,
-                    messageId,
-                    undefined,
-                    `✅ Hora de contacto registrada: *${messageText}*\n\n` +
-                    `Para guardar el servicio en la base de datos y programar la notificación automática, presiona el botón:`,
-                    { 
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback('➕ Añadir servicio', `accion:addservice`)]
-                        ])
-                    }
-                );
-            } else {
-                // Fallback if message ID not found
-                await ctx.reply(
-                    `✅ Hora de contacto registrada: *${messageText}*\n\n` +
-                    `Para guardar el servicio en la base de datos y programar la notificación automática, presiona el botón:`,
-                    { 
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback('➕ Añadir servicio', `accion:addservice`)]
-                        ])
-                    }
-                );
+            // Crear los botones para días
+            const dayButtons = [];
+            
+            // Añadir Hoy y Mañana en la primera fila
+            dayButtons.push([
+                Markup.button.callback('Hoy', `selectDay:0:${numeroPoliza}`),
+                Markup.button.callback('Mañana', `selectDay:1:${numeroPoliza}`)
+            ]);
+            
+            // Añadir los próximos 5 días, agrupados de 2 en 2
+            const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            
+            let nextDaysRow = [];
+            for (let i = 2; i <= 6; i++) {
+                const futureDate = new Date(today);
+                futureDate.setDate(futureDate.getDate() + i);
+                const dayName = dayNames[futureDate.getDay()];
+                const dateStr = `${futureDate.getDate()}/${futureDate.getMonth() + 1}`;
+                
+                nextDaysRow.push(Markup.button.callback(`${dayName} ${dateStr}`, `selectDay:${i}:${numeroPoliza}`));
+                
+                // Agrupar en filas de 2 botones
+                if (nextDaysRow.length === 2 || i === 6) {
+                    dayButtons.push([...nextDaysRow]);
+                    nextDaysRow = [];
+                }
             }
             
-            // Clean up contact time state
-            this.awaitingContactTime.delete(chatId);
+            // Añadir botón para cancelar
+            dayButtons.push([
+                Markup.button.callback('❌ Cancelar', `cancelSelectDay:${numeroPoliza}`)
+            ]);
+            
+            // Enviar mensaje con los botones de selección de día
+            await ctx.reply(
+                `✅ Hora registrada: *${messageText}*\n\n` +
+                `📅 ¿Para qué día programar la alerta de contacto?`,
+                { 
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard(dayButtons)
+                }
+            );
+            
+            // No limpiar el estado de awaitingContactTime todavía
+            // Lo haremos después de que seleccionen el día
             return true;
         } catch (error) {
             this.logError(`Error al procesar hora de contacto para póliza ${numeroPoliza}:`, error);
