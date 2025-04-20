@@ -14,7 +14,7 @@
   "description": "",
   "dependencies": {
     "@telegraf/session": "^2.0.0-beta.7",
-    "axios": "^1.7.9",
+    "axios": "^1.8.4",
     "dotenv": "^16.4.7",
     "exceljs": "^4.4.0",
     "express": "^4.21.2",
