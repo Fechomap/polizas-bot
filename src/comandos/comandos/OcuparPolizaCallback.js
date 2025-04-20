@@ -181,7 +181,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.logError('Error en callback sendLeyenda:', error);
                 await ctx.reply('❌ Error al enviar la leyenda.');
                 // Clean up on error
-                this.cleanupAllStates(chatId);
+                this.cleanupAllStates(ctx.chat.id);
             } finally {
                 await ctx.answerCbQuery();
             }
@@ -353,6 +353,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 const daysOffset = parseInt(ctx.match[1], 10);
                 const numeroPoliza = ctx.match[2];
                 const chatId = ctx.chat.id;
+                const threadId = ctx.callbackQuery?.message?.message_thread_id || null;
                 
                 await ctx.answerCbQuery();
                 
@@ -376,7 +377,6 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.scheduledServiceInfo.set(chatId, serviceInfo);
                 
                 // Guardar en FlowStateManager para uso posterior
-                const threadId = ctx.message?.message_thread_id || null;
                 flowStateManager.saveState(chatId, numeroPoliza, {
                     time: serviceInfo.contactTime,
                     date: scheduledDate.toISOString(),
@@ -401,8 +401,8 @@ class OcuparPolizaCallback extends BaseCommand {
                     }
                 );
                 
-                // Limpiar estado de espera de hora de contacto
-                // this.awaitingContactTime.delete(chatId);
+                // No limpiar estado de espera de hora de contacto aquí
+                // Lo haremos después de que se añada el servicio
                 
             } catch (error) {
                 this.logError(`Error al procesar selección de día:`, error);
@@ -659,7 +659,7 @@ class OcuparPolizaCallback extends BaseCommand {
         const chatId = ctx.chat.id;
         const numeroPoliza = this.awaitingContactTime.get(chatId);
         
-        this.logInfo(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, { chatId });
+        this.logInfo(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, { chatId, threadId });
         
         try {
             // Validate time format (HH:mm)

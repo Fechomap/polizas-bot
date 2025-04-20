@@ -97,7 +97,7 @@ class TextMessageHandler extends BaseCommand {
                 if (this.handler.awaitingPhoneNumber && this.handler.awaitingPhoneNumber.get(chatId)) {
                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
                     if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
-                        this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId });
+                        this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId, threadId });
                         await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handlePhoneNumber not found, cannot process phone number.');
@@ -110,7 +110,7 @@ class TextMessageHandler extends BaseCommand {
                 if (this.handler.awaitingOrigenDestino && this.handler.awaitingOrigenDestino.get(chatId)) {
                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
                     if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
-                        this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId });
+                        this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId, threadId });
                         await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handleOrigenDestino not found, cannot process origin/destination.');
@@ -123,7 +123,7 @@ class TextMessageHandler extends BaseCommand {
                 if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime && 
                     this.ocuparPolizaCallback.awaitingContactTime.get(chatId)) {
                     if (typeof this.ocuparPolizaCallback.handleContactTime === 'function') {
-                        this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, hora: messageText });
+                        this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, threadId, hora: messageText });
                         await this.ocuparPolizaCallback.handleContactTime(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handleContactTime not found, cannot process contact time.');

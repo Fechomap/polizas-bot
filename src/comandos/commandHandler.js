@@ -1014,7 +1014,7 @@ ${serviciosInfo}
                 logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`);
                 return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.');
             }
-    
+
             // Dividir en líneas
             const lines = messageText.split('\n').map(l => l.trim()).filter(Boolean);
             // Necesitamos 4 líneas: Costo, Fecha, Expediente, Origen-Destino
@@ -1027,15 +1027,15 @@ ${serviciosInfo}
                     '4) Origen y Destino (ej. "Los Reyes - Tlalnepantla")'
                 );
             }
-    
+
             const [costoStr, fechaStr, expediente, origenDestino] = lines;
-    
+
             // Validar costo
             const costo = parseFloat(costoStr.replace(',', '.'));
             if (isNaN(costo) || costo <= 0) {
                 return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
             }
-    
+
             // Validar fecha
             const [dia, mes, anio] = fechaStr.split(/[/-]/);
             if (!dia || !mes || !anio) {
@@ -1045,28 +1045,28 @@ ${serviciosInfo}
             if (isNaN(fechaJS.getTime())) {
                 return await ctx.reply('❌ Fecha inválida. Verifica día, mes y año correctos.');
             }
-    
+
             // Validar expediente
             if (!expediente || expediente.length < 3) {
                 return await ctx.reply('❌ Número de expediente inválido. Ingresa al menos 3 caracteres.');
             }
-    
+
             // Validar origen-destino
             if (!origenDestino || origenDestino.length < 3) {
                 return await ctx.reply('❌ Origen y destino inválidos. Ingresa al menos 3 caracteres.');
             }
-    
+
             // Llamar la función para añadir el servicio
             const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
             if (!updatedPolicy) {
                 return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
             }
-    
+
             // Averiguar el número de servicio recién insertado
             const totalServicios = updatedPolicy.servicios.length;
             const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
             const numeroServicio = servicioInsertado.numeroServicio;
-    
+
             await ctx.reply(
                 `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
                 `Costo: $${costo.toFixed(2)}\n` +
@@ -1080,15 +1080,14 @@ ${serviciosInfo}
                     ])
                 }
             );
-    
+
             // Verificar si existe una hora de contacto programada usando FlowStateManager
             const flowStateManager = require('../utils/FlowStateManager');
             
-            // Reemplaza esta parte en handleServiceData con este código:
             if (flowStateManager.hasState(chatId, numeroPoliza, threadId)) {
                 const stateData = flowStateManager.getState(chatId, numeroPoliza, threadId);
                 
-                if (stateData) {
+                if (stateData && stateData.time) {
                     try {
                         // Importar NotificationManager y obtener instancia
                         const { getInstance } = require('../services/NotificationManager');
@@ -1102,7 +1101,7 @@ ${serviciosInfo}
                         // Obtener datos de usuario para tracking
                         const username = ctx.from?.username || '';
                         
-                        // CAMBIO: Preparar datos para la notificación, incluyendo fecha completa si existe
+                        // Preparar datos para la notificación, incluyendo fecha completa si existe
                         const notificationData = {
                             numeroPoliza,
                             expedienteNum: expediente,
@@ -1147,10 +1146,16 @@ ${serviciosInfo}
                     }
                     
                     // Limpiar el estado específico para esta póliza
-                        flowStateManager.clearState(chatId, numeroPoliza, threadId);
+                    flowStateManager.clearState(chatId, numeroPoliza, threadId);
+                } else {
+                    logger.warn(`Estado encontrado para ${numeroPoliza} pero sin hora de contacto`, { 
+                        chatId, 
+                        threadId,
+                        stateData 
+                    });
                 }
             }
-    
+
             // Limpiar el estado al finalizar correctamente
             this.awaitingServiceData.delete(chatId);
         } catch (error) {

@@ -8,12 +8,12 @@ const logger = require('./logger');
 class FlowStateManager {
     constructor() {
         // Map anidado: Map<contextKey, StateData>
-        this.contexts = new Map();
+        this.flowStates = new Map();
         logger.info('FlowStateManager inicializado');
     }
 
     _getContextKey(chatId, threadId) {
-        return `${chatId}-${threadId}`;
+        return `${chatId}${threadId ? '-' + threadId : ''}`;
     }
 
     /**
@@ -24,24 +24,25 @@ class FlowStateManager {
      * @param {string|null} threadId - ID del hilo asociado (opcional)
      */
     saveState(chatId, numeroPoliza, stateData, threadId = null) {
-        const contextKey = this._getContextKey(chatId, threadId);
         if (!chatId || !numeroPoliza) {
             logger.warn('Intento de guardar estado sin chatId o numeroPoliza válidos');
             return false;
         }
 
+        const contextKey = this._getContextKey(chatId, threadId);
+
         // Asegurar que exista el map para este contextKey
-        if (!this.contexts.has(contextKey)) {
-            this.contexts.set(contextKey, new Map());
+        if (!this.flowStates.has(contextKey)) {
+            this.flowStates.set(contextKey, new Map());
         }
 
         // Guardar los datos para esta póliza
-        this.contexts.get(contextKey).set(numeroPoliza, {
+        this.flowStates.get(contextKey).set(numeroPoliza, {
             ...stateData,
             createdAt: new Date() // Para poder implementar TTL si es necesario
         });
 
-        logger.debug('Estado guardado:', { chatId, numeroPoliza, stateData });
+        logger.debug('Estado guardado:', { chatId, numeroPoliza, threadId, stateData });
         return true;
     }
 
@@ -54,7 +55,7 @@ class FlowStateManager {
      */
     getState(chatId, numeroPoliza, threadId = null) {
         const contextKey = this._getContextKey(chatId, threadId);
-        const chatStates = this.contexts.get(contextKey);
+        const chatStates = this.flowStates.get(contextKey);
         if (!chatStates) return null;
 
         return chatStates.get(numeroPoliza) || null;
@@ -69,7 +70,7 @@ class FlowStateManager {
      */
     hasState(chatId, numeroPoliza, threadId = null) {
         const contextKey = this._getContextKey(chatId, threadId);
-        const chatStates = this.contexts.get(contextKey);
+        const chatStates = this.flowStates.get(contextKey);
         return chatStates ? chatStates.has(numeroPoliza) : false;
     }
 
@@ -82,17 +83,17 @@ class FlowStateManager {
      */
     clearState(chatId, numeroPoliza, threadId = null) {
         const contextKey = this._getContextKey(chatId, threadId);
-        const chatStates = this.contexts.get(contextKey);
+        const chatStates = this.flowStates.get(contextKey);
         if (!chatStates) return false;
 
         const result = chatStates.delete(numeroPoliza);
         
         // Si el mapa está vacío, eliminar la entrada del contextKey también
         if (chatStates.size === 0) {
-            this.contexts.delete(contextKey);
+            this.flowStates.delete(contextKey);
         }
         
-        logger.debug('Estado eliminado:', { chatId, numeroPoliza, result });
+        logger.debug('Estado eliminado:', { chatId, numeroPoliza, threadId, result });
         return result;
     }
 
@@ -104,7 +105,7 @@ class FlowStateManager {
      */
     clearAllStates(chatId, threadId = null) {
         const contextKey = this._getContextKey(chatId, threadId);
-        const result = this.contexts.delete(contextKey);
+        const result = this.flowStates.delete(contextKey);
         logger.debug('Todos los estados eliminados para contextKey:', { contextKey, result });
         return result;
     }
@@ -117,7 +118,7 @@ class FlowStateManager {
      */
     getActiveFlows(chatId, threadId = null) {
         const contextKey = this._getContextKey(chatId, threadId);
-        const chatStates = this.contexts.get(contextKey);
+        const chatStates = this.flowStates.get(contextKey);
         if (!chatStates) return [];
 
         return Array.from(chatStates.entries()).map(([numeroPoliza, data]) => ({
@@ -133,7 +134,7 @@ class FlowStateManager {
     getAllActiveFlows() {
         const allFlows = [];
         
-        this.contexts.forEach((polizaMap, contextKey) => {
+        this.flowStates.forEach((polizaMap, contextKey) => {
             polizaMap.forEach((data, numeroPoliza) => {
                 allFlows.push({
                     contextKey,
