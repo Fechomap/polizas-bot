@@ -30,10 +30,14 @@ class TextMessageHandler extends BaseCommand {
             }
             try {
                 const chatId = ctx.chat.id;
+                const threadId = ctx.message?.message_thread_id;
                 const messageText = ctx.message.text.trim();
 
                 // Log para depuración
-                this.logInfo(`Procesando mensaje de texto: "${messageText}"`, { chatId });
+                this.logInfo(`Procesando mensaje de texto: "${messageText}"`, { 
+                    chatId, 
+                    threadId: threadId || 'ninguno' 
+                });
 
                 // Ignore commands
                 if (messageText.startsWith('/')) {
@@ -94,7 +98,7 @@ class TextMessageHandler extends BaseCommand {
                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
                     if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
                         this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId });
-                        await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText);
+                        await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handlePhoneNumber not found, cannot process phone number.');
                         // Avoid replying here, let the flow handle errors or timeouts
@@ -107,7 +111,7 @@ class TextMessageHandler extends BaseCommand {
                     // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
                     if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
                         this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId });
-                        await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText);
+                        await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handleOrigenDestino not found, cannot process origin/destination.');
                         // Avoid replying here
@@ -120,7 +124,7 @@ class TextMessageHandler extends BaseCommand {
                     this.ocuparPolizaCallback.awaitingContactTime.get(chatId)) {
                     if (typeof this.ocuparPolizaCallback.handleContactTime === 'function') {
                         this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, hora: messageText });
-                        await this.ocuparPolizaCallback.handleContactTime(ctx, messageText);
+                        await this.ocuparPolizaCallback.handleContactTime(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handleContactTime not found, cannot process contact time.');
                         await ctx.reply('❌ Error: No se puede procesar la hora de contacto. Por favor, inténtalo de nuevo desde el menú principal.');

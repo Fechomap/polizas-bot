@@ -376,12 +376,13 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.scheduledServiceInfo.set(chatId, serviceInfo);
                 
                 // Guardar en FlowStateManager para uso posterior
+                const threadId = ctx.message?.message_thread_id || null;
                 flowStateManager.saveState(chatId, numeroPoliza, {
                     time: serviceInfo.contactTime,
                     date: scheduledDate.toISOString(),
                     origin: serviceInfo.origen,
                     destination: serviceInfo.destino
-                });
+                }, threadId);
                 
                 // Formatear la fecha para mostrar
                 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -401,7 +402,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 );
                 
                 // Limpiar estado de espera de hora de contacto
-                this.awaitingContactTime.delete(chatId);
+                // this.awaitingContactTime.delete(chatId);
                 
             } catch (error) {
                 this.logError(`Error al procesar selección de día:`, error);
@@ -431,7 +432,7 @@ class OcuparPolizaCallback extends BaseCommand {
     }
 
     // Helper method to clean up all states
-    cleanupAllStates(chatId) {
+    cleanupAllStates(chatId, threadId = null) {
         this.pendingLeyendas.delete(chatId);
         this.polizaCache.delete(chatId);
         this.messageIds.delete(chatId);
@@ -441,7 +442,7 @@ class OcuparPolizaCallback extends BaseCommand {
         this.scheduledServiceInfo.delete(chatId);
         
         // También limpiar cualquier estado en el FlowStateManager
-        flowStateManager.clearAllStates(chatId);
+        flowStateManager.clearAllStates(chatId, threadId);
     }
 
     // Method to schedule a contact message to be sent at the specified time
@@ -517,7 +518,7 @@ class OcuparPolizaCallback extends BaseCommand {
     }
 
     // Method to handle phone number input (called from TextMessageHandler)
-    async handlePhoneNumber(ctx, messageText) {
+    async handlePhoneNumber(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
         const numeroPoliza = this.awaitingPhoneNumber.get(chatId);
 
@@ -575,7 +576,7 @@ class OcuparPolizaCallback extends BaseCommand {
     }
 
     // Method to handle origin-destination input (called from TextMessageHandler)
-    async handleOrigenDestino(ctx, messageText) {
+    async handleOrigenDestino(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
         const numeroPoliza = this.awaitingOrigenDestino.get(chatId);
         
@@ -654,7 +655,7 @@ class OcuparPolizaCallback extends BaseCommand {
     }
 
     // Method to handle contact time input (called from TextMessageHandler)
-    async handleContactTime(ctx, messageText) {
+    async handleContactTime(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
         const numeroPoliza = this.awaitingContactTime.get(chatId);
         

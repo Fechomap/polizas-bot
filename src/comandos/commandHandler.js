@@ -277,21 +277,44 @@ class CommandHandler {
         this.bot.action('accion:addservice', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                this.clearChatState(ctx.chat.id);
-                
-                // Comprobar si hay una hora de contacto pendiente del flujo de ocupar póliza
-                if (global.pendingContactTime && global.pendingContactTime.chatId === ctx.chat.id) {
-                    // Guardar los datos para usarlos después
+                const chatId = ctx.chat.id;
+                const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+                // this.clearChatState(chatId, threadId);
+                // Limpiar solo estados específicos que no necesitamos conservar
+                this.awaitingPaymentPolicyNumber.delete(chatId);
+                this.awaitingPaymentData.delete(chatId);
+
+                // Intentar cargar el contexto de flujo activo
+                const flowStateManager = require('../utils/FlowStateManager');
+                const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
+                if (activeFlows.length > 0) {
+                    const policyNumber = activeFlows[0].numeroPoliza;
+                    logger.info(`Usando póliza activa del hilo: ${policyNumber}, thread: ${threadId || 'ninguno'}`);
+                    const policy = await getPolicyByNumber(policyNumber);
+                    if (policy) {
+                        this.awaitingServicePolicyNumber.delete(chatId);
+                        this.awaitingServiceData.set(chatId, policyNumber);
+                        await ctx.reply(
+                            `✅ Usando póliza activa *${policyNumber}* de este hilo.\n\n` +
+                            `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
+                            `1️⃣ Costo (ej. 550.00)\n` +
+                            `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
+                            `3️⃣ Número de expediente\n` +
+                            `4️⃣ Origen y Destino\n\n` +
+                            `📝 Ejemplo:\n\n` +
+                            `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                            { parse_mode: 'Markdown' }
+                        );
+                        return;
+                    }
+                }
+
+                // Fallback al flujo original
+                if (global.pendingContactTime && global.pendingContactTime.chatId === chatId) {
                     const { numeroPoliza, time } = global.pendingContactTime;
-                    
-                    // Limpiar el estado global
                     global.pendingContactTime = null;
-                    
-                    // Establecer el número de póliza directamente y omitir la pregunta
-                    this.awaitingServicePolicyNumber.delete(ctx.chat.id);
-                    this.awaitingServiceData.set(ctx.chat.id, numeroPoliza);
-                    
-                    // Continuar el flujo directamente
+                    this.awaitingServicePolicyNumber.delete(chatId);
+                    this.awaitingServiceData.set(chatId, numeroPoliza);
                     await ctx.reply(
                         `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
                         `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
@@ -304,7 +327,7 @@ class CommandHandler {
                         { parse_mode: 'Markdown' }
                     );
                 } else {
-                    this.awaitingServicePolicyNumber.set(ctx.chat.id, true);
+                    this.awaitingServicePolicyNumber.set(chatId, true);
                     await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
                 }
             } catch (error) {
@@ -496,7 +519,7 @@ class CommandHandler {
     }
 
      // Helper para limpiar todos los estados de espera de un chat
-    clearChatState(chatId) {
+    clearChatState(chatId, threadId = null) {
         this.uploadTargets.delete(chatId);
         this.awaitingSaveData.delete(chatId);
         this.awaitingGetPolicyNumber.delete(chatId);
@@ -514,7 +537,9 @@ class CommandHandler {
             if (ocuparPolizaCmd.awaitingPhoneDecision) ocuparPolizaCmd.awaitingPhoneDecision.delete(chatId);
             if (ocuparPolizaCmd.pendingLeyendas) ocuparPolizaCmd.pendingLeyendas.delete(chatId);
         }
-        logger.debug(`Estado limpiado para chatId: ${chatId}`);
+        const flowStateManager = require('../utils/FlowStateManager');
+        flowStateManager.clearAllStates(chatId, threadId);
+        logger.debug(`Estado limpiado para chatId: ${chatId}, threadId: ${threadId || 'ninguno'}`);
     }
 
 
@@ -524,7 +549,8 @@ class CommandHandler {
 
     // Manejo del flujo INICIADO por accion:registrar
     async handleSaveData(ctx, messageText) {
-        const chatId = ctx.chat.id;
+    const chatId = ctx.chat.id;
+    const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
             const lines = messageText
                 .split('\n')
@@ -644,6 +670,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:delete (recibe N° póliza)
     async handleDeletePolicyFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
             // Procesar la entrada del usuario para extraer múltiples números de póliza
             // Aceptamos números separados por saltos de línea, comas o espacios
@@ -739,6 +766,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:addpayment (recibe N° póliza)
     async handleAddPaymentPolicyNumber(ctx, messageText) {
         const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
             const numeroPoliza = messageText.trim().toUpperCase();
 
@@ -776,6 +804,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:addpayment (recibe datos de pago)
     async handlePaymentData(ctx, messageText) {
         const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
             const numeroPoliza = this.awaitingPaymentData.get(chatId);
             if (!numeroPoliza) {
@@ -837,16 +866,21 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:consultar (recibe N° póliza)
     async handleGetPolicyFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
-            const chatId = ctx.chat.id; // Asegurarse de tener chatId
             const numeroPoliza = messageText.trim().toUpperCase();
-            logger.info('Buscando póliza:', { numeroPoliza, chatId });
+            logger.info('Buscando póliza:', { numeroPoliza, chatId, threadId });
 
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
                 await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
                  // No limpiar estado, permitir reintento
             } else {
+                const flowStateManager = require('../utils/FlowStateManager');
+                flowStateManager.saveState(chatId, numeroPoliza, {
+                    active: true,
+                    activeSince: new Date().toISOString()
+                }, threadId);
                 // ============= BLOQUE PARA SERVICIOS =============
                 const servicios = policy.servicios || [];
                 const totalServicios = servicios.length;
@@ -911,7 +945,32 @@ ${serviciosInfo}
     // Manejo del flujo INICIADO por accion:addservice (recibe N° póliza)
     async handleAddServicePolicyNumber(ctx, messageText) {
         const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || null;
         try {
+            const flowStateManager = require('../utils/FlowStateManager');
+            const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
+            
+            if (activeFlows.length > 0) {
+                const policyNumber = activeFlows[0].numeroPoliza;
+                this.logInfo(`Usando póliza activa del hilo actual: ${policyNumber}`);
+                const policy = await getPolicyByNumber(policyNumber);
+                if (policy) {
+                    this.awaitingServiceData.set(chatId, policyNumber);
+                    await ctx.reply(
+                        `✅ Usando póliza activa *${policyNumber}* de este hilo.\n\n` +
+                        `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
+                        `1️⃣ Costo (ej. 550.00)\n` +
+                        `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
+                        `3️⃣ Número de expediente\n` +
+                        `4️⃣ Origen y Destino\n\n` +
+                        `📝 Ejemplo:\n\n` +
+                        `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                        { parse_mode: 'Markdown' }
+                    );
+                    this.awaitingServicePolicyNumber.delete(chatId);
+                    return;
+                }
+            }
             const chatId = ctx.chat.id; // Asegurarse de tener chatId
             const numeroPoliza = messageText.trim().toUpperCase();
             const policy = await getPolicyByNumber(numeroPoliza);
@@ -948,6 +1007,7 @@ ${serviciosInfo}
     // Manejo del flujo INICIADO por accion:addservice (recibe datos del servicio)
     async handleServiceData(ctx, messageText) {
         const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
             const numeroPoliza = this.awaitingServiceData.get(chatId);
             if (!numeroPoliza) {
@@ -1025,8 +1085,8 @@ ${serviciosInfo}
             const flowStateManager = require('../utils/FlowStateManager');
             
             // Reemplaza esta parte en handleServiceData con este código:
-            if (flowStateManager.hasState(chatId, numeroPoliza)) {
-                const stateData = flowStateManager.getState(chatId, numeroPoliza);
+            if (flowStateManager.hasState(chatId, numeroPoliza, threadId)) {
+                const stateData = flowStateManager.getState(chatId, numeroPoliza, threadId);
                 
                 if (stateData) {
                     try {
@@ -1087,7 +1147,7 @@ ${serviciosInfo}
                     }
                     
                     // Limpiar el estado específico para esta póliza
-                    flowStateManager.clearState(chatId, numeroPoliza);
+                        flowStateManager.clearState(chatId, numeroPoliza, threadId);
                 }
             }
     
@@ -1102,9 +1162,10 @@ ${serviciosInfo}
 
         // Manejo del flujo INICIADO por accion:upload (recibe N° póliza)
         async handleUploadFlow(ctx, messageText) {
-            const chatId = ctx.chat.id;
+        const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
             try {
-            const chatId = ctx.chat.id; // Asegurarse de tener chatId
+            // Removed duplicate chatId assignment.
             const numeroPoliza = messageText.trim().toUpperCase();
             logger.info('Iniciando upload para póliza:', { numeroPoliza, chatId });
 

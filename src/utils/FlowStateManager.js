@@ -7,9 +7,13 @@ const logger = require('./logger');
  */
 class FlowStateManager {
     constructor() {
-        // Map anidado: Map<chatId, Map<numeroPoliza, StateData>>
-        this.flowStates = new Map();
+        // Map anidado: Map<contextKey, StateData>
+        this.contexts = new Map();
         logger.info('FlowStateManager inicializado');
+    }
+
+    _getContextKey(chatId, threadId) {
+        return `${chatId}-${threadId}`;
     }
 
     /**
@@ -17,20 +21,22 @@ class FlowStateManager {
      * @param {number|string} chatId - ID del chat donde ocurre el flujo
      * @param {string} numeroPoliza - Número de póliza asociada al flujo
      * @param {Object} stateData - Datos a guardar (hora, origen/destino, etc.)
+     * @param {string|null} threadId - ID del hilo asociado (opcional)
      */
-    saveState(chatId, numeroPoliza, stateData) {
+    saveState(chatId, numeroPoliza, stateData, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
         if (!chatId || !numeroPoliza) {
             logger.warn('Intento de guardar estado sin chatId o numeroPoliza válidos');
             return false;
         }
 
-        // Asegurar que exista el map para este chatId
-        if (!this.flowStates.has(chatId)) {
-            this.flowStates.set(chatId, new Map());
+        // Asegurar que exista el map para este contextKey
+        if (!this.contexts.has(contextKey)) {
+            this.contexts.set(contextKey, new Map());
         }
 
         // Guardar los datos para esta póliza
-        this.flowStates.get(chatId).set(numeroPoliza, {
+        this.contexts.get(contextKey).set(numeroPoliza, {
             ...stateData,
             createdAt: new Date() // Para poder implementar TTL si es necesario
         });
@@ -43,10 +49,12 @@ class FlowStateManager {
      * Recupera datos de estado para un flujo específico
      * @param {number|string} chatId - ID del chat 
      * @param {string} numeroPoliza - Número de póliza
+     * @param {string|null} threadId - ID del hilo asociado (opcional)
      * @returns {Object|null} Datos del estado o null si no existe
      */
-    getState(chatId, numeroPoliza) {
-        const chatStates = this.flowStates.get(chatId);
+    getState(chatId, numeroPoliza, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
+        const chatStates = this.contexts.get(contextKey);
         if (!chatStates) return null;
 
         return chatStates.get(numeroPoliza) || null;
@@ -56,10 +64,12 @@ class FlowStateManager {
      * Comprueba si existe un estado para el flujo especificado
      * @param {number|string} chatId - ID del chat
      * @param {string} numeroPoliza - Número de póliza
+     * @param {string|null} threadId - ID del hilo asociado (opcional)
      * @returns {boolean} True si existe el estado
      */
-    hasState(chatId, numeroPoliza) {
-        const chatStates = this.flowStates.get(chatId);
+    hasState(chatId, numeroPoliza, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
+        const chatStates = this.contexts.get(contextKey);
         return chatStates ? chatStates.has(numeroPoliza) : false;
     }
 
@@ -67,17 +77,19 @@ class FlowStateManager {
      * Elimina un estado específico
      * @param {number|string} chatId - ID del chat
      * @param {string} numeroPoliza - Número de póliza
+     * @param {string|null} threadId - ID del hilo asociado (opcional)
      * @returns {boolean} True si se eliminó correctamente
      */
-    clearState(chatId, numeroPoliza) {
-        const chatStates = this.flowStates.get(chatId);
+    clearState(chatId, numeroPoliza, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
+        const chatStates = this.contexts.get(contextKey);
         if (!chatStates) return false;
 
         const result = chatStates.delete(numeroPoliza);
         
-        // Si el mapa está vacío, eliminar la entrada del chatId también
+        // Si el mapa está vacío, eliminar la entrada del contextKey también
         if (chatStates.size === 0) {
-            this.flowStates.delete(chatId);
+            this.contexts.delete(contextKey);
         }
         
         logger.debug('Estado eliminado:', { chatId, numeroPoliza, result });
@@ -87,21 +99,25 @@ class FlowStateManager {
     /**
      * Limpia todos los estados asociados a un chat
      * @param {number|string} chatId - ID del chat
+     * @param {string|null} threadId - ID del hilo asociado (opcional)
      * @returns {boolean} True si se limpió correctamente
      */
-    clearAllStates(chatId) {
-        const result = this.flowStates.delete(chatId);
-        logger.debug('Todos los estados eliminados para chatId:', { chatId, result });
+    clearAllStates(chatId, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
+        const result = this.contexts.delete(contextKey);
+        logger.debug('Todos los estados eliminados para contextKey:', { contextKey, result });
         return result;
     }
 
     /**
      * Obtiene todos los estados activos para un chat
      * @param {number|string} chatId - ID del chat
+     * @param {string|null} threadId - ID del hilo asociado (opcional)
      * @returns {Array} Lista de estados activos
      */
-    getActiveFlows(chatId) {
-        const chatStates = this.flowStates.get(chatId);
+    getActiveFlows(chatId, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
+        const chatStates = this.contexts.get(contextKey);
         if (!chatStates) return [];
 
         return Array.from(chatStates.entries()).map(([numeroPoliza, data]) => ({
@@ -117,10 +133,10 @@ class FlowStateManager {
     getAllActiveFlows() {
         const allFlows = [];
         
-        this.flowStates.forEach((polizaMap, chatId) => {
+        this.contexts.forEach((polizaMap, contextKey) => {
             polizaMap.forEach((data, numeroPoliza) => {
                 allFlows.push({
-                    chatId,
+                    contextKey,
                     numeroPoliza,
                     ...data
                 });
