@@ -3,21 +3,24 @@ const BaseCommand = require('./BaseCommand');
 const { getPolicyByNumber } = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
 const flowStateManager = require('../../utils/FlowStateManager');
+const StateKeyManager = require('../../utils/StateKeyManager');
+
 
 class OcuparPolizaCallback extends BaseCommand {
     constructor(handler) {
         super(handler);
+        // Usamos los mapas thread-safe del handler
         this.awaitingPhoneNumber = handler.awaitingPhoneNumber;
         this.awaitingOrigenDestino = handler.awaitingOrigenDestino;
         
-        // Nuevos mapas para el flujo mejorado
-        this.pendingLeyendas = new Map();
-        this.polizaCache = new Map(); // Para guardar la póliza en proceso
-        this.messageIds = new Map(); // Para guardar los IDs de mensajes con botones
+        // Crear mapas thread-safe para estados propios
+        this.pendingLeyendas = StateKeyManager.createThreadSafeStateMap();
+        this.polizaCache = StateKeyManager.createThreadSafeStateMap();
+        this.messageIds = StateKeyManager.createThreadSafeStateMap();
         
-        // Nuevos mapas para asignación de servicio
-        this.awaitingContactTime = new Map(); // Para esperar la hora de contacto
-        this.scheduledServiceInfo = new Map(); // Para guardar info del servicio a programar
+        // Para asignación de servicio
+        this.awaitingContactTime = StateKeyManager.createThreadSafeStateMap();
+        this.scheduledServiceInfo = StateKeyManager.createThreadSafeStateMap();
     }
 
     getCommandName() {
@@ -34,6 +37,7 @@ class OcuparPolizaCallback extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
                 
                 // Get the policy to check if phone number exists
                 const policy = await getPolicyByNumber(numeroPoliza);
@@ -45,7 +49,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.polizaCache.set(chatId, {
                     numeroPoliza,
                     policy
-                });
+                }, threadId);
                 
                 // Check if phone number already exists
                 if (policy.telefono) {
@@ -61,10 +65,22 @@ class OcuparPolizaCallback extends BaseCommand {
                     
                     // Set state to awaiting phone number (even if already exists)
                     // This allows direct typing of a new number
-                    this.awaitingPhoneNumber.set(chatId, numeroPoliza);
+                    const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
+                    this.logInfo(`Estado de espera de teléfono guardado para teléfono existente: ${phoneSetResult ? 'OK' : 'FALLO'}`, {
+                        chatId,
+                        threadId
+                    });
+                    const phoneHasResult = this.awaitingPhoneNumber.has(chatId, threadId);
+                    this.logInfo(`Verificación inmediata de estado teléfono (existente): ${phoneHasResult ? 'OK' : 'FALLO'}`);
                 } else {
                     // No phone number exists, request it
-                    this.awaitingPhoneNumber.set(chatId, numeroPoliza);
+                    const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
+                    this.logInfo(`Estado de espera de teléfono guardado para nuevo teléfono: ${phoneSetResult ? 'OK' : 'FALLO'}`, {
+                        chatId,
+                        threadId
+                    });
+                    const phoneHasResult = this.awaitingPhoneNumber.has(chatId, threadId);
+                    this.logInfo(`Verificación inmediata de estado teléfono (nuevo): ${phoneHasResult ? 'OK' : 'FALLO'}`);
                     await ctx.reply(
                         `📱 Ingresa el *número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
                         `⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.`,
@@ -72,7 +88,10 @@ class OcuparPolizaCallback extends BaseCommand {
                     );
                 }
                 
-                this.logInfo(`Esperando teléfono para póliza ${numeroPoliza}`, { chatId: ctx.chat.id });
+                this.logInfo(`Esperando teléfono para póliza ${numeroPoliza}`, { 
+                    chatId: ctx.chat.id,
+                    threadId 
+                });
             } catch (error) {
                 this.logError('Error en callback ocuparPoliza:', error);
                 await ctx.reply('❌ Error al procesar ocupación de póliza.');
@@ -117,23 +136,31 @@ class OcuparPolizaCallback extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                
+                this.logInfo(`Iniciando envío de leyenda para póliza ${numeroPoliza}`, { chatId, threadId });
                 
                 // Get the leyenda from the map
-                const leyenda = this.pendingLeyendas.get(chatId);
+                const leyenda = this.pendingLeyendas.get(chatId, threadId);
                 if (!leyenda) {
+                    this.logError(`No se encontró leyenda para enviar. chatId=${chatId}, threadId=${threadId}`);
                     return await ctx.reply('❌ No se encontró la leyenda para enviar. Inténtalo nuevamente.');
                 }
+                
+                this.logInfo(`Leyenda recuperada: ${leyenda}`);
                 
                 // Send the leyenda to the predefined group
                 const targetGroupId = -1002212807945; // ID fijo del grupo
                 
                 try {
-                    await ctx.telegram.sendMessage(targetGroupId, leyenda);
-                    this.logInfo(`Leyenda enviada al grupo: ${targetGroupId}`, { numeroPoliza });
+                    this.logInfo(`Intentando enviar leyenda al grupo ${targetGroupId}`);
+                    const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
+                    this.logInfo(`Leyenda enviada al grupo: ${targetGroupId}, messageId=${sentMsg.message_id}`);
                     
                     // Get the message ID to edit
-                    const messageId = this.messageIds.get(chatId);
+                    const messageId = this.messageIds.get(chatId, threadId);
                     if (messageId) {
+                        this.logInfo(`Editando mensaje original ${messageId}`);
                         // Edit the original message to show new buttons
                         await ctx.telegram.editMessageText(
                             chatId,
@@ -153,15 +180,17 @@ class OcuparPolizaCallback extends BaseCommand {
                                 ])
                             }
                         );
+                        this.logInfo(`Mensaje editado correctamente`);
                     } else {
+                        this.logWarn(`No se encontró ID del mensaje para editar, enviando mensaje nuevo`);
                         // Fallback if message ID not found
                         await ctx.reply(
                             '✅ Leyenda enviada exitosamente al grupo de servicios.\n\n' +
                             '¿El servicio fue asignado?',
                             Markup.inlineKeyboard([
                                 [
-                                    Markup.button.callback('✅ Asignado', `assignedService:${numeroPoliza}`),
-                                    Markup.button.callback('❌ No asignado', `unassignedService:${numeroPoliza}`)
+                                    Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}`),
+                                    Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}`)
                                 ]
                             ])
                         );
@@ -170,18 +199,18 @@ class OcuparPolizaCallback extends BaseCommand {
                     this.logError('Error al enviar leyenda al grupo o editar mensaje:', sendError);
                     await ctx.reply('❌ No se pudo enviar la leyenda al grupo. Verifica que el bot esté en el grupo.');
                     // Clean up states on error
-                    this.pendingLeyendas.delete(chatId);
+                    this.pendingLeyendas.delete(chatId, threadId);
                     return;
                 }
                 
                 // Don't clean up everything yet, as we need to continue the flow
                 // Just clean up the leyenda as we don't need it anymore
-                this.pendingLeyendas.delete(chatId);
+                this.pendingLeyendas.delete(chatId, threadId);
             } catch (error) {
                 this.logError('Error en callback sendLeyenda:', error);
                 await ctx.reply('❌ Error al enviar la leyenda.');
                 // Clean up on error
-                this.cleanupAllStates(ctx.chat.id);
+                this.cleanupAllStates(ctx.chat.id, threadId);
             } finally {
                 await ctx.answerCbQuery();
             }
@@ -192,36 +221,47 @@ class OcuparPolizaCallback extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
                 
-                this.logInfo(`Servicio marcado como asignado para póliza: ${numeroPoliza}`, { chatId });
+                this.logInfo(`Servicio marcado como asignado para póliza: ${numeroPoliza}`, { chatId, threadId });
                 
                 // First get the cached policy or fetch it again
                 let policy;
-                const cachedData = this.polizaCache.get(chatId);
+                const cachedData = this.polizaCache.get(chatId, threadId);
                 
                 if (cachedData && cachedData.numeroPoliza === numeroPoliza) {
                     policy = cachedData.policy;
+                    this.logInfo(`Usando política en caché para ${numeroPoliza} (asig_yes)`);
                 } else {
+                    this.logInfo(`Buscando política en BD para ${numeroPoliza} (asig_yes)`);
                     policy = await getPolicyByNumber(numeroPoliza);
                     if (!policy) {
                         return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                     }
                 }
                 
-                // Store the service info for later use
-                this.scheduledServiceInfo.set(chatId, {
+                // Store the service info for later use with explicit confirmation
+                const serviceStore = this.scheduledServiceInfo.set(chatId, {
                     numeroPoliza,
                     policy,
-                    origen: cachedData?.origen || '',  // Get the origen if available
-                    destino: cachedData?.destino || '' // Get the destino if available
-                });
+                    origen: cachedData?.origen || '',
+                    destino: cachedData?.destino || ''
+                }, threadId);
                 
-                // Set state to awaiting contact time
-                this.awaitingContactTime.set(chatId, numeroPoliza);
+                this.logInfo(`Info de servicio guardada: ${serviceStore ? 'OK' : 'FALLO'}, origen=${cachedData?.origen}, destino=${cachedData?.destino}`);
+                
+                // Set state to awaiting contact time with verification
+                const contactTimeStore = this.awaitingContactTime.set(chatId, numeroPoliza, threadId);
+                this.logInfo(`Estado de espera de hora de contacto: ${contactTimeStore ? 'OK' : 'FALLO'}`);
+                
+                // Verificación inmediata
+                const contactTimeExists = this.awaitingContactTime.has(chatId, threadId);
+                this.logInfo(`Verificación inmediata de estado hora de contacto: ${contactTimeExists ? 'OK' : 'FALLO'}`);
                 
                 // Get the message ID to edit
-                const messageId = this.messageIds.get(chatId);
+                const messageId = this.messageIds.get(chatId, threadId);
                 if (messageId) {
+                    this.logInfo(`Editando mensaje ${messageId} para solicitar hora de contacto`);
                     // Edit the original message
                     await ctx.telegram.editMessageText(
                         chatId,
@@ -233,6 +273,7 @@ class OcuparPolizaCallback extends BaseCommand {
                         { parse_mode: 'Markdown' }
                     );
                 } else {
+                    this.logWarn(`No se encontró ID del mensaje para editar, enviando mensaje nuevo para hora`);
                     // Fallback
                     await ctx.reply(
                         `✅ Servicio marcado como asignado.\n\n` +
@@ -244,7 +285,7 @@ class OcuparPolizaCallback extends BaseCommand {
             } catch (error) {
                 this.logError('Error en callback assignedService:', error);
                 await ctx.reply('❌ Error al procesar la asignación del servicio.');
-                this.cleanupAllStates(ctx.chat.id);
+                this.cleanupAllStates(ctx.chat.id, threadId);
             } finally {
                 await ctx.answerCbQuery();
             }
@@ -293,28 +334,45 @@ class OcuparPolizaCallback extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
                 
-                this.logInfo(`Iniciando flujo de añadir servicio para póliza: ${numeroPoliza}`, { chatId });
+                this.logInfo(`Iniciando flujo de añadir servicio para póliza: ${numeroPoliza}`, { chatId, threadId });
                 
-                // Activar el estado para el flujo de añadir servicio
-                this.cleanupAllStates(chatId);
+                // Limpiar estados pero conservar datos importantes en FlowStateManager
+                this.cleanupAllStates(chatId, threadId);
                 
                 // Ejecutar el flujo estándar de 'accion:addservice'
                 await ctx.answerCbQuery();
                 
-                // Iniciar el flujo de añadir servicio usando el handler existente
-                if (this.handler && typeof this.handler.handleAddServiceStart === 'function') {
-                    // Si existe un método específico, usarlo
-                    await this.handler.handleAddServiceStart(ctx, numeroPoliza);
-                } else {
-                    // Si no, simular accion:addservice
-                    this.handler.awaitingServicePolicyNumber.set(chatId, true);
-                    await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
+                // Iniciar el flujo de añadir servicio con la póliza ya seleccionada
+                try {
+                    // Obtener info de servicio guardada
+                    const flowStateManager = require('../../utils/FlowStateManager');
+                    const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+                    
+                    if (savedState) {
+                        this.logInfo(`Estado recuperado para addServiceFromTime: origen=${savedState.origin}, destino=${savedState.destination}, time=${savedState.time}`);
+                    }
+                    
+                    // Verificar si existe handler específico para añadir servicio
+                    if (this.handler && typeof this.handler.handleAddServicePolicyNumber === 'function') {
+                        // Pasar la póliza directamente
+                        this.logInfo(`Llamando directamente a handleAddServicePolicyNumber con ${numeroPoliza}`);
+                        await this.handler.handleAddServicePolicyNumber(ctx, numeroPoliza);
+                    } else {
+                        this.logInfo(`No se encontró handler específico, simulando accion:addservice estándar`);
+                        // Falback - Simular accion:addservice
+                        this.handler.awaitingServicePolicyNumber.set(chatId, true, threadId);
+                        await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
+                    }
+                } catch (flowError) {
+                    this.logError('Error al iniciar flujo de addservice:', flowError);
+                    await ctx.reply(`❌ Error al iniciar el proceso. Intente usando "Añadir Servicio" desde el menú principal con póliza ${numeroPoliza}`);
                 }
             } catch (error) {
                 this.logError('Error al iniciar flujo addService:', error);
                 await ctx.reply('❌ Error al iniciar el proceso de añadir servicio.');
-                this.cleanupAllStates(ctx.chat.id);
+                this.cleanupAllStates(ctx.chat.id, threadId);
             }
         });
 
@@ -358,15 +416,20 @@ class OcuparPolizaCallback extends BaseCommand {
                 const daysOffset = parseInt(ctx.match[1], 10);
                 const numeroPoliza = ctx.match[2];
                 const chatId = ctx.chat.id;
-                const threadId = ctx.callbackQuery?.message?.message_thread_id || null;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                
+                this.logInfo(`Selección de día: offset=${daysOffset}, póliza=${numeroPoliza}`, { chatId, threadId });
                 
                 await ctx.answerCbQuery();
                 
                 // Obtener información del servicio
-                const serviceInfo = this.scheduledServiceInfo.get(chatId);
+                const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);
                 if (!serviceInfo || !serviceInfo.contactTime) {
+                    this.logError(`No se encontró info de servicio o falta hora de contacto`);
                     return await ctx.reply('❌ Error: No se encontró la información de la hora de contacto.');
                 }
+                
+                this.logInfo(`Recuperada info de servicio: contactTime=${serviceInfo.contactTime}, origen=${serviceInfo.origen}, destino=${serviceInfo.destino}`);
                 
                 // Calcular la fecha programada completa
                 const today = new Date();
@@ -379,9 +442,12 @@ class OcuparPolizaCallback extends BaseCommand {
                 
                 // Actualizar el serviceInfo con la fecha completa
                 serviceInfo.scheduledDate = scheduledDate;
-                this.scheduledServiceInfo.set(chatId, serviceInfo);
+                const serviceStore = this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
+                
+                this.logInfo(`Info de servicio actualizada con fecha=${scheduledDate.toISOString()}: ${serviceStore ? 'OK' : 'FALLO'}`);
                 
                 // Guardar en FlowStateManager para uso posterior
+                const flowStateManager = require('../../utils/FlowStateManager');
                 flowStateManager.saveState(chatId, numeroPoliza, {
                     time: serviceInfo.contactTime,
                     date: scheduledDate.toISOString(),
@@ -394,25 +460,55 @@ class OcuparPolizaCallback extends BaseCommand {
                 const dayName = dayNames[scheduledDate.getDay()];
                 const dateStr = `${scheduledDate.getDate()}/${scheduledDate.getMonth() + 1}/${scheduledDate.getFullYear()}`;
                 
+                // PROGRAMAR LA ALERTA EN EL SISTEMA DE NOTIFICACIONES
+                try {
+                    // Obtener el NotificationManager
+                    const { getInstance: getNotificationManager } = require('../../services/NotificationManager');
+                    const notificationManager = getNotificationManager(this.bot);
+                    
+                    if (!notificationManager || !notificationManager.isInitialized) {
+                        this.logWarn('NotificationManager no está inicializado, la notificación será solo visual');
+                    } else {
+                        // Programar la notificación en el sistema
+                        const notification = await notificationManager.scheduleNotification({
+                            numeroPoliza: numeroPoliza,
+                            targetGroupId: -1002212807945,
+                            contactTime: serviceInfo.contactTime,
+                            expedienteNum: `EXP-${new Date().toISOString().slice(0,10)}`,
+                            origenDestino: `${serviceInfo.origen} - ${serviceInfo.destino}`,
+                            marcaModelo: `${serviceInfo.policy.marca} ${serviceInfo.policy.submarca} (${serviceInfo.policy.año})`,
+                            colorVehiculo: serviceInfo.policy.color,
+                            placas: serviceInfo.policy.placas,
+                            telefono: serviceInfo.policy.telefono,
+                            scheduledDate: scheduledDate
+                        });
+                        
+                        this.logInfo(`Notificación programada ID: ${notification._id}, para: ${scheduledDate.toISOString()}`);
+                    }
+                } catch (notifyError) {
+                    this.logError('Error al programar notificación:', notifyError);
+                    // Continuar a pesar del error, no es crítico
+                }
+                
                 // Mostrar confirmación y botón para continuar
                 await ctx.editMessageText(
                     `✅ Alerta programada para: *${dayName}, ${dateStr} a las ${serviceInfo.contactTime}*\n\n` +
-                    `Para guardar el servicio en la base de datos y programar la notificación automática, presiona el botón:`,
+                    `Para guardar el servicio en la base de datos y registrar la asistencia, presiona el botón:`,
                     { 
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('➕ Añadir servicio', `accion:addservice`)]
+                            [Markup.button.callback('➕ Añadir servicio', `addServiceFromTime:${numeroPoliza}`)]
                         ])
                     }
                 );
                 
-                // No limpiar estado de espera de hora de contacto aquí
-                // Lo haremos después de que se añada el servicio
+                // Cleanup estado de espera de hora de contacto
+                this.awaitingContactTime.delete(chatId, threadId);
                 
             } catch (error) {
                 this.logError(`Error al procesar selección de día:`, error);
                 await ctx.reply('❌ Error al procesar la selección de día. Operación cancelada.');
-                this.cleanupAllStates(ctx.chat.id);
+                this.cleanupAllStates(ctx.chat.id, threadId);
             }
         });
 
@@ -438,16 +534,33 @@ class OcuparPolizaCallback extends BaseCommand {
 
     // Helper method to clean up all states
     cleanupAllStates(chatId, threadId = null) {
-        this.pendingLeyendas.delete(chatId);
-        this.polizaCache.delete(chatId);
-        this.messageIds.delete(chatId);
-        this.awaitingPhoneNumber.delete(chatId);
-        this.awaitingOrigenDestino.delete(chatId);
-        this.awaitingContactTime.delete(chatId);
-        this.scheduledServiceInfo.delete(chatId);
-        
-        // También limpiar cualquier estado en el FlowStateManager
-        flowStateManager.clearAllStates(chatId, threadId);
+        if (threadId) {
+            // Limpiar solo el estado del hilo específico
+            this.pendingLeyendas.delete(chatId, threadId);
+            this.polizaCache.delete(chatId, threadId);
+            this.messageIds.delete(chatId, threadId);
+            this.awaitingPhoneNumber.delete(chatId, threadId);
+            this.awaitingOrigenDestino.delete(chatId, threadId);
+            this.awaitingContactTime.delete(chatId, threadId);
+            this.scheduledServiceInfo.delete(chatId, threadId);
+            
+            // También limpiar en FlowStateManager
+            const flowStateManager = require('../../utils/FlowStateManager');
+            flowStateManager.clearAllStates(chatId, threadId);
+        } else {
+            // Limpiar todos los estados para este chat
+            this.pendingLeyendas.deleteAll(chatId);
+            this.polizaCache.deleteAll(chatId);
+            this.messageIds.deleteAll(chatId);
+            this.awaitingPhoneNumber.deleteAll(chatId);
+            this.awaitingOrigenDestino.deleteAll(chatId);
+            this.awaitingContactTime.deleteAll(chatId);
+            this.scheduledServiceInfo.deleteAll(chatId);
+            
+            // También limpiar en FlowStateManager
+            const flowStateManager = require('../../utils/FlowStateManager');
+            flowStateManager.clearAllStates(chatId);
+        }
     }
 
     // Method to schedule a contact message to be sent at the specified time
@@ -525,8 +638,8 @@ class OcuparPolizaCallback extends BaseCommand {
     // Method to handle phone number input (called from TextMessageHandler)
     async handlePhoneNumber(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
-        const numeroPoliza = this.awaitingPhoneNumber.get(chatId);
-
+        const numeroPoliza = this.awaitingPhoneNumber.get(chatId, threadId);
+    
         // Verificar que el mensaje corresponde al threadId activo
         const flowStateManager = require('../../utils/FlowStateManager');
         const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
@@ -535,19 +648,19 @@ class OcuparPolizaCallback extends BaseCommand {
             this.logWarn('Ignorando mensaje sin threadId mientras hay flujos activos en otros hilos');
             return false;
         }
-
+    
         // Validate that it's 10 digits
         const regexTel = /^\d{10}$/;
         if (!regexTel.test(messageText)) {
             // Invalid phone => cancel
-            this.awaitingPhoneNumber.delete(chatId);
+            this.awaitingPhoneNumber.delete(chatId, threadId);
             return await ctx.reply('❌ Teléfono inválido (requiere 10 dígitos). Proceso cancelada.');
         }
-
+    
         try {
             // Get policy from cache or directly from DB
             let policy;
-            const cachedData = this.polizaCache.get(chatId);
+            const cachedData = this.polizaCache.get(chatId, threadId);
             
             if (cachedData && cachedData.numeroPoliza === numeroPoliza) {
                 policy = cachedData.policy;
@@ -557,10 +670,10 @@ class OcuparPolizaCallback extends BaseCommand {
             
             if (!policy) {
                 this.logError(`Póliza no encontrada en handlePhoneNumber: ${numeroPoliza}`);
-                this.awaitingPhoneNumber.delete(chatId);
+                this.awaitingPhoneNumber.delete(chatId, threadId);
                 return await ctx.reply(`❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`);
             }
-
+    
             // Save to policy.telefono
             policy.telefono = messageText;
             await policy.save();
@@ -568,7 +681,7 @@ class OcuparPolizaCallback extends BaseCommand {
             // Update cache if exists
             if (cachedData) {
                 cachedData.policy = policy;
-                this.polizaCache.set(chatId, cachedData);
+                this.polizaCache.set(chatId, cachedData, threadId);
             }
             
             await ctx.reply(
@@ -576,14 +689,25 @@ class OcuparPolizaCallback extends BaseCommand {
                 `🚗 Ahora ingresa *origen y destino* (ej: "Neza - Tecamac") en una sola línea.`,
                 { parse_mode: 'Markdown' }
             );
-
-            // Move to "awaitingOrigenDestino"
-            this.awaitingPhoneNumber.delete(chatId);
-            this.awaitingOrigenDestino.set(chatId, numeroPoliza);
-            return true; // Indicate that we handled this message
+    
+            // Move to "awaitingOrigenDestino" with explicit verification
+            this.awaitingPhoneNumber.delete(chatId, threadId);
+            
+            // Set the origin-destination state with logging
+            const origenResult = this.awaitingOrigenDestino.set(chatId, numeroPoliza, threadId);
+            this.logInfo(`Estado de espera de origen-destino guardado: ${origenResult ? 'OK' : 'FALLO'}`, {
+                chatId,
+                threadId: threadId || 'ninguno'
+            });
+            
+            // Immediate verification
+            const origenHasResult = this.awaitingOrigenDestino.has(chatId, threadId);
+            this.logInfo(`Verificación inmediata de estado origen-destino: ${origenHasResult ? 'OK' : 'FALLO'}`);
+            
+            return true;
         } catch (error) {
             this.logError(`Error guardando teléfono para póliza ${numeroPoliza}:`, error);
-            this.awaitingPhoneNumber.delete(chatId);
+            this.awaitingPhoneNumber.delete(chatId, threadId);
             await ctx.reply('❌ Error al guardar el teléfono. Operación cancelada.');
             return true;
         }
@@ -592,25 +716,32 @@ class OcuparPolizaCallback extends BaseCommand {
     // Method to handle origin-destination input (called from TextMessageHandler)
     async handleOrigenDestino(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
-        const numeroPoliza = this.awaitingOrigenDestino.get(chatId);
+        const numeroPoliza = this.awaitingOrigenDestino.get(chatId, threadId);
+        
+        this.logInfo(`Procesando origen-destino para póliza ${numeroPoliza}: ${messageText}`, { 
+            chatId,
+            threadId: threadId || 'ninguno'
+        });
         
         try {
             // Get policy from cache or directly from DB
             let policy;
-            const cachedData = this.polizaCache.get(chatId);
+            const cachedData = this.polizaCache.get(chatId, threadId);
             
             if (cachedData && cachedData.numeroPoliza === numeroPoliza) {
                 policy = cachedData.policy;
+                this.logInfo(`Usando política en caché para ${numeroPoliza}`);
             } else {
+                this.logInfo(`Buscando política en BD para ${numeroPoliza}`);
                 policy = await getPolicyByNumber(numeroPoliza);
             }
             
             if (!policy) {
                 this.logError(`Póliza no encontrada en handleOrigenDestino: ${numeroPoliza}`);
-                this.awaitingOrigenDestino.delete(chatId);
+                this.awaitingOrigenDestino.delete(chatId, threadId);
                 return await ctx.reply(`❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`);
             }
-
+    
             // Parse origen and destino from input
             const parts = messageText.split('-').map(part => part.trim());
             let origen = '', destino = '';
@@ -622,7 +753,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 origen = 'No especificado';
                 destino = messageText;
             }
-
+    
             // Guardar en FlowStateManager para uso posterior
             const flowStateManager = require('../../utils/FlowStateManager');
             flowStateManager.saveState(chatId, numeroPoliza, {
@@ -635,18 +766,23 @@ class OcuparPolizaCallback extends BaseCommand {
             if (cachedData) {
                 cachedData.origen = origen;
                 cachedData.destino = destino;
-                this.polizaCache.set(chatId, cachedData);
+                this.polizaCache.set(chatId, cachedData, threadId);
+                this.logInfo(`Caché de póliza actualizada con origen=${origen}, destino=${destino}`);
             }
-
+    
             // Create the legend
             const leyenda = `🚗 Pendiente servicio "${policy.aseguradora}"\n` +
             `🚙 Auto: ${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
             `📞 Teléfono: ${policy.telefono}\n` +
             `📍 Origen-Destino: ${messageText}`;
-
+    
+            // Log the generated leyenda
+            this.logInfo(`Leyenda generada: ${leyenda}`);
+    
             // Store the leyenda for the send action
-            this.pendingLeyendas.set(chatId, leyenda);
-
+            const leyendaStoreResult = this.pendingLeyendas.set(chatId, leyenda, threadId);
+            this.logInfo(`Leyenda almacenada: ${leyendaStoreResult ? 'OK' : 'FALLO'}`);
+    
             // Send the message with buttons and store the message ID
             const sentMessage = await ctx.reply(
                 `✅ Origen-destino asignado: *${messageText}*\n\n` +
@@ -663,14 +799,21 @@ class OcuparPolizaCallback extends BaseCommand {
                 }
             );
             
-            // Store the message ID for later editing
-            this.messageIds.set(chatId, sentMessage.message_id);
-
-            this.awaitingOrigenDestino.delete(chatId);
+            // Verificar mensaje enviado
+            if (sentMessage) {
+                // Store the message ID for later editing
+                this.messageIds.set(chatId, sentMessage.message_id, threadId);
+                this.logInfo(`ID del mensaje guardado: ${sentMessage.message_id}`);
+            } else {
+                this.logError('No se recibió respuesta al enviar mensaje con botones');
+            }
+    
+            // Clean up the origin-destination waiting state
+            this.awaitingOrigenDestino.delete(chatId, threadId);
             return true; // Indicate that we handled this message
         } catch (error) {
             this.logError(`Error procesando origen-destino para póliza ${numeroPoliza}:`, error);
-            this.awaitingOrigenDestino.delete(chatId);
+            this.awaitingOrigenDestino.delete(chatId, threadId);
             await ctx.reply('❌ Error al procesar origen-destino. Operación cancelada.');
             return true;
         }
@@ -679,7 +822,7 @@ class OcuparPolizaCallback extends BaseCommand {
     // Method to handle contact time input (called from TextMessageHandler)
     async handleContactTime(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
-        const numeroPoliza = this.awaitingContactTime.get(chatId);
+        const numeroPoliza = this.awaitingContactTime.get(chatId, threadId);
         
         this.logInfo(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, { chatId, threadId });
         
@@ -693,17 +836,20 @@ class OcuparPolizaCallback extends BaseCommand {
                 );
             }
             
-            // Get service info
-            const serviceInfo = this.scheduledServiceInfo.get(chatId);
+            // Get service info with verification
+            const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);
             if (!serviceInfo) {
                 this.logError(`No se encontró info de servicio para póliza: ${numeroPoliza}`);
-                this.awaitingContactTime.delete(chatId);
+                this.awaitingContactTime.delete(chatId, threadId);
                 return await ctx.reply('❌ Error al procesar la hora. Operación cancelada.');
             }
             
+            this.logInfo(`Info de servicio recuperada: numeroPoliza=${serviceInfo.numeroPoliza}, origen=${serviceInfo.origen}, destino=${serviceInfo.destino}`);
+            
             // Update service info with contact time
             serviceInfo.contactTime = messageText;
-            this.scheduledServiceInfo.set(chatId, serviceInfo);
+            const serviceStore = this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
+            this.logInfo(`Info de servicio actualizada con hora=${messageText}: ${serviceStore ? 'OK' : 'FALLO'}`);
             
             // CAMBIO: En lugar de continuar directamente, preguntar por el día
             
@@ -758,7 +904,7 @@ class OcuparPolizaCallback extends BaseCommand {
             return true;
         } catch (error) {
             this.logError(`Error al procesar hora de contacto para póliza ${numeroPoliza}:`, error);
-            this.awaitingContactTime.delete(chatId);
+            this.awaitingContactTime.delete(chatId, threadId);
             await ctx.reply('❌ Error al procesar la hora de contacto. Operación cancelada.');
             return true;
         }

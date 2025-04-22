@@ -20,6 +20,9 @@ const logger = require('../utils/logger');
 const FileHandler = require('../utils/fileHandler');
 const fetch = require('node-fetch');
 
+const StateKeyManager = require('../utils/StateKeyManager');
+const threadValidatorMiddleware = require('../middleware/threadValidator');
+
 // Import the model Policy directly
 const Policy = require('../models/policy');
 
@@ -54,19 +57,19 @@ class CommandHandler {
         // Initialize the command registry
         this.registry = new CommandRegistry();
         
-        // Initialize state maps
-        this.uploadTargets = new Map();
-        this.awaitingSaveData = new Map();
-        this.awaitingGetPolicyNumber = new Map();
-        this.awaitingUploadPolicyNumber = new Map();
-        this.awaitingDeletePolicyNumber = new Map();
-        this.awaitingPaymentPolicyNumber = new Map();
-        this.awaitingPaymentData = new Map();
-        this.awaitingServicePolicyNumber = new Map();
-        this.awaitingServiceData = new Map();
-        this.awaitingPhoneNumber = new Map();
-        this.awaitingOrigenDestino = new Map();
-        this.awaitingDeleteReason = new Map();
+        // Inicializar mapas de estado con soporte para hilos
+        this.uploadTargets = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingSaveData = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingGetPolicyNumber = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingUploadPolicyNumber = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingDeletePolicyNumber = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingPaymentPolicyNumber = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingPaymentData = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingServicePolicyNumber = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingServiceData = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingPhoneNumber = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingOrigenDestino = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingDeleteReason = StateKeyManager.createThreadSafeStateMap();
 
         // Store instances of commands needed for actions
         this.startCommandInstance = null;
@@ -74,6 +77,8 @@ class CommandHandler {
         // Add other command instances if needed for direct calls from actions
 
         // Setup group restriction
+        // Register thread validator middleware
+        this.bot.use(threadValidatorMiddleware(this));
         this.setupGroupRestriction();
         
         // Register all commands
@@ -181,9 +186,23 @@ class CommandHandler {
         this.bot.action('accion:consultar', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                this.clearChatState(ctx.chat.id); // Limpiar estado previo
-                this.awaitingGetPolicyNumber.set(ctx.chat.id, true);
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                
+                logger.info(`Iniciando acción consultar en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                
+                this.clearChatState(chatId, threadId); // Limpiar estado previo
+                
+                // Guardar estado con logs explícitos
+                const setResult = this.awaitingGetPolicyNumber.set(chatId, true, threadId);
+                logger.info(`Estado de espera de póliza guardado: ${setResult ? 'OK' : 'FALLO'}`);
+                
+                // Verificación inmediata
+                const hasResult = this.awaitingGetPolicyNumber.has(chatId, threadId);
+                logger.info(`Verificación inmediata después de guardar: ${hasResult ? 'OK' : 'FALLO'}`);
+                
                 await ctx.reply('🔍 Por favor, introduce el número de póliza que deseas consultar:');
+                logger.info(`Solicitud de número de póliza enviada`);
             } catch (error) {
                 logger.error('Error en accion:consultar:', error);
                 await ctx.reply('❌ Error al iniciar la consulta.');
@@ -237,7 +256,7 @@ class CommandHandler {
                 try { await ctx.answerCbQuery('Error'); } catch {}
             }
         });
-         // Callback para cancelar registro
+        // Callback para cancelar registro
         this.bot.action('accion:cancelar_registro', async (ctx) => {
             try {
                 await ctx.answerCbQuery('Registro cancelado');
@@ -447,6 +466,40 @@ class CommandHandler {
             }
         });
 
+        // Ocupar Póliza: acción principal para el botón "Ocupar Póliza"
+        this.bot.action(/ocuparPoliza:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                
+                logger.info(`Iniciando acción ocuparPoliza para ${numeroPoliza} en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                
+                // Verificar estado antes de continuar
+                const beforeStates = this.verifyAllMaps(chatId, threadId);
+                logger.debug(`Estados antes de ocuparPoliza: ${JSON.stringify(beforeStates)}`);
+                
+                // Conseguir el callback ocuparPoliza y delegar
+                const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
+                if (ocuparPolizaCmd && typeof ocuparPolizaCmd.handleOcuparPoliza === 'function') {
+                    await ocuparPolizaCmd.handleOcuparPoliza(ctx, numeroPoliza);
+                } else {
+                    // Fallback si no se encuentra el handler específico
+                    await ctx.reply(`❌ Error al procesar la ocupación de póliza ${numeroPoliza}.`);
+                }
+                
+                // Verificar estado después
+                const afterStates = this.verifyAllMaps(chatId, threadId);
+                logger.debug(`Estados después de ocuparPoliza: ${JSON.stringify(afterStates)}`);
+                
+                await ctx.answerCbQuery();
+            } catch (error) {
+                logger.error('Error en acción ocuparPoliza:', error);
+                await ctx.reply('❌ Error al ocupar la póliza.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
         logger.info('✅ Manejadores de acciones principales configurados.');
     }
 
@@ -454,15 +507,21 @@ class CommandHandler {
     // Setup remaining callbacks or commands that haven't been modularized yet
     setupRemainingCommands() {
         // Callback para consultar una póliza desde un botón (originado en reportUsed)
+        // MODIFICADO: Una sola implementación en vez de duplicada
         this.bot.action(/getPoliza:(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1]; // Extract policy number from callback data
-                logger.info(`Callback getPoliza para: ${numeroPoliza}`);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                logger.info(`Callback getPoliza para: ${numeroPoliza}`, { threadId });
 
-                // Reutilizar la lógica de /get (que ahora está en GetCommand, pero el método auxiliar sigue aquí)
-                // Idealmente, esto también se refactorizaría para llamar a GetCommand.handleGetPolicyFlow
+                // Reutilizar la lógica de handleGetPolicyFlow
                 await this.handleGetPolicyFlow(ctx, numeroPoliza);
 
+                // Añadir el botón de volver explícitamente aquí
+                await ctx.reply('Acciones adicionales:', Markup.inlineKeyboard([
+                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                ]));
+                
                 await ctx.answerCbQuery(); // Acknowledge the button press
             } catch (error) {
                 logger.error('Error en callback getPoliza:', error);
@@ -471,27 +530,9 @@ class CommandHandler {
                 try { await ctx.answerCbQuery('Error'); } catch { /* ignore */ }
             }
         });
-
+        
         // The ocuparPoliza callback is handled by the OcuparPolizaCallback module.
         // Other non-command logic might remain here if needed.
-
-        // Añadir botón Volver al Menú en la respuesta de getPoliza callback
-         this.bot.action(/getPoliza:(.+)/, async (ctx) => {
-            try {
-                const numeroPoliza = ctx.match[1];
-                logger.info(`Callback getPoliza para: ${numeroPoliza}`);
-                await this.handleGetPolicyFlow(ctx, numeroPoliza); // Muestra info y botones Ver/Ocupar
-                 // Añadimos el botón de volver explícitamente aquí también si handleGetPolicyFlow no lo hace siempre
-                 await ctx.reply('Acciones adicionales:', Markup.inlineKeyboard([
-                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                 ]));
-                await ctx.answerCbQuery();
-            } catch (error) {
-                logger.error('Error en callback getPoliza:', error);
-                await ctx.reply('❌ Error al consultar la póliza desde callback.');
-                try { await ctx.answerCbQuery('Error'); } catch {}
-            }
-        });
     }
 
     // Setup all registered callbacks from command modules
@@ -518,36 +559,136 @@ class CommandHandler {
         logger.info(`✅ ${callbackHandlers.size} callbacks de módulos conectados al bot`);
     }
 
-    // Helper para limpiar todos los estados de espera de un chat
+    // Helper para limpiar todos los estados de espera de un chat/hilo
     clearChatState(chatId, threadId = null) {
-        // If a threadId is provided, only clear states for that thread
+        logger.debug(`Limpiando estado para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+        
         if (threadId) {
-            logger.debug(`Limpiando estado solo para chatId: ${chatId}, threadId: ${threadId}`);
+            this.uploadTargets.delete(chatId, threadId);
+            this.awaitingSaveData.delete(chatId, threadId);
+            this.awaitingGetPolicyNumber.delete(chatId, threadId);
+            this.awaitingUploadPolicyNumber.delete(chatId, threadId);
+            this.awaitingDeletePolicyNumber.delete(chatId, threadId);
+            this.awaitingPaymentPolicyNumber.delete(chatId, threadId);
+            this.awaitingPaymentData.delete(chatId, threadId);
+            this.awaitingServicePolicyNumber.delete(chatId, threadId);
+            this.awaitingServiceData.delete(chatId, threadId);
+            this.awaitingPhoneNumber.delete(chatId, threadId);
+            this.awaitingOrigenDestino.delete(chatId, threadId);
+            this.awaitingDeleteReason.delete(chatId, threadId);
+            
             const flowStateManager = require('../utils/FlowStateManager');
             flowStateManager.clearAllStates(chatId, threadId);
+            
+            const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
+            if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
+                ocuparPolizaCmd.cleanupAllStates(chatId, threadId);
+            }
+            
             return;
         }
-        // Si no hay threadId, limpiar todos los estados para el chat completo
-        this.uploadTargets.delete(chatId);
-        this.awaitingSaveData.delete(chatId);
-        this.awaitingGetPolicyNumber.delete(chatId);
-        this.awaitingUploadPolicyNumber.delete(chatId);
-        this.awaitingDeletePolicyNumber.delete(chatId);
-        this.awaitingPaymentPolicyNumber.delete(chatId);
-        this.awaitingPaymentData.delete(chatId);
-        this.awaitingServicePolicyNumber.delete(chatId);
-        this.awaitingServiceData.delete(chatId);
-        this.awaitingPhoneNumber.delete(chatId);
-        this.awaitingOrigenDestino.delete(chatId);
-        this.awaitingDeleteReason.delete(chatId);
-        const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
-        if (ocuparPolizaCmd) {
-            if (ocuparPolizaCmd.awaitingPhoneDecision) ocuparPolizaCmd.awaitingPhoneDecision.delete(chatId);
-            if (ocuparPolizaCmd.pendingLeyendas) ocuparPolizaCmd.pendingLeyendas.delete(chatId);
-        }
+        
+        this.uploadTargets.deleteAll(chatId);
+        this.awaitingSaveData.deleteAll(chatId);
+        this.awaitingGetPolicyNumber.deleteAll(chatId);
+        this.awaitingUploadPolicyNumber.deleteAll(chatId);
+        this.awaitingDeletePolicyNumber.deleteAll(chatId);
+        this.awaitingPaymentPolicyNumber.deleteAll(chatId);
+        this.awaitingPaymentData.deleteAll(chatId);
+        this.awaitingServicePolicyNumber.deleteAll(chatId);
+        this.awaitingServiceData.deleteAll(chatId);
+        this.awaitingPhoneNumber.deleteAll(chatId);
+        this.awaitingOrigenDestino.deleteAll(chatId);
+        this.awaitingDeleteReason.deleteAll(chatId);
+        
         const flowStateManager = require('../utils/FlowStateManager');
-        flowStateManager.clearAllStates(chatId, threadId);
-        logger.debug(`Estado limpiado para chatId: ${chatId}, threadId: ${threadId || 'ninguno'}`);
+        flowStateManager.clearAllStates(chatId);
+        
+        const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
+        if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
+            ocuparPolizaCmd.cleanupAllStates(chatId);
+        }
+        
+        logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
+    }
+
+    /**
+     * Método para verificar explícitamente el estado de todos los mapas (debugging)
+     * @param {number|string} chatId - ID del chat
+     * @param {number|string|null} threadId - ID del hilo (opcional)
+     * @returns {Object} Estado de todos los mapas
+     */
+    verifyAllMaps(chatId, threadId = null) {
+        logger.debug(`Verificando todos los mapas para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+        
+        const states = {
+            uploadTargets: false,
+            awaitingSaveData: false,
+            awaitingGetPolicyNumber: false,
+            awaitingUploadPolicyNumber: false,
+            awaitingDeletePolicyNumber: false,
+            awaitingPaymentPolicyNumber: false,
+            awaitingPaymentData: false,
+            awaitingServicePolicyNumber: false,
+            awaitingServiceData: false,
+            awaitingPhoneNumber: false,
+            awaitingOrigenDestino: false,
+            awaitingDeleteReason: false
+        };
+        
+        if (this.uploadTargets && typeof this.uploadTargets.has === 'function')
+            states.uploadTargets = this.uploadTargets.has(chatId, threadId);
+        
+        if (this.awaitingSaveData && typeof this.awaitingSaveData.has === 'function')
+            states.awaitingSaveData = this.awaitingSaveData.has(chatId, threadId);
+        
+        if (this.awaitingGetPolicyNumber && typeof this.awaitingGetPolicyNumber.has === 'function')
+            states.awaitingGetPolicyNumber = this.awaitingGetPolicyNumber.has(chatId, threadId);
+        
+        if (this.awaitingUploadPolicyNumber && typeof this.awaitingUploadPolicyNumber.has === 'function')
+            states.awaitingUploadPolicyNumber = this.awaitingUploadPolicyNumber.has(chatId, threadId);
+        
+        if (this.awaitingDeletePolicyNumber && typeof this.awaitingDeletePolicyNumber.has === 'function')
+            states.awaitingDeletePolicyNumber = this.awaitingDeletePolicyNumber.has(chatId, threadId);
+        
+        if (this.awaitingPaymentPolicyNumber && typeof this.awaitingPaymentPolicyNumber.has === 'function')
+            states.awaitingPaymentPolicyNumber = this.awaitingPaymentPolicyNumber.has(chatId, threadId);
+        
+        if (this.awaitingPaymentData && typeof this.awaitingPaymentData.has === 'function')
+            states.awaitingPaymentData = this.awaitingPaymentData.has(chatId, threadId);
+        
+        if (this.awaitingServicePolicyNumber && typeof this.awaitingServicePolicyNumber.has === 'function')
+            states.awaitingServicePolicyNumber = this.awaitingServicePolicyNumber.has(chatId, threadId);
+        
+        if (this.awaitingServiceData && typeof this.awaitingServiceData.has === 'function')
+            states.awaitingServiceData = this.awaitingServiceData.has(chatId, threadId);
+        
+        if (this.awaitingPhoneNumber && typeof this.awaitingPhoneNumber.has === 'function')
+            states.awaitingPhoneNumber = this.awaitingPhoneNumber.has(chatId, threadId);
+        
+        if (this.awaitingOrigenDestino && typeof this.awaitingOrigenDestino.has === 'function')
+            states.awaitingOrigenDestino = this.awaitingOrigenDestino.has(chatId, threadId);
+        
+        if (this.awaitingDeleteReason && typeof this.awaitingDeleteReason.has === 'function')
+            states.awaitingDeleteReason = this.awaitingDeleteReason.has(chatId, threadId);
+        
+        const activeStates = Object.entries(states)
+            .filter(([_, value]) => value)
+            .map(([key]) => key);
+        
+        if (activeStates.length > 0) {
+            logger.debug(`Estados activos encontrados: ${activeStates.join(', ')}`, {
+                chatId,
+                threadId: threadId || 'ninguno'
+            });
+        } else {
+            logger.debug(`No se encontraron estados activos`, {
+                chatId,
+                threadId: threadId || 'ninguno'
+            });
+        }
+        
+        return states;
     }
 
 
@@ -873,22 +1014,26 @@ class CommandHandler {
 
     // Manejo del flujo INICIADO por accion:consultar (recibe N° póliza)
     async handleGetPolicyFlow(ctx, messageText) {
-        const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const chatId = ctx.chat?.id;
+        const threadId = StateKeyManager.getThreadId(ctx);
+
+        logger.info(`Ejecutando handleGetPolicyFlow para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+        
         try {
             const numeroPoliza = messageText.trim().toUpperCase();
-            logger.info('Buscando póliza:', { numeroPoliza, chatId, threadId });
-
+            logger.info(`Buscando póliza: ${numeroPoliza}`, { chatId, threadId: threadId || 'ninguno' });
+    
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
                 await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
-                 // No limpiar estado, permitir reintento
+                // No limpiar estado, permitir reintento
             } else {
                 const flowStateManager = require('../utils/FlowStateManager');
                 flowStateManager.saveState(chatId, numeroPoliza, {
                     active: true,
                     activeSince: new Date().toISOString()
                 }, threadId);
+                
                 // ============= BLOQUE PARA SERVICIOS =============
                 const servicios = policy.servicios || [];
                 const totalServicios = servicios.length;
@@ -910,22 +1055,22 @@ class CommandHandler {
                 // ============= FIN BLOQUE NUEVO PARA SERVICIOS =============
     
                 const mensaje = `
-📋 *Información de la Póliza*
-*Número:* ${policy.numeroPoliza}
-*Titular:* ${policy.titular}
-📞 *Cel:* ${policy.telefono || 'No proporcionado'}
-
-🚗 *Datos del Vehículo:*
-*Marca:* ${policy.marca}
-*Submarca:* ${policy.submarca}
-*Año:* ${policy.año}
-*Color:* ${policy.color}
-*Serie:* ${policy.serie}
-*Placas:* ${policy.placas}
-
-*Aseguradora:* ${policy.aseguradora}
-*Agente:* ${policy.agenteCotizador}
-${serviciosInfo}
+    📋 *Información de la Póliza*
+    *Número:* ${policy.numeroPoliza}
+    *Titular:* ${policy.titular}
+    📞 *Cel:* ${policy.telefono || 'No proporcionado'}
+    
+    🚗 *Datos del Vehículo:*
+    *Marca:* ${policy.marca}
+    *Submarca:* ${policy.submarca}
+    *Año:* ${policy.año}
+    *Color:* ${policy.color}
+    *Serie:* ${policy.serie}
+    *Placas:* ${policy.placas}
+    
+    *Aseguradora:* ${policy.aseguradora}
+    *Agente:* ${policy.agenteCotizador}
+    ${serviciosInfo}
                 `.trim();
     
                 // Enviamos la información y los botones
@@ -938,14 +1083,14 @@ ${serviciosInfo}
                         [ Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu') ] // Añadir botón volver
                     ])
                 );
-                logger.info('Información de póliza enviada', { numeroPoliza, chatId });
-                 // Limpiar estado al mostrar la info correctamente
-                 this.awaitingGetPolicyNumber.delete(chatId);
+                logger.info('Información de póliza enviada', { numeroPoliza, chatId, threadId });
+                // Limpiar estado al mostrar la info correctamente
+                this.awaitingGetPolicyNumber.delete(chatId, threadId);
             }
         } catch (error) {
             logger.error('Error en handleGetPolicyFlow:', error);
             await ctx.reply('❌ Error al buscar la póliza. Intenta nuevamente.');
-             // No limpiar estado en error
+            // No limpiar estado en error
         }
     }
 

@@ -1,5 +1,7 @@
 // src/utils/FlowStateManager.js
 const logger = require('./logger');
+const StateKeyManager = require('./StateKeyManager');
+const stateCleanupService = require('./StateCleanupService');
 
 /**
  * Clase para gestionar estados de flujos concurrentes en el bot
@@ -10,10 +12,21 @@ class FlowStateManager {
         // Map anidado: Map<contextKey, StateData>
         this.flowStates = new Map();
         logger.info('FlowStateManager inicializado');
+        // Map principal: chatId => Map<flowId, contextData>
+        this.contexts = new Map();
+        // Contador para generar IDs únicos por chatId
+        this.counters = new Map();
+        // Registrar en el servicio de limpieza si está disponible
+        try {
+            const stateCleanupService = require('./StateCleanupService');
+            stateCleanupService.registerStateProvider(this, 'FlowStateManager');
+        } catch (error) {
+            logger.warn('No se pudo registrar en StateCleanupService:', error.message);
+        }
     }
 
     _getContextKey(chatId, threadId) {
-        return `${chatId}${threadId ? '-' + threadId : ''}`;
+        return StateKeyManager.getContextKey(chatId, threadId);
     }
 
     /**
@@ -174,6 +187,47 @@ class FlowStateManager {
         }
         // Si no se encontró conflicto, permitir acceso
         return true;
+    }
+    /**
+     * Limpia contextos antiguos basado en un timestamp de corte
+     * @param {number} cutoffTime - Timestamp en milisegundos antes del cual se consideran obsoletos
+     * @returns {number} Número de contextos eliminados
+     */
+    async cleanup(cutoffTime) {
+        let removed = 0;
+        const now = Date.now();
+        
+        // Si no se proporciona timestamp, usar 2 horas por defecto
+        if (!cutoffTime) {
+            const TWO_HOURS = 2 * 60 * 60 * 1000;
+            cutoffTime = now - TWO_HOURS;
+        }
+        
+        for (const [contextKey, stateMap] of this.flowStates.entries()) {
+            for (const [flowId, data] of stateMap.entries()) {
+                // Verificar si el estado es más antiguo que el corte
+                const lastUpdate = data.createdAt ? data.createdAt.getTime() : 0;
+                if (lastUpdate < cutoffTime) {
+                    stateMap.delete(flowId);
+                    removed++;
+                    logger.debug(`Eliminado contexto antiguo: ${flowId} (contextKey: ${contextKey})`, {
+                        lastUpdate: new Date(lastUpdate).toISOString(),
+                        age: Math.round((now - lastUpdate) / 1000 / 60) + ' minutos'
+                    });
+                }
+            }
+            
+            // Si el mapa para este contextKey quedó vacío, eliminarlo también
+            if (stateMap.size === 0) {
+                this.flowStates.delete(contextKey);
+            }
+        }
+        
+        if (removed > 0) {
+            logger.info(`Limpiados ${removed} contextos antiguos de FlowStateManager`);
+        }
+        
+        return removed;
     }
 }
 

@@ -6,6 +6,7 @@ const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
 const handleGroupUpdate = require('./middleware/groupHandler');
 const { getInstance: getNotificationManager } = require('./services/NotificationManager');
+const stateCleanupService = require('./utils/StateCleanupService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,6 +25,13 @@ async function initializeBot() {
 
         await connectDB();
         logger.info('✅ Base de datos conectada con éxito');
+
+        // Iniciar servicio de limpieza automática de estados
+        stateCleanupService.start(
+            15 * 60 * 1000,  // Ejecutar cada 15 minutos
+            30 * 60 * 1000   // Limpiar estados más antiguos de 30 minutos
+        );
+        logger.info('✅ Servicio de limpieza de estados iniciado');
 
         const bot = new Telegraf(config.telegram.token);
 
@@ -120,6 +128,13 @@ async function initializeBot() {
                 }
             } catch (stopError) {
                 logger.error('Error al detener sistema de notificaciones:', stopError);
+            }
+            // Detener servicio de limpieza de estados
+            try {
+                stateCleanupService.stop();
+                logger.info('✅ Servicio de limpieza de estados detenido correctamente');
+            } catch (stopError) {
+                logger.error('Error al detener servicio de limpieza de estados:', stopError);
             }
 
             setTimeout(async () => {

@@ -2,6 +2,7 @@
 const BaseCommand = require('./BaseCommand');
 const { getPolicyByNumber, markPolicyAsDeleted } = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
+const StateKeyManager = require('../../utils/StateKeyManager');
 
 class TextMessageHandler extends BaseCommand {
     constructor(handler) {
@@ -51,9 +52,20 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // 2) If we're waiting for a policy number for 'accion:consultar'
-                if (this.handler.awaitingGetPolicyNumber.get(chatId)) {
-                    // Directly call the handler's method, which now contains the logic
-                    await this.handler.handleGetPolicyFlow(ctx, messageText);
+                // Verificación explícita con logs
+                this.logInfo(`Verificando si se espera número de póliza en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                const esperaPoliza = this.handler.awaitingGetPolicyNumber.has(chatId, threadId);
+                this.logInfo(`Resultado de verificación: ${esperaPoliza ? 'SÍ se espera' : 'NO se espera'}`);
+
+                if (esperaPoliza) {
+                    this.logInfo(`Procesando número de póliza: ${messageText}`, { chatId, threadId: threadId || 'ninguno' });
+                    try {
+                        // Agregar captura de errores para depuración
+                        await this.handler.handleGetPolicyFlow(ctx, messageText);
+                    } catch (error) {
+                        this.logError(`Error en handleGetPolicyFlow: ${error.message}`, error);
+                        await ctx.reply('❌ Error al procesar el número de póliza. Por favor intenta nuevamente.');
+                    }
                     return;
                 }
 
@@ -94,27 +106,103 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // (A) If we're waiting for a phone number (part of 'ocuparPoliza' flow)
-                if (this.handler.awaitingPhoneNumber && this.handler.awaitingPhoneNumber.get(chatId)) {
-                    // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
-                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
-                        this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId, threadId });
-                        await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText, threadId);
+                // Verificación detallada con logs para awaitingPhoneNumber
+                this.logInfo(`Verificando si se espera teléfono en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                let esperaTelefono = false;
+
+                // Verificar existencia del mapa
+                if (!this.handler.awaitingPhoneNumber) {
+                    this.logWarn('El mapa awaitingPhoneNumber no existe en el handler');
+                } else {
+                    // Verificar método has
+                    if (typeof this.handler.awaitingPhoneNumber.has === 'function') {
+                        esperaTelefono = this.handler.awaitingPhoneNumber.has(chatId, threadId);
+                        this.logInfo(`Verificación de awaitingPhoneNumber.has: ${esperaTelefono ? 'SÍ se espera' : 'NO se espera'}`);
                     } else {
-                        this.logWarn('OcuparPolizaCallback or handlePhoneNumber not found, cannot process phone number.');
-                        // Avoid replying here, let the flow handle errors or timeouts
+                        this.logWarn('El método has no está disponible en awaitingPhoneNumber');
+                        
+                        // Verificar método get como alternativa
+                        if (typeof this.handler.awaitingPhoneNumber.get === 'function') {
+                            const valor = this.handler.awaitingPhoneNumber.get(chatId, threadId);
+                            esperaTelefono = !!valor;
+                            this.logInfo(`Verificación alternativa usando get: ${esperaTelefono ? 'SÍ se espera' : 'NO se espera'}, valor=${valor}`);
+                        } else {
+                            this.logError('Ni has ni get están disponibles en awaitingPhoneNumber');
+                        }
+                    }
+                }
+
+                if (esperaTelefono) {
+                    this.logInfo(`Procesando número telefónico: ${messageText}`, { chatId, threadId: threadId || 'ninguno' });
+                    try {
+                        // Verificar existe el callback y el método
+                        if (!this.ocuparPolizaCallback) {
+                            this.logWarn('Intentando cargar ocuparPolizaCallback dinámicamente');
+                            const commands = this.handler.registry.getAllCommands();
+                            this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
+                        }
+                        
+                        if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
+                            this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId, threadId });
+                            await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText, threadId);
+                        } else {
+                            this.logError('No se puede procesar el teléfono: OcuparPolizaCallback o handlePhoneNumber no encontrados');
+                            await ctx.reply('❌ Error al procesar el número telefónico. Por favor, intenta desde el menú principal.');
+                        }
+                    } catch (error) {
+                        this.logError(`Error al procesar número telefónico: ${error.message}`, error);
+                        await ctx.reply('❌ Error al procesar el número telefónico. Por favor, intenta nuevamente.');
                     }
                     return; // Let the specific handler manage state and replies
                 }
 
                 // (B) If we're waiting for origin-destination (part of 'ocuparPoliza' flow)
-                if (this.handler.awaitingOrigenDestino && this.handler.awaitingOrigenDestino.get(chatId)) {
-                    // Delegate entirely to OcuparPolizaCallback or a dedicated handler method
-                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
-                        this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId, threadId });
-                        await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText, threadId);
+                // Verificación detallada con logs para awaitingOrigenDestino
+                this.logInfo(`Verificando si se espera origen-destino en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                let esperaOrigenDestino = false;
+
+                // Verificar existencia del mapa
+                if (!this.handler.awaitingOrigenDestino) {
+                    this.logWarn('El mapa awaitingOrigenDestino no existe en el handler');
+                } else {
+                    // Verificar método has
+                    if (typeof this.handler.awaitingOrigenDestino.has === 'function') {
+                        esperaOrigenDestino = this.handler.awaitingOrigenDestino.has(chatId, threadId);
+                        this.logInfo(`Verificación de awaitingOrigenDestino.has: ${esperaOrigenDestino ? 'SÍ se espera' : 'NO se espera'}`);
                     } else {
-                        this.logWarn('OcuparPolizaCallback or handleOrigenDestino not found, cannot process origin/destination.');
-                        // Avoid replying here
+                        this.logWarn('El método has no está disponible en awaitingOrigenDestino');
+                        
+                        // Verificar método get como alternativa
+                        if (typeof this.handler.awaitingOrigenDestino.get === 'function') {
+                            const valor = this.handler.awaitingOrigenDestino.get(chatId, threadId);
+                            esperaOrigenDestino = !!valor;
+                            this.logInfo(`Verificación alternativa usando get: ${esperaOrigenDestino ? 'SÍ se espera' : 'NO se espera'}, valor=${valor}`);
+                        } else {
+                            this.logError('Ni has ni get están disponibles en awaitingOrigenDestino');
+                        }
+                    }
+                }
+
+                if (esperaOrigenDestino) {
+                    this.logInfo(`Procesando origen-destino: ${messageText}`, { chatId, threadId: threadId || 'ninguno' });
+                    try {
+                        // Verificar existe el callback y el método
+                        if (!this.ocuparPolizaCallback) {
+                            this.logWarn('Intentando cargar ocuparPolizaCallback dinámicamente');
+                            const commands = this.handler.registry.getAllCommands();
+                            this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
+                        }
+                        
+                        if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
+                            this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId, threadId });
+                            await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText, threadId);
+                        } else {
+                            this.logError('No se puede procesar origen-destino: OcuparPolizaCallback o handleOrigenDestino no encontrados');
+                            await ctx.reply('❌ Error al procesar origen-destino. Por favor, intenta desde el menú principal.');
+                        }
+                    } catch (error) {
+                        this.logError(`Error al procesar origen-destino: ${error.message}`, error);
+                        await ctx.reply('❌ Error al procesar origen-destino. Por favor, intenta nuevamente.');
                     }
                     return; // Let the specific handler manage state and replies
                 }
