@@ -146,6 +146,35 @@ class FlowStateManager {
         
         return allFlows;
     }
+    /**
+     * Valida que el acceso a un flujo coincida con el threadId correcto
+     * @param {number|string} chatId 
+     * @param {string} numeroPoliza 
+     * @param {string|null} threadId 
+     * @returns {boolean}
+     */
+    validateThreadMatch(chatId, numeroPoliza, threadId = null) {
+        const contextKey = this._getContextKey(chatId, threadId);
+        // Si existen estados para el contexto exacto, es válido
+        if (this.flowStates.has(contextKey) && this.flowStates.get(contextKey).has(numeroPoliza)) {
+            return true;
+        }
+        // Si no hay threadId, buscar en otros contextos de este chat
+        if (!threadId) {
+            for (const [otherContextKey, stateMap] of this.flowStates.entries()) {
+                if (otherContextKey.startsWith(`${chatId}-`) && stateMap.has(numeroPoliza)) {
+                    logger.warn(`Intento de acceso a flujo sin threadId, pero existe en otro hilo`, {
+                        chatId,
+                        numeroPoliza,
+                        existingThread: otherContextKey.split('-')[1]
+                    });
+                    return false;
+                }
+            }
+        }
+        // Si no se encontró conflicto, permitir acceso
+        return true;
+    }
 }
 
 // Exportar una única instancia (patrón Singleton)

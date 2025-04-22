@@ -147,8 +147,8 @@ class OcuparPolizaCallback extends BaseCommand {
                                 parse_mode: 'Markdown',
                                 ...Markup.inlineKeyboard([
                                     [
-                                        Markup.button.callback('✅ Asignado', `assignedService:${numeroPoliza}`),
-                                        Markup.button.callback('❌ No asignado', `unassignedService:${numeroPoliza}`)
+                                        Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}`),
+                                        Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}`)
                                     ]
                                 ])
                             }
@@ -188,7 +188,7 @@ class OcuparPolizaCallback extends BaseCommand {
         });
 
         // Register callback for "Asignado" button
-        this.handler.registry.registerCallback(/assignedService:(.+)/, async (ctx) => {
+        this.handler.registry.registerCallback(/asig_yes_(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
@@ -251,35 +251,40 @@ class OcuparPolizaCallback extends BaseCommand {
         });
 
         // Register callback for "No asignado" button
-        this.handler.registry.registerCallback(/unassignedService:(.+)/, async (ctx) => {
+        this.handler.registry.registerCallback(/asig_no_(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
-                
+
+                this.logInfo(`[asig_no_] Servicio marcado como NO asignado para póliza: ${numeroPoliza}`, { chatId }); // Added prefix for clarity
+
                 // Get the message ID to edit
                 const messageId = this.messageIds.get(chatId);
                 if (messageId) {
-                    // Edit the original message
+                    this.logInfo(`[asig_no_] Intentando editar mensaje ID: ${messageId} para chatId: ${chatId}`, { numeroPoliza }); // Added log
+                    // Edit the original message for clearer confirmation and remove buttons
                     await ctx.telegram.editMessageText(
                         chatId,
                         messageId,
                         undefined,
-                        `🚫 Servicio marcado como no asignado. Flujo finalizado.`,
-                        { parse_mode: 'Markdown' }
+                        `*🚫 Servicio NO Asignado*\n\nPóliza: ${numeroPoliza}\nEl flujo ha finalizado. Ya no se requieren más acciones para esta póliza en este momento.`, // Enhanced message
+                        { parse_mode: 'Markdown' } // No buttons specified, so they are removed
                     );
+                    this.logInfo(`[asig_no_] Mensaje ${messageId} editado correctamente.`, { numeroPoliza }); // Added success log
                 } else {
-                    // Fallback
-                    await ctx.reply('🚫 Servicio marcado como no asignado. Flujo finalizado.');
+                    // Fallback - Log this case as it indicates an issue with messageId tracking
+                    this.logWarn(`[asig_no_] No se encontró messageId para chatId: ${chatId}. Enviando respuesta nueva.`, { numeroPoliza });
+                    await ctx.reply(`🚫 Servicio marcado como no asignado para póliza ${numeroPoliza}. Flujo finalizado.`); // Slightly improved fallback
                 }
-                
+
                 // Clean up all states
                 this.cleanupAllStates(chatId);
             } catch (error) {
-                this.logError('Error en callback unassignedService:', error);
-                await ctx.reply('❌ Error al procesar la acción.');
-                this.cleanupAllStates(ctx.chat.id);
+                this.logError(`Error en callback asig_no_:`, error, { numeroPoliza }); // Updated log label and added context
+                await ctx.reply('❌ Error al procesar la acción de "No asignado".'); // Slightly improved error message
+                this.cleanupAllStates(ctx.chat.id); // Ensure cleanup even on error
             } finally {
-                await ctx.answerCbQuery();
+                await ctx.answerCbQuery(); // Acknowledge the callback query
             }
         });
 
@@ -522,12 +527,21 @@ class OcuparPolizaCallback extends BaseCommand {
         const chatId = ctx.chat.id;
         const numeroPoliza = this.awaitingPhoneNumber.get(chatId);
 
+        // Verificar que el mensaje corresponde al threadId activo
+        const flowStateManager = require('../../utils/FlowStateManager');
+        const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
+        // Si llega un mensaje sin threadId mientras hay flujos activos en otros hilos, lo ignoramos
+        if (!threadId && activeFlows.some(flow => flow.threadId && flow.threadId !== threadId)) {
+            this.logWarn('Ignorando mensaje sin threadId mientras hay flujos activos en otros hilos');
+            return false;
+        }
+
         // Validate that it's 10 digits
         const regexTel = /^\d{10}$/;
         if (!regexTel.test(messageText)) {
             // Invalid phone => cancel
             this.awaitingPhoneNumber.delete(chatId);
-            return await ctx.reply('❌ Teléfono inválido (requiere 10 dígitos). Proceso cancelado.');
+            return await ctx.reply('❌ Teléfono inválido (requiere 10 dígitos). Proceso cancelada.');
         }
 
         try {
@@ -608,6 +622,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 origen = 'No especificado';
                 destino = messageText;
             }
+
+            // Guardar en FlowStateManager para uso posterior
+            const flowStateManager = require('../../utils/FlowStateManager');
+            flowStateManager.saveState(chatId, numeroPoliza, {
+                origin: origen,
+                destination: destino,
+                origenDestino: messageText.trim()
+            }, threadId);
             
             // Update policy cache with origen and destino
             if (cachedData) {

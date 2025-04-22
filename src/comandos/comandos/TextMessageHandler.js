@@ -30,7 +30,7 @@ class TextMessageHandler extends BaseCommand {
             }
             try {
                 const chatId = ctx.chat.id;
-                const threadId = ctx.message?.message_thread_id;
+                const threadId = ctx.message?.message_thread_id || null;
                 const messageText = ctx.message.text.trim();
 
                 // Log para depuración
