@@ -208,10 +208,23 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // (C) If we're waiting for contact time (part of 'ocuparPoliza' flow after service assignment)
-                if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime && 
-                    this.ocuparPolizaCallback.awaitingContactTime.get(chatId)) {
+                this.logInfo(`Verificando si se espera hora de contacto en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                let esperaHoraContacto = false;
+                
+                if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime) {
+                    if (typeof this.ocuparPolizaCallback.awaitingContactTime.has === 'function') {
+                        esperaHoraContacto = this.ocuparPolizaCallback.awaitingContactTime.has(chatId, threadId);
+                        this.logInfo(`Verificación de awaitingContactTime.has: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}`);
+                    } else if (typeof this.ocuparPolizaCallback.awaitingContactTime.get === 'function') {
+                        const valor = this.ocuparPolizaCallback.awaitingContactTime.get(chatId, threadId);
+                        esperaHoraContacto = !!valor;
+                        this.logInfo(`Verificación alternativa usando get: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}, valor=${valor}`);
+                    }
+                }
+                
+                if (esperaHoraContacto) {
+                    this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, threadId, hora: messageText });
                     if (typeof this.ocuparPolizaCallback.handleContactTime === 'function') {
-                        this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, threadId, hora: messageText });
                         await this.ocuparPolizaCallback.handleContactTime(ctx, messageText, threadId);
                     } else {
                         this.logWarn('OcuparPolizaCallback or handleContactTime not found, cannot process contact time.');

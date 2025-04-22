@@ -37,9 +37,10 @@ class OcuparPolizaCallback extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
-                const threadId = StateKeyManager.getThreadId(ctx);
-                
-                // Get the policy to check if phone number exists
+                const threadId = StateKeyManager.getThreadId(ctx); // Obtiene el threadId
+                this.logInfo(`[keepPhone] Iniciando callback para póliza ${numeroPoliza}`, { chatId, threadId }); // Log inicio
+
+                // Get the policy to get the phone number
                 const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
@@ -105,19 +106,28 @@ class OcuparPolizaCallback extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
                 
                 // Get the policy to get the phone number
                 const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 }
-                
+
                 // Clean up the phone number waiting state
-                this.awaitingPhoneNumber.delete(chatId);
-                
+                this.logInfo(`[keepPhone] Intentando eliminar estado awaitingPhoneNumber`, { chatId, threadId });
+                const deleteResult = this.awaitingPhoneNumber.delete(chatId, threadId); // Intenta eliminar estado de espera de teléfono
+                this.logInfo(`[keepPhone] Resultado de delete awaitingPhoneNumber: ${deleteResult}`, { chatId, threadId });
+                const hasAfterDelete = this.awaitingPhoneNumber.has(chatId, threadId);
+                this.logInfo(`[keepPhone] Verificación inmediata awaitingPhoneNumber.has: ${hasAfterDelete}`, { chatId, threadId });
+
                 // Ask for origin-destination directly
-                this.awaitingOrigenDestino.set(chatId, numeroPoliza);
-                
+                this.logInfo(`[keepPhone] Intentando establecer estado awaitingOrigenDestino`, { chatId, threadId });
+                const setResult = this.awaitingOrigenDestino.set(chatId, numeroPoliza, threadId); // Establece estado de espera de origen/destino
+                this.logInfo(`[keepPhone] Resultado de set awaitingOrigenDestino: ${setResult}`, { chatId, threadId });
+                const hasAfterSet = this.awaitingOrigenDestino.has(chatId, threadId);
+                this.logInfo(`[keepPhone] Verificación inmediata awaitingOrigenDestino.has: ${hasAfterSet}`, { chatId, threadId });
+
                 await ctx.reply(
                     `✅ Se mantendrá el número: ${policy.telefono}\n\n` +
                     `🚗 Ahora ingresa *origen y destino* (ej: "Neza - Tecamac") en una sola línea.`,
@@ -469,12 +479,20 @@ class OcuparPolizaCallback extends BaseCommand {
                     if (!notificationManager || !notificationManager.isInitialized) {
                         this.logWarn('NotificationManager no está inicializado, la notificación será solo visual');
                     } else {
+                        // Obtener el número de expediente del estado guardado o generar uno nuevo
+                        const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+                        const expedienteNum = savedState && savedState.expedienteNum 
+                            ? savedState.expedienteNum 
+                            : `EXP-${new Date().toISOString().slice(0,10)}`;
+                        
+                        this.logInfo(`Usando número de expediente: ${expedienteNum} para notificación`);
+                        
                         // Programar la notificación en el sistema
                         const notification = await notificationManager.scheduleNotification({
                             numeroPoliza: numeroPoliza,
                             targetGroupId: -1002212807945,
                             contactTime: serviceInfo.contactTime,
-                            expedienteNum: `EXP-${new Date().toISOString().slice(0,10)}`,
+                            expedienteNum: expedienteNum,
                             origenDestino: `${serviceInfo.origen} - ${serviceInfo.destino}`,
                             marcaModelo: `${serviceInfo.policy.marca} ${serviceInfo.policy.submarca} (${serviceInfo.policy.año})`,
                             colorVehiculo: serviceInfo.policy.color,

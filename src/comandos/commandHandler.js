@@ -1239,6 +1239,14 @@ class CommandHandler {
                 // Usar origen/destino guardado
                 const origenDestino = origenDestinoGuardado;
     
+                // Guardar el número de expediente en FlowStateManager para uso en notificaciones
+                const flowStateManager = require('../utils/FlowStateManager');
+                flowStateManager.saveState(chatId, numeroPoliza, {
+                    expedienteNum: expediente
+                }, threadId);
+                
+                this.logInfo(`Guardando número de expediente: ${expediente} para póliza: ${numeroPoliza}`, { chatId, threadId });
+                
                 // Llamar la función para añadir el servicio
                 const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
                 if (!updatedPolicy) {
