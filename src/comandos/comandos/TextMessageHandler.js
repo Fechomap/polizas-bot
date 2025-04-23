@@ -42,23 +42,30 @@ class TextMessageHandler extends BaseCommand {
 
                 // Ignore commands
                 if (messageText.startsWith('/')) {
+                    this.logInfo('[TextMsgHandler] Ignorando comando.');
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingSaveData`);
                 // 1) If we're in /save flow
                 if (this.handler.awaitingSaveData.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingSaveData activo. Llamando a handleSaveData.'); // Log añadido
                     await this.handler.handleSaveData(ctx, messageText);
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingGetPolicyNumber`);
                 // 2) If we're waiting for a policy number for 'accion:consultar'
                 // Verificación explícita con logs
-                this.logInfo(`Verificando si se espera número de póliza en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                // this.logInfo(`Verificando si se espera número de póliza en chatId=${chatId}, threadId=${threadId || 'ninguno'}`); // Log redundante
                 const esperaPoliza = this.handler.awaitingGetPolicyNumber.has(chatId, threadId);
-                this.logInfo(`Resultado de verificación: ${esperaPoliza ? 'SÍ se espera' : 'NO se espera'}`);
+                // this.logInfo(`Resultado de verificación: ${esperaPoliza ? 'SÍ se espera' : 'NO se espera'}`); // Log redundante
 
                 if (esperaPoliza) {
-                    this.logInfo(`Procesando número de póliza: ${messageText}`, { chatId, threadId: threadId || 'ninguno' });
+                    this.logInfo('[TextMsgHandler] Estado awaitingGetPolicyNumber activo. Llamando a handleGetPolicyFlow.'); // Log añadido
+                    // this.logInfo(`Procesando número de póliza: ${messageText}`, { chatId, threadId: threadId || 'ninguno' }); // Log redundante
                     try {
                         // Agregar captura de errores para depuración
                         await this.handler.handleGetPolicyFlow(ctx, messageText);
@@ -69,57 +76,180 @@ class TextMessageHandler extends BaseCommand {
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingUploadPolicyNumber`);
                 // 3) If we're waiting for a policy number for /upload
                 if (this.handler.awaitingUploadPolicyNumber.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingUploadPolicyNumber activo. Llamando a handleUploadFlow.'); // Log añadido
                     await this.handler.handleUploadFlow(ctx, messageText);
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingDeletePolicyNumber`);
                 // 4) If we're waiting for a policy number for /delete
                 if (this.handler.awaitingDeletePolicyNumber.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingDeletePolicyNumber activo. Llamando a handleDeletePolicyFlow.'); // Log añadido
                     await this.handler.handleDeletePolicyFlow(ctx, messageText);
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingPaymentPolicyNumber`);
                 // 5) If we're waiting for a policy number for /addpayment
                 if (this.handler.awaitingPaymentPolicyNumber.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingPaymentPolicyNumber activo. Llamando a handleAddPaymentPolicyNumber.'); // Log añadido
                     await this.handler.handleAddPaymentPolicyNumber(ctx, messageText);
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingPaymentData`);
                 // 6) If we're waiting for payment data (amount/date) for /addpayment
                 if (this.handler.awaitingPaymentData.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingPaymentData activo. Llamando a handlePaymentData.'); // Log añadido
                     await this.handler.handlePaymentData(ctx, messageText);
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingContactTime con threadId=${threadId || 'ninguno'}`);
+                // (C) If we're waiting for contact time (part of 'ocuparPoliza' flow after service assignment)
+                let esperaHoraContacto = false;
+                
+                // Verificar si existe serviceInfo con waitingForContactTime=true
+                const ocuparPolizaCmd = this.handler.registry?.getCommand
+                    ? this.handler.registry.getCommand('ocuparPoliza')
+                    : null;
+                
+                if (ocuparPolizaCmd) {
+                    const serviceInfo = ocuparPolizaCmd.scheduledServiceInfo.get(chatId, threadId);
+                    this.logInfo(`[TextMsgHandler] Verificando serviceInfo para hora de contacto: ${JSON.stringify(serviceInfo)}`);
+                    
+                    if (serviceInfo && serviceInfo.waitingForContactTime) {
+                        this.logInfo(`[TextMsgHandler] Encontrado serviceInfo con waitingForContactTime=true`);
+                        esperaHoraContacto = true;
+                    }
+                }
+                
+                // Verificación tradicional como respaldo
+                if (!esperaHoraContacto && this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime) {
+                    if (typeof this.ocuparPolizaCallback.awaitingContactTime.has === 'function') {
+                        esperaHoraContacto = this.ocuparPolizaCallback.awaitingContactTime.has(chatId, threadId);
+                        this.logInfo(`Verificación de awaitingContactTime.has: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}`);
+                    } else if (typeof this.ocuparPolizaCallback.awaitingContactTime.get === 'function') {
+                        const valor = this.ocuparPolizaCallback.awaitingContactTime.get(chatId, threadId);
+                        esperaHoraContacto = !!valor;
+                        this.logInfo(`Verificación alternativa usando get: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}, valor=${valor}`);
+                    }
+                }
+                
+                if (esperaHoraContacto) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingContactTime activo. Llamando a handleContactTime.'); // Log añadido
+                    this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, threadId, hora: messageText });
+                    if (typeof this.ocuparPolizaCallback.handleContactTime === 'function') {
+                        await this.ocuparPolizaCallback.handleContactTime(ctx, messageText, threadId);
+                    } else {
+                        this.logInfo('OcuparPolizaCallback or handleContactTime not found, cannot process contact time.');
+                        await ctx.reply('❌ Error: No se puede procesar la hora de contacto. Por favor, inténtalo de nuevo desde el menú principal.');
+                    }
+                    return; // Let the specific handler manage state and replies
+                }
+
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingServicePolicyNumber`);
                 // 7) Waiting for a policy number for /addservice
                 if (this.handler.awaitingServicePolicyNumber.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingServicePolicyNumber activo. Llamando a handleAddServicePolicyNumber.'); // Log añadido
                     await this.handler.handleAddServicePolicyNumber(ctx, messageText);
                     return;
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingServiceData con threadId=${threadId || 'ninguno'}`);
                 // 8) Waiting for service data (cost, date, file number)
-                if (this.handler.awaitingServiceData.get(chatId)) {
-                    await this.handler.handleServiceData(ctx, messageText);
-                    return;
+                if (this.handler.awaitingServiceData.get(chatId, threadId)) { // <-- AÑADIDO threadId
+                    this.logInfo('[TextMsgHandler] Estado awaitingServiceData activo. Llamando a handleServiceData.'); // Log añadido
+                    // Usar la versión corregida de handleServiceData
+                    const handleServiceData = require('../handleServiceData');
+                    const serviceResult = await handleServiceData.call(this.handler, ctx, messageText);
+
+                    // Verificar si handleServiceData tuvo éxito
+                    if (!serviceResult) {
+                        // handleServiceData ya debería haber respondido con un error, pero por si acaso:
+                        this.logError('[TextMsgHandler] handleServiceData falló o no devolvió datos.');
+                        // No limpiamos estado aquí para permitir corrección
+                        return;
+                    }
+
+                    // Extraer datos del resultado
+                    const { expediente, origenDestino, costo, fechaJS } = serviceResult;
+
+                    // NUEVO: Verificar si estamos en flujo de notificación después de servicio
+                    const ocuparPolizaCmd = this.handler.registry?.getCommand
+                        ? this.handler.registry.getCommand('ocuparPoliza')
+                        : null;
+
+                    if (ocuparPolizaCmd) {
+                        // --- INICIO LOGGING AÑADIDO ---
+                        this.logInfo(`[TextMsgHandler] Verificando flujo de notificación para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                        const serviceInfo = ocuparPolizaCmd.scheduledServiceInfo.get(chatId, threadId);
+                        this.logInfo(`[TextMsgHandler] serviceInfo recuperado: ${JSON.stringify(serviceInfo)}`);
+                        // --- FIN LOGGING AÑADIDO ---
+
+                        if (serviceInfo && serviceInfo.waitingForServiceData) {
+                            // Estamos en el flujo de notificación ⇒ continuar solicitando hora
+                            this.logInfo(`[TextMsgHandler] serviceInfo encontrado y waitingForServiceData=true. Llamando a handleServiceCompleted.`); // Log añadido
+                            const completed = await ocuparPolizaCmd.handleServiceCompleted(ctx, { // Capturar resultado
+                                expediente,
+                                origenDestino,
+                                costo,
+                                fecha: fechaJS
+                            });
+                            // Si handleServiceCompleted tuvo éxito, el flujo continúa allí.
+                            // Si falla, podríamos querer limpiar el estado aquí, pero por ahora lo dejamos.
+                            if (completed) {
+                                return; // El flujo continúa en OcuparPolizaCallback
+                            } else {
+                                this.logError('[TextMsgHandler] handleServiceCompleted falló.');
+                                // Considerar limpiar estado aquí si handleServiceCompleted falla
+                                this.handler.awaitingServiceData.delete(chatId, threadId);
+                                return;
+                            }
+                        } else {
+                           this.logInfo(`[TextMsgHandler] Condición de notificación falló: serviceInfo=${!!serviceInfo}, waitingForServiceData=${serviceInfo?.waitingForServiceData}`); // Log añadido
+                           // Limpiar estado si no es flujo de notificación
+                           this.handler.awaitingServiceData.delete(chatId, threadId);
+                        }
+                    } else {
+                         this.logInfo(`[TextMsgHandler] ocuparPolizaCmd no encontrado.`); // Log añadido
+                         // Limpiar estado si no se puede encontrar el comando
+                         this.handler.awaitingServiceData.delete(chatId, threadId);
+                    }
+
+                    // Si llegamos aquí, significa que no continuamos con el flujo de notificación
+                    // El estado ya debería haberse limpiado en los bloques 'else' anteriores.
+                    // this.logInfo(`[TextMsgHandler] Flujo de datos de servicio completado (sin continuación de notificación).`); // Log ajustado
+                    return; // Salir después de manejar los datos del servicio
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingPhoneNumber`);
                 // (A) If we're waiting for a phone number (part of 'ocuparPoliza' flow)
                 // Verificación detallada con logs para awaitingPhoneNumber
-                this.logInfo(`Verificando si se espera teléfono en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                // this.logInfo(`Verificando si se espera teléfono en chatId=${chatId}, threadId=${threadId || 'ninguno'}`); // Log redundante
                 let esperaTelefono = false;
 
                 // Verificar existencia del mapa
                 if (!this.handler.awaitingPhoneNumber) {
-                    this.logWarn('El mapa awaitingPhoneNumber no existe en el handler');
+                    this.logInfo('El mapa awaitingPhoneNumber no existe en el handler');
                 } else {
                     // Verificar método has
                     if (typeof this.handler.awaitingPhoneNumber.has === 'function') {
                         esperaTelefono = this.handler.awaitingPhoneNumber.has(chatId, threadId);
                         this.logInfo(`Verificación de awaitingPhoneNumber.has: ${esperaTelefono ? 'SÍ se espera' : 'NO se espera'}`);
                     } else {
-                        this.logWarn('El método has no está disponible en awaitingPhoneNumber');
+                        this.logInfo('El método has no está disponible en awaitingPhoneNumber');
                         
                         // Verificar método get como alternativa
                         if (typeof this.handler.awaitingPhoneNumber.get === 'function') {
@@ -137,7 +267,7 @@ class TextMessageHandler extends BaseCommand {
                     try {
                         // Verificar existe el callback y el método
                         if (!this.ocuparPolizaCallback) {
-                            this.logWarn('Intentando cargar ocuparPolizaCallback dinámicamente');
+                            this.logInfo('Intentando cargar ocuparPolizaCallback dinámicamente');
                             const commands = this.handler.registry.getAllCommands();
                             this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
                         }
@@ -153,24 +283,28 @@ class TextMessageHandler extends BaseCommand {
                         this.logError(`Error al procesar número telefónico: ${error.message}`, error);
                         await ctx.reply('❌ Error al procesar el número telefónico. Por favor, intenta nuevamente.');
                     }
+                    this.logInfo('[TextMsgHandler] Estado awaitingPhoneNumber activo. Llamando a handlePhoneNumber.'); // Log añadido
+                    // ... (resto del bloque)
                     return; // Let the specific handler manage state and replies
                 }
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingOrigenDestino`);
                 // (B) If we're waiting for origin-destination (part of 'ocuparPoliza' flow)
                 // Verificación detallada con logs para awaitingOrigenDestino
-                this.logInfo(`Verificando si se espera origen-destino en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
+                // this.logInfo(`Verificando si se espera origen-destino en chatId=${chatId}, threadId=${threadId || 'ninguno'}`); // Log redundante
                 let esperaOrigenDestino = false;
 
                 // Verificar existencia del mapa
                 if (!this.handler.awaitingOrigenDestino) {
-                    this.logWarn('El mapa awaitingOrigenDestino no existe en el handler');
+                    this.logInfo('El mapa awaitingOrigenDestino no existe en el handler');
                 } else {
                     // Verificar método has
                     if (typeof this.handler.awaitingOrigenDestino.has === 'function') {
                         esperaOrigenDestino = this.handler.awaitingOrigenDestino.has(chatId, threadId);
                         this.logInfo(`Verificación de awaitingOrigenDestino.has: ${esperaOrigenDestino ? 'SÍ se espera' : 'NO se espera'}`);
                     } else {
-                        this.logWarn('El método has no está disponible en awaitingOrigenDestino');
+                        this.logInfo('El método has no está disponible en awaitingOrigenDestino');
                         
                         // Verificar método get como alternativa
                         if (typeof this.handler.awaitingOrigenDestino.get === 'function') {
@@ -188,7 +322,7 @@ class TextMessageHandler extends BaseCommand {
                     try {
                         // Verificar existe el callback y el método
                         if (!this.ocuparPolizaCallback) {
-                            this.logWarn('Intentando cargar ocuparPolizaCallback dinámicamente');
+                            this.logInfo('Intentando cargar ocuparPolizaCallback dinámicamente');
                             const commands = this.handler.registry.getAllCommands();
                             this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
                         }
@@ -204,37 +338,18 @@ class TextMessageHandler extends BaseCommand {
                         this.logError(`Error al procesar origen-destino: ${error.message}`, error);
                         await ctx.reply('❌ Error al procesar origen-destino. Por favor, intenta nuevamente.');
                     }
+                    this.logInfo('[TextMsgHandler] Estado awaitingOrigenDestino activo. Llamando a handleOrigenDestino.'); // Log añadido
+                    // ... (resto del bloque)
                     return; // Let the specific handler manage state and replies
                 }
 
-                // (C) If we're waiting for contact time (part of 'ocuparPoliza' flow after service assignment)
-                this.logInfo(`Verificando si se espera hora de contacto en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
-                let esperaHoraContacto = false;
-                
-                if (this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime) {
-                    if (typeof this.ocuparPolizaCallback.awaitingContactTime.has === 'function') {
-                        esperaHoraContacto = this.ocuparPolizaCallback.awaitingContactTime.has(chatId, threadId);
-                        this.logInfo(`Verificación de awaitingContactTime.has: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}`);
-                    } else if (typeof this.ocuparPolizaCallback.awaitingContactTime.get === 'function') {
-                        const valor = this.ocuparPolizaCallback.awaitingContactTime.get(chatId, threadId);
-                        esperaHoraContacto = !!valor;
-                        this.logInfo(`Verificación alternativa usando get: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}, valor=${valor}`);
-                    }
-                }
-                
-                if (esperaHoraContacto) {
-                    this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, threadId, hora: messageText });
-                    if (typeof this.ocuparPolizaCallback.handleContactTime === 'function') {
-                        await this.ocuparPolizaCallback.handleContactTime(ctx, messageText, threadId);
-                    } else {
-                        this.logWarn('OcuparPolizaCallback or handleContactTime not found, cannot process contact time.');
-                        await ctx.reply('❌ Error: No se puede procesar la hora de contacto. Por favor, inténtalo de nuevo desde el menú principal.');
-                    }
-                    return; // Let the specific handler manage state and replies
-                }
+                // La verificación de awaitingContactTime ya se realiza al principio del método
 
+                // --- LOGGING AÑADIDO ---
+                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingDeleteReason`);
                 // Handle delete reason
                 if (this.handler.awaitingDeleteReason && this.handler.awaitingDeleteReason.get(chatId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingDeleteReason activo. Procesando motivo.'); // Log añadido
                     const numeroPolizas = this.handler.awaitingDeleteReason.get(chatId);
                     const motivo = messageText.trim() === 'ninguno' ? '' : messageText.trim();
                     
@@ -345,7 +460,9 @@ class TextMessageHandler extends BaseCommand {
                     }
                     return;
                 }
-        
+
+                // --- LOGGING AÑADIDO ---
+                this.logInfo('[TextMsgHandler] Ningún estado activo coincidió con el mensaje.');
                 // If it gets here and isn't in any of the previous flows, ignore or respond generically
             } catch (error) {
                 this.logError('Error general al procesar mensaje de texto:', error);

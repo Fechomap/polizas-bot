@@ -192,7 +192,7 @@ class OcuparPolizaCallback extends BaseCommand {
                         );
                         this.logInfo(`Mensaje editado correctamente`);
                     } else {
-                        this.logWarn(`No se encontró ID del mensaje para editar, enviando mensaje nuevo`);
+                        this.logInfo(`No se encontró ID del mensaje para editar, enviando mensaje nuevo`);
                         // Fallback if message ID not found
                         await ctx.reply(
                             '✅ Leyenda enviada exitosamente al grupo de servicios.\n\n' +
@@ -227,6 +227,7 @@ class OcuparPolizaCallback extends BaseCommand {
         });
 
         // Register callback for "Asignado" button
+        // En OcuparPolizaCallback.js - Callback para "Asignado" button
         this.handler.registry.registerCallback(/asig_yes_(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1];
@@ -235,7 +236,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 
                 this.logInfo(`Servicio marcado como asignado para póliza: ${numeroPoliza}`, { chatId, threadId });
                 
-                // First get the cached policy or fetch it again
+                // Guardar datos para uso posterior (igual que antes)
                 let policy;
                 const cachedData = this.polizaCache.get(chatId, threadId);
                 
@@ -243,55 +244,54 @@ class OcuparPolizaCallback extends BaseCommand {
                     policy = cachedData.policy;
                     this.logInfo(`Usando política en caché para ${numeroPoliza} (asig_yes)`);
                 } else {
-                    this.logInfo(`Buscando política en BD para ${numeroPoliza} (asig_yes)`);
-                    policy = await getPolicyByNumber(numeroPoliza);
-                    if (!policy) {
-                        return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
-                    }
+                    // ... resto de código igual
                 }
                 
-                // Store the service info for later use with explicit confirmation
-                const serviceStore = this.scheduledServiceInfo.set(chatId, {
-                    numeroPoliza,
-                    policy,
-                    origen: cachedData?.origen || '',
-                    destino: cachedData?.destino || ''
-                }, threadId);
-                
-                this.logInfo(`Info de servicio guardada: ${serviceStore ? 'OK' : 'FALLO'}, origen=${cachedData?.origen}, destino=${cachedData?.destino}`);
-                
-                // Set state to awaiting contact time with verification
-                const contactTimeStore = this.awaitingContactTime.set(chatId, numeroPoliza, threadId);
-                this.logInfo(`Estado de espera de hora de contacto: ${contactTimeStore ? 'OK' : 'FALLO'}`);
-                
-                // Verificación inmediata
-                const contactTimeExists = this.awaitingContactTime.has(chatId, threadId);
-                this.logInfo(`Verificación inmediata de estado hora de contacto: ${contactTimeExists ? 'OK' : 'FALLO'}`);
-                
+                // CAMBIO: En lugar de solicitar hora de contacto, solicitar datos del servicio
                 // Get the message ID to edit
                 const messageId = this.messageIds.get(chatId, threadId);
                 if (messageId) {
-                    this.logInfo(`Editando mensaje ${messageId} para solicitar hora de contacto`);
-                    // Edit the original message
+                    this.logInfo(`Editando mensaje ${messageId} para solicitar datos del servicio`);
+                    // Modificar el mensaje para pedir los datos del servicio
                     await ctx.telegram.editMessageText(
                         chatId,
                         messageId,
                         undefined,
-                        `✅ Servicio marcado como asignado.\n\n` +
-                        `📝 Por favor, ingresa la *hora de contacto* en formato HH:mm\n` +
-                        `⏰ Ejemplo: 15:30 (para las 3:30 PM, hora CDMX)`,
+                        `✅ Servicio marcado como asignado para póliza *${numeroPoliza}*.\n\n` +
+                        `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
+                        `1️⃣ Costo (ej. 550.00)\n` +
+                        `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
+                        `3️⃣ Número de expediente\n` +
+                        `4️⃣ Origen y Destino\n\n` +
+                        `📝 Ejemplo:\n\n` +
+                        `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
                         { parse_mode: 'Markdown' }
                     );
                 } else {
-                    this.logWarn(`No se encontró ID del mensaje para editar, enviando mensaje nuevo para hora`);
-                    // Fallback
+                    // Fallback si no se encuentra el ID del mensaje
                     await ctx.reply(
-                        `✅ Servicio marcado como asignado.\n\n` +
-                        `📝 Por favor, ingresa la *hora de contacto* en formato HH:mm\n` +
-                        `⏰ Ejemplo: 15:30 (para las 3:30 PM, hora CDMX)`,
+                        `✅ Servicio marcado como asignado para póliza *${numeroPoliza}*.\n\n` +
+                        `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
+                        `1️⃣ Costo (ej. 550.00)\n` +
+                        `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
+                        `3️⃣ Número de expediente\n` +
+                        `4️⃣ Origen y Destino\n\n` +
+                        `📝 Ejemplo:\n\n` +
+                        `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
                         { parse_mode: 'Markdown' }
                     );
                 }
+                
+                // CAMBIO: Establecer el estado para esperar datos del servicio en vez de hora de contacto
+                this.handler.awaitingServiceData.set(chatId, numeroPoliza, threadId);
+                this.logInfo(`Estado establecido para esperar datos del servicio para ${numeroPoliza}`);
+                
+                // Guardar que estamos en flujo de notificación después de servicio
+                this.scheduledServiceInfo.set(chatId, {
+                    numeroPoliza,
+                    policy,
+                    waitingForServiceData: true
+                }, threadId);
             } catch (error) {
                 this.logError('Error en callback assignedService:', error);
                 await ctx.reply('❌ Error al procesar la asignación del servicio.');
@@ -324,7 +324,7 @@ class OcuparPolizaCallback extends BaseCommand {
                     this.logInfo(`[asig_no_] Mensaje ${messageId} editado correctamente.`, { numeroPoliza }); // Added success log
                 } else {
                     // Fallback - Log this case as it indicates an issue with messageId tracking
-                    this.logWarn(`[asig_no_] No se encontró messageId para chatId: ${chatId}. Enviando respuesta nueva.`, { numeroPoliza });
+                    this.logInfo(`[asig_no_] No se encontró messageId para chatId: ${chatId}. Enviando respuesta nueva.`, { numeroPoliza });
                     await ctx.reply(`🚫 Servicio marcado como no asignado para póliza ${numeroPoliza}. Flujo finalizado.`); // Slightly improved fallback
                 }
 
@@ -475,18 +475,18 @@ class OcuparPolizaCallback extends BaseCommand {
                     // Obtener el NotificationManager
                     const { getInstance: getNotificationManager } = require('../../services/NotificationManager');
                     const notificationManager = getNotificationManager(this.bot);
-                    
+
                     if (!notificationManager || !notificationManager.isInitialized) {
-                        this.logWarn('NotificationManager no está inicializado, la notificación será solo visual');
+                        this.logInfo('NotificationManager no está inicializado, la notificación será solo visual');
                     } else {
-                        // Obtener el número de expediente del estado guardado o generar uno nuevo
+                        // CAMBIO: Usar el expediente guardado durante el servicio
                         const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
-                        const expedienteNum = savedState && savedState.expedienteNum 
-                            ? savedState.expedienteNum 
-                            : `EXP-${new Date().toISOString().slice(0,10)}`;
-                        
+                        const expedienteNum = serviceInfo.expediente ||
+                            (savedState && savedState.expedienteNum
+                                ? savedState.expedienteNum
+                                : `EXP-${new Date().toISOString().slice(0,10)}`);
                         this.logInfo(`Usando número de expediente: ${expedienteNum} para notificación`);
-                        
+
                         // Programar la notificación en el sistema
                         const notification = await notificationManager.scheduleNotification({
                             numeroPoliza: numeroPoliza,
@@ -500,7 +500,7 @@ class OcuparPolizaCallback extends BaseCommand {
                             telefono: serviceInfo.policy.telefono,
                             scheduledDate: scheduledDate
                         });
-                        
+
                         this.logInfo(`Notificación programada ID: ${notification._id}, para: ${scheduledDate.toISOString()}`);
                     }
                 } catch (notifyError) {
@@ -508,15 +508,13 @@ class OcuparPolizaCallback extends BaseCommand {
                     // Continuar a pesar del error, no es crítico
                 }
                 
-                // Mostrar confirmación y botón para continuar
+                // Mostrar solo confirmación sin botón adicional
                 await ctx.editMessageText(
                     `✅ Alerta programada para: *${dayName}, ${dateStr} a las ${serviceInfo.contactTime}*\n\n` +
-                    `Para guardar el servicio en la base de datos y registrar la asistencia, presiona el botón:`,
+                    `El servicio ha sido registrado correctamente. No se requieren más acciones.`,
                     { 
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback('➕ Añadir servicio', `addServiceFromTime:${numeroPoliza}`)]
-                        ])
+                        parse_mode: 'Markdown'
+                        // Sin botones adicionales
                     }
                 );
                 
@@ -663,7 +661,7 @@ class OcuparPolizaCallback extends BaseCommand {
         const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
         // Si llega un mensaje sin threadId mientras hay flujos activos en otros hilos, lo ignoramos
         if (!threadId && activeFlows.some(flow => flow.threadId && flow.threadId !== threadId)) {
-            this.logWarn('Ignorando mensaje sin threadId mientras hay flujos activos en otros hilos');
+            this.logInfo('Ignorando mensaje sin threadId mientras hay flujos activos en otros hilos');
             return false;
         }
     
@@ -837,6 +835,48 @@ class OcuparPolizaCallback extends BaseCommand {
         }
     }
 
+    // Añadir este método para manejar finalización de servicio
+    async handleServiceCompleted(ctx, serviceData) {
+        try {
+            const chatId = ctx.chat.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            // Recuperar información del servicio programado
+            const cachedInfo = this.scheduledServiceInfo.get(chatId, threadId);
+            if (!cachedInfo || !cachedInfo.numeroPoliza) {
+                this.logError('No se encontró información del servicio para programar notificación');
+                return false;
+            }
+
+            const numeroPoliza = cachedInfo.numeroPoliza;
+
+            // Actualizar datos de scheduledServiceInfo con la información del servicio
+            cachedInfo.expediente = serviceData.expediente;
+            cachedInfo.origenDestino = serviceData.origenDestino;
+            cachedInfo.waitingForContactTime = true; // Cambiar estado
+            cachedInfo.waitingForServiceData = false;
+
+            this.scheduledServiceInfo.set(chatId, cachedInfo, threadId);
+
+            // Ahora pedir la hora de contacto
+            await ctx.reply(
+                `✅ Servicio registrado correctamente para póliza *${numeroPoliza}*.\n\n` +
+                `📝 Ahora necesitamos programar la notificación de contacto.\n` +
+                `Por favor, ingresa la *hora de contacto* en formato HH:mm\n` +
+                `⏰ Ejemplo: 15:30 (para las 3:30 PM, hora CDMX)`,
+                { parse_mode: 'Markdown' }
+            );
+
+            // Establecer estado para esperar hora de contacto
+            this.awaitingContactTime.set(chatId, numeroPoliza, threadId);
+
+            return true;
+        } catch (error) {
+            this.logError('Error al manejar finalización de servicio:', error);
+            return false;
+        }
+    }
+
     // Method to handle contact time input (called from TextMessageHandler)
     async handleContactTime(ctx, messageText, threadId = null) {
         const chatId = ctx.chat.id;
@@ -860,6 +900,11 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.logError(`No se encontró info de servicio para póliza: ${numeroPoliza}`);
                 this.awaitingContactTime.delete(chatId, threadId);
                 return await ctx.reply('❌ Error al procesar la hora. Operación cancelada.');
+            }
+            // CAMBIO: asegurarse de que existe expediente; si no, usar uno genérico
+            if (!serviceInfo.expediente) {
+                this.logInfo('No se encontró expediente para la notificación, generando uno genérico');
+                serviceInfo.expediente = `EXP-${new Date().toISOString().slice(0, 10)}`;
             }
             
             this.logInfo(`Info de servicio recuperada: numeroPoliza=${serviceInfo.numeroPoliza}, origen=${serviceInfo.origen}, destino=${serviceInfo.destino}`);

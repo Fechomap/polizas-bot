@@ -76,7 +76,7 @@ class ReportUsedCommand extends BaseCommand {
                     if (!e.message.includes('message to edit not found')) {
                         this.logError('Error al actualizar mensaje de progreso:', e);
                     } else {
-                        this.logWarn('Mensaje de progreso no encontrado, deteniendo actualizaciones.');
+                        this.logInfo('Mensaje de progreso no encontrado, deteniendo actualizaciones.');
                         clearInterval(progressInterval); // Stop trying if message is gone
                     }
                 }
@@ -124,7 +124,7 @@ class ReportUsedCommand extends BaseCommand {
                     // Timeout - allow script to continue but resolve promise
                     setTimeout(() => {
                         if (scriptRunning) {
-                            this.logWarn('Tiempo límite para script excedido, pero continuando ejecución');
+                            this.logInfo('Tiempo límite para script excedido, pero continuando ejecución');
                             resolve(); // Resolve even on timeout to proceed with fetching policies
                         }
                     }, 420000); // 7 minutos de timeout

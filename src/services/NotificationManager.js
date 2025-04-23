@@ -80,6 +80,11 @@ class NotificationManager {
      */
     async scheduleExistingNotification(notification) {
         try {
+            const notificationId = notification._id.toString();
+            if (this.activeTimers.has(notificationId)) {
+                logger.info(`Notificación ${notificationId} ya tiene un timer programado, omitiendo`);
+                return;
+            }
             const now = new Date();
             const scheduledTime = new Date(notification.scheduledDate);
             
@@ -207,67 +212,64 @@ class NotificationManager {
     async sendNotification(notificationId) {
         // Limpiar el timer de la lista
         this.activeTimers.delete(notificationId);
-        
-        let notification;
+
         try {
-            // Buscar la notificación
-            notification = await ScheduledNotification.findById(notificationId);
-            
+            // Bloqueo atómico: marcar como PROCESSING para evitar envíos simultáneos
+            const notification = await ScheduledNotification.findOneAndUpdate(
+                { _id: notificationId, status: 'PENDING' },
+                { status: 'PROCESSING' },
+                { new: true }
+            );
             if (!notification) {
-                logger.error(`Notificación ${notificationId} no encontrada para enviar`);
+                logger.warn(`Notificación ${notificationId} no encontrada o no está PENDING`);
                 return;
             }
-            
-            // Si no está pendiente, salir
-            if (notification.status !== 'PENDING') {
-                logger.warn(`Notificación ${notificationId} no está pendiente, estado actual: ${notification.status}`);
-                return;
-            }
-            
+
             // Construir el mensaje
             let message = `🕒 **Servicio en contacto**\n`;
             message += `📄 Expediente: ${notification.expedienteNum}\n`;
             message += `🗓 Hora de contacto: ${notification.contactTime}\n`;
-            
+
             // Añadir datos adicionales si existen
             if (notification.marcaModelo) {
                 message += `🚗 Vehículo: ${notification.marcaModelo}\n`;
             }
-            
+
             if (notification.colorVehiculo) {
                 message += `🎨 Color: ${notification.colorVehiculo}\n`;
             }
-            
+
             if (notification.placas) {
                 message += `🔢 Placas: ${notification.placas}\n`;
             }
-            
+
             if (notification.telefono) {
                 message += `📱 Teléfono: ${notification.telefono}\n`;
             }
-            
+
             if (notification.origenDestino) {
                 message += `📍 Origen/Destino: ${notification.origenDestino}\n`;
             }
-            
+
             message += `✅ Favor de dar seguimiento en este chat.`;
-            
+
             // Enviar el mensaje al grupo
             await this.bot.telegram.sendMessage(
                 notification.targetGroupId, 
                 message, 
                 { parse_mode: 'Markdown' }
             );
-            
+
             // Marcar como enviada
             await notification.markAsSent();
-            
+
             logger.info(`✅ Notificación ${notificationId} enviada exitosamente al grupo ${notification.targetGroupId}`);
         } catch (error) {
             logger.error(`Error al enviar notificación ${notificationId}:`, error);
-            
+
             // Si existe la notificación, marcarla como fallida
-            if (notification) {
+            // NOTA: notification puede no estar definido si el error ocurre antes
+            if (typeof notification !== 'undefined' && notification && typeof notification.markAsFailed === 'function') {
                 try {
                     await notification.markAsFailed(error.message);
                 } catch (markError) {
