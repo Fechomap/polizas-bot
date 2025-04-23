@@ -465,9 +465,9 @@ class TextMessageHandler extends BaseCommand {
 
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Ningún estado activo coincidió con el mensaje.');
-                // Si llegamos aquí y no es un comando, significa que no esperamos esta entrada.
-                // Responder genéricamente para indicar que el flujo anterior terminó.
-                await ctx.reply('✅ Flujo completado. Si necesitas algo más, usa /start para ver el menú.');
+                // Si llegamos aquí y no es un comando, simplemente ignoramos el mensaje
+                // No enviamos ninguna respuesta para permitir mensajes de seguimiento naturales
+                return;
             } catch (error) {
                 this.logError('Error general al procesar mensaje de texto:', error);
                 await ctx.reply('❌ Error al procesar el mensaje. Intenta nuevamente.');
