@@ -580,10 +580,11 @@ class CommandHandler {
             const flowStateManager = require('../utils/FlowStateManager');
             flowStateManager.clearAllStates(chatId, threadId);
             
-            const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
-            if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
-                ocuparPolizaCmd.cleanupAllStates(chatId, threadId);
-            }
+            // ELIMINADO: Llamada a ocuparPolizaCmd.cleanupAllStates para evitar bucle recursivo
+            // La limpieza de OcuparPolizaCallback ahora llama a esta función (clearChatState)
+            // if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
+            //     ocuparPolizaCmd.cleanupAllStates(chatId, threadId);
+            // }
             
             return;
         }
@@ -601,15 +602,16 @@ class CommandHandler {
         this.awaitingOrigenDestino.deleteAll(chatId);
         this.awaitingDeleteReason.deleteAll(chatId);
         
-        const flowStateManager = require('../utils/FlowStateManager');
-        flowStateManager.clearAllStates(chatId);
-        
-        const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
-        if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
-            ocuparPolizaCmd.cleanupAllStates(chatId);
-        }
-        
-        logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
+            const flowStateManager = require('../utils/FlowStateManager');
+            flowStateManager.clearAllStates(chatId);
+            
+            // ELIMINADO: Llamada a ocuparPolizaCmd.cleanupAllStates para evitar bucle recursivo
+            // La limpieza de OcuparPolizaCallback ahora llama a esta función (clearChatState)
+            // if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
+            //     ocuparPolizaCmd.cleanupAllStates(chatId);
+            // }
+            
+            logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
     }
 
     /**

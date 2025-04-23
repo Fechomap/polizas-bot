@@ -518,8 +518,9 @@ class OcuparPolizaCallback extends BaseCommand {
                     }
                 );
                 
-                // Cleanup estado de espera de hora de contacto
-                this.awaitingContactTime.delete(chatId, threadId);
+                // Cleanup estado de espera de hora de contacto y otros estados del flujo
+                this.logInfo(`Limpiando estados para chatId=${chatId}, threadId=${threadId} después de completar flujo.`);
+                this.cleanupAllStates(chatId, threadId); // Limpiar todos los estados asociados a este flujo
                 
             } catch (error) {
                 this.logError(`Error al procesar selección de día:`, error);
@@ -563,6 +564,14 @@ class OcuparPolizaCallback extends BaseCommand {
             // También limpiar en FlowStateManager
             const flowStateManager = require('../../utils/FlowStateManager');
             flowStateManager.clearAllStates(chatId, threadId);
+            
+            // IMPORTANTE: Llamar también a la limpieza general del CommandHandler
+            if (this.handler && typeof this.handler.clearChatState === 'function') {
+                this.logInfo(`Llamando a CommandHandler.clearChatState desde OcuparPolizaCallback.cleanupAllStates`, { chatId, threadId });
+                this.handler.clearChatState(chatId, threadId);
+            } else {
+                this.logWarn(`No se pudo llamar a CommandHandler.clearChatState desde OcuparPolizaCallback`);
+            }
         } else {
             // Limpiar todos los estados para este chat
             this.pendingLeyendas.deleteAll(chatId);
@@ -575,7 +584,15 @@ class OcuparPolizaCallback extends BaseCommand {
             
             // También limpiar en FlowStateManager
             const flowStateManager = require('../../utils/FlowStateManager');
-            flowStateManager.clearAllStates(chatId);
+            flowStateManager.clearAllStates(chatId); // Limpia todos los hilos si threadId es null
+            
+            // IMPORTANTE: Llamar también a la limpieza general del CommandHandler
+            if (this.handler && typeof this.handler.clearChatState === 'function') {
+                this.logInfo(`Llamando a CommandHandler.clearChatState desde OcuparPolizaCallback.cleanupAllStates (sin threadId)`, { chatId });
+                this.handler.clearChatState(chatId, null); // Asegurarse de pasar null para limpiar todo el chat
+            } else {
+                this.logWarn(`No se pudo llamar a CommandHandler.clearChatState desde OcuparPolizaCallback (sin threadId)`);
+            }
         }
     }
 
@@ -884,15 +901,16 @@ class OcuparPolizaCallback extends BaseCommand {
         
         this.logInfo(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, { chatId, threadId });
         
+        // Validate time format (HH:mm)
+        const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+        if (!timeRegex.test(messageText)) {
+            return await ctx.reply(
+                '⚠️ Formato de hora inválido. Debe ser HH:mm (24 horas).\n' +
+                'Ejemplos válidos: 09:30, 14:45, 23:15'
+            );
+        }
+        
         try {
-            // Validate time format (HH:mm)
-            const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
-            if (!timeRegex.test(messageText)) {
-                return await ctx.reply(
-                    '⚠️ Formato de hora inválido. Debe ser HH:mm (24 horas).\n' +
-                    'Ejemplos válidos: 09:30, 14:45, 23:15'
-                );
-            }
             
             // Get service info with verification
             const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);

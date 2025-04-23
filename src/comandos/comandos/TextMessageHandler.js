@@ -207,29 +207,31 @@ class TextMessageHandler extends BaseCommand {
                                 fecha: fechaJS
                             });
                             // Si handleServiceCompleted tuvo éxito, el flujo continúa allí.
-                            // Si falla, podríamos querer limpiar el estado aquí, pero por ahora lo dejamos.
                             if (completed) {
+                                // No limpiar awaitingServiceData aquí, handleServiceCompleted lo hará
                                 return; // El flujo continúa en OcuparPolizaCallback
                             } else {
                                 this.logError('[TextMsgHandler] handleServiceCompleted falló.');
-                                // Considerar limpiar estado aquí si handleServiceCompleted falla
+                                // Limpiar estado si handleServiceCompleted falla
                                 this.handler.awaitingServiceData.delete(chatId, threadId);
                                 return;
                             }
                         } else {
                            this.logInfo(`[TextMsgHandler] Condición de notificación falló: serviceInfo=${!!serviceInfo}, waitingForServiceData=${serviceInfo?.waitingForServiceData}`); // Log añadido
-                           // Limpiar estado si no es flujo de notificación
+                           // Limpiar estado explícitamente si no es flujo de notificación
                            this.handler.awaitingServiceData.delete(chatId, threadId);
+                           this.logInfo(`[TextMsgHandler] Estado awaitingServiceData limpiado (no era flujo de notificación).`);
                         }
                     } else {
                          this.logInfo(`[TextMsgHandler] ocuparPolizaCmd no encontrado.`); // Log añadido
-                         // Limpiar estado si no se puede encontrar el comando
+                         // Limpiar estado explícitamente si no se puede encontrar el comando
                          this.handler.awaitingServiceData.delete(chatId, threadId);
+                         this.logInfo(`[TextMsgHandler] Estado awaitingServiceData limpiado (ocuparPolizaCmd no encontrado).`);
                     }
 
                     // Si llegamos aquí, significa que no continuamos con el flujo de notificación
-                    // El estado ya debería haberse limpiado en los bloques 'else' anteriores.
-                    // this.logInfo(`[TextMsgHandler] Flujo de datos de servicio completado (sin continuación de notificación).`); // Log ajustado
+                    // y el estado awaitingServiceData ya fue limpiado en los bloques 'else' anteriores.
+                    this.logInfo(`[TextMsgHandler] Flujo de datos de servicio completado (sin continuación de notificación).`);
                     return; // Salir después de manejar los datos del servicio
                 }
 
@@ -463,7 +465,9 @@ class TextMessageHandler extends BaseCommand {
 
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Ningún estado activo coincidió con el mensaje.');
-                // If it gets here and isn't in any of the previous flows, ignore or respond generically
+                // Si llegamos aquí y no es un comando, significa que no esperamos esta entrada.
+                // Responder genéricamente para indicar que el flujo anterior terminó.
+                await ctx.reply('✅ Flujo completado. Si necesitas algo más, usa /start para ver el menú.');
             } catch (error) {
                 this.logError('Error general al procesar mensaje de texto:', error);
                 await ctx.reply('❌ Error al procesar el mensaje. Intenta nuevamente.');
