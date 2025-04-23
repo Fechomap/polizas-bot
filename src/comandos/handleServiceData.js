@@ -85,10 +85,7 @@ async function handleServiceData(ctx, messageText) {
                 `Expediente: ${expediente}\n` +
                 `Origen y Destino: ${origenDestino}`,
                 {
-                    parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                    ])
+                    parse_mode: 'Markdown'
                 }
             );
             
@@ -153,10 +150,7 @@ async function handleServiceData(ctx, messageText) {
                 `Expediente: ${expediente}\n` +
                 `Origen y Destino: ${origenDestino}`,
                 {
-                    parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                    ])
+                    parse_mode: 'Markdown'
                 }
             );
             
