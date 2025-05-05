@@ -154,22 +154,63 @@ node scripts/clearAll.js
 node scripts/deletePolicy.js
 ```
 
-## Despliegue en Heroku
+## Despliegue en Railway
 
+### Configuración inicial
+
+1. Instala Railway CLI:
 ```bash
-# Login
-heroku login
-
-# Despliegue
-git push heroku main
-
-# Gestión de dynos
-heroku ps:scale web=1  # Activar
-heroku ps:scale web=0  # Desactivar
-
-# Logs
-heroku logs --tail
+npm i -g @railway/cli
 ```
+
+2. Inicia sesión en Railway:
+```bash
+railway login
+```
+
+3. Conecta tu proyecto:
+```bash
+railway link
+```
+
+4. Configura las variables de entorno en Railway:
+   - Ve a tu proyecto en Railway Dashboard
+   - Navega a Variables > Raw Editor
+   - Copia tus variables de entorno
+
+### Despliegue
+
+1. Para desplegar el código:
+```bash
+# Conectar el repositorio
+railway link
+
+# Desplegar automáticamente con GitHub
+# O manualmente:
+railway up
+```
+
+2. Para escalar el servicio:
+   - Ve a Railway Dashboard
+   - Selecciona tu servicio
+   - En la pestaña Settings, ajusta la cantidad de replicas
+
+3. Para ver logs:
+```bash
+railway logs
+```
+
+4. Para acceder a la base de datos:
+```bash
+railway connect mongodb
+```
+
+### Gestión del proyecto
+
+- **Monitoreo**: Railway proporciona métricas automáticas en el dashboard
+- **Escalado**: Ajusta los recursos desde la interfaz web
+- **Backups**: Railway mantiene respaldos automáticos de la base de datos
+- **Dominios**: Asigna un dominio personalizado desde el tab de Settings
 
 ## Consideraciones
 
@@ -177,7 +218,7 @@ heroku logs --tail
 - **Monitoreo**: Revisa regularmente los logs en `/logs`
 - **Seguridad**: Solo usuarios en el grupo autorizado pueden usar el bot
 - **Borrado**: Las pólizas se marcan como "ELIMINADO" pero no se borran de la base
-- **Escalado**: Cuando no uses el bot, escala a 0 los dynos para ahorrar recursos
+- **Escalado**: Railway maneja el escalado automático según demanda
 
 ## Licencia
 
