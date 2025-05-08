@@ -6,3 +6,4 @@ files/
 polizas_backup.xlsx
 .DS_Store
 backup/
+**/.DS_Store
