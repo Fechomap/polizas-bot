@@ -1,10 +1,17 @@
 // src/utils/logger.js
 const { createLogger, format, transports } = require('winston');
+const moment = require('moment-timezone'); // AÑADIR ESTA LÍNEA
+
+// Formato personalizado para incluir zona horaria
+const timezoneFormat = format((info) => {
+    info.timestamp = moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss z');
+    return info;
+});
 const path = require('path');
 
 // Define los formatos comunes
 const commonFormats = format.combine(
-    format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    timezoneFormat(),
     format.errors({ stack: true }),
     format.splat(),
     format.json()

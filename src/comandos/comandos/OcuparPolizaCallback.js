@@ -421,6 +421,7 @@ class OcuparPolizaCallback extends BaseCommand {
         });
 
         // Callback para procesar la selección de día
+        // En el callback para procesar la selección de día (alrededor de la línea 430)
         this.handler.registry.registerCallback(/selectDay:(\d+):(.+)/, async (ctx) => {
             try {
                 const daysOffset = parseInt(ctx.match[1], 10);
@@ -441,34 +442,38 @@ class OcuparPolizaCallback extends BaseCommand {
                 
                 this.logInfo(`Recuperada info de servicio: contactTime=${serviceInfo.contactTime}, origen=${serviceInfo.origen}, destino=${serviceInfo.destino}`);
                 
-                // Calcular la fecha programada completa
-                const today = new Date();
-                const scheduledDate = new Date(today);
-                scheduledDate.setDate(scheduledDate.getDate() + daysOffset);
+                // Calcular la fecha programada completa usando moment-timezone
+                const moment = require('moment-timezone');
+                const today = moment().tz('America/Mexico_City');
+                const scheduledMoment = today.clone().add(daysOffset, 'days');
                 
                 // Asignar la hora al día seleccionado
                 const [hours, minutes] = serviceInfo.contactTime.split(':').map(Number);
-                scheduledDate.setHours(hours, minutes, 0, 0);
+                scheduledMoment.hour(hours).minute(minutes).second(0).millisecond(0);
+                
+                // Convertir a Date object para compatibilidad
+                const scheduledDateJS = scheduledMoment.toDate();
                 
                 // Actualizar el serviceInfo con la fecha completa
-                serviceInfo.scheduledDate = scheduledDate;
+                serviceInfo.scheduledDate = scheduledDateJS;
                 const serviceStore = this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
                 
-                this.logInfo(`Info de servicio actualizada con fecha=${scheduledDate.toISOString()}: ${serviceStore ? 'OK' : 'FALLO'}`);
+                this.logInfo(`Info de servicio actualizada con fecha=${scheduledMoment.format()}: ${serviceStore ? 'OK' : 'FALLO'}`);
                 
                 // Guardar en FlowStateManager para uso posterior
                 const flowStateManager = require('../../utils/FlowStateManager');
                 flowStateManager.saveState(chatId, numeroPoliza, {
                     time: serviceInfo.contactTime,
-                    date: scheduledDate.toISOString(),
+                    date: scheduledDateJS.toISOString(),
                     origin: serviceInfo.origen,
                     destination: serviceInfo.destino
                 }, threadId);
                 
                 // Formatear la fecha para mostrar
                 const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-                const dayName = dayNames[scheduledDate.getDay()];
-                const dateStr = `${scheduledDate.getDate()}/${scheduledDate.getMonth() + 1}/${scheduledDate.getFullYear()}`;
+                // CAMBIO: Usar moment para obtener el día de la semana
+                const dayName = dayNames[scheduledMoment.day()];
+                const dateStr = scheduledMoment.format('DD/MM/YYYY');
                 
                 // PROGRAMAR LA ALERTA EN EL SISTEMA DE NOTIFICACIONES
                 try {
@@ -493,15 +498,15 @@ class OcuparPolizaCallback extends BaseCommand {
                             targetGroupId: -1002212807945,
                             contactTime: serviceInfo.contactTime,
                             expedienteNum: expedienteNum,
-                            origenDestino: `${serviceInfo.origen} - ${serviceInfo.destino}`,
+                            origenDestino: serviceInfo.origenDestino || `${serviceInfo.origen} - ${serviceInfo.destino}`,
                             marcaModelo: `${serviceInfo.policy.marca} ${serviceInfo.policy.submarca} (${serviceInfo.policy.año})`,
                             colorVehiculo: serviceInfo.policy.color,
                             placas: serviceInfo.policy.placas,
                             telefono: serviceInfo.policy.telefono,
-                            scheduledDate: scheduledDate
+                            scheduledDate: scheduledDateJS // Usar el objeto Date directamente
                         });
 
-                        this.logInfo(`Notificación programada ID: ${notification._id}, para: ${scheduledDate.toISOString()}`);
+                        this.logInfo(`Notificación programada ID: ${notification._id}, para: ${scheduledMoment.format('YYYY-MM-DD HH:mm:ss z')}`);
                     }
                 } catch (notifyError) {
                     this.logError('Error al programar notificación:', notifyError);
@@ -520,11 +525,13 @@ class OcuparPolizaCallback extends BaseCommand {
                 
                 // Cleanup estado de espera de hora de contacto y otros estados del flujo
                 this.logInfo(`Limpiando estados para chatId=${chatId}, threadId=${threadId} después de completar flujo.`);
-                this.cleanupAllStates(chatId, threadId); // Limpiar todos los estados asociados a este flujo
+                this.cleanupAllStates(chatId, threadId); // Asegurarse de pasar threadId aquí
                 
             } catch (error) {
                 this.logError(`Error al procesar selección de día:`, error);
                 await ctx.reply('❌ Error al procesar la selección de día. Operación cancelada.');
+                // Asegurarse de obtener threadId para la limpieza
+                const threadId = StateKeyManager.getThreadId(ctx);
                 this.cleanupAllStates(ctx.chat.id, threadId);
             }
         });

@@ -2,6 +2,9 @@
 const logger = require('../utils/logger');
 const ScheduledNotification = require('../models/scheduledNotification');
 const { getPolicyByNumber } = require('../controllers/policyController');
+const moment = require('moment-timezone'); // AÑADIR ESTA LÍNEA
+// Configurar zona horaria por defecto
+moment.tz.setDefault('America/Mexico_City'); // AÑADIR ESTA LÍNEA
 
 class NotificationManager {
     constructor(bot) {
@@ -47,12 +50,13 @@ class NotificationManager {
      */
     async loadPendingNotifications() {
         try {
-            const now = new Date();
+            // Usar momento para la comparación con zona horaria correcta
+            const nowCDMX = moment().tz('America/Mexico_City').toDate();
             
             // Obtener notificaciones PENDING cuyo tiempo programado sea en el futuro
             const pendingNotifications = await ScheduledNotification.find({
                 status: 'PENDING',
-                scheduledDate: { $gt: now }
+                scheduledDate: { $gt: nowCDMX }
             }).sort({ scheduledDate: 1 });
 
             if (pendingNotifications.length === 0) {
@@ -85,18 +89,19 @@ class NotificationManager {
                 logger.info(`Notificación ${notificationId} ya tiene un timer programado, omitiendo`);
                 return;
             }
-            const now = new Date();
+            // Usar momento para manejar zonas horarias correctamente
+            const nowCDMX = moment().tz('America/Mexico_City').toDate();
             const scheduledTime = new Date(notification.scheduledDate);
             
             // Si ya pasó el tiempo, marcar como FAILED
-            if (scheduledTime <= now) {
+            if (scheduledTime <= nowCDMX) {
                 logger.warn(`Notificación ${notification._id} programada para ${scheduledTime.toISOString()} ya pasó`);
                 await notification.markAsFailed('Tiempo de programación ya pasó durante la carga');
                 return;
             }
             
             // Calcular milisegundos hasta el envío
-            const timeToWait = scheduledTime.getTime() - now.getTime();
+            const timeToWait = scheduledTime.getTime() - nowCDMX.getTime();
             
             // Programar el timer
             const timerId = setTimeout(
@@ -107,7 +112,9 @@ class NotificationManager {
             // Guardar referencia al timer
             this.activeTimers.set(notification._id.toString(), timerId);
             
-            logger.info(`✅ Notificación ${notification._id} programada para ${scheduledTime.toISOString()} (en ${Math.round(timeToWait/1000/60)} minutos)`);
+            // Log en zona horaria CDMX para claridad
+            const scheduledMoment = moment(scheduledTime).tz('America/Mexico_City');
+            logger.info(`✅ Notificación ${notification._id} programada para ${scheduledMoment.format('YYYY-MM-DD HH:mm:ss')} CDMX (en ${Math.round(timeToWait/1000/60)} minutos)`);
         } catch (error) {
             logger.error(`Error al programar notificación existente ${notification._id}:`, error);
             await notification.markAsFailed(`Error al programar: ${error.message}`);
@@ -153,12 +160,13 @@ class NotificationManager {
             
             // Si se proporciona una fecha completa (como Date o string ISO), usarla directamente
             if (data.scheduledDate) {
-                scheduledDate = new Date(data.scheduledDate);
-                logger.info(`Usando fecha programada proporcionada: ${scheduledDate.toISOString()}`);
+                // Asegurar que la fecha proporcionada se interprete en CDMX
+                scheduledDate = moment(data.scheduledDate).tz('America/Mexico_City').toDate();
+                logger.info(`Usando fecha programada proporcionada: ${moment(scheduledDate).tz('America/Mexico_City').format()}`);
             } else {
                 // Comportamiento anterior: usar solo la hora
                 scheduledDate = this.parseContactTime(data.contactTime);
-                logger.info(`Usando solo hora (comportamiento anterior): ${scheduledDate.toISOString()}`);
+                logger.info(`Usando solo hora (comportamiento anterior): ${moment(scheduledDate).tz('America/Mexico_City').format()}`);
             }
             
             if (!scheduledDate || isNaN(scheduledDate.getTime())) {
@@ -177,8 +185,8 @@ class NotificationManager {
             logger.info(`Notificación creada en BD: ${notification._id}`);
             
             // Programar el envío
-            const now = new Date();
-            const timeToWait = scheduledDate.getTime() - now.getTime();
+            const nowCDMX = moment().tz('America/Mexico_City').toDate();
+            const timeToWait = scheduledDate.getTime() - nowCDMX.getTime();
             
             // Asegurar que el tiempo de espera sea positivo
             if (timeToWait <= 0) {
@@ -196,7 +204,8 @@ class NotificationManager {
             // Guardar referencia al timer
             this.activeTimers.set(notification._id.toString(), timerId);
             
-            logger.info(`✅ Nueva notificación ${notification._id} programada para ${scheduledDate.toISOString()} (en ${Math.round(timeToWait/1000/60)} minutos)`);
+            const scheduledMoment = moment(scheduledDate).tz('America/Mexico_City');
+            logger.info(`✅ Nueva notificación ${notification._id} programada para ${scheduledMoment.format('YYYY-MM-DD HH:mm:ss')} CDMX (en ${Math.round(timeToWait/1000/60)} minutos)`);
             
             return notification;
         } catch (error) {
@@ -353,24 +362,22 @@ class NotificationManager {
             
             const [hours, minutes] = timeStr.split(':').map(Number);
             
-            // Crear objeto Date para hoy con esa hora
-            const now = new Date();
-            const scheduledDate = new Date(
-                now.getFullYear(),
-                now.getMonth(),
-                now.getDate(),
-                hours,
-                minutes,
-                0
-            );
+            // Crear momento en la zona horaria de Ciudad de México
+            const nowCDMX = moment().tz('America/Mexico_City');
+            const scheduledCDMX = moment().tz('America/Mexico_City')
+                .hour(hours)
+                .minute(minutes)
+                .second(0)
+                .millisecond(0);
             
             // Si la hora ya pasó hoy, programar para mañana
-            if (scheduledDate <= now) {
-                scheduledDate.setDate(scheduledDate.getDate() + 1);
-                logger.info(`Hora ${timeStr} ya pasó hoy, programando para mañana:`, scheduledDate);
+            if (scheduledCDMX.isSameOrBefore(nowCDMX)) {
+                scheduledCDMX.add(1, 'day');
+                logger.info(`Hora ${timeStr} ya pasó hoy, programando para mañana:`, scheduledCDMX.format());
             }
             
-            return scheduledDate;
+            // Convertir a Date object (JavaScript nativo)
+            return scheduledCDMX.toDate();
         } catch (error) {
             logger.error(`Error al analizar hora ${timeStr}:`, error);
             return null;
