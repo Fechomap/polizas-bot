@@ -29,7 +29,7 @@ class NotificationManager {
         try {
             // Cargar notificaciones pendientes al iniciar
             await this.loadPendingNotifications();
-            
+
             // Configurar job para recuperar periódicamente
             this.recoveryInterval = setInterval(() => {
                 this.loadPendingNotifications().catch(err => {
@@ -52,7 +52,7 @@ class NotificationManager {
         try {
             // Usar momento para la comparación con zona horaria correcta
             const nowCDMX = moment().tz('America/Mexico_City').toDate();
-            
+
             // Obtener notificaciones PENDING cuyo tiempo programado sea en el futuro
             const pendingNotifications = await ScheduledNotification.find({
                 status: 'PENDING',
@@ -65,7 +65,7 @@ class NotificationManager {
             }
 
             logger.info(`Cargando ${pendingNotifications.length} notificaciones pendientes`);
-            
+
             // Programar cada notificación
             for (const notification of pendingNotifications) {
                 await this.scheduleExistingNotification(notification);
@@ -92,26 +92,26 @@ class NotificationManager {
             // Usar momento para manejar zonas horarias correctamente
             const nowCDMX = moment().tz('America/Mexico_City').toDate();
             const scheduledTime = new Date(notification.scheduledDate);
-            
+
             // Si ya pasó el tiempo, marcar como FAILED
             if (scheduledTime <= nowCDMX) {
                 logger.warn(`Notificación ${notification._id} programada para ${scheduledTime.toISOString()} ya pasó`);
                 await notification.markAsFailed('Tiempo de programación ya pasó durante la carga');
                 return;
             }
-            
+
             // Calcular milisegundos hasta el envío
             const timeToWait = scheduledTime.getTime() - nowCDMX.getTime();
-            
+
             // Programar el timer
             const timerId = setTimeout(
                 () => this.sendNotification(notification._id.toString()),
                 timeToWait
             );
-            
+
             // Guardar referencia al timer
             this.activeTimers.set(notification._id.toString(), timerId);
-            
+
             // Log en zona horaria CDMX para claridad
             const scheduledMoment = moment(scheduledTime).tz('America/Mexico_City');
             logger.info(`✅ Notificación ${notification._id} programada para ${scheduledMoment.format('YYYY-MM-DD HH:mm:ss')} CDMX (en ${Math.round(timeToWait/1000/60)} minutos)`);
@@ -133,7 +133,7 @@ class NotificationManager {
             if (!data.numeroPoliza || !data.contactTime || !data.expedienteNum) {
                 throw new Error('Datos incompletos para programar notificación');
             }
-            
+
             if (!data.targetGroupId) {
                 // Valor por defecto del grupo
                 data.targetGroupId = -1002212807945;
@@ -154,10 +154,10 @@ class NotificationManager {
             } catch (err) {
                 logger.warn(`No se pudo obtener datos de póliza ${data.numeroPoliza}:`, err);
             }
-            
+
             // CAMBIO: Determinar la fecha programada según los datos proporcionados
             let scheduledDate;
-            
+
             // Si se proporciona una fecha completa (como Date o string ISO), usarla directamente
             if (data.scheduledDate) {
                 // Asegurar que la fecha proporcionada se interprete en CDMX
@@ -168,11 +168,11 @@ class NotificationManager {
                 scheduledDate = this.parseContactTime(data.contactTime);
                 logger.info(`Usando solo hora (comportamiento anterior): ${moment(scheduledDate).tz('America/Mexico_City').format()}`);
             }
-            
+
             if (!scheduledDate || isNaN(scheduledDate.getTime())) {
                 throw new Error(`Formato de fecha/hora inválido: ${data.scheduledDate || data.contactTime}`);
             }
-            
+
             // Crear la notificación en la BD
             const notification = new ScheduledNotification({
                 ...data,
@@ -180,14 +180,14 @@ class NotificationManager {
                 scheduledDate,
                 status: 'PENDING'
             });
-            
+
             await notification.save();
             logger.info(`Notificación creada en BD: ${notification._id}`);
-            
+
             // Programar el envío
             const nowCDMX = moment().tz('America/Mexico_City').toDate();
             const timeToWait = scheduledDate.getTime() - nowCDMX.getTime();
-            
+
             // Asegurar que el tiempo de espera sea positivo
             if (timeToWait <= 0) {
                 logger.warn(`Tiempo de espera negativo (${timeToWait}ms) para notificación ${notification._id}, ajustando...`);
@@ -195,18 +195,18 @@ class NotificationManager {
                 await notification.markAsFailed('La fecha programada ya pasó');
                 return notification;
             }
-            
+
             const timerId = setTimeout(
                 () => this.sendNotification(notification._id.toString()),
                 timeToWait
             );
-            
+
             // Guardar referencia al timer
             this.activeTimers.set(notification._id.toString(), timerId);
-            
+
             const scheduledMoment = moment(scheduledDate).tz('America/Mexico_City');
             logger.info(`✅ Nueva notificación ${notification._id} programada para ${scheduledMoment.format('YYYY-MM-DD HH:mm:ss')} CDMX (en ${Math.round(timeToWait/1000/60)} minutos)`);
-            
+
             return notification;
         } catch (error) {
             logger.error('Error al programar nueva notificación:', error);
@@ -222,9 +222,10 @@ class NotificationManager {
         // Limpiar el timer de la lista
         this.activeTimers.delete(notificationId);
 
+        let notification = null;
         try {
             // Bloqueo atómico: marcar como PROCESSING para evitar envíos simultáneos
-            const notification = await ScheduledNotification.findOneAndUpdate(
+            notification = await ScheduledNotification.findOneAndUpdate(
                 { _id: notificationId, status: 'PENDING' },
                 { status: 'PROCESSING' },
                 { new: true }
@@ -235,7 +236,7 @@ class NotificationManager {
             }
 
             // Construir el mensaje
-            let message = `🕒 **Servicio en contacto**\n`;
+            let message = '🕒 **Servicio en contacto**\n';
             message += `📄 Expediente: ${notification.expedienteNum}\n`;
             message += `🗓 Hora de contacto: ${notification.contactTime}\n`;
 
@@ -260,12 +261,12 @@ class NotificationManager {
                 message += `📍 Origen/Destino: ${notification.origenDestino}\n`;
             }
 
-            message += `✅ Favor de dar seguimiento en este chat.`;
+            message += '✅ Favor de dar seguimiento en este chat.';
 
             // Enviar el mensaje al grupo
             await this.bot.telegram.sendMessage(
-                notification.targetGroupId, 
-                message, 
+                notification.targetGroupId,
+                message,
                 { parse_mode: 'Markdown' }
             );
 
@@ -277,12 +278,11 @@ class NotificationManager {
             logger.error(`Error al enviar notificación ${notificationId}:`, error);
 
             // Si existe la notificación, marcarla como fallida
-            // NOTA: notification puede no estar definido si el error ocurre antes
-            if (typeof notification !== 'undefined' && notification && typeof notification.markAsFailed === 'function') {
+            if (notification && typeof notification.markAsFailed === 'function') {
                 try {
                     await notification.markAsFailed(error.message);
                 } catch (markError) {
-                    logger.error(`Error adicional al marcar como fallida:`, markError);
+                    logger.error('Error adicional al marcar como fallida:', markError);
                 }
             }
         }
@@ -297,28 +297,28 @@ class NotificationManager {
         try {
             // Buscar la notificación
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 logger.warn(`Notificación ${notificationId} no encontrada para cancelar`);
                 return false;
             }
-            
+
             // Si ya no está pendiente, no hacer nada
             if (notification.status !== 'PENDING') {
                 logger.warn(`Notificación ${notificationId} no está pendiente, estado actual: ${notification.status}`);
                 return false;
             }
-            
+
             // Cancelar el timer si existe
             const timerId = this.activeTimers.get(notificationId);
             if (timerId) {
                 clearTimeout(timerId);
                 this.activeTimers.delete(notificationId);
             }
-            
+
             // Marcar como cancelada en la BD
             await notification.cancel();
-            
+
             logger.info(`✅ Notificación ${notificationId} cancelada exitosamente`);
             return true;
         } catch (error) {
@@ -354,14 +354,14 @@ class NotificationManager {
             // Validar formato HH:mm
             const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
             const match = timeStr.match(timeRegex);
-            
+
             if (!match) {
                 logger.warn(`Formato de hora inválido: ${timeStr}`);
                 return null;
             }
-            
+
             const [hours, minutes] = timeStr.split(':').map(Number);
-            
+
             // Crear momento en la zona horaria de Ciudad de México
             const nowCDMX = moment().tz('America/Mexico_City');
             const scheduledCDMX = moment().tz('America/Mexico_City')
@@ -369,13 +369,13 @@ class NotificationManager {
                 .minute(minutes)
                 .second(0)
                 .millisecond(0);
-            
+
             // Si la hora ya pasó hoy, programar para mañana
             if (scheduledCDMX.isSameOrBefore(nowCDMX)) {
                 scheduledCDMX.add(1, 'day');
                 logger.info(`Hora ${timeStr} ya pasó hoy, programando para mañana:`, scheduledCDMX.format());
             }
-            
+
             // Convertir a Date object (JavaScript nativo)
             return scheduledCDMX.toDate();
         } catch (error) {
@@ -392,16 +392,16 @@ class NotificationManager {
         if (this.recoveryInterval) {
             clearInterval(this.recoveryInterval);
         }
-        
+
         // Limpiar todos los timers activos
         for (const [id, timerId] of this.activeTimers.entries()) {
             clearTimeout(timerId);
             logger.debug(`Timer para notificación ${id} cancelado`);
         }
-        
+
         this.activeTimers.clear();
         this.isInitialized = false;
-        
+
         logger.info('NotificationManager detenido correctamente');
     }
 }

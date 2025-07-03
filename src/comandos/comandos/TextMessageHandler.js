@@ -8,7 +8,7 @@ class TextMessageHandler extends BaseCommand {
     constructor(handler) {
         super(handler);
         this.handler = handler;
-        
+
         // Get the OcuparPolizaCallback instance if it exists
         this.ocuparPolizaCallback = null;
     }
@@ -35,9 +35,9 @@ class TextMessageHandler extends BaseCommand {
                 const messageText = ctx.message.text.trim();
 
                 // Log para depuración
-                this.logInfo(`Procesando mensaje de texto: "${messageText}"`, { 
-                    chatId, 
-                    threadId: threadId || 'ninguno' 
+                this.logInfo(`Procesando mensaje de texto: "${messageText}"`, {
+                    chatId,
+                    threadId: threadId || 'ninguno'
                 });
 
                 // Ignore commands
@@ -47,7 +47,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingSaveData`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingSaveData');
                 // 1) If we're in /save flow
                 if (this.handler.awaitingSaveData.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingSaveData activo. Llamando a handleSaveData.'); // Log añadido
@@ -56,7 +56,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingGetPolicyNumber`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingGetPolicyNumber');
                 // 2) If we're waiting for a policy number for 'accion:consultar'
                 // Verificación explícita con logs
                 // this.logInfo(`Verificando si se espera número de póliza en chatId=${chatId}, threadId=${threadId || 'ninguno'}`); // Log redundante
@@ -77,7 +77,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingUploadPolicyNumber`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingUploadPolicyNumber');
                 // 3) If we're waiting for a policy number for /upload
                 if (this.handler.awaitingUploadPolicyNumber.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingUploadPolicyNumber activo. Llamando a handleUploadFlow.'); // Log añadido
@@ -86,7 +86,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingDeletePolicyNumber`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingDeletePolicyNumber');
                 // 4) If we're waiting for a policy number for /delete
                 if (this.handler.awaitingDeletePolicyNumber.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingDeletePolicyNumber activo. Llamando a handleDeletePolicyFlow.'); // Log añadido
@@ -95,7 +95,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingPaymentPolicyNumber`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingPaymentPolicyNumber');
                 // 5) If we're waiting for a policy number for /addpayment
                 if (this.handler.awaitingPaymentPolicyNumber.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingPaymentPolicyNumber activo. Llamando a handleAddPaymentPolicyNumber.'); // Log añadido
@@ -104,7 +104,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingPaymentData`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingPaymentData');
                 // 6) If we're waiting for payment data (amount/date) for /addpayment
                 if (this.handler.awaitingPaymentData.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingPaymentData activo. Llamando a handlePaymentData.'); // Log añadido
@@ -116,22 +116,22 @@ class TextMessageHandler extends BaseCommand {
                 this.logInfo(`[TextMsgHandler] Verificando estado: awaitingContactTime con threadId=${threadId || 'ninguno'}`);
                 // (C) If we're waiting for contact time (part of 'ocuparPoliza' flow after service assignment)
                 let esperaHoraContacto = false;
-                
+
                 // Verificar si existe serviceInfo con waitingForContactTime=true
                 const ocuparPolizaCmd = this.handler.registry?.getCommand
                     ? this.handler.registry.getCommand('ocuparPoliza')
                     : null;
-                
+
                 if (ocuparPolizaCmd) {
                     const serviceInfo = ocuparPolizaCmd.scheduledServiceInfo.get(chatId, threadId);
                     this.logInfo(`[TextMsgHandler] Verificando serviceInfo para hora de contacto: ${JSON.stringify(serviceInfo)}`);
-                    
+
                     if (serviceInfo && serviceInfo.waitingForContactTime) {
-                        this.logInfo(`[TextMsgHandler] Encontrado serviceInfo con waitingForContactTime=true`);
+                        this.logInfo('[TextMsgHandler] Encontrado serviceInfo con waitingForContactTime=true');
                         esperaHoraContacto = true;
                     }
                 }
-                
+
                 // Verificación tradicional como respaldo
                 if (!esperaHoraContacto && this.ocuparPolizaCallback && this.ocuparPolizaCallback.awaitingContactTime) {
                     if (typeof this.ocuparPolizaCallback.awaitingContactTime.has === 'function') {
@@ -143,7 +143,7 @@ class TextMessageHandler extends BaseCommand {
                         this.logInfo(`Verificación alternativa usando get: ${esperaHoraContacto ? 'SÍ se espera' : 'NO se espera'}, valor=${valor}`);
                     }
                 }
-                
+
                 if (esperaHoraContacto) {
                     this.logInfo('[TextMsgHandler] Estado awaitingContactTime activo. Llamando a handleContactTime.'); // Log añadido
                     this.logInfo('Delegando manejo de hora de contacto a OcuparPolizaCallback', { chatId, threadId, hora: messageText });
@@ -157,7 +157,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingServicePolicyNumber`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingServicePolicyNumber');
                 // 7) Waiting for a policy number for /addservice
                 if (this.handler.awaitingServicePolicyNumber.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingServicePolicyNumber activo. Llamando a handleAddServicePolicyNumber.'); // Log añadido
@@ -199,7 +199,7 @@ class TextMessageHandler extends BaseCommand {
 
                         if (serviceInfo && serviceInfo.waitingForServiceData) {
                             // Estamos en el flujo de notificación ⇒ continuar solicitando hora
-                            this.logInfo(`[TextMsgHandler] serviceInfo encontrado y waitingForServiceData=true. Llamando a handleServiceCompleted.`); // Log añadido
+                            this.logInfo('[TextMsgHandler] serviceInfo encontrado y waitingForServiceData=true. Llamando a handleServiceCompleted.'); // Log añadido
                             const completed = await ocuparPolizaCmd.handleServiceCompleted(ctx, { // Capturar resultado
                                 expediente,
                                 origenDestino,
@@ -217,26 +217,26 @@ class TextMessageHandler extends BaseCommand {
                                 return;
                             }
                         } else {
-                           this.logInfo(`[TextMsgHandler] Condición de notificación falló: serviceInfo=${!!serviceInfo}, waitingForServiceData=${serviceInfo?.waitingForServiceData}`); // Log añadido
-                           // Limpiar estado explícitamente si no es flujo de notificación
-                           this.handler.awaitingServiceData.delete(chatId, threadId);
-                           this.logInfo(`[TextMsgHandler] Estado awaitingServiceData limpiado (no era flujo de notificación).`);
+                            this.logInfo(`[TextMsgHandler] Condición de notificación falló: serviceInfo=${!!serviceInfo}, waitingForServiceData=${serviceInfo?.waitingForServiceData}`); // Log añadido
+                            // Limpiar estado explícitamente si no es flujo de notificación
+                            this.handler.awaitingServiceData.delete(chatId, threadId);
+                            this.logInfo('[TextMsgHandler] Estado awaitingServiceData limpiado (no era flujo de notificación).');
                         }
                     } else {
-                         this.logInfo(`[TextMsgHandler] ocuparPolizaCmd no encontrado.`); // Log añadido
-                         // Limpiar estado explícitamente si no se puede encontrar el comando
-                         this.handler.awaitingServiceData.delete(chatId, threadId);
-                         this.logInfo(`[TextMsgHandler] Estado awaitingServiceData limpiado (ocuparPolizaCmd no encontrado).`);
+                        this.logInfo('[TextMsgHandler] ocuparPolizaCmd no encontrado.'); // Log añadido
+                        // Limpiar estado explícitamente si no se puede encontrar el comando
+                        this.handler.awaitingServiceData.delete(chatId, threadId);
+                        this.logInfo('[TextMsgHandler] Estado awaitingServiceData limpiado (ocuparPolizaCmd no encontrado).');
                     }
 
                     // Si llegamos aquí, significa que no continuamos con el flujo de notificación
                     // y el estado awaitingServiceData ya fue limpiado en los bloques 'else' anteriores.
-                    this.logInfo(`[TextMsgHandler] Flujo de datos de servicio completado (sin continuación de notificación).`);
+                    this.logInfo('[TextMsgHandler] Flujo de datos de servicio completado (sin continuación de notificación).');
                     return; // Salir después de manejar los datos del servicio
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingPhoneNumber`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingPhoneNumber');
                 // (A) If we're waiting for a phone number (part of 'ocuparPoliza' flow)
                 // Verificación detallada con logs para awaitingPhoneNumber
                 // this.logInfo(`Verificando si se espera teléfono en chatId=${chatId}, threadId=${threadId || 'ninguno'}`); // Log redundante
@@ -252,7 +252,7 @@ class TextMessageHandler extends BaseCommand {
                         this.logInfo(`Verificación de awaitingPhoneNumber.has: ${esperaTelefono ? 'SÍ se espera' : 'NO se espera'}`);
                     } else {
                         this.logInfo('El método has no está disponible en awaitingPhoneNumber');
-                        
+
                         // Verificar método get como alternativa
                         if (typeof this.handler.awaitingPhoneNumber.get === 'function') {
                             const valor = this.handler.awaitingPhoneNumber.get(chatId, threadId);
@@ -273,7 +273,7 @@ class TextMessageHandler extends BaseCommand {
                             const commands = this.handler.registry.getAllCommands();
                             this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
                         }
-                        
+
                         if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handlePhoneNumber === 'function') {
                             this.logInfo('Delegando manejo de número telefónico a OcuparPolizaCallback', { chatId, threadId });
                             await this.ocuparPolizaCallback.handlePhoneNumber(ctx, messageText, threadId);
@@ -291,7 +291,7 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingOrigenDestino`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingOrigenDestino');
                 // (B) If we're waiting for origin-destination (part of 'ocuparPoliza' flow)
                 // Verificación detallada con logs para awaitingOrigenDestino
                 // this.logInfo(`Verificando si se espera origen-destino en chatId=${chatId}, threadId=${threadId || 'ninguno'}`); // Log redundante
@@ -307,7 +307,7 @@ class TextMessageHandler extends BaseCommand {
                         this.logInfo(`Verificación de awaitingOrigenDestino.has: ${esperaOrigenDestino ? 'SÍ se espera' : 'NO se espera'}`);
                     } else {
                         this.logInfo('El método has no está disponible en awaitingOrigenDestino');
-                        
+
                         // Verificar método get como alternativa
                         if (typeof this.handler.awaitingOrigenDestino.get === 'function') {
                             const valor = this.handler.awaitingOrigenDestino.get(chatId, threadId);
@@ -328,7 +328,7 @@ class TextMessageHandler extends BaseCommand {
                             const commands = this.handler.registry.getAllCommands();
                             this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
                         }
-                        
+
                         if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigenDestino === 'function') {
                             this.logInfo('Delegando manejo de origen-destino a OcuparPolizaCallback', { chatId, threadId });
                             await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText, threadId);
@@ -348,37 +348,37 @@ class TextMessageHandler extends BaseCommand {
                 // La verificación de awaitingContactTime ya se realiza al principio del método
 
                 // --- LOGGING AÑADIDO ---
-                this.logInfo(`[TextMsgHandler] Verificando estado: awaitingDeleteReason`);
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingDeleteReason');
                 // Handle delete reason
                 if (this.handler.awaitingDeleteReason && this.handler.awaitingDeleteReason.get(chatId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingDeleteReason activo. Procesando motivo.'); // Log añadido
                     const numeroPolizas = this.handler.awaitingDeleteReason.get(chatId);
                     const motivo = messageText.trim() === 'ninguno' ? '' : messageText.trim();
-                    
+
                     try {
                         let eliminadas = 0;
                         let noEncontradas = 0;
                         let errores = 0;
-                        let listadoNoEncontradas = [];
-                        
+                        const listadoNoEncontradas = [];
+
                         // Show initial message
                         const msgInicial = await ctx.reply(
                             `🔄 Procesando ${numeroPolizas.length} póliza(s)...`
                         );
-                        
+
                         // Process each policy in the list
                         for (const numeroPoliza of numeroPolizas) {
                             try {
                                 // Use markPolicyAsDeleted for each policy
                                 const deletedPolicy = await markPolicyAsDeleted(numeroPoliza, motivo);
-                                
+
                                 if (!deletedPolicy) {
                                     noEncontradas++;
                                     listadoNoEncontradas.push(numeroPoliza);
                                 } else {
                                     eliminadas++;
                                 }
-                                
+
                                 // If there are many policies, update the message every 5 processed
                                 if (numeroPolizas.length > 10 && eliminadas % 5 === 0) {
                                     await ctx.telegram.editMessageText(
@@ -387,69 +387,69 @@ class TextMessageHandler extends BaseCommand {
                                         undefined,
                                         `🔄 Procesando ${numeroPolizas.length} póliza(s)...\n` +
                                         `✅ Procesadas: ${eliminadas + noEncontradas + errores}/${numeroPolizas.length}\n` +
-                                        `⏱️ Por favor espere...`
+                                        '⏱️ Por favor espere...'
                                     );
                                 }
                             } catch (error) {
                                 this.logError(`Error al marcar póliza ${numeroPoliza} como eliminada:`, error);
-                                
+
                                 // Mostrar mensaje de error específico para esta póliza
                                 let mensajeError = `❌ No se pudo eliminar la póliza ${numeroPoliza}`;
-                                
+
                                 // Extraer mensaje de error en lenguaje claro
                                 if (error.name === 'ValidationError') {
                                     // Errores de validación de Mongoose
                                     const camposFaltantes = Object.keys(error.errors || {})
                                         .map(campo => `\`${campo}\``)
                                         .join(', ');
-                                    
+
                                     if (camposFaltantes) {
                                         mensajeError += `: falta(n) el/los campo(s) obligatorio(s) ${camposFaltantes}.`;
                                     } else {
-                                        mensajeError += `: error de validación.`;
+                                        mensajeError += ': error de validación.';
                                     }
                                 } else {
                                     // Otros tipos de errores
                                     mensajeError += '.';
                                 }
-                                
+
                                 // Enviar mensaje de error específico para esta póliza
                                 await ctx.reply(mensajeError);
-                                
+
                                 errores++;
                             }
                         }
-                        
+
                         // Edit the initial message to show the final result
                         await ctx.telegram.editMessageText(
                             msgInicial.chat.id,
                             msgInicial.message_id,
                             undefined,
-                            `✅ Proceso completado`
+                            '✅ Proceso completado'
                         );
-                        
+
                         // Build the results message
-                        let mensajeResultado = `📊 *Resultados del proceso:*\n` +
+                        let mensajeResultado = '📊 *Resultados del proceso:*\n' +
                             `✅ Pólizas eliminadas correctamente: ${eliminadas}\n`;
-                        
+
                         if (noEncontradas > 0) {
                             mensajeResultado += `⚠️ Pólizas no encontradas o ya eliminadas: ${noEncontradas}\n`;
-                            
+
                             // If there are few not found, list them
                             if (noEncontradas <= 10) {
                                 mensajeResultado += `📋 No encontradas:\n${listadoNoEncontradas.map(p => `- ${p}`).join('\n')}\n`;
                             }
                         }
-                        
+
                         if (errores > 0) {
                             mensajeResultado += `❌ Errores al procesar: ${errores}\n`;
                         }
-                        
+
                         // Add "Volver al Menú" button
                         await ctx.replyWithMarkdown(mensajeResultado, Markup.inlineKeyboard([
                             Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                         ]));
-                        
+
                     } catch (error) {
                         this.logError('Error general al marcar pólizas como eliminadas:', error);
                         // Add "Volver al Menú" button even on error

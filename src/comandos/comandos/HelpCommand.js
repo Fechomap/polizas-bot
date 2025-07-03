@@ -48,10 +48,10 @@ class HelpCommand extends BaseCommand {
             this.logError('Error al enviar mensaje de ayuda:', error);
             // Evitar doble respuesta si se llama desde un callback que ya maneja errores
             if (!ctx.callbackQuery) {
-                 await ctx.reply('❌ Error al mostrar la ayuda.');
+                await ctx.reply('❌ Error al mostrar la ayuda.');
             } else {
-                 // Podríamos intentar responder al callback con error si es posible
-                 try { await ctx.answerCbQuery('Error al mostrar ayuda'); } catch {}
+                // Podríamos intentar responder al callback con error si es posible
+                try { await ctx.answerCbQuery('Error al mostrar ayuda'); } catch {}
             }
         }
     }

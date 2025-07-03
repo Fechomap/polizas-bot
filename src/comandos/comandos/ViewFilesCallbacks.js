@@ -21,32 +21,32 @@ class ViewFilesCallbacks extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 this.logInfo(`Intentando mostrar fotos de póliza: ${numeroPoliza}`);
-        
+
                 const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
                     await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
                     await ctx.answerCbQuery();
                     return;
                 }
-        
+
                 const fotos = policy.archivos?.fotos || [];
                 if (fotos.length === 0) {
                     await ctx.reply('📸 No hay fotos asociadas a esta póliza.');
                     await ctx.answerCbQuery();
                     return;
                 }
-        
+
                 await ctx.reply(`📸 Mostrando ${fotos.length} foto(s):`);
-        
+
                 for (const foto of fotos) {
                     try {
                         if (!foto.data) {
                             this.logError('Foto sin datos');
                             continue;
                         }
-        
-                        const fotoBuffer = foto.data instanceof Buffer ? 
-                            foto.data : 
+
+                        const fotoBuffer = foto.data instanceof Buffer ?
+                            foto.data :
                             Buffer.from(foto.data.buffer || foto.data);
                         await ctx.replyWithPhoto({
                             source: fotoBuffer
@@ -68,30 +68,30 @@ class ViewFilesCallbacks extends BaseCommand {
             try {
                 const numeroPoliza = ctx.match[1];
                 const policy = await getPolicyByNumber(numeroPoliza);
-        
+
                 if (!policy) {
                     return await ctx.reply(`❌ No se encontró la póliza ${numeroPoliza}`);
                 }
-        
+
                 const pdfs = policy.archivos?.pdfs || [];
                 if (pdfs.length === 0) {
                     return await ctx.reply('📄 No hay PDFs asociados a esta póliza.');
                 }
-        
+
                 await ctx.reply(`📄 Mostrando ${pdfs.length} PDF(s):`);
-        
+
                 for (const pdf of pdfs) {
                     try {
                         if (!pdf.data) {
                             this.logError('PDF sin datos encontrado');
                             continue;
                         }
-        
+
                         // Correct handling of Buffer
-                        const fileBuffer = pdf.data instanceof Buffer ? 
-                            pdf.data : 
+                        const fileBuffer = pdf.data instanceof Buffer ?
+                            pdf.data :
                             Buffer.from(pdf.data.buffer || pdf.data);
-        
+
                         await ctx.replyWithDocument({
                             source: fileBuffer,
                             filename: `Documento_${numeroPoliza}.pdf`

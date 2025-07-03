@@ -61,7 +61,7 @@ class FlowStateManager {
 
     /**
      * Recupera datos de estado para un flujo específico
-     * @param {number|string} chatId - ID del chat 
+     * @param {number|string} chatId - ID del chat
      * @param {string} numeroPoliza - Número de póliza
      * @param {string|null} threadId - ID del hilo asociado (opcional)
      * @returns {Object|null} Datos del estado o null si no existe
@@ -100,12 +100,12 @@ class FlowStateManager {
         if (!chatStates) return false;
 
         const result = chatStates.delete(numeroPoliza);
-        
+
         // Si el mapa está vacío, eliminar la entrada del contextKey también
         if (chatStates.size === 0) {
             this.flowStates.delete(contextKey);
         }
-        
+
         logger.debug('Estado eliminado:', { chatId, numeroPoliza, threadId, result });
         return result;
     }
@@ -146,7 +146,7 @@ class FlowStateManager {
      */
     getAllActiveFlows() {
         const allFlows = [];
-        
+
         this.flowStates.forEach((polizaMap, contextKey) => {
             polizaMap.forEach((data, numeroPoliza) => {
                 allFlows.push({
@@ -156,14 +156,14 @@ class FlowStateManager {
                 });
             });
         });
-        
+
         return allFlows;
     }
     /**
      * Valida que el acceso a un flujo coincida con el threadId correcto
-     * @param {number|string} chatId 
-     * @param {string} numeroPoliza 
-     * @param {string|null} threadId 
+     * @param {number|string} chatId
+     * @param {string} numeroPoliza
+     * @param {string|null} threadId
      * @returns {boolean}
      */
     validateThreadMatch(chatId, numeroPoliza, threadId = null) {
@@ -176,7 +176,7 @@ class FlowStateManager {
         if (!threadId) {
             for (const [otherContextKey, stateMap] of this.flowStates.entries()) {
                 if (otherContextKey.startsWith(`${chatId}-`) && stateMap.has(numeroPoliza)) {
-                    logger.warn(`Intento de acceso a flujo sin threadId, pero existe en otro hilo`, {
+                    logger.warn('Intento de acceso a flujo sin threadId, pero existe en otro hilo', {
                         chatId,
                         numeroPoliza,
                         existingThread: otherContextKey.split('-')[1]
@@ -196,13 +196,13 @@ class FlowStateManager {
     async cleanup(cutoffTime) {
         let removed = 0;
         const now = Date.now();
-        
+
         // Si no se proporciona timestamp, usar 2 horas por defecto
         if (!cutoffTime) {
             const TWO_HOURS = 2 * 60 * 60 * 1000;
             cutoffTime = now - TWO_HOURS;
         }
-        
+
         for (const [contextKey, stateMap] of this.flowStates.entries()) {
             for (const [flowId, data] of stateMap.entries()) {
                 // Verificar si el estado es más antiguo que el corte
@@ -216,17 +216,17 @@ class FlowStateManager {
                     });
                 }
             }
-            
+
             // Si el mapa para este contextKey quedó vacío, eliminarlo también
             if (stateMap.size === 0) {
                 this.flowStates.delete(contextKey);
             }
         }
-        
+
         if (removed > 0) {
             logger.info(`Limpiados ${removed} contextos antiguos de FlowStateManager`);
         }
-        
+
         return removed;
     }
 }

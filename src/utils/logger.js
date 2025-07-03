@@ -35,14 +35,14 @@ const logger = createLogger({
 // Solo agregar los transportes de archivo en desarrollo
 if (process.env.NODE_ENV !== 'production') {
     logger.add(
-        new transports.File({ 
-            filename: path.join(__dirname, '../../logs/error.log'), 
-            level: 'error' 
+        new transports.File({
+            filename: path.join(__dirname, '../../logs/error.log'),
+            level: 'error'
         })
     );
     logger.add(
-        new transports.File({ 
-            filename: path.join(__dirname, '../../logs/combined.log') 
+        new transports.File({
+            filename: path.join(__dirname, '../../logs/combined.log')
         })
     );
 }

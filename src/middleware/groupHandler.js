@@ -9,21 +9,21 @@ const handleGroupUpdate = async (ctx, next) => {
         if (!chatId) {
             return next(); // Si no hay chat, permitir (podría ser una actualización interna)
         }
-        
+
         // Extraer threadId si existe
         const threadId = StateKeyManager.getThreadId(ctx);
-        
+
         // Log mejorado
-        logger.info(`Chat access:`, { 
+        logger.info('Chat access:', {
             chatId,
             chatType: ctx.chat?.type,
             threadId: threadId || 'ninguno',
             messageType: ctx.updateType
         });
-        
+
         // Si es una actualización del tipo "my_chat_member", solo registrar
         if (ctx.update.my_chat_member) {
-            logger.info(`Actualización de estado en grupo`, {
+            logger.info('Actualización de estado en grupo', {
                 chatId,
                 threadId: threadId || 'ninguno'
             });

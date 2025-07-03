@@ -3,88 +3,88 @@ const mongoose = require('mongoose');
 
 const scheduledNotificationSchema = new mongoose.Schema({
     // Información de la póliza
-    numeroPoliza: { 
-        type: String, 
+    numeroPoliza: {
+        type: String,
         required: true,
-        trim: true, 
-        index: true 
+        trim: true,
+        index: true
     },
-    
+
     // Información del servicio
-    expedienteNum: { 
-        type: String, 
+    expedienteNum: {
+        type: String,
         required: true,
-        trim: true 
+        trim: true
     },
-    
+
     origenDestino: {
         type: String,
         trim: true
     },
-    
+
     // Datos adicionales (placas, fotos, etc.)
     placas: {
         type: String,
         trim: true
     },
-    
+
     fotoUrl: {
         type: String,
         trim: true
     },
-    
+
     // Datos relevantes del vehículo (para mostrar en la notificación)
     marcaModelo: {
         type: String,
         trim: true
     },
-    
+
     colorVehiculo: {
         type: String,
         trim: true
     },
-    
+
     // Datos de contacto
     telefono: {
         type: String,
         trim: true
     },
-    
+
     // Datos de programación
-    contactTime: { 
-        type: String, 
-        required: true, 
-        trim: true 
-    },
-    
-    scheduledDate: { 
-        type: Date, 
+    contactTime: {
+        type: String,
         required: true,
-        index: true 
+        trim: true
     },
-    
+
+    scheduledDate: {
+        type: Date,
+        required: true,
+        index: true
+    },
+
     // Metadatos
     createdBy: {
         chatId: Number,
         username: String
     },
-    
+
     targetGroupId: {
         type: Number,
         required: true
     },
-    
+
     status: {
         type: String,
         enum: ['PENDING', 'SENT', 'FAILED', 'CANCELLED'],
         default: 'PENDING',
         index: true
     },
-    
+
     // Registro de envío
     sentAt: Date,
     error: String,
-    
+
     // Datos adicionales (formato flexible)
     additionalData: {
         type: mongoose.Schema.Types.Mixed

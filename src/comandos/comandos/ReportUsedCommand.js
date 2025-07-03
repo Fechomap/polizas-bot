@@ -65,7 +65,7 @@ class ReportUsedCommand extends BaseCommand {
                         waitMsg.chat.id,
                         waitMsg.message_id,
                         undefined,
-                        `🔄 Cálculo de estados en progreso...\n` +
+                        '🔄 Cálculo de estados en progreso...\n' +
                         `⏱️ Tiempo transcurrido: ${elapsedSeconds} segundos\n` +
                         `Actualización #${updateCount} - Por favor espere, esto puede tardar varios minutos.`
                     );
@@ -157,7 +157,7 @@ class ReportUsedCommand extends BaseCommand {
                     await ctx.reply('🔍 Consultando las pólizas prioritarias...'); // Fallback reply
                 }
             } else {
-                 await ctx.reply('🔍 Consultando las pólizas prioritarias...'); // Fallback if waitMsg was lost
+                await ctx.reply('🔍 Consultando las pólizas prioritarias...'); // Fallback if waitMsg was lost
             }
 
 
@@ -210,7 +210,7 @@ ${alertaPrioridad}🏆 *Calificación: ${pol.calificacion || 0}*
             }
 
             // Añadir botón para volver al menú principal
-            await ctx.reply('✅ Se han mostrado las pólizas prioritarias según su calificación actual.', 
+            await ctx.reply('✅ Se han mostrado las pólizas prioritarias según su calificación actual.',
                 Markup.inlineKeyboard([
                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                 ])
@@ -237,7 +237,7 @@ ${alertaPrioridad}🏆 *Calificación: ${pol.calificacion || 0}*
                     await ctx.reply('❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...');
                 }
             } else {
-                 await ctx.reply('❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...');
+                await ctx.reply('❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...');
             }
 
 
@@ -261,15 +261,15 @@ ${alertaPrioridad}🏆 *Calificación: ${pol.calificacion || 0}*
                         );
                         await new Promise(resolve => setTimeout(resolve, 300));
                     }
-                    
+
                     // Añadir botón para volver al menú principal incluso en caso de error
-                    await ctx.reply('⚠️ Proceso completado con errores.', 
+                    await ctx.reply('⚠️ Proceso completado con errores.',
                         Markup.inlineKeyboard([
                             Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                         ])
                     );
                 } else {
-                    await ctx.reply('❌ No se pudieron obtener las pólizas de respaldo.', 
+                    await ctx.reply('❌ No se pudieron obtener las pólizas de respaldo.',
                         Markup.inlineKeyboard([
                             Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                         ])
@@ -279,7 +279,7 @@ ${alertaPrioridad}🏆 *Calificación: ${pol.calificacion || 0}*
                 this.logError('Error al obtener pólizas de respaldo:', fallbackError);
                 await this.replyError(ctx, 'Error crítico al intentar obtener pólizas.');
                 // Añadir botón para volver al menú principal incluso en caso de error crítico
-                await ctx.reply('❌ Error crítico.', 
+                await ctx.reply('❌ Error crítico.',
                     Markup.inlineKeyboard([
                         Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                     ])

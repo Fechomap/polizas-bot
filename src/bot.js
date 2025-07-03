@@ -57,12 +57,12 @@ async function initializeBot() {
             if (!ctx.message || !ctx.message.date) {
                 return next();
             }
-            
+
             // Calcular la antigüedad del mensaje en segundos
             const now = Math.floor(Date.now() / 1000);
             const messageTime = ctx.message.date;
             const messageAge = now - messageTime;
-            
+
             // Descartar mensajes más antiguos que 5 minutos (300 segundos)
             const MAX_MESSAGE_AGE = 300;
             if (messageAge > MAX_MESSAGE_AGE) {
@@ -72,7 +72,7 @@ async function initializeBot() {
                 });
                 return; // No procesar este mensaje
             }
-            
+
             return next();
         });
 
@@ -115,8 +115,8 @@ async function initializeBot() {
         // Configurar graceful shutdown
         const handleShutdown = async (signal) => {
             if (isShuttingDown) return;
-            
-            logger.info(`Iniciando apagado graceful`, { signal });
+
+            logger.info('Iniciando apagado graceful', { signal });
             isShuttingDown = true;
 
             // AÑADIR AQUÍ: Detener NotificationManager antes del bot

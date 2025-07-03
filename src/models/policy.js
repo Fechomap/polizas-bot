@@ -9,116 +9,116 @@ const fileSchema = new mongoose.Schema({
 
 const policySchema = new mongoose.Schema({
     // Datos del titular
-    titular: { 
-        type: String, 
+    titular: {
+        type: String,
         required: true,
         trim: true
     },
-    correo: { 
-        type: String, 
+    correo: {
+        type: String,
         required: false,
         lowercase: true,
         trim: true
     },
-    contraseña: { 
-        type: String, 
+    contraseña: {
+        type: String,
         required: false,
         trim: true
     },
-    rfc: { 
-        type: String, 
+    rfc: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
 
     // Dirección
-    calle: { 
-        type: String, 
+    calle: {
+        type: String,
         required: true,
         trim: true
     },
-    colonia: { 
-        type: String, 
+    colonia: {
+        type: String,
         required: true,
         trim: true
     },
-    municipio: { 
-        type: String, 
+    municipio: {
+        type: String,
         required: true,
         trim: true
     },
     estadoRegion: {  // CAMBIO: Renombramos este campo para evitar conflictos
-        type: String, 
+        type: String,
         required: false,
         trim: true,
         uppercase: true
     },
-    cp: { 
-        type: String, 
+    cp: {
+        type: String,
         required: true,
         trim: true
     },
 
     // Datos del vehículo
-    marca: { 
-        type: String, 
+    marca: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
-    submarca: { 
-        type: String, 
+    submarca: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
-    año: { 
-        type: Number, 
+    año: {
+        type: Number,
         required: true,
         min: 1900,
         max: new Date().getFullYear() + 1
     },
-    color: { 
-        type: String, 
+    color: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
-    serie: { 
-        type: String, 
+    serie: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
-    placas: { 
-        type: String, 
+    placas: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
 
     // Datos de la póliza
-    agenteCotizador: { 
-        type: String, 
+    agenteCotizador: {
+        type: String,
         required: true,
         trim: true
     },
-    aseguradora: { 
-        type: String, 
+    aseguradora: {
+        type: String,
         required: true,
         trim: true,
         uppercase: true
     },
-    numeroPoliza: { 
-        type: String, 
-        required: true, 
+    numeroPoliza: {
+        type: String,
+        required: true,
         unique: true,
         trim: true,
         uppercase: true
     },
-    fechaEmision: { 
-        type: Date, 
+    fechaEmision: {
+        type: Date,
         required: true
     },
 
@@ -150,7 +150,7 @@ const policySchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    
+
     // CALIFICACION y SERVICIOS
     calificacion: {
         type: Number,
@@ -160,7 +160,7 @@ const policySchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    
+
     // Contador para asignar números de servicio secuenciales
     servicioCounter: {
         type: Number,
@@ -171,7 +171,7 @@ const policySchema = new mongoose.Schema({
         monto: { type: Number, required: true },
         fechaPago: { type: Date, required: true }
     }],
-    
+
     servicios: [{
         numeroServicio: { type: Number, required: false },
         costo: { type: Number, required: false },
@@ -192,7 +192,7 @@ const policySchema = new mongoose.Schema({
         enum: ['ACTIVO', 'INACTIVO', 'ELIMINADO'],
         default: 'ACTIVO'
     },
-    
+
     // Fecha y motivo de eliminación (para cuando se marca como ELIMINADO)
     fechaEliminacion: {
         type: Date,
@@ -202,7 +202,7 @@ const policySchema = new mongoose.Schema({
         type: String,
         default: ''
     }
-}, { 
+}, {
     timestamps: true,
     versionKey: false
 });
@@ -217,17 +217,17 @@ policySchema.pre('save', function(next) {
     if (this.correo && this.correo.toLowerCase() === 'sin correo') {
         this.correo = '';
     }
-    
+
     // Asegurar que no haya espacios ni caracteres especiales en el número de póliza
     if (this.numeroPoliza) {
         this.numeroPoliza = this.numeroPoliza.trim().replace(/[\r\n\t]/g, '');
     }
-    
+
     // Actualizar totalServicios automáticamente si no está definido
     if (this.servicios && this.totalServicios === undefined) {
         this.totalServicios = this.servicios.length;
     }
-    
+
     next();
 });
 

@@ -45,26 +45,26 @@ const savePolicy = async (policyData) => {
 const getPolicyByNumber = async (numeroPoliza) => {
     try {
         logger.info('Buscando póliza en la base de datos:', { numeroPoliza });
-        
+
         // Asegurarnos de que el número de póliza esté normalizado
         const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-        
+
         // Modificamos la consulta para solo retornar pólizas ACTIVAS
-        const policy = await Policy.findOne({ 
+        const policy = await Policy.findOne({
             numeroPoliza: normalizedNumero,
             estado: 'ACTIVO' // Solo traemos pólizas activas
         });
-        
+
         // Log del resultado
         if (policy) {
-            logger.info('Póliza encontrada:', { 
+            logger.info('Póliza encontrada:', {
                 numeroPoliza: policy.numeroPoliza,
-                id: policy._id 
+                id: policy._id
             });
         } else {
             logger.warn('Póliza no encontrada o no activa:', { numeroPoliza });
         }
-        
+
         return policy;
     } catch (error) {
         logger.error('Error en getPolicyByNumber:', {
@@ -86,27 +86,27 @@ const markPolicyAsDeleted = async (numeroPoliza, motivo = '') => {
     try {
         const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
         logger.info(`Marcando póliza ${normalizedNumero} como ELIMINADA`);
-        
+
         // Usamos findOneAndUpdate en lugar de findOne + save para evitar validaciones
         // que podrían fallar en pólizas con datos incompletos
         const updatedPolicy = await Policy.findOneAndUpdate(
             { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
-            { 
+            {
                 estado: 'ELIMINADO',
                 fechaEliminacion: new Date(),
                 motivoEliminacion: motivo
             },
-            { 
+            {
                 new: true,          // Retorna el documento actualizado
                 runValidators: false // No ejecuta validadores de esquema
             }
         );
-        
+
         if (!updatedPolicy) {
             logger.warn(`No se encontró póliza activa con número: ${normalizedNumero}`);
             return null;
         }
-        
+
         logger.info(`Póliza ${normalizedNumero} marcada como ELIMINADA exitosamente`);
         return updatedPolicy;
     } catch (error) {
@@ -139,7 +139,7 @@ const deletePolicyByNumber = async (numeroPoliza) => {
 const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
     try {
         logger.info(`Añadiendo archivo tipo ${fileType} a la póliza: ${numeroPoliza}`);
-        
+
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
             logger.warn(`Póliza no encontrada al intentar añadir archivo: ${numeroPoliza}`);
@@ -185,7 +185,7 @@ const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
 const addPaymentToPolicy = async (numeroPoliza, monto, fechaPago) => {
     try {
         logger.info(`Añadiendo pago a la póliza: ${numeroPoliza} por $${monto} en ${fechaPago.toISOString()}`);
-        
+
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
             logger.warn(`Póliza no encontrada al intentar añadir pago: ${numeroPoliza}`);
@@ -230,7 +230,7 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
         if (policy.servicioCounter === undefined) {
             policy.servicioCounter = 0;
         }
-        
+
         // Incrementar el contador para este nuevo servicio
         policy.servicioCounter += 1;
         const nextServiceNumber = policy.servicioCounter;
@@ -372,7 +372,7 @@ const getOldUnusedPolicies = async () => {
             return {
                 pol,
                 priorityGroup: 2,
-                lastServiceDate: ultimoServicio, 
+                lastServiceDate: ultimoServicio,
                 diasDesdeEmision
             };
         }
@@ -384,7 +384,7 @@ const getOldUnusedPolicies = async () => {
         return diasDesdeEmision >= THRESHOLD_DIAS_MINIMO;
     });
 
-    // 4) Ordenar: 
+    // 4) Ordenar:
     //    - primero por priorityGroup asc (1 sin servicios, 2 con servicios)
     //    - dentro de priorityGroup=1, por diasDesdeEmision desc (más antigua primero)
     //    - para priorityGroup=2, ordenamos por lastServiceDate asc (más antiguo primero),
@@ -441,24 +441,24 @@ const getDeletedPolicies = async () => {
 const restorePolicy = async (numeroPoliza) => {
     try {
         const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-        
-        const policy = await Policy.findOne({ 
+
+        const policy = await Policy.findOne({
             numeroPoliza: normalizedNumero,
             estado: 'ELIMINADO'
         });
-        
+
         if (!policy) {
             logger.warn(`No se encontró póliza eliminada con número: ${normalizedNumero}`);
             return null;
         }
-        
+
         policy.estado = 'ACTIVO';
         policy.fechaEliminacion = null;
         policy.motivoEliminacion = '';
-        
+
         const updatedPolicy = await policy.save();
         logger.info(`Póliza ${normalizedNumero} restaurada exitosamente`);
-        
+
         return updatedPolicy;
     } catch (error) {
         logger.error('Error al restaurar póliza:', {
@@ -484,7 +484,7 @@ const savePoliciesBatch = async (policiesData) => {
 
     try {
         logger.info(`Procesando lote de ${policiesData.length} pólizas`);
-        
+
         for (const policyData of policiesData) {
             try {
                 if (!policyData.numeroPoliza) {
@@ -493,8 +493,8 @@ const savePoliciesBatch = async (policiesData) => {
 
                 policyData.numeroPoliza = policyData.numeroPoliza.trim().toUpperCase();
 
-                const existingPolicy = await Policy.findOne({ 
-                    numeroPoliza: policyData.numeroPoliza 
+                const existingPolicy = await Policy.findOne({
+                    numeroPoliza: policyData.numeroPoliza
                 });
 
                 if (existingPolicy) {
@@ -504,7 +504,7 @@ const savePoliciesBatch = async (policiesData) => {
                 const newPolicy = new Policy(policyData);
                 const savedPolicy = await newPolicy.save();
 
-                logger.info('Póliza guardada exitosamente:', { 
+                logger.info('Póliza guardada exitosamente:', {
                     numeroPoliza: savedPolicy.numeroPoliza,
                     _id: savedPolicy._id
                 });

@@ -3,14 +3,14 @@ const { spawn } = require('child_process');
 const path = require('path');
 const { Markup } = require('telegraf');
 const config = require('../config');
-const { 
-    getPolicyByNumber, 
-    savePolicy, 
-    addFileToPolicy, 
-    deletePolicyByNumber, 
-    addPaymentToPolicy, 
+const {
+    getPolicyByNumber,
+    savePolicy,
+    addFileToPolicy,
+    deletePolicyByNumber,
+    addPaymentToPolicy,
     addServiceToPolicy,
-    getSusceptiblePolicies, 
+    getSusceptiblePolicies,
     getOldUnusedPolicies,
     markPolicyAsDeleted,
     getDeletedPolicies,
@@ -53,10 +53,10 @@ class CommandHandler {
             throw new Error('Bot instance is required');
         }
         this.bot = bot;
-        
+
         // Initialize the command registry
         this.registry = new CommandRegistry();
-        
+
         // Inicializar mapas de estado con soporte para hilos
         this.uploadTargets = StateKeyManager.createThreadSafeStateMap();
         this.awaitingSaveData = StateKeyManager.createThreadSafeStateMap();
@@ -80,7 +80,7 @@ class CommandHandler {
         // Register thread validator middleware
         this.bot.use(threadValidatorMiddleware(this));
         this.setupGroupRestriction();
-        
+
         // Register all commands
         this.registerCommands();
     }
@@ -141,7 +141,7 @@ class CommandHandler {
         const reportUsedCmd = new ReportUsedCommand(this);
         this.registry.registerCommand(reportUsedCmd);
         reportUsedCmd.register();
-        
+
         const excelUploadCmd = new ExcelUploadHandler(this);
         this.registry.registerCommand(excelUploadCmd);
         excelUploadCmd.register();
@@ -156,7 +156,7 @@ class CommandHandler {
 
         // Register remaining commands/callbacks that haven't been modularized yet
         this.setupRemainingCommands();
-        
+
         // Setup all registered callbacks to connect with the bot
         this.setupCallbacks(); // Handles callbacks defined within command modules
 
@@ -188,21 +188,21 @@ class CommandHandler {
                 await ctx.answerCbQuery();
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                
+
                 logger.info(`Iniciando acción consultar en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
-                
+
                 this.clearChatState(chatId, threadId); // Limpiar estado previo
-                
+
                 // Guardar estado con logs explícitos
                 const setResult = this.awaitingGetPolicyNumber.set(chatId, true, threadId);
                 logger.info(`Estado de espera de póliza guardado: ${setResult ? 'OK' : 'FALLO'}`);
-                
+
                 // Verificación inmediata
                 const hasResult = this.awaitingGetPolicyNumber.has(chatId, threadId);
                 logger.info(`Verificación inmediata después de guardar: ${hasResult ? 'OK' : 'FALLO'}`);
-                
+
                 await ctx.reply('🔍 Por favor, introduce el número de póliza que deseas consultar:');
-                logger.info(`Solicitud de número de póliza enviada`);
+                logger.info('Solicitud de número de póliza enviada');
             } catch (error) {
                 logger.error('Error en accion:consultar:', error);
                 await ctx.reply('❌ Error al iniciar la consulta.');
@@ -215,19 +215,19 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 this.clearChatState(ctx.chat.id);
-                
+
                 // Obtener la instancia de ExcelUploadHandler
                 const excelUploadCmd = this.registry.getCommand('excelUpload');
                 if (!excelUploadCmd) {
                     logger.error('ExcelUploadHandler no encontrado en registry');
                     throw new Error('ExcelUploadHandler no encontrado');
                 }
-                
+
                 logger.info(`Activando flujo de subida de Excel para chatId: ${ctx.chat.id}`);
-                
+
                 // Activar el estado de espera de Excel
                 excelUploadCmd.setAwaitingExcelUpload(ctx.chat.id, true);
-                
+
                 // Solicitar el archivo Excel
                 await ctx.reply(
                     '📊 *Registro de Pólizas por Excel*\n\n' +
@@ -248,7 +248,7 @@ class CommandHandler {
                         ])
                     }
                 );
-                
+
                 logger.info(`Flujo de subida de Excel iniciado para chatId: ${ctx.chat.id}`);
             } catch (error) {
                 logger.error('Error en accion:registrar:', error);
@@ -260,16 +260,16 @@ class CommandHandler {
         this.bot.action('accion:cancelar_registro', async (ctx) => {
             try {
                 await ctx.answerCbQuery('Registro cancelado');
-                
+
                 // Limpiar estado de espera de Excel
                 const excelUploadCmd = this.registry.getCommand('excelUpload');
                 if (excelUploadCmd) {
                     excelUploadCmd.setAwaitingExcelUpload(ctx.chat.id, false);
                 }
-                
+
                 // Limpiar otros estados
                 this.clearChatState(ctx.chat.id);
-                
+
                 await ctx.editMessageText('Registro cancelado.'); // Editar mensaje original
             } catch (error) {
                 logger.error('Error en accion:cancelar_registro:', error);
@@ -315,13 +315,13 @@ class CommandHandler {
                         this.awaitingServiceData.set(chatId, policyNumber);
                         await ctx.reply(
                             `✅ Usando póliza activa *${policyNumber}* de este hilo.\n\n` +
-                            `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
-                            `1️⃣ Costo (ej. 550.00)\n` +
-                            `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
-                            `3️⃣ Número de expediente\n` +
-                            `4️⃣ Origen y Destino\n\n` +
-                            `📝 Ejemplo:\n\n` +
-                            `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                            '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
+                            '1️⃣ Costo (ej. 550.00)\n' +
+                            '2️⃣ Fecha del servicio (DD/MM/YYYY)\n' +
+                            '3️⃣ Número de expediente\n' +
+                            '4️⃣ Origen y Destino\n\n' +
+                            '📝 Ejemplo:\n\n' +
+                            '550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac',
                             { parse_mode: 'Markdown' }
                         );
                         return;
@@ -336,13 +336,13 @@ class CommandHandler {
                     this.awaitingServiceData.set(chatId, numeroPoliza);
                     await ctx.reply(
                         `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
-                        `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
-                        `1️⃣ Costo (ej. 550.00)\n` +
-                        `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
-                        `3️⃣ Número de expediente\n` +
-                        `4️⃣ Origen y Destino\n\n` +
-                        `📝 Ejemplo:\n\n` +
-                        `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                        '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
+                        '1️⃣ Costo (ej. 550.00)\n' +
+                        '2️⃣ Fecha del servicio (DD/MM/YYYY)\n' +
+                        '3️⃣ Número de expediente\n' +
+                        '4️⃣ Origen y Destino\n\n' +
+                        '📝 Ejemplo:\n\n' +
+                        '550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac',
                         { parse_mode: 'Markdown' }
                     );
                 } else {
@@ -390,16 +390,16 @@ class CommandHandler {
                 await ctx.answerCbQuery();
                 // Llamar a la lógica del comando de ayuda existente
                 // Asumiendo que HelpCommand tiene un método execute o similar
-                 if (this.helpCommandInstance && typeof this.helpCommandInstance.sendHelpMessage === 'function') {
+                if (this.helpCommandInstance && typeof this.helpCommandInstance.sendHelpMessage === 'function') {
                     await this.helpCommandInstance.sendHelpMessage(ctx); // Ajustar si el método es diferente
-                 } else {
-                     logger.warn('No se pudo encontrar o ejecutar el comando de ayuda desde la acción.');
-                     await ctx.reply('Comando de ayuda no disponible en este momento.');
-                 }
-                 // Añadir botón para volver al menú
-                 await ctx.reply('Pulsa el botón para regresar:', Markup.inlineKeyboard([
-                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                 ]));
+                } else {
+                    logger.warn('No se pudo encontrar o ejecutar el comando de ayuda desde la acción.');
+                    await ctx.reply('Comando de ayuda no disponible en este momento.');
+                }
+                // Añadir botón para volver al menú
+                await ctx.reply('Pulsa el botón para regresar:', Markup.inlineKeyboard([
+                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                ]));
 
             } catch (error) {
                 logger.error('Error en accion:help:', error);
@@ -472,13 +472,13 @@ class CommandHandler {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                
+
                 logger.info(`Iniciando acción ocuparPoliza para ${numeroPoliza} en chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
-                
+
                 // Verificar estado antes de continuar
                 const beforeStates = this.verifyAllMaps(chatId, threadId);
                 logger.debug(`Estados antes de ocuparPoliza: ${JSON.stringify(beforeStates)}`);
-                
+
                 // Conseguir el callback ocuparPoliza y delegar
                 const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
                 if (ocuparPolizaCmd && typeof ocuparPolizaCmd.handleOcuparPoliza === 'function') {
@@ -487,11 +487,11 @@ class CommandHandler {
                     // Fallback si no se encuentra el handler específico
                     await ctx.reply(`❌ Error al procesar la ocupación de póliza ${numeroPoliza}.`);
                 }
-                
+
                 // Verificar estado después
                 const afterStates = this.verifyAllMaps(chatId, threadId);
                 logger.debug(`Estados después de ocuparPoliza: ${JSON.stringify(afterStates)}`);
-                
+
                 await ctx.answerCbQuery();
             } catch (error) {
                 logger.error('Error en acción ocuparPoliza:', error);
@@ -521,7 +521,7 @@ class CommandHandler {
                 await ctx.reply('Acciones adicionales:', Markup.inlineKeyboard([
                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                 ]));
-                
+
                 await ctx.answerCbQuery(); // Acknowledge the button press
             } catch (error) {
                 logger.error('Error en callback getPoliza:', error);
@@ -530,7 +530,7 @@ class CommandHandler {
                 try { await ctx.answerCbQuery('Error'); } catch { /* ignore */ }
             }
         });
-        
+
         // The ocuparPoliza callback is handled by the OcuparPolizaCallback module.
         // Other non-command logic might remain here if needed.
     }
@@ -539,7 +539,7 @@ class CommandHandler {
     setupCallbacks() {
         logger.info('Configurando callbacks registrados...');
         const callbackHandlers = this.registry.getCallbackHandlers();
-        
+
         // Iterate through all registered callbacks and connect them to the bot
         callbackHandlers.forEach((handler, pattern) => {
             logger.info(`Conectando callback: ${pattern}`);
@@ -562,7 +562,7 @@ class CommandHandler {
     // Helper para limpiar todos los estados de espera de un chat/hilo
     clearChatState(chatId, threadId = null) {
         logger.debug(`Limpiando estado para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
-        
+
         if (threadId) {
             this.uploadTargets.delete(chatId, threadId);
             this.awaitingSaveData.delete(chatId, threadId);
@@ -576,19 +576,19 @@ class CommandHandler {
             this.awaitingPhoneNumber.delete(chatId, threadId);
             this.awaitingOrigenDestino.delete(chatId, threadId);
             this.awaitingDeleteReason.delete(chatId, threadId);
-            
+
             const flowStateManager = require('../utils/FlowStateManager');
             flowStateManager.clearAllStates(chatId, threadId);
-            
+
             // ELIMINADO: Llamada a ocuparPolizaCmd.cleanupAllStates para evitar bucle recursivo
             // La limpieza de OcuparPolizaCallback ahora llama a esta función (clearChatState)
             // if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
             //     ocuparPolizaCmd.cleanupAllStates(chatId, threadId);
             // }
-            
+
             return;
         }
-        
+
         this.uploadTargets.deleteAll(chatId);
         this.awaitingSaveData.deleteAll(chatId);
         this.awaitingGetPolicyNumber.deleteAll(chatId);
@@ -601,17 +601,17 @@ class CommandHandler {
         this.awaitingPhoneNumber.deleteAll(chatId);
         this.awaitingOrigenDestino.deleteAll(chatId);
         this.awaitingDeleteReason.deleteAll(chatId);
-        
-            const flowStateManager = require('../utils/FlowStateManager');
-            flowStateManager.clearAllStates(chatId);
-            
-            // ELIMINADO: Llamada a ocuparPolizaCmd.cleanupAllStates para evitar bucle recursivo
-            // La limpieza de OcuparPolizaCallback ahora llama a esta función (clearChatState)
-            // if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
-            //     ocuparPolizaCmd.cleanupAllStates(chatId);
-            // }
-            
-            logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
+
+        const flowStateManager = require('../utils/FlowStateManager');
+        flowStateManager.clearAllStates(chatId);
+
+        // ELIMINADO: Llamada a ocuparPolizaCmd.cleanupAllStates para evitar bucle recursivo
+        // La limpieza de OcuparPolizaCallback ahora llama a esta función (clearChatState)
+        // if (ocuparPolizaCmd && typeof ocuparPolizaCmd.cleanupAllStates === 'function') {
+        //     ocuparPolizaCmd.cleanupAllStates(chatId);
+        // }
+
+        logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
     }
 
     /**
@@ -622,7 +622,7 @@ class CommandHandler {
      */
     verifyAllMaps(chatId, threadId = null) {
         logger.debug(`Verificando todos los mapas para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
-        
+
         const states = {
             uploadTargets: false,
             awaitingSaveData: false,
@@ -637,59 +637,59 @@ class CommandHandler {
             awaitingOrigenDestino: false,
             awaitingDeleteReason: false
         };
-        
+
         if (this.uploadTargets && typeof this.uploadTargets.has === 'function')
             states.uploadTargets = this.uploadTargets.has(chatId, threadId);
-        
+
         if (this.awaitingSaveData && typeof this.awaitingSaveData.has === 'function')
             states.awaitingSaveData = this.awaitingSaveData.has(chatId, threadId);
-        
+
         if (this.awaitingGetPolicyNumber && typeof this.awaitingGetPolicyNumber.has === 'function')
             states.awaitingGetPolicyNumber = this.awaitingGetPolicyNumber.has(chatId, threadId);
-        
+
         if (this.awaitingUploadPolicyNumber && typeof this.awaitingUploadPolicyNumber.has === 'function')
             states.awaitingUploadPolicyNumber = this.awaitingUploadPolicyNumber.has(chatId, threadId);
-        
+
         if (this.awaitingDeletePolicyNumber && typeof this.awaitingDeletePolicyNumber.has === 'function')
             states.awaitingDeletePolicyNumber = this.awaitingDeletePolicyNumber.has(chatId, threadId);
-        
+
         if (this.awaitingPaymentPolicyNumber && typeof this.awaitingPaymentPolicyNumber.has === 'function')
             states.awaitingPaymentPolicyNumber = this.awaitingPaymentPolicyNumber.has(chatId, threadId);
-        
+
         if (this.awaitingPaymentData && typeof this.awaitingPaymentData.has === 'function')
             states.awaitingPaymentData = this.awaitingPaymentData.has(chatId, threadId);
-        
+
         if (this.awaitingServicePolicyNumber && typeof this.awaitingServicePolicyNumber.has === 'function')
             states.awaitingServicePolicyNumber = this.awaitingServicePolicyNumber.has(chatId, threadId);
-        
+
         if (this.awaitingServiceData && typeof this.awaitingServiceData.has === 'function')
             states.awaitingServiceData = this.awaitingServiceData.has(chatId, threadId);
-        
+
         if (this.awaitingPhoneNumber && typeof this.awaitingPhoneNumber.has === 'function')
             states.awaitingPhoneNumber = this.awaitingPhoneNumber.has(chatId, threadId);
-        
+
         if (this.awaitingOrigenDestino && typeof this.awaitingOrigenDestino.has === 'function')
             states.awaitingOrigenDestino = this.awaitingOrigenDestino.has(chatId, threadId);
-        
+
         if (this.awaitingDeleteReason && typeof this.awaitingDeleteReason.has === 'function')
             states.awaitingDeleteReason = this.awaitingDeleteReason.has(chatId, threadId);
-        
+
         const activeStates = Object.entries(states)
             .filter(([_, value]) => value)
             .map(([key]) => key);
-        
+
         if (activeStates.length > 0) {
             logger.debug(`Estados activos encontrados: ${activeStates.join(', ')}`, {
                 chatId,
                 threadId: threadId || 'ninguno'
             });
         } else {
-            logger.debug(`No se encontraron estados activos`, {
+            logger.debug('No se encontraron estados activos', {
                 chatId,
                 threadId: threadId || 'ninguno'
             });
         }
-        
+
         return states;
     }
 
@@ -700,16 +700,16 @@ class CommandHandler {
 
     // Manejo del flujo INICIADO por accion:registrar
     async handleSaveData(ctx, messageText) {
-    const chatId = ctx.chat.id;
-    const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const chatId = ctx.chat.id;
+        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
         try {
             const lines = messageText
                 .split('\n')
                 .map((line) => line.trim())
                 .filter((line) => line !== '');
-    
+
             logger.info(`Número de líneas recibidas en /save: ${lines.length}`, { chatId });
-    
+
             const EXPECTED_LINES = 19;
             if (lines.length < EXPECTED_LINES) {
                 // No limpiar estado aquí, permitir corrección o cancelación
@@ -723,15 +723,15 @@ class CommandHandler {
                 );
                 return;
             }
-    
+
             const fechaStr = lines[18];
             const fechaParts = fechaStr.split(/[/-]/);
             if (fechaParts.length !== 3) {
-                 // No limpiar estado aquí
+                // No limpiar estado aquí
                 await ctx.reply(
                     '❌ Formato de fecha inválido en la línea 19. Use DD/MM/YY o DD/MM/YYYY.\n' +
                     'Puedes corregir y reenviar la información, o cancelar.',
-                     Markup.inlineKeyboard([
+                    Markup.inlineKeyboard([
                         Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
                     ])
                 );
@@ -742,8 +742,8 @@ class CommandHandler {
             if (year.length === 2) {
                 year = '20' + year; // 23 -> 2023
             }
-            const 
-            fecha = new Date(`${year}-${month}-${day}`);
+            const
+                fecha = new Date(`${year}-${month}-${day}`);
 
             const policyData = {
                 titular: lines[0],
@@ -780,11 +780,11 @@ class CommandHandler {
             // NUEVA VALIDACIÓN: Verificar que no exista ya la póliza
             const existingPolicy = await getPolicyByNumber(policyData.numeroPoliza);
             if (existingPolicy) {
-                 // No limpiar estado aquí
+                // No limpiar estado aquí
                 await ctx.reply(
                     `❌ La póliza con número *${policyData.numeroPoliza}* (línea 18) ya existe. No se puede duplicar.\n` +
                     'Verifica el número o cancela el registro.',
-                     Markup.inlineKeyboard([
+                    Markup.inlineKeyboard([
                         Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
                     ])
                 );
@@ -799,19 +799,19 @@ class CommandHandler {
             this.awaitingSaveData.delete(chatId);
 
             await ctx.reply(
-                `✅ Póliza guardada exitosamente:\n` +
+                '✅ Póliza guardada exitosamente:\n' +
                 `Número: ${savedPolicy.numeroPoliza}`,
-                 Markup.inlineKeyboard([ // Botón para volver al menú
-                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                 ])
+                Markup.inlineKeyboard([ // Botón para volver al menú
+                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                ])
             );
         } catch (error) {
             logger.error('Error al procesar datos de póliza (handleSaveData):', error);
-             // No limpiar estado aquí, el usuario podría querer corregir
+            // No limpiar estado aquí, el usuario podría querer corregir
             await ctx.reply(
                 `❌ Error al guardar: ${error.message}\n` +
                 'Verifica los datos e intenta reenviar, o cancela.',
-                 Markup.inlineKeyboard([
+                Markup.inlineKeyboard([
                     Markup.button.callback('Cancelar Registro', 'accion:cancelar_registro')
                 ])
             );
@@ -826,16 +826,16 @@ class CommandHandler {
             // Procesar la entrada del usuario para extraer múltiples números de póliza
             // Aceptamos números separados por saltos de línea, comas o espacios
             const inputText = messageText.trim();
-            
+
             // Primero separamos por saltos de línea
             let polizasArray = inputText.split('\n');
-            
+
             // Si solo hay una línea, intentamos separar por comas o espacios
             if (polizasArray.length === 1) {
                 // Primero intentamos separar por comas
                 if (inputText.includes(',')) {
                     polizasArray = inputText.split(',');
-                } 
+                }
                 // Si no hay comas, separamos por espacios
                 else if (inputText.includes(' ')) {
                     // Si no hay comas ni espacios, asumimos una sola póliza
@@ -847,7 +847,7 @@ class CommandHandler {
             const numeroPolizas = polizasArray
                 .map(num => num.trim().toUpperCase())
                 .filter(num => num.length > 0); // Eliminar espacios vacíos
-            
+
             // Verificar que hay al menos una póliza para procesar
             if (numeroPolizas.length === 0) {
                 await ctx.reply('❌ No se detectaron números de póliza válidos. Por favor, inténtalo de nuevo o cancela.');
@@ -855,7 +855,7 @@ class CommandHandler {
                 return;
             }
 
-             // Verificar que todas las pólizas existan ANTES de pedir el motivo
+            // Verificar que todas las pólizas existan ANTES de pedir el motivo
             const results = await Promise.all(numeroPolizas.map(async num => {
                 const policy = await getPolicyByNumber(num);
                 return { numero: num, existe: !!policy };
@@ -866,22 +866,22 @@ class CommandHandler {
 
             if (noEncontradas.length > 0) {
                 await ctx.reply(
-                    `❌ Las siguientes pólizas no se encontraron y no serán procesadas:\n` +
+                    '❌ Las siguientes pólizas no se encontraron y no serán procesadas:\n' +
                     `${noEncontradas.map(p => `- ${p.numero}`).join('\n')}\n\n` +
                     `${encontradas.length > 0 ? 'Se procederá con las encontradas.' : 'Ninguna póliza válida para eliminar. Proceso cancelado.'}`
                 );
-                 if (encontradas.length === 0) {
-                     this.awaitingDeletePolicyNumber.delete(chatId); // Cancelar si ninguna es válida
-                     return;
-                 }
+                if (encontradas.length === 0) {
+                    this.awaitingDeletePolicyNumber.delete(chatId); // Cancelar si ninguna es válida
+                    return;
+                }
             }
 
             // Si hay muchas pólizas válidas, confirmamos antes de proceder
             // const esProcesoPesado = numeroPolizas.length > 5; // REMOVED initial declaration
             let mensajeConfirmacion = '';
-            
+
             // Determine if it's a heavy process based on FOUND policies
-            let esProcesoPesado = encontradas.length > 5; // CHANGED to let declaration
+            const esProcesoPesado = encontradas.length > 5; // CHANGED to let declaration
 
             if (esProcesoPesado) {
                 mensajeConfirmacion = `🔄 Se procesarán ${encontradas.length} pólizas.\n\n`;
@@ -925,7 +925,7 @@ class CommandHandler {
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
                 await ctx.reply(`❌ No se encontró la póliza con número: ${numeroPoliza}. Verifica el número e intenta de nuevo, o cancela.`);
-                 // No limpiar estado, permitir reintento
+                // No limpiar estado, permitir reintento
             } else {
                 // Guardamos la póliza en un Map, junto al chatId
                 this.awaitingPaymentData.set(chatId, numeroPoliza);
@@ -933,22 +933,22 @@ class CommandHandler {
                 // Indicamos qué datos requerimos
                 await ctx.reply(
                     `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
-                    `💰 *Ingresa el pago en este formato (2 líneas):*\n` +
-                    `1️⃣ Monto del pago (ejemplo: 345.00)\n` +
-                    `2️⃣ Fecha de pago (DD/MM/YYYY)\n\n` +
-                    `📝 Ejemplo:\n\n` +
-                    `345.00\n12/01/2024`,
+                    '💰 *Ingresa el pago en este formato (2 líneas):*\n' +
+                    '1️⃣ Monto del pago (ejemplo: 345.00)\n' +
+                    '2️⃣ Fecha de pago (DD/MM/YYYY)\n\n' +
+                    '📝 Ejemplo:\n\n' +
+                    '345.00\n12/01/2024',
                     { parse_mode: 'Markdown' }
                 );
-                 // Ya no esperamos la póliza, ahora esperamos los datos
-                 this.awaitingPaymentPolicyNumber.delete(chatId);
+                // Ya no esperamos la póliza, ahora esperamos los datos
+                this.awaitingPaymentPolicyNumber.delete(chatId);
             }
         } catch (error) {
             logger.error('Error en handleAddPaymentPolicyNumber:', error);
             await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
-             // Limpiar ambos estados en caso de error
-             this.awaitingPaymentPolicyNumber.delete(chatId);
-             this.awaitingPaymentData.delete(chatId);
+            // Limpiar ambos estados en caso de error
+            this.awaitingPaymentPolicyNumber.delete(chatId);
+            this.awaitingPaymentData.delete(chatId);
         }
     }
 
@@ -960,7 +960,7 @@ class CommandHandler {
             const numeroPoliza = this.awaitingPaymentData.get(chatId);
             if (!numeroPoliza) {
                 // El estado se perdió, guiar al usuario
-                 logger.warn(`Se recibieron datos de pago sin una póliza en espera para chatId: ${chatId}`);
+                logger.warn(`Se recibieron datos de pago sin una póliza en espera para chatId: ${chatId}`);
                 return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir pago desde el menú principal.');
             }
 
@@ -1005,12 +1005,12 @@ class CommandHandler {
                     ])
                 }
             );
-             // Limpiar el estado al finalizar correctamente
-             this.awaitingPaymentData.delete(chatId);
+            // Limpiar el estado al finalizar correctamente
+            this.awaitingPaymentData.delete(chatId);
         } catch (error) {
             logger.error('Error en handlePaymentData:', error);
             await ctx.reply('❌ Error al procesar el pago. Verifica los datos e intenta nuevamente.');
-             // No limpiar estado en error, permitir corrección
+            // No limpiar estado en error, permitir corrección
         }
     }
 
@@ -1020,11 +1020,11 @@ class CommandHandler {
         const threadId = StateKeyManager.getThreadId(ctx);
 
         logger.info(`Ejecutando handleGetPolicyFlow para chatId=${chatId}, threadId=${threadId || 'ninguno'}`);
-        
+
         try {
             const numeroPoliza = messageText.trim().toUpperCase();
             logger.info(`Buscando póliza: ${numeroPoliza}`, { chatId, threadId: threadId || 'ninguno' });
-    
+
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
                 await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
@@ -1035,11 +1035,11 @@ class CommandHandler {
                     active: true,
                     activeSince: new Date().toISOString()
                 }, threadId);
-                
+
                 // ============= BLOQUE PARA SERVICIOS =============
                 const servicios = policy.servicios || [];
                 const totalServicios = servicios.length;
-    
+
                 let serviciosInfo = '\n*Servicios:* Sin servicios registrados';
                 if (totalServicios > 0) {
                     // Tomamos el último servicio
@@ -1048,14 +1048,14 @@ class CommandHandler {
                         ? new Date(ultimoServicio.fechaServicio).toISOString().split('T')[0]
                         : '??';
                     const origenDestino = ultimoServicio.origenDestino || '(Sin Origen/Destino)';
-    
+
                     serviciosInfo = `
     *Servicios:* ${totalServicios}
     *Último Servicio:* ${fechaServStr}
     *Origen/Destino:* ${origenDestino}`;
                 }
                 // ============= FIN BLOQUE NUEVO PARA SERVICIOS =============
-    
+
                 const mensaje = `
     📋 *Información de la Póliza*
     *Número:* ${policy.numeroPoliza}
@@ -1074,13 +1074,13 @@ class CommandHandler {
     *Agente:* ${policy.agenteCotizador}
     ${serviciosInfo}
                 `.trim();
-    
+
                 // Enviamos la información y los botones
                 await ctx.replyWithMarkdown(
                     mensaje,
                     Markup.inlineKeyboard([
                         [ Markup.button.callback('📸 Ver Fotos', `verFotos:${policy.numeroPoliza}`),
-                          Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
+                            Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
                         [ Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`) ],
                         [ Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu') ] // Añadir botón volver
                     ])
@@ -1104,7 +1104,7 @@ class CommandHandler {
         try {
             const flowStateManager = require('../utils/FlowStateManager');
             const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
-            
+
             if (activeFlows.length > 0) {
                 const policyNumber = activeFlows[0].numeroPoliza;
                 this.logInfo(`Usando póliza activa del hilo actual: ${policyNumber}`);
@@ -1112,51 +1112,51 @@ class CommandHandler {
                 if (policy) {
                     // Obtener datos previos del flujo
                     const flowData = flowStateManager.getState(chatId, policyNumber, threadId);
-                    
+
                     // Revisar si tenemos información de origen/destino
-                    const origenDestino = flowData?.origenDestino || 
-                        (flowData?.origin && flowData?.destination ? 
-                        `${flowData.origin} - ${flowData.destination}` : null);
-                    
+                    const origenDestino = flowData?.origenDestino ||
+                        (flowData?.origin && flowData?.destination ?
+                            `${flowData.origin} - ${flowData.destination}` : null);
+
                     // Guardar en formato objeto para poder incluir datos adicionales
                     this.awaitingServiceData.set(chatId, {
                         numeroPoliza: policyNumber,
                         origenDestino: origenDestino,
                         usarFechaActual: true
                     });
-                    
+
                     // Si tenemos origen/destino, pedimos solo 2 datos
                     if (origenDestino) {
                         await ctx.reply(
                             `✅ Usando póliza activa *${policyNumber}* con datos existentes.\n\n` +
                             `📍 Origen/Destino: ${origenDestino}\n\n` +
-                            `🚗 *Solo ingresa los siguientes datos (2 líneas):*\n` +
-                            `1️⃣ Costo (ej. 550.00)\n` +
-                            `2️⃣ Número de expediente\n\n` +
-                            `📝 Ejemplo:\n\n` +
-                            `550.00\nEXP-2025-001`,
+                            '🚗 *Solo ingresa los siguientes datos (2 líneas):*\n' +
+                            '1️⃣ Costo (ej. 550.00)\n' +
+                            '2️⃣ Número de expediente\n\n' +
+                            '📝 Ejemplo:\n\n' +
+                            '550.00\nEXP-2025-001',
                             { parse_mode: 'Markdown' }
                         );
                     } else {
                         // Si no tenemos origen/destino, pedimos los 4 datos normales
                         await ctx.reply(
                             `✅ Usando póliza activa *${policyNumber}* de este hilo.\n\n` +
-                            `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
-                            `1️⃣ Costo (ej. 550.00)\n` +
-                            `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
-                            `3️⃣ Número de expediente\n` +
-                            `4️⃣ Origen y Destino\n\n` +
-                            `📝 Ejemplo:\n\n` +
-                            `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                            '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
+                            '1️⃣ Costo (ej. 550.00)\n' +
+                            '2️⃣ Fecha del servicio (DD/MM/YYYY)\n' +
+                            '3️⃣ Número de expediente\n' +
+                            '4️⃣ Origen y Destino\n\n' +
+                            '📝 Ejemplo:\n\n' +
+                            '550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac',
                             { parse_mode: 'Markdown' }
                         );
                     }
-                    
+
                     this.awaitingServicePolicyNumber.delete(chatId);
                     return;
                 }
             }
-            
+
             // Código existente para el flujo normal, sin cambios
             const numeroPoliza = messageText.trim().toUpperCase();
             const policy = await getPolicyByNumber(numeroPoliza);
@@ -1169,13 +1169,13 @@ class CommandHandler {
                 // Pedimos los 4 datos en 4 líneas
                 await ctx.reply(
                     `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
-                    `🚗 *Ingresa la información del servicio (4 líneas):*\n` +
-                    `1️⃣ Costo (ej. 550.00)\n` +
-                    `2️⃣ Fecha del servicio (DD/MM/YYYY)\n` +
-                    `3️⃣ Número de expediente\n` +
-                    `4️⃣ Origen y Destino\n\n` +
-                    `📝 Ejemplo:\n\n` +
-                    `550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac`,
+                    '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
+                    '1️⃣ Costo (ej. 550.00)\n' +
+                    '2️⃣ Fecha del servicio (DD/MM/YYYY)\n' +
+                    '3️⃣ Número de expediente\n' +
+                    '4️⃣ Origen y Destino\n\n' +
+                    '📝 Ejemplo:\n\n' +
+                    '550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac',
                     { parse_mode: 'Markdown' }
                 );
                 // Ya no esperamos la póliza, ahora esperamos los datos
@@ -1197,20 +1197,20 @@ class CommandHandler {
         try {
             // Obtener la data guardada (puede ser string o objeto)
             const policyData = this.awaitingServiceData.get(chatId);
-            
+
             if (!policyData) {
                 logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`);
                 return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.');
             }
-    
+
             // Determinar si es un objeto con datos adicionales o solo el número de póliza
             const numeroPoliza = typeof policyData === 'object' ? policyData.numeroPoliza : policyData;
             const origenDestinoGuardado = typeof policyData === 'object' ? policyData.origenDestino : null;
             const usarFechaActual = typeof policyData === 'object' ? policyData.usarFechaActual : false;
-    
+
             // Dividir en líneas
             const lines = messageText.split('\n').map(l => l.trim()).filter(Boolean);
-            
+
             // MODO SIMPLIFICADO: Si tenemos origen/destino guardado y vamos a usar fecha actual
             if (usarFechaActual && origenDestinoGuardado) {
                 // En este caso solo esperamos 2 líneas: costo y expediente
@@ -1221,49 +1221,49 @@ class CommandHandler {
                         '2) Número de Expediente'
                     );
                 }
-    
+
                 const [costoStr, expediente] = lines;
-    
+
                 // Validar costo
                 const costo = parseFloat(costoStr.replace(',', '.'));
                 if (isNaN(costo) || costo <= 0) {
                     return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
                 }
-    
+
                 // Validar expediente
                 if (!expediente || expediente.length < 3) {
                     return await ctx.reply('❌ Número de expediente inválido. Ingresa al menos 3 caracteres.');
                 }
-    
+
                 // Usar la fecha actual
                 const fechaJS = new Date();
-                
+
                 // Usar origen/destino guardado
                 const origenDestino = origenDestinoGuardado;
-    
+
                 // Guardar el número de expediente en FlowStateManager para uso en notificaciones
                 const flowStateManager = require('../utils/FlowStateManager');
                 flowStateManager.saveState(chatId, numeroPoliza, {
                     expedienteNum: expediente
                 }, threadId);
-                
+
                 this.logInfo(`Guardando número de expediente: ${expediente} para póliza: ${numeroPoliza}`, { chatId, threadId });
-                
+
                 // Llamar la función para añadir el servicio
                 const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
                 if (!updatedPolicy) {
                     return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
                 }
-    
+
                 // Averiguar el número de servicio recién insertado
                 const totalServicios = updatedPolicy.servicios.length;
                 const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
                 const numeroServicio = servicioInsertado.numeroServicio;
-                
+
                 // Formatear fecha actual para mostrar
                 const today = fechaJS;
                 const fechaStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
-    
+
                 await ctx.reply(
                     `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
                     `Costo: $${costo.toFixed(2)}\n` +
@@ -1289,15 +1289,15 @@ class CommandHandler {
                         '4) Origen y Destino (ej. "Los Reyes - Tlalnepantla")'
                     );
                 }
-    
+
                 const [costoStr, fechaStr, expediente, origenDestino] = lines;
-    
+
                 // Validar costo
                 const costo = parseFloat(costoStr.replace(',', '.'));
                 if (isNaN(costo) || costo <= 0) {
                     return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
                 }
-    
+
                 // Validar fecha
                 const [dia, mes, anio] = fechaStr.split(/[/-]/);
                 if (!dia || !mes || !anio) {
@@ -1307,28 +1307,28 @@ class CommandHandler {
                 if (isNaN(fechaJS.getTime())) {
                     return await ctx.reply('❌ Fecha inválida. Verifica día, mes y año correctos.');
                 }
-    
+
                 // Validar expediente
                 if (!expediente || expediente.length < 3) {
                     return await ctx.reply('❌ Número de expediente inválido. Ingresa al menos 3 caracteres.');
                 }
-    
+
                 // Validar origen-destino
                 if (!origenDestino || origenDestino.length < 3) {
                     return await ctx.reply('❌ Origen y destino inválidos. Ingresa al menos 3 caracteres.');
                 }
-    
+
                 // Llamar la función para añadir el servicio
                 const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
                 if (!updatedPolicy) {
                     return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
                 }
-    
+
                 // Averiguar el número de servicio recién insertado
                 const totalServicios = updatedPolicy.servicios.length;
                 const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
                 const numeroServicio = servicioInsertado.numeroServicio;
-    
+
                 await ctx.reply(
                     `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
                     `Costo: $${costo.toFixed(2)}\n` +
@@ -1343,17 +1343,17 @@ class CommandHandler {
                     }
                 );
             }
-    
+
             // El resto del código (gestión de notificaciones) no cambia
             // Verificar si existe una hora de contacto programada usando FlowStateManager
             const flowStateManager = require('../utils/FlowStateManager');
-            
+
             // Código existente para manejar notificaciones...
             // ...
-    
+
             // Limpiar el estado al finalizar correctamente
             this.awaitingServiceData.delete(chatId);
-    
+
             // También limpiar el estado de espera de hora de contacto en OcuparPolizaCallback
             const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
             if (ocuparPolizaCmd) {
@@ -1366,7 +1366,7 @@ class CommandHandler {
                     ocuparPolizaCmd.cleanupAllStates(chatId, threadId);
                 }
             }
-    
+
         } catch (error) {
             logger.error('Error en handleServiceData:', error);
             await ctx.reply('❌ Error al procesar el servicio. Verifica los datos e intenta nuevamente.');
@@ -1374,11 +1374,11 @@ class CommandHandler {
         }
     }
 
-        // Manejo del flujo INICIADO por accion:upload (recibe N° póliza)
-        async handleUploadFlow(ctx, messageText) {
+    // Manejo del flujo INICIADO por accion:upload (recibe N° póliza)
+    async handleUploadFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
         const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
-            try {
+        try {
             // Removed duplicate chatId assignment.
             const numeroPoliza = messageText.trim().toUpperCase();
             logger.info('Iniciando upload para póliza:', { numeroPoliza, chatId });
@@ -1387,36 +1387,36 @@ class CommandHandler {
             const policy = await getPolicyByNumber(numeroPoliza);
             if (!policy) {
                 await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}. Verifica e intenta de nuevo.`);
-                 // No limpiar estado, permitir reintento
+                // No limpiar estado, permitir reintento
                 return;
             }
 
             // Guardamos en un Map qué póliza está usando este chat
-                this.uploadTargets.set(chatId, numeroPoliza);
+            this.uploadTargets.set(chatId, numeroPoliza);
 
-                // Avisamos al usuario que puede subir los archivos
-                await ctx.reply(
-                    `📤 *Subida de Archivos - Póliza ${numeroPoliza}*\n\n` +
-                    `📸 Puedes enviar múltiples fotos.\n` +
-                    `📄 También puedes enviar archivos PDF.\n\n` +
-                    `Cuando termines, puedes volver al menú principal.`,
-                    {
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                        ])
-                    }
-                );
-                 // Ya no esperamos el número de póliza, ahora esperamos archivos
-                 this.awaitingUploadPolicyNumber.delete(chatId);
-            } catch (error) {
-                logger.error('Error en handleUploadFlow:', error);
-                await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
-                 // Limpiar ambos estados en caso de error
-                 this.awaitingUploadPolicyNumber.delete(chatId);
-                 this.uploadTargets.delete(chatId);
-            }
+            // Avisamos al usuario que puede subir los archivos
+            await ctx.reply(
+                `📤 *Subida de Archivos - Póliza ${numeroPoliza}*\n\n` +
+                    '📸 Puedes enviar múltiples fotos.\n' +
+                    '📄 También puedes enviar archivos PDF.\n\n' +
+                    'Cuando termines, puedes volver al menú principal.',
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
+                    ])
+                }
+            );
+            // Ya no esperamos el número de póliza, ahora esperamos archivos
+            this.awaitingUploadPolicyNumber.delete(chatId);
+        } catch (error) {
+            logger.error('Error en handleUploadFlow:', error);
+            await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
+            // Limpiar ambos estados en caso de error
+            this.awaitingUploadPolicyNumber.delete(chatId);
+            this.uploadTargets.delete(chatId);
         }
+    }
 
 }
 

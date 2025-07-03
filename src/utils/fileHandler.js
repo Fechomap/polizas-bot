@@ -58,7 +58,7 @@ class FileHandler {
 
             // Ahora se usa "foto" (singular) para imágenes
             const files = fileType === 'foto' ? policy.archivos.fotos : policy.archivos.pdfs;
-            
+
             if (!files || files.length === 0) {
                 logger.info(`ℹ️ No hay ${fileType === 'foto' ? 'fotos' : 'PDFs'} para la póliza: ${numeroPoliza}`);
                 return [];
@@ -91,11 +91,11 @@ class FileHandler {
             });
 
             if (fileType === 'foto') {
-                await ctx.replyWithPhoto({ 
-                    source: fileBuffer 
+                await ctx.replyWithPhoto({
+                    source: fileBuffer
                 });
             } else if (fileType === 'pdf') {
-                await ctx.replyWithDocument({ 
+                await ctx.replyWithDocument({
                     source: fileBuffer,
                     filename: `documento_${numeroPoliza}.pdf`
                 });
@@ -112,18 +112,18 @@ class FileHandler {
     static async saveFile(fileUrl, numeroPoliza, fileType) {
         const fileDir = path.join(__dirname, '..', 'uploads', numeroPoliza);
         await this.ensureDirectory(fileDir);
-        
+
         const timestamp = Date.now();
         // Para fotos, usamos extensión jpg; para pdf se conserva
         const extension = fileType === 'foto' ? 'jpg' : fileType;
         const fileName = `${timestamp}.${extension}`;
         const filePath = path.join(fileDir, fileName);
-        
+
         try {
             const response = await axios.get(fileUrl.href, { responseType: 'arraybuffer' });
             await fs.writeFile(filePath, response.data);
             logger.info(`✅ Archivo guardado: ${filePath}`);
-            
+
             // Determinar el contentType basado en fileType
             let contentType = '';
             if (fileType === 'foto') {
@@ -131,10 +131,10 @@ class FileHandler {
             } else if (fileType === 'pdf') {
                 contentType = 'application/pdf';
             }
-            
+
             // También guardamos en MongoDB
             await this.saveFileToMongo(numeroPoliza, fileType, response.data, contentType);
-            
+
             return filePath;
         } catch (error) {
             logger.error('❌ Error al guardar archivo:', { error: error.message });

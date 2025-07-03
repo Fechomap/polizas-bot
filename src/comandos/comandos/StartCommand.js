@@ -54,7 +54,7 @@ class StartCommand extends BaseCommand {
     async showMainMenu(ctx) {
         try {
             const mainMenu = Markup.inlineKeyboard([
-                 [
+                [
                     Markup.button.callback('Consultar Póliza', 'accion:consultar'),
                     Markup.button.callback('Registrar Póliza', 'accion:registrar')
                 ],
@@ -74,7 +74,7 @@ class StartCommand extends BaseCommand {
 
             // Podríamos editar el mensaje anterior si existe ctx.callbackQuery
             if (ctx.callbackQuery) {
-                 await ctx.editMessageText(
+                await ctx.editMessageText(
                     'Menú Principal:',
                     mainMenu
                 );
@@ -86,14 +86,14 @@ class StartCommand extends BaseCommand {
                     mainMenu
                 );
             }
-             this.logInfo('Menú principal mostrado', { chatId: ctx.chat.id });
+            this.logInfo('Menú principal mostrado', { chatId: ctx.chat.id });
         } catch (error) {
             this.logError('Error al mostrar menú principal (showMainMenu):', error);
             // Evitar doble respuesta si falla la edición
             if (!ctx.callbackQuery) {
                 await ctx.reply('❌ Error al mostrar el menú.');
             } else {
-                 try { await ctx.answerCbQuery('Error al mostrar menú'); } catch {}
+                try { await ctx.answerCbQuery('Error al mostrar menú'); } catch {}
             }
         }
     }

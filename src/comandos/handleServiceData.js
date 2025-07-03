@@ -9,7 +9,7 @@ async function handleServiceData(ctx, messageText) {
     try {
         // Obtener la data guardada (puede ser string o objeto)
         const policyData = this.awaitingServiceData.get(chatId, threadId);
-        
+
         if (!policyData) {
             logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}, threadId: ${threadId || 'ninguno'}`);
             return await ctx.reply('❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.');
@@ -17,14 +17,14 @@ async function handleServiceData(ctx, messageText) {
 
         // Determinar si es un objeto con datos adicionales o solo el número de póliza
         const numeroPoliza = typeof policyData === 'object' ? policyData.numeroPoliza : policyData;
-        
+
         logger.info(`Procesando datos de servicio para póliza: ${numeroPoliza}`, { chatId, threadId: threadId || 'ninguno' });
         const origenDestinoGuardado = typeof policyData === 'object' ? policyData.origenDestino : null;
         const usarFechaActual = typeof policyData === 'object' ? policyData.usarFechaActual : false;
 
         // Dividir en líneas
         const lines = messageText.split('\n').map(l => l.trim()).filter(Boolean);
-        
+
         // MODO SIMPLIFICADO: Si tenemos origen/destino guardado y vamos a usar fecha actual
         if (usarFechaActual && origenDestinoGuardado) {
             // En este caso solo esperamos 2 líneas: costo y expediente
@@ -51,7 +51,7 @@ async function handleServiceData(ctx, messageText) {
 
             // Usar la fecha actual
             const fechaJS = new Date();
-            
+
             // Usar origen/destino guardado
             const origenDestino = origenDestinoGuardado;
 
@@ -60,9 +60,9 @@ async function handleServiceData(ctx, messageText) {
             flowStateManager.saveState(chatId, numeroPoliza, {
                 expedienteNum: expediente
             }, threadId);
-            
+
             logger.info(`Guardando número de expediente: ${expediente} para póliza: ${numeroPoliza}`, { chatId, threadId });
-            
+
             // Llamar la función para añadir el servicio
             const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
             if (!updatedPolicy) {
@@ -73,7 +73,7 @@ async function handleServiceData(ctx, messageText) {
             const totalServicios = updatedPolicy.servicios.length;
             const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
             const numeroServicio = servicioInsertado.numeroServicio;
-            
+
             // Formatear fecha actual para mostrar
             const today = fechaJS;
             const fechaStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
@@ -88,7 +88,7 @@ async function handleServiceData(ctx, messageText) {
                     parse_mode: 'Markdown'
                 }
             );
-            
+
             // Devolver los datos procesados para que TextMessageHandler decida qué hacer
             return { expediente, origenDestino, costo, fechaJS };
         } else {
@@ -153,7 +153,7 @@ async function handleServiceData(ctx, messageText) {
                     parse_mode: 'Markdown'
                 }
             );
-            
+
             // Devolver los datos procesados para que TextMessageHandler decida qué hacer
             return { expediente, origenDestino, costo, fechaJS };
         }

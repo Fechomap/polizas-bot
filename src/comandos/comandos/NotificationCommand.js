@@ -28,7 +28,7 @@ class NotificationCommand extends BaseCommand {
 
                 // Obtener instancia del NotificationManager
                 const notificationManager = getNotificationManager(this.bot);
-                
+
                 // Verificar inicialización
                 if (!notificationManager.isInitialized) {
                     try {
@@ -38,17 +38,17 @@ class NotificationCommand extends BaseCommand {
                         return await ctx.reply('❌ Error al inicializar el sistema de notificaciones.');
                     }
                 }
-                
+
                 // Obtener notificaciones pendientes
                 const pendingNotifications = await notificationManager.getPendingNotifications();
-                
+
                 if (pendingNotifications.length === 0) {
                     return await ctx.reply('📅 No hay notificaciones programadas pendientes.');
                 }
-                
+
                 await ctx.reply(
                     `📋 *${pendingNotifications.length} Notificaciones Pendientes*\n` +
-                    `Selecciona una opción:`,
+                    'Selecciona una opción:',
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
@@ -74,42 +74,42 @@ class NotificationCommand extends BaseCommand {
                 if (ctx.from.id !== this.ADMIN_ID) {
                     return await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
                 }
-                
+
                 await ctx.answerCbQuery();
-                
+
                 const notificationManager = getNotificationManager(this.bot);
                 const pendingNotifications = await notificationManager.getPendingNotifications();
-                
+
                 if (pendingNotifications.length === 0) {
                     return await ctx.reply('📅 No hay notificaciones programadas pendientes.');
                 }
-                
+
                 // Ordenar por fecha
                 pendingNotifications.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
-                
+
                 // Dividir en bloques de 10 máximo
                 const chunkSize = 10;
                 const totalChunks = Math.ceil(pendingNotifications.length / chunkSize);
-                
+
                 for (let i = 0; i < totalChunks; i++) {
                     const chunk = pendingNotifications.slice(i * chunkSize, (i + 1) * chunkSize);
-                    
+
                     let message = `📋 *Notificaciones Programadas (${i+1}/${totalChunks})*\n\n`;
-                    
+
                     chunk.forEach(notification => {
                         const scheduledDate = new Date(notification.scheduledDate);
                         const formattedDate = `${scheduledDate.getDate()}/${scheduledDate.getMonth()+1} ${scheduledDate.getHours()}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
-                        
+
                         message += `🔹 *ID:* ${notification._id.toString().slice(-6)}\n`;
                         message += `📝 Póliza: ${notification.numeroPoliza}\n`;
                         message += `⏰ Hora: ${notification.contactTime} (${formattedDate})\n`;
                         message += `📄 Exp: ${notification.expedienteNum}\n`;
-                        
+
                         if (i < totalChunks - 1 || chunk.indexOf(notification) < chunk.length - 1) {
-                            message += `\n`;
+                            message += '\n';
                         }
                     });
-                    
+
                     // Añadir botones solo al último mensaje
                     if (i === totalChunks - 1) {
                         await ctx.reply(message, {
@@ -136,27 +136,27 @@ class NotificationCommand extends BaseCommand {
                 if (ctx.from.id !== this.ADMIN_ID) {
                     return await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
                 }
-                
+
                 await ctx.answerCbQuery();
-                
+
                 const notificationManager = getNotificationManager(this.bot);
                 const allPending = await notificationManager.getPendingNotifications();
-                
+
                 if (allPending.length === 0) {
                     return await ctx.reply('📅 No hay notificaciones programadas pendientes.');
                 }
-                
+
                 // Filtrar solo las de hoy
                 const now = new Date();
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 const tomorrow = new Date(today);
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                
+
                 const todayNotifications = allPending.filter(n => {
                     const date = new Date(n.scheduledDate);
                     return date >= today && date < tomorrow;
                 });
-                
+
                 if (todayNotifications.length === 0) {
                     return await ctx.reply(
                         '📅 No hay notificaciones programadas para hoy.',
@@ -168,26 +168,26 @@ class NotificationCommand extends BaseCommand {
                         }
                     );
                 }
-                
+
                 // Ordenar por hora
                 todayNotifications.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
-                
+
                 let message = `⏰ *Notificaciones para HOY (${todayNotifications.length})*\n\n`;
-                
+
                 todayNotifications.forEach(notification => {
                     const scheduledDate = new Date(notification.scheduledDate);
                     const formattedTime = `${scheduledDate.getHours()}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
-                    
+
                     message += `🔹 *${formattedTime}* - ${notification.expedienteNum}\n`;
                     message += `📝 Póliza: ${notification.numeroPoliza}\n`;
-                    
+
                     if (notification.marcaModelo) {
                         message += `🚗 ${notification.marcaModelo}\n`;
                     }
-                    
-                    message += `\n`;
+
+                    message += '\n';
                 });
-                
+
                 await ctx.reply(message, {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
@@ -208,55 +208,55 @@ class NotificationCommand extends BaseCommand {
                 if (ctx.from.id !== this.ADMIN_ID) {
                     return await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
                 }
-                
+
                 await ctx.answerCbQuery();
-                
+
                 const ScheduledNotification = require('../../models/scheduledNotification');
-                
+
                 // Obtener estadísticas usando agregación
                 const stats = await ScheduledNotification.aggregate([
                     {
                         $facet: {
                             byStatus: [
-                                { $group: { _id: "$status", count: { $sum: 1 } } },
+                                { $group: { _id: '$status', count: { $sum: 1 } } },
                                 { $sort: { count: -1 } }
                             ],
                             byDate: [
-                                { 
-                                    $match: { 
-                                        status: "PENDING",
+                                {
+                                    $match: {
+                                        status: 'PENDING',
                                         scheduledDate: { $exists: true }
                                     }
                                 },
                                 {
                                     $project: {
                                         dayMonthYear: {
-                                            $dateToString: { format: "%Y-%m-%d", date: "$scheduledDate" }
+                                            $dateToString: { format: '%Y-%m-%d', date: '$scheduledDate' }
                                         }
                                     }
                                 },
-                                { $group: { _id: "$dayMonthYear", count: { $sum: 1 } } },
+                                { $group: { _id: '$dayMonthYear', count: { $sum: 1 } } },
                                 { $sort: { _id: 1 } }
                             ],
-                            total: [{ $count: "value" }]
+                            total: [{ $count: 'value' }]
                         }
                     }
                 ]);
-                
+
                 // Formatear las estadísticas
                 const totalCount = stats[0].total.length > 0 ? stats[0].total[0].value : 0;
                 const statusCount = stats[0].byStatus.map(item => `${item._id}: ${item.count}`).join('\n');
-                
+
                 const now = new Date();
                 const today = now.toISOString().substring(0, 10);
-                
+
                 const todayCount = stats[0].byDate.find(item => item._id === today)?.count || 0;
-                
-                let message = `📊 *Estadísticas de Notificaciones*\n\n`;
+
+                let message = '📊 *Estadísticas de Notificaciones*\n\n';
                 message += `Total: ${totalCount}\n\n`;
                 message += `*Por estado:*\n${statusCount}\n\n`;
                 message += `*Hoy (${today}):* ${todayCount}\n`;
-                
+
                 await ctx.reply(message, {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
@@ -274,13 +274,13 @@ class NotificationCommand extends BaseCommand {
         this.handler.registry.registerCallback('notification:back', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                
+
                 const notificationManager = getNotificationManager(this.bot);
                 const pendingNotifications = await notificationManager.getPendingNotifications();
-                
+
                 await ctx.reply(
                     `📋 *${pendingNotifications.length} Notificaciones Pendientes*\n` +
-                    `Selecciona una opción:`,
+                    'Selecciona una opción:',
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([

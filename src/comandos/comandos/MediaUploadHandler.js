@@ -37,36 +37,36 @@ class MediaUploadHandler extends BaseCommand {
                 const photos = ctx.message.photo;
                 const highestResPhoto = photos[photos.length - 1];
                 const fileId = highestResPhoto.file_id;
-        
+
                 // Download file
                 const fileLink = await ctx.telegram.getFileLink(fileId);
                 const response = await fetch(fileLink.href);
                 if (!response.ok) throw new Error('Falló la descarga de la foto');
                 const buffer = await response.buffer();
-        
+
                 // Create file object directly
                 const fileObject = {
                     data: buffer,
                     contentType: 'image/jpeg'
                 };
-        
+
                 // Find the policy and update
                 const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 }
-        
+
                 // Initialize files if it doesn't exist
                 if (!policy.archivos) {
                     policy.archivos = { fotos: [], pdfs: [] };
                 }
-        
+
                 // Add the photo
                 policy.archivos.fotos.push(fileObject);
-        
+
                 // Save
                 await policy.save();
-        
+
                 await ctx.reply('✅ Foto guardada correctamente.');
                 this.logInfo('Foto guardada', { numeroPoliza });
                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
@@ -75,7 +75,7 @@ class MediaUploadHandler extends BaseCommand {
                 this.logError('Error al procesar foto:', error);
                 await ctx.reply('❌ Error al procesar la foto.');
                 // Considerar limpiar estado en error
-                 this.uploadTargets.delete(ctx.chat.id);
+                this.uploadTargets.delete(ctx.chat.id);
             }
         });
 
@@ -83,16 +83,16 @@ class MediaUploadHandler extends BaseCommand {
         this.bot.on('document', async (ctx, next) => { // Added 'next' parameter
             try {
                 const chatId = ctx.chat.id;
-                
+
                 // NUEVO: Verificar si estamos esperando un Excel para registro
                 const excelUploadCmd = this.handler.registry.getCommand('excelUpload');
-                if (excelUploadCmd && typeof excelUploadCmd.awaitingExcelUpload?.get === 'function' && 
+                if (excelUploadCmd && typeof excelUploadCmd.awaitingExcelUpload?.get === 'function' &&
                     excelUploadCmd.awaitingExcelUpload.get(chatId)) {
                     // Si estamos esperando un Excel, no procesamos aquí, dejamos que lo maneje ExcelUploadHandler
                     this.logInfo('Documento recibido, pero estamos en flujo de carga Excel. Pasando a ExcelUploadHandler', { chatId }); // Log updated
                     return next(); // Call next() to pass control
                 }
-                
+
                 const numeroPoliza = this.uploadTargets.get(chatId);
 
                 if (!numeroPoliza) {
@@ -103,46 +103,46 @@ class MediaUploadHandler extends BaseCommand {
                 if (!mimeType.includes('pdf')) {
                     return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
                 }
-        
+
                 // Download file
                 const fileId = ctx.message.document.file_id;
                 const fileLink = await ctx.telegram.getFileLink(fileId);
                 const response = await fetch(fileLink.href);
                 if (!response.ok) throw new Error('Falló la descarga del documento');
                 const buffer = await response.buffer();
-        
+
                 // Create file object directly
                 const fileObject = {
                     data: buffer,
                     contentType: 'application/pdf'
                 };
-        
+
                 // Find the policy and update
                 const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 }
-        
+
                 // Initialize files if it doesn't exist
                 if (!policy.archivos) {
                     policy.archivos = { fotos: [], pdfs: [] };
                 }
-        
+
                 // Add the PDF
                 policy.archivos.pdfs.push(fileObject);
-        
+
                 // Save
                 await policy.save();
-        
+
                 await ctx.reply('✅ PDF guardado correctamente.');
                 this.logInfo('PDF guardado', { numeroPoliza });
-                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
-                 // this.uploadTargets.delete(ctx.chat.id);
+                // No limpiar uploadTargets aquí, permitir subir múltiples archivos
+                // this.uploadTargets.delete(ctx.chat.id);
             } catch (error) {
                 this.logError('Error al procesar documento:', error);
                 await ctx.reply('❌ Error al procesar el documento.');
-                 // Considerar limpiar estado en error
-                 this.uploadTargets.delete(ctx.chat.id);
+                // Considerar limpiar estado en error
+                this.uploadTargets.delete(ctx.chat.id);
             }
         });
     }
