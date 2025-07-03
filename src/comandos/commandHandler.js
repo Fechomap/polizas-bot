@@ -71,6 +71,10 @@ class CommandHandler {
         this.awaitingOrigenDestino = StateKeyManager.createThreadSafeStateMap();
         this.awaitingDeleteReason = StateKeyManager.createThreadSafeStateMap();
 
+        // Nuevos estados para coordenadas separadas
+        this.awaitingOrigen = StateKeyManager.createThreadSafeStateMap();
+        this.awaitingDestino = StateKeyManager.createThreadSafeStateMap();
+
         // Store instances of commands needed for actions
         this.startCommandInstance = null;
         this.helpCommandInstance = null;

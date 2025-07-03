@@ -22,6 +22,56 @@ class TextMessageHandler extends BaseCommand {
     }
 
     register() {
+        // Register location handler for Telegram location shares
+        this.bot.on('location', async (ctx) => {
+            try {
+                const chatId = ctx.chat.id;
+                const threadId = ctx.message?.message_thread_id || null;
+
+                this.logInfo('Procesando ubicación compartida de Telegram', {
+                    chatId,
+                    threadId: threadId || 'ninguno',
+                    lat: ctx.message.location.latitude,
+                    lng: ctx.message.location.longitude
+                });
+
+                // Get the OcuparPolizaCallback instance if needed
+                if (!this.ocuparPolizaCallback && this.handler.registry) {
+                    const commands = this.handler.registry.getAllCommands();
+                    this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
+                }
+
+                // Check if we're waiting for origin
+                if (this.handler.awaitingOrigen.has(chatId, threadId)) {
+                    this.logInfo('Procesando ubicación como origen');
+                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigen === 'function') {
+                        await this.ocuparPolizaCallback.handleOrigen(ctx, ctx.message, threadId);
+                    } else {
+                        await ctx.reply('❌ Error al procesar la ubicación del origen.');
+                    }
+                    return;
+                }
+
+                // Check if we're waiting for destination
+                if (this.handler.awaitingDestino.has(chatId, threadId)) {
+                    this.logInfo('Procesando ubicación como destino');
+                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleDestino === 'function') {
+                        await this.ocuparPolizaCallback.handleDestino(ctx, ctx.message, threadId);
+                    } else {
+                        await ctx.reply('❌ Error al procesar la ubicación del destino.');
+                    }
+                    return;
+                }
+
+                // If no relevant state is active, ignore the location
+                this.logInfo('Ubicación recibida pero no hay estado activo relevante');
+
+            } catch (error) {
+                this.logError('Error al procesar ubicación:', error);
+                await ctx.reply('❌ Error al procesar la ubicación compartida.');
+            }
+        });
+
         // Get the OcuparPolizaCallback instance if it's registered later
         this.bot.on('text', async (ctx) => {
             // Lazy load the ocuparPolizaCallback if needed
@@ -288,6 +338,42 @@ class TextMessageHandler extends BaseCommand {
                     this.logInfo('[TextMsgHandler] Estado awaitingPhoneNumber activo. Llamando a handlePhoneNumber.'); // Log añadido
                     // ... (resto del bloque)
                     return; // Let the specific handler manage state and replies
+                }
+
+                // --- LOGGING AÑADIDO ---
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingOrigen');
+                // (A1) If we're waiting for origin coordinates (new flow)
+                if (this.handler.awaitingOrigen.has(chatId, threadId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingOrigen activo. Llamando a handleOrigen.');
+                    if (!this.ocuparPolizaCallback) {
+                        const commands = this.handler.registry.getAllCommands();
+                        this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
+                    }
+
+                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleOrigen === 'function') {
+                        await this.ocuparPolizaCallback.handleOrigen(ctx, messageText, threadId);
+                    } else {
+                        await ctx.reply('❌ Error al procesar la ubicación del origen.');
+                    }
+                    return;
+                }
+
+                // --- LOGGING AÑADIDO ---
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingDestino');
+                // (A2) If we're waiting for destination coordinates (new flow)
+                if (this.handler.awaitingDestino.has(chatId, threadId)) {
+                    this.logInfo('[TextMsgHandler] Estado awaitingDestino activo. Llamando a handleDestino.');
+                    if (!this.ocuparPolizaCallback) {
+                        const commands = this.handler.registry.getAllCommands();
+                        this.ocuparPolizaCallback = commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza');
+                    }
+
+                    if (this.ocuparPolizaCallback && typeof this.ocuparPolizaCallback.handleDestino === 'function') {
+                        await this.ocuparPolizaCallback.handleDestino(ctx, messageText, threadId);
+                    } else {
+                        await ctx.reply('❌ Error al procesar la ubicación del destino.');
+                    }
+                    return;
                 }
 
                 // --- LOGGING AÑADIDO ---

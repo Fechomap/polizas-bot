@@ -187,7 +187,23 @@ const policySchema = new mongoose.Schema({
         costo: { type: Number, required: false },
         fechaServicio: { type: Date, required: false },
         numeroExpediente: { type: String, required: false },
-        origenDestino: { type: String, required: false, trim: true }
+        origenDestino: { type: String, required: false, trim: true },
+        // Nuevos campos para coordenadas y datos de ruta
+        coordenadas: {
+            origen: {
+                lat: { type: Number, required: false },
+                lng: { type: Number, required: false }
+            },
+            destino: {
+                lat: { type: Number, required: false },
+                lng: { type: Number, required: false }
+            }
+        },
+        rutaInfo: {
+            distanciaKm: { type: Number, required: false },
+            tiempoMinutos: { type: Number, required: false },
+            googleMapsUrl: { type: String, required: false, trim: true }
+        }
     }],
 
     // Esquema de archivos híbrido: soporta binarios legacy y URLs de R2

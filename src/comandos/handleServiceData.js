@@ -63,8 +63,20 @@ async function handleServiceData(ctx, messageText) {
 
             logger.info(`Guardando número de expediente: ${expediente} para póliza: ${numeroPoliza}`, { chatId, threadId });
 
-            // Llamar la función para añadir el servicio
-            const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
+            // Recuperar datos de coordenadas desde FlowStateManager si están disponibles
+            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+            const coordenadas = savedState?.coordenadas || null;
+            let rutaInfo = savedState?.rutaInfo || null;
+
+            // Añadir URL de Google Maps desde geocoding si está disponible
+            if (savedState?.googleMapsUrl && rutaInfo) {
+                rutaInfo = { ...rutaInfo, googleMapsUrl: savedState.googleMapsUrl };
+            } else if (savedState?.googleMapsUrl && !rutaInfo) {
+                rutaInfo = { googleMapsUrl: savedState.googleMapsUrl };
+            }
+
+            // Llamar la función para añadir el servicio con datos de coordenadas
+            const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino, coordenadas, rutaInfo);
             if (!updatedPolicy) {
                 return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
             }
@@ -92,48 +104,73 @@ async function handleServiceData(ctx, messageText) {
             // Devolver los datos procesados para que TextMessageHandler decida qué hacer
             return { expediente, origenDestino, costo, fechaJS };
         } else {
-            // MODO COMPLETO: Flujo normal con 4 datos
-            // Necesitamos 4 líneas: Costo, Fecha, Expediente, Origen-Destino
-            if (lines.length < 4) {
+            // MODO NUEVO: Solo pedir número de expediente, calcular automáticamente los demás
+            // Esperamos solo 1 línea: Número de expediente
+            if (lines.length !== 1) {
                 return await ctx.reply(
-                    '❌ Formato inválido. Debes ingresar 4 líneas:\n' +
-                    '1) Costo (ej. 550.00)\n' +
-                    '2) Fecha (DD/MM/YYYY)\n' +
-                    '3) Número de Expediente\n' +
-                    '4) Origen y Destino (ej. "Los Reyes - Tlalnepantla")'
+                    '❌ Formato inválido. Debes ingresar solo el número de expediente:\n' +
+                    '📝 Ejemplo: EXP-2025-001\n\n' +
+                    '✅ Los demás datos se calculan automáticamente.'
                 );
             }
 
-            const [costoStr, fechaStr, expediente, origenDestino] = lines;
-
-            // Validar costo
-            const costo = parseFloat(costoStr.replace(',', '.'));
-            if (isNaN(costo) || costo <= 0) {
-                return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
-            }
-
-            // Validar fecha
-            const [dia, mes, anio] = fechaStr.split(/[/-]/);
-            if (!dia || !mes || !anio) {
-                return await ctx.reply('❌ Fecha inválida. Usa el formato DD/MM/YYYY');
-            }
-            const fechaJS = new Date(`${anio}-${mes}-${dia}`);
-            if (isNaN(fechaJS.getTime())) {
-                return await ctx.reply('❌ Fecha inválida. Verifica día, mes y año correctos.');
-            }
+            const expediente = lines[0].trim();
 
             // Validar expediente
             if (!expediente || expediente.length < 3) {
                 return await ctx.reply('❌ Número de expediente inválido. Ingresa al menos 3 caracteres.');
             }
 
-            // Validar origen-destino
-            if (!origenDestino || origenDestino.length < 3) {
-                return await ctx.reply('❌ Origen y destino inválidos. Ingresa al menos 3 caracteres.');
+            // CALCULAR AUTOMÁTICAMENTE LOS DEMÁS DATOS
+            
+            // 1. Fecha automática: fecha actual
+            const fechaJS = new Date();
+            
+            // 2. Recuperar datos de ruta desde FlowStateManager
+            const flowStateManager = require('../utils/FlowStateManager');
+            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+            
+            if (!savedState || !savedState.rutaInfo) {
+                return await ctx.reply('❌ No se encontraron datos de ruta. Reinicia el proceso.');
+            }
+            
+            let rutaInfo = savedState.rutaInfo;
+            const coordenadas = savedState.coordenadas || null;
+            
+            // 3. Calcular costo automáticamente: km × 20 + 650
+            const distanciaKm = rutaInfo.distanciaKm || 0;
+            const costo = Math.round((distanciaKm * 20 + 650) * 100) / 100; // Redondear a 2 decimales
+            
+            // 4. Obtener origen/destino desde datos guardados
+            let origenDestino = '';
+            if (savedState.geocoding && savedState.geocoding.origen && savedState.geocoding.destino) {
+                // Usar datos de geocoding si están disponibles
+                const origenTexto = savedState.geocoding.origen.ubicacionCorta || 
+                                  savedState.geocoding.origen.direccionCompleta || 
+                                  'Origen';
+                const destinoTexto = savedState.geocoding.destino.ubicacionCorta || 
+                                   savedState.geocoding.destino.direccionCompleta || 
+                                   'Destino';
+                origenDestino = `${origenTexto} - ${destinoTexto}`;
+            } else if (savedState.origenDestino) {
+                // Usar datos de origen-destino si están disponibles
+                origenDestino = savedState.origenDestino;
+            } else {
+                // Fallback: usar coordenadas
+                const origen = coordenadas?.origen;
+                const destino = coordenadas?.destino;
+                origenDestino = `${origen?.lat || 0}, ${origen?.lng || 0} - ${destino?.lat || 0}, ${destino?.lng || 0}`;
             }
 
-            // Llamar la función para añadir el servicio
-            const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino);
+            // Añadir URL de Google Maps desde geocoding si está disponible
+            if (savedState?.googleMapsUrl && rutaInfo) {
+                rutaInfo = { ...rutaInfo, googleMapsUrl: savedState.googleMapsUrl };
+            } else if (savedState?.googleMapsUrl && !rutaInfo) {
+                rutaInfo = { googleMapsUrl: savedState.googleMapsUrl };
+            }
+
+            // Llamar la función para añadir el servicio con datos de coordenadas
+            const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino, coordenadas, rutaInfo);
             if (!updatedPolicy) {
                 return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
             }
@@ -143,12 +180,21 @@ async function handleServiceData(ctx, messageText) {
             const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
             const numeroServicio = servicioInsertado.numeroServicio;
 
+            // Formatear fecha para mostrar
+            const fechaStr = fechaJS.toLocaleDateString('es-MX', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                timeZone: 'America/Mexico_City'
+            });
+
             await ctx.reply(
                 `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
-                `Costo: $${costo.toFixed(2)}\n` +
-                `Fecha: ${fechaStr}\n` +
-                `Expediente: ${expediente}\n` +
-                `Origen y Destino: ${origenDestino}`,
+                `📊 *Datos calculados automáticamente:*\n` +
+                `• Costo: $${costo.toFixed(2)} (${distanciaKm}km × $20 + $650)\n` +
+                `• Fecha: ${fechaStr}\n` +
+                `• Expediente: ${expediente}\n` +
+                `• Origen y Destino: ${origenDestino}`,
                 {
                     parse_mode: 'Markdown'
                 }

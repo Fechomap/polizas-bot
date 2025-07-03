@@ -215,11 +215,16 @@ const addPaymentToPolicy = async (numeroPoliza, monto, fechaPago) => {
  * @param {Date} fechaServicio - Fecha del servicio (Date).
  * @param {string} numeroExpediente - Número de expediente del servicio.
  * @param {string} origenDestino - Origen y destino del servicio.
+ * @param {Object} coordenadas - Coordenadas de origen y destino (opcional).
+ * @param {Object} rutaInfo - Información de la ruta calculada (opcional).
  * @returns {Promise<Object|null>} - Póliza actualizada o null si no existe.
  */
-const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpediente, origenDestino) => {
+const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpediente, origenDestino, coordenadas = null, rutaInfo = null) => {
     try {
-        logger.info(`Añadiendo servicio a la póliza: ${numeroPoliza}`);
+        logger.info(`Añadiendo servicio a la póliza: ${numeroPoliza}`, {
+            coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
+            rutaInfo: rutaInfo ? 'incluida' : 'no incluida'
+        });
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
             logger.warn(`Póliza no encontrada: ${numeroPoliza} al intentar añadir servicio.`);
@@ -235,14 +240,51 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
         policy.servicioCounter += 1;
         const nextServiceNumber = policy.servicioCounter;
 
-        // Añadir el servicio al arreglo incluyendo origenDestino
-        policy.servicios.push({
+        // Crear objeto de servicio con nuevos campos
+        const serviceData = {
             numeroServicio: nextServiceNumber,
             costo,
             fechaServicio,
             numeroExpediente,
             origenDestino
-        });
+        };
+
+        // Añadir coordenadas si están disponibles
+        if (coordenadas && coordenadas.origen && coordenadas.destino) {
+            serviceData.coordenadas = {
+                origen: {
+                    lat: coordenadas.origen.lat,
+                    lng: coordenadas.origen.lng
+                },
+                destino: {
+                    lat: coordenadas.destino.lat,
+                    lng: coordenadas.destino.lng
+                }
+            };
+            logger.info(`Coordenadas añadidas al servicio #${nextServiceNumber}`, coordenadas);
+        }
+
+        // Añadir información de ruta si está disponible
+        if (rutaInfo) {
+            serviceData.rutaInfo = {
+                distanciaKm: rutaInfo.distanciaKm,
+                tiempoMinutos: rutaInfo.tiempoMinutos
+            };
+
+            // Añadir Google Maps URL si está disponible
+            if (rutaInfo.googleMapsUrl) {
+                serviceData.rutaInfo.googleMapsUrl = rutaInfo.googleMapsUrl;
+            }
+
+            logger.info(`Información de ruta añadida al servicio #${nextServiceNumber}`, {
+                distancia: rutaInfo.distanciaKm,
+                tiempo: rutaInfo.tiempoMinutos,
+                aproximado: rutaInfo.aproximado || false
+            });
+        }
+
+        // Añadir el servicio al arreglo
+        policy.servicios.push(serviceData);
 
         // Guardamos la póliza
         const updatedPolicy = await policy.save();
@@ -255,6 +297,8 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
             fechaServicio,
             numeroExpediente,
             origenDestino,
+            coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
+            rutaInfo: rutaInfo ? 'incluida' : 'no incluida',
             error: error.message
         });
         throw error;

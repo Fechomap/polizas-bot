@@ -4,6 +4,7 @@ const { getPolicyByNumber } = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
 const flowStateManager = require('../../utils/FlowStateManager');
 const StateKeyManager = require('../../utils/StateKeyManager');
+const HereMapsService = require('../../services/HereMapsService');
 
 
 class OcuparPolizaCallback extends BaseCommand {
@@ -12,6 +13,8 @@ class OcuparPolizaCallback extends BaseCommand {
         // Usamos los mapas thread-safe del handler
         this.awaitingPhoneNumber = handler.awaitingPhoneNumber;
         this.awaitingOrigenDestino = handler.awaitingOrigenDestino;
+        this.awaitingOrigen = handler.awaitingOrigen;
+        this.awaitingDestino = handler.awaitingDestino;
 
         // Crear mapas thread-safe para estados propios
         this.pendingLeyendas = StateKeyManager.createThreadSafeStateMap();
@@ -21,6 +24,9 @@ class OcuparPolizaCallback extends BaseCommand {
         // Para asignación de servicio
         this.awaitingContactTime = StateKeyManager.createThreadSafeStateMap();
         this.scheduledServiceInfo = StateKeyManager.createThreadSafeStateMap();
+
+        // Initialize HERE Maps service
+        this.hereMapsService = new HereMapsService();
     }
 
     getCommandName() {
@@ -121,16 +127,19 @@ class OcuparPolizaCallback extends BaseCommand {
                 const hasAfterDelete = this.awaitingPhoneNumber.has(chatId, threadId);
                 this.logInfo(`[keepPhone] Verificación inmediata awaitingPhoneNumber.has: ${hasAfterDelete}`, { chatId, threadId });
 
-                // Ask for origin-destination directly
-                this.logInfo('[keepPhone] Intentando establecer estado awaitingOrigenDestino', { chatId, threadId });
-                const setResult = this.awaitingOrigenDestino.set(chatId, numeroPoliza, threadId); // Establece estado de espera de origen/destino
-                this.logInfo(`[keepPhone] Resultado de set awaitingOrigenDestino: ${setResult}`, { chatId, threadId });
-                const hasAfterSet = this.awaitingOrigenDestino.has(chatId, threadId);
-                this.logInfo(`[keepPhone] Verificación inmediata awaitingOrigenDestino.has: ${hasAfterSet}`, { chatId, threadId });
+                // Ask for origin location first (new flow)
+                this.logInfo('[keepPhone] Intentando establecer estado awaitingOrigen', { chatId, threadId });
+                const setResult = this.awaitingOrigen.set(chatId, numeroPoliza, threadId);
+                this.logInfo(`[keepPhone] Resultado de set awaitingOrigen: ${setResult}`, { chatId, threadId });
+                const hasAfterSet = this.awaitingOrigen.has(chatId, threadId);
+                this.logInfo(`[keepPhone] Verificación inmediata awaitingOrigen.has: ${hasAfterSet}`, { chatId, threadId });
 
                 await ctx.reply(
                     `✅ Se mantendrá el número: ${policy.telefono}\n\n` +
-                    '🚗 Ahora ingresa *origen y destino* (ej: "Neza - Tecamac") en una sola línea.',
+                    '📍 *Paso 1/2: Envía la ubicación del ORIGEN*\n\n' +
+                    '🔹 Opción 1: Envía coordenadas (ej: "19.1234,-99.5678")\n' +
+                    '🔹 Opción 2: Envía URL de Google Maps\n' +
+                    '🔹 Opción 3: En chat privado puedes compartir ubicación',
                     { parse_mode: 'Markdown' }
                 );
             } catch (error) {
@@ -253,32 +262,30 @@ class OcuparPolizaCallback extends BaseCommand {
                 const messageId = this.messageIds.get(chatId, threadId);
                 if (messageId) {
                     this.logInfo(`Editando mensaje ${messageId} para solicitar datos del servicio`);
-                    // Modificar el mensaje para pedir los datos del servicio
+                    // Modificar el mensaje para pedir solo el número de expediente
                     await ctx.telegram.editMessageText(
                         chatId,
                         messageId,
                         undefined,
                         `✅ Servicio marcado como asignado para póliza *${numeroPoliza}*.\n\n` +
-                        '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
-                        '1️⃣ Costo (ej. 550.00)\n' +
-                        '2️⃣ Fecha del servicio (DD/MM/YYYY)\n' +
-                        '3️⃣ Número de expediente\n' +
-                        '4️⃣ Origen y Destino\n\n' +
-                        '📝 Ejemplo:\n\n' +
-                        '550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac',
+                        '🚗 *Ingresa el número de expediente:*\n' +
+                        '📝 Ejemplo: EXP-2025-001\n\n' +
+                        '✅ Los demás datos se calculan automáticamente:\n' +
+                        '• Fecha: Se asigna automáticamente\n' +
+                        '• Costo: Se calcula según distancia\n' +
+                        '• Origen/Destino: Se toman de la ruta calculada',
                         { parse_mode: 'Markdown' }
                     );
                 } else {
                     // Fallback si no se encuentra el ID del mensaje
                     await ctx.reply(
                         `✅ Servicio marcado como asignado para póliza *${numeroPoliza}*.\n\n` +
-                        '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
-                        '1️⃣ Costo (ej. 550.00)\n' +
-                        '2️⃣ Fecha del servicio (DD/MM/YYYY)\n' +
-                        '3️⃣ Número de expediente\n' +
-                        '4️⃣ Origen y Destino\n\n' +
-                        '📝 Ejemplo:\n\n' +
-                        '550.00\n06/02/2025\nEXP-2025-001\nNeza - Tecamac',
+                        '🚗 *Ingresa el número de expediente:*\n' +
+                        '📝 Ejemplo: EXP-2025-001\n\n' +
+                        '✅ Los demás datos se calculan automáticamente:\n' +
+                        '• Fecha: Se asigna automáticamente\n' +
+                        '• Costo: Se calcula según distancia\n' +
+                        '• Origen/Destino: Se toman de la ruta calculada',
                         { parse_mode: 'Markdown' }
                     );
                 }
@@ -561,6 +568,55 @@ class OcuparPolizaCallback extends BaseCommand {
         });
     }
 
+    // Helper method to generate enhanced legend with geocoding
+    async generateEnhancedLegend(policy, origenCoords, destinoCoords, rutaInfo) {
+        try {
+            // Realizar geocoding reverso para origen y destino
+            const [origenGeo, destinoGeo] = await Promise.all([
+                this.hereMapsService.reverseGeocode(origenCoords.lat, origenCoords.lng),
+                this.hereMapsService.reverseGeocode(destinoCoords.lat, destinoCoords.lng)
+            ]);
+
+            // Generar URL de Google Maps
+            const googleMapsUrl = this.hereMapsService.generateGoogleMapsUrl(origenCoords, destinoCoords);
+
+            // Formato de ubicación simplificado: "Colonia - Municipio"
+            const origenTexto = origenGeo.ubicacionCorta.toUpperCase();
+            const destinoTexto = destinoGeo.ubicacionCorta.toUpperCase();
+
+            // Nuevo formato de leyenda según especificaciones
+            const leyenda = `⚠️ ${policy.aseguradora} ⚠️\n` +
+                `${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
+                `${origenTexto} - ${destinoTexto}\n` +
+                `${googleMapsUrl}`;
+
+            this.logInfo(`Nueva leyenda generada: ${leyenda}`);
+
+            return {
+                leyenda,
+                origenGeo,
+                destinoGeo,
+                googleMapsUrl
+            };
+        } catch (error) {
+            this.logError('Error generando leyenda mejorada:', error);
+
+            // Fallback: usar coordenadas directas
+            const googleMapsUrl = this.hereMapsService.generateGoogleMapsUrl(origenCoords, destinoCoords);
+            const leyenda = `⚠️ ${policy.aseguradora} ⚠️\n` +
+                `${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
+                `${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)} - ${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}\n` +
+                `${googleMapsUrl}`;
+
+            return {
+                leyenda,
+                origenGeo: { ubicacionCorta: `${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)}`, fallback: true },
+                destinoGeo: { ubicacionCorta: `${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}`, fallback: true },
+                googleMapsUrl
+            };
+        }
+    }
+
     // Helper method to clean up all states
     cleanupAllStates(chatId, threadId = null) {
         if (threadId) {
@@ -731,22 +787,25 @@ class OcuparPolizaCallback extends BaseCommand {
 
             await ctx.reply(
                 `✅ Teléfono ${messageText} asignado a la póliza ${numeroPoliza}.\n\n` +
-                '🚗 Ahora ingresa *origen y destino* (ej: "Neza - Tecamac") en una sola línea.',
+                '📍 *Paso 1/2: Envía la ubicación del ORIGEN*\n\n' +
+                '🔹 Opción 1: Envía coordenadas (ej: "19.1234,-99.5678")\n' +
+                '🔹 Opción 2: Envía URL de Google Maps\n' +
+                '🔹 Opción 3: En chat privado puedes compartir ubicación',
                 { parse_mode: 'Markdown' }
             );
 
-            // Move to "awaitingOrigenDestino" with explicit verification
+            // Move to "awaitingOrigen" with explicit verification
             this.awaitingPhoneNumber.delete(chatId, threadId);
 
-            // Set the origin-destination state with logging
-            const origenResult = this.awaitingOrigenDestino.set(chatId, numeroPoliza, threadId);
-            this.logInfo(`Estado de espera de origen-destino guardado: ${origenResult ? 'OK' : 'FALLO'}`, {
+            // Set the origin state with logging
+            const origenResult = this.awaitingOrigen.set(chatId, numeroPoliza, threadId);
+            this.logInfo(`Estado de espera de origen guardado: ${origenResult ? 'OK' : 'FALLO'}`, {
                 chatId,
                 threadId: threadId || 'ninguno'
             });
 
             // Immediate verification
-            const origenHasResult = this.awaitingOrigenDestino.has(chatId, threadId);
+            const origenHasResult = this.awaitingOrigen.has(chatId, threadId);
             this.logInfo(`Verificación inmediata de estado origen-destino: ${origenHasResult ? 'OK' : 'FALLO'}`);
 
             return true;
@@ -787,39 +846,86 @@ class OcuparPolizaCallback extends BaseCommand {
                 return await ctx.reply(`❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`);
             }
 
-            // Parse origen and destino from input
-            const parts = messageText.split('-').map(part => part.trim());
-            let origen = '', destino = '';
+            // New enhanced parsing that handles coordinates and Google Maps URLs
+            const result = await this.parseOrigenDestinoInput(messageText);
 
-            if (parts.length >= 2) {
-                origen = parts[0];
-                destino = parts[1];
-            } else {
-                origen = 'No especificado';
-                destino = messageText;
+            if (result.error) {
+                this.logError(`Error parsing origen-destino: ${result.error}`);
+                await ctx.reply(
+                    `❌ ${result.error}\n\n` +
+                    '📍 *Formatos aceptados:*\n' +
+                    '• Texto: "Neza - Tecamac"\n' +
+                    '• Coordenadas: "19.1234,-99.5678 - 19.5678,-99.1234"\n' +
+                    '• Google Maps URLs (origen y destino separados por guión)\n' +
+                    '• Comparte tu ubicación usando el botón 📍',
+                    { parse_mode: 'Markdown' }
+                );
+                return true;
             }
+
+            const { origen, destino, coordenadas, rutaInfo } = result;
 
             // Guardar en FlowStateManager para uso posterior
             const flowStateManager = require('../../utils/FlowStateManager');
-            flowStateManager.saveState(chatId, numeroPoliza, {
+            const saveData = {
                 origin: origen,
                 destination: destino,
-                origenDestino: messageText.trim()
-            }, threadId);
+                origenDestino: messageText.trim(),
+                coordenadas: coordenadas || null,
+                rutaInfo: rutaInfo || null
+            };
+
+            // Add geocoding info if available
+            if (enhancedData && enhancedData.origenGeo && enhancedData.destinoGeo) {
+                saveData.geocoding = {
+                    origen: enhancedData.origenGeo,
+                    destino: enhancedData.destinoGeo
+                };
+                saveData.googleMapsUrl = enhancedData.googleMapsUrl;
+                // Update origenDestino with readable names
+                saveData.origenDestino = `${enhancedData.origenGeo.ubicacionCorta} - ${enhancedData.destinoGeo.ubicacionCorta}`;
+            }
+
+            flowStateManager.saveState(chatId, numeroPoliza, saveData, threadId);
 
             // Update policy cache with origen and destino
             if (cachedData) {
                 cachedData.origen = origen;
                 cachedData.destino = destino;
+                cachedData.coordenadas = coordenadas;
+                cachedData.rutaInfo = rutaInfo;
                 this.polizaCache.set(chatId, cachedData, threadId);
                 this.logInfo(`Caché de póliza actualizada con origen=${origen}, destino=${destino}`);
             }
 
-            // Create the legend
-            const leyenda = `🚗 Pendiente servicio "${policy.aseguradora}"\n` +
-            `🚙 Auto: ${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
-            `📞 Teléfono: ${policy.telefono}\n` +
-            `📍 Origen-Destino: ${messageText}`;
+            // Create enhanced legend with geocoding (new format)
+            // First, parse coordinates if they exist in the input
+            const origenCoords = this.hereMapsService.parseCoordinates(origen);
+            const destinoCoords = this.hereMapsService.parseCoordinates(destino);
+
+            let leyenda;
+            let enhancedData = null;
+
+            if (origenCoords && destinoCoords) {
+                // Use new format with geocoding
+                enhancedData = await this.generateEnhancedLegend(policy, origenCoords, destinoCoords, rutaInfo);
+                leyenda = enhancedData.leyenda;
+            } else {
+                // Fallback to old format if coordinates not available
+                leyenda = `🚗 Pendiente servicio "${policy.aseguradora}"\n` +
+                    `🚙 Auto: ${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
+                    `📞 Teléfono: ${policy.telefono}\n` +
+                    `📍 Origen-Destino: ${origen} - ${destino}`;
+
+                // Add route information if available
+                if (rutaInfo) {
+                    leyenda += `\n🗺️ Distancia: ${rutaInfo.distanciaKm} km`;
+                    leyenda += `\n⏱️ Tiempo estimado: ${rutaInfo.tiempoMinutos} min`;
+                    if (rutaInfo.aproximado) {
+                        leyenda += ' (aprox.)';
+                    }
+                }
+            }
 
             // Log the generated leyenda
             this.logInfo(`Leyenda generada: ${leyenda}`);
@@ -828,13 +934,28 @@ class OcuparPolizaCallback extends BaseCommand {
             const leyendaStoreResult = this.pendingLeyendas.set(chatId, leyenda, threadId);
             this.logInfo(`Leyenda almacenada: ${leyendaStoreResult ? 'OK' : 'FALLO'}`);
 
+            // Create response message with route info
+            let responseMessage = `✅ Origen-destino asignado: *${origen} - ${destino}*\n\n`;
+
+            if (rutaInfo) {
+                responseMessage += '🗺️ *Información de ruta:*\n' +
+                    `📏 Distancia: ${rutaInfo.distanciaKm} km\n` +
+                    `⏱️ Tiempo estimado: ${rutaInfo.tiempoMinutos} minutos`;
+                if (rutaInfo.aproximado) {
+                    responseMessage += ' (aproximado)';
+                }
+                responseMessage += `\n🔗 [Ver ruta en Google Maps](${rutaInfo.googleMapsUrl})\n\n`;
+            }
+
+            responseMessage += `📋 Aquí la leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
+                '¿Qué deseas hacer con esta leyenda?';
+
             // Send the message with buttons and store the message ID
             const sentMessage = await ctx.reply(
-                `✅ Origen-destino asignado: *${messageText}*\n\n` +
-                `📋 Aquí la leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
-                '¿Qué deseas hacer con esta leyenda?',
+                responseMessage,
                 {
                     parse_mode: 'Markdown',
+                    disable_web_page_preview: true,
                     ...Markup.inlineKeyboard([
                         [
                             Markup.button.callback('📤 Enviar', `sendLeyenda:${numeroPoliza}`),
@@ -862,6 +983,314 @@ class OcuparPolizaCallback extends BaseCommand {
             await ctx.reply('❌ Error al procesar origen-destino. Operación cancelada.');
             return true;
         }
+    }
+
+    // Method to handle origin location input (Step 1/2)
+    async handleOrigen(ctx, input, threadId = null) {
+        const chatId = ctx.chat.id;
+        const numeroPoliza = this.awaitingOrigen.get(chatId, threadId);
+
+        if (!numeroPoliza) {
+            this.logError('No se encontró número de póliza para origen');
+            return false;
+        }
+
+        this.logInfo(`Procesando ubicación de origen para póliza ${numeroPoliza}`, {
+            chatId,
+            threadId: threadId || 'ninguno',
+            inputType: typeof input === 'object' ? 'location' : 'text'
+        });
+
+        try {
+            let coordenadas = null;
+
+            // Check if it's a Telegram location
+            if (input && input.location) {
+                coordenadas = {
+                    lat: input.location.latitude,
+                    lng: input.location.longitude
+                };
+                this.logInfo('Coordenadas de origen extraídas de ubicación de Telegram', coordenadas);
+            } else if (typeof input === 'string') {
+                // Parse text input (coordinates or Google Maps URL)
+                coordenadas = this.hereMapsService.parseCoordinates(input);
+                if (!coordenadas) {
+                    await ctx.reply(
+                        '❌ No se pudieron extraer coordenadas válidas del origen.\n\n' +
+                        '📍 *Formatos aceptados:*\n' +
+                        '• Coordenadas: "19.1234,-99.5678"\n' +
+                        '• URL de Google Maps\n' +
+                        '• En chat privado: compartir ubicación',
+                        { parse_mode: 'Markdown' }
+                    );
+                    return false;
+                }
+                this.logInfo('Coordenadas de origen extraídas de texto', coordenadas);
+            } else {
+                await ctx.reply('❌ Formato de entrada no válido para el origen.');
+                return false;
+            }
+
+            // Save origin coordinates in FlowStateManager
+            const flowStateManager = require('../../utils/FlowStateManager');
+            flowStateManager.saveState(chatId, numeroPoliza, {
+                origenCoords: coordenadas
+            }, threadId);
+
+            // Update policy cache
+            const cachedData = this.polizaCache.get(chatId, threadId);
+            if (cachedData) {
+                cachedData.origenCoords = coordenadas;
+                this.polizaCache.set(chatId, cachedData, threadId);
+            }
+
+            // Clear origin state and set destination state
+            this.awaitingOrigen.delete(chatId, threadId);
+            this.awaitingDestino.set(chatId, numeroPoliza, threadId);
+
+            // Ask for destination
+            await ctx.reply(
+                `✅ Origen registrado: ${coordenadas.lat}, ${coordenadas.lng}\n\n` +
+                '📍 *Paso 2/2: Envía la ubicación del DESTINO*\n\n' +
+                '🔹 Opción 1: Envía coordenadas (ej: "19.1234,-99.5678")\n' +
+                '🔹 Opción 2: Envía URL de Google Maps\n' +
+                '🔹 Opción 3: En chat privado puedes compartir ubicación',
+                { parse_mode: 'Markdown' }
+            );
+
+            return true;
+        } catch (error) {
+            this.logError('Error procesando origen:', error);
+            await ctx.reply('❌ Error al procesar la ubicación del origen.');
+            return false;
+        }
+    }
+
+    // Method to handle destination location input (Step 2/2)
+    async handleDestino(ctx, input, threadId = null) {
+        const chatId = ctx.chat.id;
+        const numeroPoliza = this.awaitingDestino.get(chatId, threadId);
+
+        if (!numeroPoliza) {
+            this.logError('No se encontró número de póliza para destino');
+            return false;
+        }
+
+        this.logInfo(`Procesando ubicación de destino para póliza ${numeroPoliza}`, {
+            chatId,
+            threadId: threadId || 'ninguno',
+            inputType: typeof input === 'object' ? 'location' : 'text'
+        });
+
+        try {
+            let coordenadas = null;
+
+            // Check if it's a Telegram location
+            if (input && input.location) {
+                coordenadas = {
+                    lat: input.location.latitude,
+                    lng: input.location.longitude
+                };
+                this.logInfo('Coordenadas de destino extraídas de ubicación de Telegram', coordenadas);
+            } else if (typeof input === 'string') {
+                // Parse text input (coordinates or Google Maps URL)
+                coordenadas = this.hereMapsService.parseCoordinates(input);
+                if (!coordenadas) {
+                    await ctx.reply(
+                        '❌ No se pudieron extraer coordenadas válidas del destino.\n\n' +
+                        '📍 *Formatos aceptados:*\n' +
+                        '• Coordenadas: "19.1234,-99.5678"\n' +
+                        '• URL de Google Maps\n' +
+                        '• En chat privado: compartir ubicación',
+                        { parse_mode: 'Markdown' }
+                    );
+                    return false;
+                }
+                this.logInfo('Coordenadas de destino extraídas de texto', coordenadas);
+            } else {
+                await ctx.reply('❌ Formato de entrada no válido para el destino.');
+                return false;
+            }
+
+            // Get origin coordinates from FlowStateManager
+            const flowStateManager = require('../../utils/FlowStateManager');
+            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+            const origenCoords = savedState?.origenCoords;
+
+            if (!origenCoords) {
+                this.logError('No se encontraron coordenadas de origen guardadas');
+                await ctx.reply('❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.');
+                this.awaitingDestino.delete(chatId, threadId);
+                return false;
+            }
+
+            // Calculate route with HERE Maps API
+            this.logInfo('Calculando ruta con HERE Maps API');
+            const rutaInfo = await this.hereMapsService.calculateRoute(origenCoords, coordenadas);
+
+            // Get policy cache and retrieve policy
+            const policyCacheData = this.polizaCache.get(chatId, threadId);
+            const policy = policyCacheData?.policy || await getPolicyByNumber(numeroPoliza);
+            if (!policy) {
+                await ctx.reply('❌ Error: Póliza no encontrada.');
+                this.awaitingDestino.delete(chatId, threadId);
+                return false;
+            }
+
+            // Generate enhanced legend with geocoding (new format)
+            const enhancedData = await this.generateEnhancedLegend(policy, origenCoords, coordenadas, rutaInfo);
+            const leyenda = enhancedData.leyenda;
+
+            // Save complete data in FlowStateManager including geocoding info
+            const saveData = {
+                origenCoords,
+                destinoCoords: coordenadas,
+                coordenadas: {
+                    origen: origenCoords,
+                    destino: coordenadas
+                },
+                rutaInfo,
+                origenDestino: `${origenCoords.lat},${origenCoords.lng} - ${coordenadas.lat},${coordenadas.lng}`
+            };
+
+            // Add geocoding info if available
+            if (enhancedData) {
+                saveData.geocoding = {
+                    origen: enhancedData.origenGeo,
+                    destino: enhancedData.destinoGeo
+                };
+                saveData.googleMapsUrl = enhancedData.googleMapsUrl;
+                // Update origenDestino with readable names
+                saveData.origenDestino = `${enhancedData.origenGeo.ubicacionCorta} - ${enhancedData.destinoGeo.ubicacionCorta}`;
+            }
+
+            flowStateManager.saveState(chatId, numeroPoliza, saveData, threadId);
+
+            // Update policy cache
+            if (policyCacheData) {
+                policyCacheData.destinoCoords = coordenadas;
+                policyCacheData.coordenadas = { origen: origenCoords, destino: coordenadas };
+                policyCacheData.rutaInfo = rutaInfo;
+                this.polizaCache.set(chatId, policyCacheData, threadId);
+            }
+
+            // Store the leyenda for the send action
+            this.pendingLeyendas.set(chatId, leyenda, threadId);
+
+            // Create response message with route info
+            let responseMessage = `✅ Destino registrado: ${coordenadas.lat}, ${coordenadas.lng}\n\n`;
+
+            if (rutaInfo) {
+                responseMessage += '🗺️ *Información de ruta:*\n' +
+                    `📏 Distancia: ${rutaInfo.distanciaKm} km\n` +
+                    `⏱️ Tiempo estimado: ${rutaInfo.tiempoMinutos} minutos`;
+                if (rutaInfo.aproximado) {
+                    responseMessage += ' (aproximado)';
+                }
+                responseMessage += `\n🔗 [Ver ruta en Google Maps](${rutaInfo.googleMapsUrl})\n\n`;
+            }
+
+            responseMessage += `📋 Aquí la leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
+                '¿Qué deseas hacer con esta leyenda?';
+
+            // Send the message with buttons and store the message ID
+            const sentMessage = await ctx.reply(
+                responseMessage,
+                {
+                    parse_mode: 'Markdown',
+                    disable_web_page_preview: true,
+                    reply_markup: {
+                        remove_keyboard: true,
+                        inline_keyboard: [
+                            [
+                                { text: '📤 Enviar', callback_data: `sendLeyenda:${numeroPoliza}` },
+                                { text: '❌ Cancelar', callback_data: `cancelLeyenda:${numeroPoliza}` }
+                            ]
+                        ]
+                    }
+                }
+            );
+
+            // Store the message ID for later editing
+            if (sentMessage) {
+                this.messageIds.set(chatId, sentMessage.message_id, threadId);
+            }
+
+            // Clear destination state
+            this.awaitingDestino.delete(chatId, threadId);
+            return true;
+
+        } catch (error) {
+            this.logError('Error procesando destino:', error);
+            await ctx.reply('❌ Error al procesar la ubicación del destino.');
+            this.awaitingDestino.delete(chatId, threadId);
+            return false;
+        }
+    }
+
+    // Helper method to parse different types of origin-destination input
+    async parseOrigenDestinoInput(messageText) {
+        const trimmedText = messageText.trim();
+
+        // Check if it's a traditional text-based format "Origin - Destination"
+        if (trimmedText.includes(' - ')) {
+            const parts = trimmedText.split(' - ').map(part => part.trim());
+            if (parts.length >= 2) {
+                const origen = parts[0];
+                const destino = parts[1];
+
+                // Try to parse as coordinates if they look like coordinate pairs
+                const origenCoords = this.hereMapsService.parseCoordinates(origen);
+                const destinoCoords = this.hereMapsService.parseCoordinates(destino);
+
+                if (origenCoords && destinoCoords) {
+                    // Both are coordinates - calculate route
+                    try {
+                        const rutaInfo = await this.hereMapsService.calculateRoute(origenCoords, destinoCoords);
+                        return {
+                            origen: `${origenCoords.lat},${origenCoords.lng}`,
+                            destino: `${destinoCoords.lat},${destinoCoords.lng}`,
+                            coordenadas: {
+                                origen: origenCoords,
+                                destino: destinoCoords
+                            },
+                            rutaInfo
+                        };
+                    } catch (error) {
+                        this.logError('Error calculating route for coordinates:', error);
+                        return {
+                            origen,
+                            destino,
+                            coordenadas: {
+                                origen: origenCoords,
+                                destino: destinoCoords
+                            },
+                            rutaInfo: null
+                        };
+                    }
+                } else {
+                    // Traditional text format
+                    return {
+                        origen,
+                        destino
+                    };
+                }
+            }
+        }
+
+        // Check if it's a Google Maps URL or coordinates
+        const coordinates = this.hereMapsService.parseCoordinates(trimmedText);
+        if (coordinates) {
+            return {
+                error: 'Para usar coordenadas, proporciona origen y destino separados por " - ".\n' +
+                       'Ejemplo: "19.1234,-99.5678 - 19.5678,-99.1234"'
+            };
+        }
+
+        // If we get here, it's not a recognized format
+        return {
+            error: 'Formato no reconocido. Usa "Origen - Destino" o coordenadas separadas por " - ".'
+        };
     }
 
     // Añadir este método para manejar finalización de servicio
