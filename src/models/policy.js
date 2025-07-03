@@ -171,8 +171,12 @@ const policySchema = new mongoose.Schema({
         default: 0
     },
 
-    // Contador para asignar números de servicio secuenciales
+    // Contadores para asignar números secuenciales
     servicioCounter: {
+        type: Number,
+        default: 0
+    },
+    registroCounter: {
         type: Number,
         default: 0
     },
@@ -182,13 +186,51 @@ const policySchema = new mongoose.Schema({
         fechaPago: { type: Date, required: true }
     }],
 
+    // REGISTROS: Intentos de servicio (aún no confirmados)
+    registros: [{
+        numeroRegistro: { type: Number, required: false },
+        costo: { type: Number, required: false },
+        fechaRegistro: { type: Date, required: false },
+        numeroExpediente: { type: String, required: false },
+        origenDestino: { type: String, required: false, trim: true },
+        estado: {
+            type: String,
+            enum: ['PENDIENTE', 'ASIGNADO', 'NO_ASIGNADO'],
+            default: 'PENDIENTE'
+        },
+        fechaContactoProgramada: { type: Date, required: false },
+        fechaTerminoProgramada: { type: Date, required: false },
+        // Campos para coordenadas y datos de ruta
+        coordenadas: {
+            origen: {
+                lat: { type: Number, required: false },
+                lng: { type: Number, required: false }
+            },
+            destino: {
+                lat: { type: Number, required: false },
+                lng: { type: Number, required: false }
+            }
+        },
+        rutaInfo: {
+            distanciaKm: { type: Number, required: false },
+            tiempoMinutos: { type: Number, required: false },
+            googleMapsUrl: { type: String, required: false, trim: true }
+        }
+    }],
+
+    // SERVICIOS: Solo los confirmados como "Asignados"
     servicios: [{
         numeroServicio: { type: Number, required: false },
+        numeroRegistroOrigen: { type: Number, required: false }, // Referencia al registro original
         costo: { type: Number, required: false },
         fechaServicio: { type: Date, required: false },
         numeroExpediente: { type: String, required: false },
         origenDestino: { type: String, required: false, trim: true },
-        // Nuevos campos para coordenadas y datos de ruta
+        fechaContactoProgramada: { type: Date, required: false },
+        fechaTerminoProgramada: { type: Date, required: false },
+        fechaContactoReal: { type: Date, required: false },
+        fechaTerminoReal: { type: Date, required: false },
+        // Campos para coordenadas y datos de ruta
         coordenadas: {
             origen: {
                 lat: { type: Number, required: false },

@@ -1,6 +1,6 @@
 // Manejo del flujo INICIADO por accion:addservice (recibe datos del servicio)
 const { Markup } = require('telegraf');
-const { addServiceToPolicy } = require('../controllers/policyController');
+const { addRegistroToPolicy } = require('../controllers/policyController');
 const logger = require('../utils/logger');
 
 async function handleServiceData(ctx, messageText) {
@@ -75,34 +75,50 @@ async function handleServiceData(ctx, messageText) {
                 rutaInfo = { googleMapsUrl: savedState.googleMapsUrl };
             }
 
-            // Llamar la función para añadir el servicio con datos de coordenadas
-            const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino, coordenadas, rutaInfo);
+            // Llamar la función para añadir el REGISTRO (no servicio aún) con datos de coordenadas
+            const updatedPolicy = await addRegistroToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino, coordenadas, rutaInfo);
             if (!updatedPolicy) {
                 return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
             }
 
-            // Averiguar el número de servicio recién insertado
-            const totalServicios = updatedPolicy.servicios.length;
-            const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
-            const numeroServicio = servicioInsertado.numeroServicio;
+            // Averiguar el número de registro recién insertado
+            const totalRegistros = updatedPolicy.registros.length;
+            const registroInsertado = updatedPolicy.registros[totalRegistros - 1];
+            const numeroRegistro = registroInsertado.numeroRegistro;
 
             // Formatear fecha actual para mostrar
             const today = fechaJS;
             const fechaStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
 
             await ctx.reply(
-                `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
+                `✅ Se ha registrado el registro #${numeroRegistro} en la póliza *${numeroPoliza}*.\n\n` +
                 `Costo: $${costo.toFixed(2)}\n` +
                 `Fecha: ${fechaStr} (hoy)\n` +
                 `Expediente: ${expediente}\n` +
-                `Origen y Destino: ${origenDestino}`,
+                `Origen y Destino: ${origenDestino}\n\n` +
+                '⚠️ *Este es un REGISTRO, no un servicio confirmado aún.*',
                 {
                     parse_mode: 'Markdown'
                 }
             );
 
-            // Devolver los datos procesados para que TextMessageHandler decida qué hacer
-            return { expediente, origenDestino, costo, fechaJS };
+            // Mostrar botones de Asignado/No Asignado después del registro
+            await ctx.reply(
+                '🤔 *¿El servicio fue asignado?*\n\n' +
+                `Registro #${numeroRegistro} - Expediente: ${expediente}`,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [
+                            Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}_${numeroRegistro}`),
+                            Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}_${numeroRegistro}`)
+                        ]
+                    ])
+                }
+            );
+
+            // Devolver los datos procesados incluyendo el número de registro
+            return { expediente, origenDestino, costo, fechaJS, numeroRegistro };
         } else {
             // MODO NUEVO: Solo pedir número de expediente, calcular automáticamente los demás
             // Esperamos solo 1 línea: Número de expediente
@@ -122,34 +138,34 @@ async function handleServiceData(ctx, messageText) {
             }
 
             // CALCULAR AUTOMÁTICAMENTE LOS DEMÁS DATOS
-            
+
             // 1. Fecha automática: fecha actual
             const fechaJS = new Date();
-            
+
             // 2. Recuperar datos de ruta desde FlowStateManager
             const flowStateManager = require('../utils/FlowStateManager');
             const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
-            
+
             if (!savedState || !savedState.rutaInfo) {
                 return await ctx.reply('❌ No se encontraron datos de ruta. Reinicia el proceso.');
             }
-            
+
             let rutaInfo = savedState.rutaInfo;
             const coordenadas = savedState.coordenadas || null;
-            
+
             // 3. Calcular costo automáticamente: km × 20 + 650
             const distanciaKm = rutaInfo.distanciaKm || 0;
             const costo = Math.round((distanciaKm * 20 + 650) * 100) / 100; // Redondear a 2 decimales
-            
+
             // 4. Obtener origen/destino desde datos guardados
             let origenDestino = '';
             if (savedState.geocoding && savedState.geocoding.origen && savedState.geocoding.destino) {
                 // Usar datos de geocoding si están disponibles
-                const origenTexto = savedState.geocoding.origen.ubicacionCorta || 
-                                  savedState.geocoding.origen.direccionCompleta || 
+                const origenTexto = savedState.geocoding.origen.ubicacionCorta ||
+                                  savedState.geocoding.origen.direccionCompleta ||
                                   'Origen';
-                const destinoTexto = savedState.geocoding.destino.ubicacionCorta || 
-                                   savedState.geocoding.destino.direccionCompleta || 
+                const destinoTexto = savedState.geocoding.destino.ubicacionCorta ||
+                                   savedState.geocoding.destino.direccionCompleta ||
                                    'Destino';
                 origenDestino = `${origenTexto} - ${destinoTexto}`;
             } else if (savedState.origenDestino) {
@@ -169,16 +185,16 @@ async function handleServiceData(ctx, messageText) {
                 rutaInfo = { googleMapsUrl: savedState.googleMapsUrl };
             }
 
-            // Llamar la función para añadir el servicio con datos de coordenadas
-            const updatedPolicy = await addServiceToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino, coordenadas, rutaInfo);
+            // Llamar la función para añadir el REGISTRO (no servicio aún) con datos de coordenadas
+            const updatedPolicy = await addRegistroToPolicy(numeroPoliza, costo, fechaJS, expediente, origenDestino, coordenadas, rutaInfo);
             if (!updatedPolicy) {
                 return await ctx.reply(`❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`);
             }
 
-            // Averiguar el número de servicio recién insertado
-            const totalServicios = updatedPolicy.servicios.length;
-            const servicioInsertado = updatedPolicy.servicios[totalServicios - 1];
-            const numeroServicio = servicioInsertado.numeroServicio;
+            // Averiguar el número de registro recién insertado
+            const totalRegistros = updatedPolicy.registros.length;
+            const registroInsertado = updatedPolicy.registros[totalRegistros - 1];
+            const numeroRegistro = registroInsertado.numeroRegistro;
 
             // Formatear fecha para mostrar
             const fechaStr = fechaJS.toLocaleDateString('es-MX', {
@@ -189,19 +205,35 @@ async function handleServiceData(ctx, messageText) {
             });
 
             await ctx.reply(
-                `✅ Se ha registrado el servicio #${numeroServicio} en la póliza *${numeroPoliza}*.\n\n` +
-                `📊 *Datos calculados automáticamente:*\n` +
+                `✅ Se ha registrado el registro #${numeroRegistro} en la póliza *${numeroPoliza}*.\n\n` +
+                '📊 *Datos calculados automáticamente:*\n' +
                 `• Costo: $${costo.toFixed(2)} (${distanciaKm}km × $20 + $650)\n` +
                 `• Fecha: ${fechaStr}\n` +
                 `• Expediente: ${expediente}\n` +
-                `• Origen y Destino: ${origenDestino}`,
+                `• Origen y Destino: ${origenDestino}\n\n` +
+                '⚠️ *Este es un REGISTRO, no un servicio confirmado aún.*',
                 {
                     parse_mode: 'Markdown'
                 }
             );
 
-            // Devolver los datos procesados para que TextMessageHandler decida qué hacer
-            return { expediente, origenDestino, costo, fechaJS };
+            // Mostrar botones de Asignado/No Asignado después del registro
+            await ctx.reply(
+                '🤔 *¿El servicio fue asignado?*\n\n' +
+                `Registro #${numeroRegistro} - Expediente: ${expediente}`,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [
+                            Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}_${numeroRegistro}`),
+                            Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}_${numeroRegistro}`)
+                        ]
+                    ])
+                }
+            );
+
+            // Devolver los datos procesados incluyendo el número de registro
+            return { expediente, origenDestino, costo, fechaJS, numeroRegistro };
         }
     } catch (error) {
         logger.error('Error en handleServiceData:', error);

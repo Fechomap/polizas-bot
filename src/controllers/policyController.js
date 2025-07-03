@@ -598,6 +598,217 @@ const savePoliciesBatch = async (policiesData) => {
     }
 };
 
+/**
+ * NUEVA FUNCIONALIDAD: Manejo de REGISTROS (intentos) vs SERVICIOS (confirmados)
+ */
+
+/**
+ * Añade un REGISTRO (intento de servicio) a la póliza. No cuenta como servicio hasta confirmarse.
+ */
+const addRegistroToPolicy = async (numeroPoliza, costo, fechaRegistro, numeroExpediente, origenDestino, coordenadas = null, rutaInfo = null) => {
+    try {
+        logger.info(`Añadiendo REGISTRO a la póliza: ${numeroPoliza}`, {
+            coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
+            rutaInfo: rutaInfo ? 'incluida' : 'no incluida'
+        });
+
+        const policy = await getPolicyByNumber(numeroPoliza);
+        if (!policy) {
+            logger.warn(`Póliza no encontrada: ${numeroPoliza} al intentar añadir registro.`);
+            return null;
+        }
+
+        // Inicializar contador de registros si no existe
+        if (policy.registroCounter === undefined) {
+            policy.registroCounter = 0;
+        }
+
+        // Incrementar el contador para este nuevo registro
+        policy.registroCounter += 1;
+        const nextRegistroNumber = policy.registroCounter;
+
+        // Crear objeto de registro
+        const registroData = {
+            numeroRegistro: nextRegistroNumber,
+            costo,
+            fechaRegistro,
+            numeroExpediente,
+            origenDestino,
+            estado: 'PENDIENTE'
+        };
+
+        // Añadir coordenadas si están disponibles
+        if (coordenadas && coordenadas.origen && coordenadas.destino) {
+            registroData.coordenadas = {
+                origen: {
+                    lat: coordenadas.origen.lat,
+                    lng: coordenadas.origen.lng
+                },
+                destino: {
+                    lat: coordenadas.destino.lat,
+                    lng: coordenadas.destino.lng
+                }
+            };
+            logger.info(`Coordenadas añadidas al registro #${nextRegistroNumber}`, coordenadas);
+        }
+
+        // Añadir información de ruta si está disponible
+        if (rutaInfo) {
+            registroData.rutaInfo = {
+                distanciaKm: rutaInfo.distanciaKm,
+                tiempoMinutos: rutaInfo.tiempoMinutos
+            };
+
+            if (rutaInfo.googleMapsUrl) {
+                registroData.rutaInfo.googleMapsUrl = rutaInfo.googleMapsUrl;
+            }
+
+            logger.info(`Información de ruta añadida al registro #${nextRegistroNumber}`, {
+                distancia: rutaInfo.distanciaKm,
+                tiempo: rutaInfo.tiempoMinutos
+            });
+        }
+
+        // Inicializar array de registros si no existe
+        if (!policy.registros) {
+            policy.registros = [];
+        }
+
+        // Añadir el registro al arreglo
+        policy.registros.push(registroData);
+
+        const updatedPolicy = await policy.save();
+        logger.info(`Registro #${nextRegistroNumber} añadido correctamente a la póliza ${numeroPoliza}`);
+        return updatedPolicy;
+    } catch (error) {
+        logger.error('Error al añadir registro a la póliza:', {
+            numeroPoliza,
+            error: error.message
+        });
+        throw error;
+    }
+};
+
+/**
+ * Convierte un REGISTRO en SERVICIO confirmado con fechas de contacto y término programadas
+ */
+const convertirRegistroAServicio = async (numeroPoliza, numeroRegistro, fechaContactoProgramada, fechaTerminoProgramada) => {
+    try {
+        logger.info(`Convirtiendo registro ${numeroRegistro} a servicio en póliza: ${numeroPoliza}`);
+
+        const policy = await getPolicyByNumber(numeroPoliza);
+        if (!policy) {
+            logger.warn(`Póliza no encontrada: ${numeroPoliza}`);
+            return null;
+        }
+
+        // Buscar el registro
+        const registro = policy.registros.find(r => r.numeroRegistro === numeroRegistro);
+        if (!registro) {
+            logger.warn(`Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}`);
+            return null;
+        }
+
+        // Marcar registro como ASIGNADO
+        registro.estado = 'ASIGNADO';
+        registro.fechaContactoProgramada = fechaContactoProgramada;
+        registro.fechaTerminoProgramada = fechaTerminoProgramada;
+
+        // Inicializar contador de servicios si no existe
+        if (policy.servicioCounter === undefined) {
+            policy.servicioCounter = 0;
+        }
+
+        // Incrementar contador de servicios
+        policy.servicioCounter += 1;
+        const nextServiceNumber = policy.servicioCounter;
+
+        // Crear servicio basado en el registro
+        const servicioData = {
+            numeroServicio: nextServiceNumber,
+            numeroRegistroOrigen: numeroRegistro,
+            costo: registro.costo,
+            fechaServicio: registro.fechaRegistro,
+            numeroExpediente: registro.numeroExpediente,
+            origenDestino: registro.origenDestino,
+            fechaContactoProgramada,
+            fechaTerminoProgramada,
+            coordenadas: registro.coordenadas,
+            rutaInfo: registro.rutaInfo
+        };
+
+        // Añadir servicio al array
+        policy.servicios.push(servicioData);
+
+        const updatedPolicy = await policy.save();
+        logger.info(`Registro #${numeroRegistro} convertido a servicio #${nextServiceNumber} en póliza ${numeroPoliza}`);
+        return { updatedPolicy, numeroServicio: nextServiceNumber };
+    } catch (error) {
+        logger.error('Error al convertir registro a servicio:', {
+            numeroPoliza,
+            numeroRegistro,
+            error: error.message
+        });
+        throw error;
+    }
+};
+
+/**
+ * Marca un registro como NO ASIGNADO
+ */
+const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
+    try {
+        logger.info(`Marcando registro ${numeroRegistro} como NO ASIGNADO en póliza: ${numeroPoliza}`);
+
+        const policy = await getPolicyByNumber(numeroPoliza);
+        if (!policy) {
+            logger.warn(`Póliza no encontrada: ${numeroPoliza}`);
+            return null;
+        }
+
+        // Buscar el registro
+        const registro = policy.registros.find(r => r.numeroRegistro === numeroRegistro);
+        if (!registro) {
+            logger.warn(`Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}`);
+            return null;
+        }
+
+        // Marcar registro como NO_ASIGNADO
+        registro.estado = 'NO_ASIGNADO';
+
+        const updatedPolicy = await policy.save();
+        logger.info(`Registro #${numeroRegistro} marcado como NO ASIGNADO en póliza ${numeroPoliza}`);
+        return updatedPolicy;
+    } catch (error) {
+        logger.error('Error al marcar registro como no asignado:', {
+            numeroPoliza,
+            numeroRegistro,
+            error: error.message
+        });
+        throw error;
+    }
+};
+
+/**
+ * Genera horas aleatorias de contacto (22-39 min después) y término automático
+ */
+const calcularHorasAutomaticas = (fechaBase, tiempoTrayectoMinutos = 0) => {
+    // Contacto: entre 22 y 39 minutos después de la fecha base
+    const minutosContacto = Math.floor(Math.random() * (39 - 22 + 1)) + 22;
+    const fechaContacto = new Date(fechaBase.getTime() + minutosContacto * 60000);
+
+    // Término: contacto + tiempo de trayecto + 40 minutos adicionales
+    const minutosTermino = tiempoTrayectoMinutos + 40;
+    const fechaTermino = new Date(fechaContacto.getTime() + minutosTermino * 60000);
+
+    return {
+        fechaContactoProgramada: fechaContacto,
+        fechaTerminoProgramada: fechaTermino,
+        minutosContacto,
+        minutosTermino
+    };
+};
+
 module.exports = {
     savePolicy,
     getPolicyByNumber,
@@ -608,8 +819,13 @@ module.exports = {
     getSusceptiblePolicies,
     getOldUnusedPolicies,
     deletePolicyByNumber,
-    markPolicyAsDeleted,  // Nueva función de borrado lógico
-    getDeletedPolicies,   // Función para obtener pólizas eliminadas
-    restorePolicy,        // Función para restaurar pólizas eliminadas
-    savePoliciesBatch
+    markPolicyAsDeleted,
+    getDeletedPolicies,
+    restorePolicy,
+    savePoliciesBatch,
+    // Nuevas funciones para registros vs servicios
+    addRegistroToPolicy,
+    convertirRegistroAServicio,
+    marcarRegistroNoAsignado,
+    calcularHorasAutomaticas
 };

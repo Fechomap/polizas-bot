@@ -1,6 +1,6 @@
 // src/comandos/comandos/OcuparPolizaCallback.js
 const BaseCommand = require('./BaseCommand');
-const { getPolicyByNumber } = require('../../controllers/policyController');
+const { getPolicyByNumber, convertirRegistroAServicio, marcarRegistroNoAsignado, calcularHorasAutomaticas } = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
 const flowStateManager = require('../../utils/FlowStateManager');
 const StateKeyManager = require('../../utils/StateKeyManager');
@@ -188,13 +188,13 @@ class OcuparPolizaCallback extends BaseCommand {
                             '✅ Origen-destino asignado.\n\n' +
                             `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
                             '✅ Leyenda enviada al grupo de servicios.\n\n' +
-                            '¿El servicio fue asignado?',
+                            '🚗 ¿Deseas registrar un servicio?',
                             {
                                 parse_mode: 'Markdown',
                                 ...Markup.inlineKeyboard([
                                     [
-                                        Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}`),
-                                        Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}`)
+                                        Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
+                                        Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
                                     ]
                                 ])
                             }
@@ -205,11 +205,11 @@ class OcuparPolizaCallback extends BaseCommand {
                         // Fallback if message ID not found
                         await ctx.reply(
                             '✅ Leyenda enviada exitosamente al grupo de servicios.\n\n' +
-                            '¿El servicio fue asignado?',
+                            '🚗 ¿Deseas registrar un servicio?',
                             Markup.inlineKeyboard([
                                 [
-                                    Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}`),
-                                    Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}`)
+                                    Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
+                                    Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
                                 ]
                             ])
                         );
@@ -236,70 +236,151 @@ class OcuparPolizaCallback extends BaseCommand {
             }
         });
 
-        // Register callback for "Asignado" button
-        // En OcuparPolizaCallback.js - Callback para "Asignado" button
-        this.handler.registry.registerCallback(/asig_yes_(.+)/, async (ctx) => {
+        // Register callback for "Registrar Servicio" button (NUEVO FLUJO INICIAL)
+        this.handler.registry.registerCallback(/registrar_servicio_(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                this.logInfo(`Servicio marcado como asignado para póliza: ${numeroPoliza}`, { chatId, threadId });
+                this.logInfo(`Iniciando registro de servicio para póliza: ${numeroPoliza}`, { chatId, threadId });
 
-                // Guardar datos para uso posterior (igual que antes)
-                let policy;
-                const cachedData = this.polizaCache.get(chatId, threadId);
+                await ctx.reply(
+                    '🚗 *Ingresa el número de expediente:*\n' +
+                    '📝 Ejemplo: EXP-2025-001\n\n' +
+                    '✅ Los demás datos se calculan automáticamente:\n' +
+                    '• Fecha: Se asigna automáticamente\n' +
+                    '• Costo: Se calcula según distancia\n' +
+                    '• Origen/Destino: Se toman de la ruta calculada',
+                    { parse_mode: 'Markdown' }
+                );
 
-                if (cachedData && cachedData.numeroPoliza === numeroPoliza) {
-                    policy = cachedData.policy;
-                    this.logInfo(`Usando política en caché para ${numeroPoliza} (asig_yes)`);
-                } else {
-                    // ... resto de código igual
-                }
-
-                // CAMBIO: En lugar de solicitar hora de contacto, solicitar datos del servicio
-                // Get the message ID to edit
-                const messageId = this.messageIds.get(chatId, threadId);
-                if (messageId) {
-                    this.logInfo(`Editando mensaje ${messageId} para solicitar datos del servicio`);
-                    // Modificar el mensaje para pedir solo el número de expediente
-                    await ctx.telegram.editMessageText(
-                        chatId,
-                        messageId,
-                        undefined,
-                        `✅ Servicio marcado como asignado para póliza *${numeroPoliza}*.\n\n` +
-                        '🚗 *Ingresa el número de expediente:*\n' +
-                        '📝 Ejemplo: EXP-2025-001\n\n' +
-                        '✅ Los demás datos se calculan automáticamente:\n' +
-                        '• Fecha: Se asigna automáticamente\n' +
-                        '• Costo: Se calcula según distancia\n' +
-                        '• Origen/Destino: Se toman de la ruta calculada',
-                        { parse_mode: 'Markdown' }
-                    );
-                } else {
-                    // Fallback si no se encuentra el ID del mensaje
-                    await ctx.reply(
-                        `✅ Servicio marcado como asignado para póliza *${numeroPoliza}*.\n\n` +
-                        '🚗 *Ingresa el número de expediente:*\n' +
-                        '📝 Ejemplo: EXP-2025-001\n\n' +
-                        '✅ Los demás datos se calculan automáticamente:\n' +
-                        '• Fecha: Se asigna automáticamente\n' +
-                        '• Costo: Se calcula según distancia\n' +
-                        '• Origen/Destino: Se toman de la ruta calculada',
-                        { parse_mode: 'Markdown' }
-                    );
-                }
-
-                // CAMBIO: Establecer el estado para esperar datos del servicio en vez de hora de contacto
+                // Establecer el estado para esperar datos del servicio
                 this.handler.awaitingServiceData.set(chatId, numeroPoliza, threadId);
                 this.logInfo(`Estado establecido para esperar datos del servicio para ${numeroPoliza}`);
 
-                // Guardar que estamos en flujo de notificación después de servicio
-                this.scheduledServiceInfo.set(chatId, {
+            } catch (error) {
+                this.logError('Error en callback registrarServicio:', error);
+                await ctx.reply('❌ Error al iniciar el registro del servicio.');
+            } finally {
+                await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for "No registrar" button
+        this.handler.registry.registerCallback(/no_registrar_(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+
+                this.logInfo(`No registrar servicio para póliza: ${numeroPoliza}`, { chatId, threadId });
+
+                await ctx.reply(
+                    `✅ Proceso finalizado para póliza *${numeroPoliza}*.\n\n` +
+                    '📝 Los datos de origen-destino y teléfono han sido guardados.\n' +
+                    '🚫 No se registrará ningún servicio en este momento.',
+                    { parse_mode: 'Markdown' }
+                );
+
+                // Limpiar estados
+                this.cleanupAllStates(chatId, threadId);
+
+            } catch (error) {
+                this.logError('Error en callback noRegistrar:', error);
+                await ctx.reply('❌ Error al finalizar el proceso.');
+            } finally {
+                await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for "Asignado" button (NUEVO FLUJO)
+        // Patrón actualizado para incluir numeroRegistro: asig_yes_poliza_registro
+        this.handler.registry.registerCallback(/asig_yes_(.+)_(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const numeroRegistro = parseInt(ctx.match[2]);
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+
+                this.logInfo(`Registro ${numeroRegistro} marcado como ASIGNADO para póliza: ${numeroPoliza}`, { chatId, threadId });
+
+                // Obtener la póliza para extraer datos del registro
+                const policy = await getPolicyByNumber(numeroPoliza);
+                if (!policy) {
+                    await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    return;
+                }
+
+                // Buscar el registro específico
+                const registro = policy.registros.find(r => r.numeroRegistro === numeroRegistro);
+                if (!registro) {
+                    await ctx.reply(`❌ Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}.`);
+                    return;
+                }
+
+                // Calcular horas automáticas (fecha base = ahora)
+                const fechaBase = new Date();
+                const tiempoTrayecto = registro.rutaInfo?.tiempoMinutos || 0;
+                const horasCalculadas = calcularHorasAutomaticas(fechaBase, tiempoTrayecto);
+
+                this.logInfo('Horas calculadas automáticamente:', {
+                    contacto: horasCalculadas.fechaContactoProgramada,
+                    termino: horasCalculadas.fechaTerminoProgramada,
+                    minutosContacto: horasCalculadas.minutosContacto,
+                    minutosTermino: horasCalculadas.minutosTermino
+                });
+
+                // Convertir registro a servicio confirmado
+                const resultado = await convertirRegistroAServicio(
                     numeroPoliza,
-                    policy,
-                    waitingForServiceData: true
-                }, threadId);
+                    numeroRegistro,
+                    horasCalculadas.fechaContactoProgramada,
+                    horasCalculadas.fechaTerminoProgramada
+                );
+
+                if (!resultado) {
+                    await ctx.reply(`❌ Error al convertir registro ${numeroRegistro} a servicio.`);
+                    return;
+                }
+
+                const { numeroServicio } = resultado;
+
+                // Formatear fechas para mostrar
+                const fechaContactoStr = horasCalculadas.fechaContactoProgramada.toLocaleString('es-MX', {
+                    timeZone: 'America/Mexico_City',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                const fechaTerminoStr = horasCalculadas.fechaTerminoProgramada.toLocaleString('es-MX', {
+                    timeZone: 'America/Mexico_City',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                // Confirmar conversión con detalles automáticos
+                await ctx.reply(
+                    `✅ *Registro convertido a Servicio #${numeroServicio}*\n\n` +
+                    `📋 Póliza: ${numeroPoliza}\n` +
+                    `📝 Expediente: ${registro.numeroExpediente}\n` +
+                    `💰 Costo: $${registro.costo.toFixed(2)}\n` +
+                    `📍 Ruta: ${registro.origenDestino}\n\n` +
+                    '⏰ *Programación automática:*\n' +
+                    `📞 Contacto: ${fechaContactoStr}\n` +
+                    `🏁 Término: ${fechaTerminoStr}\n\n` +
+                    '🤖 Las notificaciones se enviarán automáticamente.',
+                    { parse_mode: 'Markdown' }
+                );
+
+                // TODO: Programar notificaciones automáticas usando el sistema existente
+                this.logInfo(`Servicio #${numeroServicio} confirmado y programado para póliza ${numeroPoliza}`);
             } catch (error) {
                 this.logError('Error en callback assignedService:', error);
                 await ctx.reply('❌ Error al procesar la asignación del servicio.');
@@ -310,33 +391,31 @@ class OcuparPolizaCallback extends BaseCommand {
             }
         });
 
-        // Register callback for "No asignado" button
-        this.handler.registry.registerCallback(/asig_no_(.+)/, async (ctx) => {
+        // Register callback for "No asignado" button (NUEVO FLUJO)
+        this.handler.registry.registerCallback(/asig_no_(.+)_(.+)/, async (ctx) => {
             try {
                 const numeroPoliza = ctx.match[1];
+                const numeroRegistro = parseInt(ctx.match[2]);
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                this.logInfo(`[asig_no_] Servicio marcado como NO asignado para póliza: ${numeroPoliza}`, { chatId }); // Added prefix for clarity
+                this.logInfo(`Registro ${numeroRegistro} marcado como NO ASIGNADO para póliza: ${numeroPoliza}`, { chatId, threadId });
 
-                // Get the message ID to edit
-                const messageId = this.messageIds.get(chatId);
-                if (messageId) {
-                    this.logInfo(`[asig_no_] Intentando editar mensaje ID: ${messageId} para chatId: ${chatId}`, { numeroPoliza }); // Added log
-                    // Edit the original message for clearer confirmation and remove buttons
-                    await ctx.telegram.editMessageText(
-                        chatId,
-                        messageId,
-                        undefined,
-                        `*🚫 Servicio NO Asignado*\n\nPóliza: ${numeroPoliza}\nEl flujo ha finalizado. Ya no se requieren más acciones para esta póliza en este momento.`, // Enhanced message
-                        { parse_mode: 'Markdown' } // No buttons specified, so they are removed
-                    );
-                    this.logInfo(`[asig_no_] Mensaje ${messageId} editado correctamente.`, { numeroPoliza }); // Added success log
-                } else {
-                    // Fallback - Log this case as it indicates an issue with messageId tracking
-                    this.logInfo(`[asig_no_] No se encontró messageId para chatId: ${chatId}. Enviando respuesta nueva.`, { numeroPoliza });
-                    await ctx.reply(`🚫 Servicio marcado como no asignado para póliza ${numeroPoliza}. Flujo finalizado.`); // Slightly improved fallback
+                // Marcar el registro como NO_ASIGNADO en la base de datos
+                const resultado = await marcarRegistroNoAsignado(numeroPoliza, numeroRegistro);
+                if (!resultado) {
+                    await ctx.reply(`❌ Error al marcar registro ${numeroRegistro} como no asignado.`);
+                    return;
                 }
+
+                // Confirmar que el registro fue marcado como no asignado
+                await ctx.reply(
+                    `🚫 *Registro #${numeroRegistro} marcado como NO ASIGNADO*\n\n` +
+                    `📋 Póliza: ${numeroPoliza}\n` +
+                    '📝 El registro permanece guardado pero no se convertirá en servicio.\n\n' +
+                    '✅ Flujo finalizado. No se programarán notificaciones.',
+                    { parse_mode: 'Markdown' }
+                );
 
                 // Clean up all states
                 this.cleanupAllStates(chatId);
