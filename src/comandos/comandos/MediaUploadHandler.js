@@ -2,6 +2,7 @@
 const BaseCommand = require('./BaseCommand');
 const fetch = require('node-fetch');
 const { getPolicyByNumber } = require('../../controllers/policyController');
+const { getInstance } = require('../../services/CloudflareStorage');
 
 class MediaUploadHandler extends BaseCommand {
     constructor(handler) {
@@ -44,10 +45,19 @@ class MediaUploadHandler extends BaseCommand {
                 if (!response.ok) throw new Error('Falló la descarga de la foto');
                 const buffer = await response.buffer();
 
-                // Create file object directly
-                const fileObject = {
-                    data: buffer,
-                    contentType: 'image/jpeg'
+                // Subir foto a Cloudflare R2
+                const storage = getInstance();
+                const originalName = `foto_${Date.now()}.jpg`;
+                const uploadResult = await storage.uploadPolicyPhoto(buffer, numeroPoliza, originalName);
+
+                // Crear objeto de archivo R2
+                const r2FileObject = {
+                    url: uploadResult.url,
+                    key: uploadResult.key,
+                    size: uploadResult.size,
+                    contentType: uploadResult.contentType,
+                    uploadedAt: new Date(),
+                    originalName: originalName
                 };
 
                 // Find the policy and update
@@ -58,16 +68,19 @@ class MediaUploadHandler extends BaseCommand {
 
                 // Initialize files if it doesn't exist
                 if (!policy.archivos) {
-                    policy.archivos = { fotos: [], pdfs: [] };
+                    policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
+                }
+                if (!policy.archivos.r2Files) {
+                    policy.archivos.r2Files = { fotos: [], pdfs: [] };
                 }
 
-                // Add the photo
-                policy.archivos.fotos.push(fileObject);
+                // Add the photo to R2 files
+                policy.archivos.r2Files.fotos.push(r2FileObject);
 
                 // Save
                 await policy.save();
 
-                await ctx.reply('✅ Foto guardada correctamente.');
+                await ctx.reply('✅ Foto guardada correctamente en almacenamiento seguro.');
                 this.logInfo('Foto guardada', { numeroPoliza });
                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
                 // this.uploadTargets.delete(ctx.chat.id);
@@ -111,10 +124,19 @@ class MediaUploadHandler extends BaseCommand {
                 if (!response.ok) throw new Error('Falló la descarga del documento');
                 const buffer = await response.buffer();
 
-                // Create file object directly
-                const fileObject = {
-                    data: buffer,
-                    contentType: 'application/pdf'
+                // Subir PDF a Cloudflare R2
+                const storage = getInstance();
+                const originalName = ctx.message.document.file_name || `documento_${Date.now()}.pdf`;
+                const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
+
+                // Crear objeto de archivo R2
+                const r2FileObject = {
+                    url: uploadResult.url,
+                    key: uploadResult.key,
+                    size: uploadResult.size,
+                    contentType: uploadResult.contentType,
+                    uploadedAt: new Date(),
+                    originalName: originalName
                 };
 
                 // Find the policy and update
@@ -125,16 +147,19 @@ class MediaUploadHandler extends BaseCommand {
 
                 // Initialize files if it doesn't exist
                 if (!policy.archivos) {
-                    policy.archivos = { fotos: [], pdfs: [] };
+                    policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
+                }
+                if (!policy.archivos.r2Files) {
+                    policy.archivos.r2Files = { fotos: [], pdfs: [] };
                 }
 
-                // Add the PDF
-                policy.archivos.pdfs.push(fileObject);
+                // Add the PDF to R2 files
+                policy.archivos.r2Files.pdfs.push(r2FileObject);
 
                 // Save
                 await policy.save();
 
-                await ctx.reply('✅ PDF guardado correctamente.');
+                await ctx.reply('✅ PDF guardado correctamente en almacenamiento seguro.');
                 this.logInfo('PDF guardado', { numeroPoliza });
                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
                 // this.uploadTargets.delete(ctx.chat.id);

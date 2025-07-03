@@ -1,11 +1,21 @@
 // src/models/policy.js
 const mongoose = require('mongoose');
 
-// Esquema para archivos sin _id
+// Esquema para archivos sin _id (compatibilidad con archivos binarios legacy)
 const fileSchema = new mongoose.Schema({
     data: Buffer,
     contentType: String
 }, { _id: false }); // Esto es clave: deshabilitamos el _id automático
+
+// Esquema para archivos almacenados en R2
+const r2FileSchema = new mongoose.Schema({
+    url: { type: String, required: true },
+    key: { type: String, required: true },
+    size: { type: Number, required: true },
+    contentType: { type: String, required: true },
+    uploadedAt: { type: Date, default: Date.now },
+    originalName: { type: String, required: false }
+}, { _id: false });
 
 const policySchema = new mongoose.Schema({
     // Datos del titular
@@ -180,10 +190,14 @@ const policySchema = new mongoose.Schema({
         origenDestino: { type: String, required: false, trim: true }
     }],
 
-    // Modificado el esquema de archivos para manejar datos binarios
+    // Esquema de archivos híbrido: soporta binarios legacy y URLs de R2
     archivos: {
-        fotos: [fileSchema],  // Usamos el esquema sin _id
-        pdfs: [fileSchema]    // Usamos el esquema sin _id
+        fotos: [fileSchema],  // Archivos binarios legacy
+        pdfs: [fileSchema],   // Archivos binarios legacy
+        r2Files: {
+            fotos: [r2FileSchema], // Archivos en R2
+            pdfs: [r2FileSchema]   // Archivos en R2
+        }
     },
 
     // Campo de estado para "borrado lógico"

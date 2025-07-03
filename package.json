@@ -17,6 +17,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.842.0",
+    "@aws-sdk/s3-request-presigner": "^3.842.0",
     "@telegraf/session": "^2.0.0-beta.7",
     "axios": "^1.8.4",
     "dotenv": "^16.4.7",

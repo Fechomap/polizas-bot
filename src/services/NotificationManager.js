@@ -32,7 +32,10 @@ class NotificationManager {
 
             // Configurar job para recuperar periódicamente
             this.recoveryInterval = setInterval(() => {
-                this.loadPendingNotifications().catch(err => {
+                Promise.all([
+                    this.loadPendingNotifications(),
+                    this.recoverFailedNotifications()
+                ]).catch(err => {
                     logger.error('Error en job de recuperación de notificaciones:', err);
                 });
             }, 15 * 60 * 1000); // Cada 15 minutos
@@ -105,7 +108,7 @@ class NotificationManager {
 
             // Programar el timer
             const timerId = setTimeout(
-                () => this.sendNotification(notification._id.toString()),
+                () => this.sendNotificationWithRetry(notification._id.toString()),
                 timeToWait
             );
 
@@ -197,7 +200,7 @@ class NotificationManager {
             }
 
             const timerId = setTimeout(
-                () => this.sendNotification(notification._id.toString()),
+                () => this.sendNotificationWithRetry(notification._id.toString()),
                 timeToWait
             );
 
@@ -215,7 +218,84 @@ class NotificationManager {
     }
 
     /**
-     * Envía una notificación programada
+     * Envía un mensaje con timeout específico
+     * @param {string} chatId - ID del chat/grupo
+     * @param {string} message - Mensaje a enviar
+     * @param {Object} options - Opciones del mensaje
+     * @param {number} timeoutMs - Timeout en milisegundos
+     */
+    async sendMessageWithTimeout(chatId, message, options = {}, timeoutMs = 30000) {
+        return new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+                reject(new Error(`ETIMEDOUT: Message send timeout after ${timeoutMs}ms`));
+            }, timeoutMs);
+
+            this.bot.telegram.sendMessage(chatId, message, options)
+                .then(result => {
+                    clearTimeout(timeoutId);
+                    resolve(result);
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    reject(error);
+                });
+        });
+    }
+
+    /**
+     * Verifica si un error es recuperable (merece reintento)
+     * @param {Error} error - Error a evaluar
+     * @returns {boolean} - true si el error es recuperable
+     */
+    isRetryableError(error) {
+        const retryableCodes = ['ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND', 'ECONNREFUSED', 'EPIPE'];
+        const retryableMessages = ['timeout', 'network', 'connection'];
+
+        return retryableCodes.includes(error.code) ||
+               retryableMessages.some(msg => error.message.toLowerCase().includes(msg));
+    }
+
+    /**
+     * Envía una notificación con sistema de reintentos
+     * @param {string} notificationId - ID de la notificación a enviar
+     * @param {number} retryCount - Número de intento actual
+     */
+    async sendNotificationWithRetry(notificationId, retryCount = 0) {
+        const MAX_RETRIES = 3;
+        const RETRY_DELAYS = [5000, 15000, 60000]; // 5s, 15s, 1min
+
+        try {
+            await this.sendNotification(notificationId);
+        } catch (error) {
+            if (retryCount < MAX_RETRIES && this.isRetryableError(error)) {
+                const delay = RETRY_DELAYS[retryCount];
+                logger.warn(`⚠️ Reintentando notificación ${notificationId} en ${delay}ms (intento ${retryCount + 1}/${MAX_RETRIES}): ${error.message}`);
+
+                setTimeout(() => {
+                    this.sendNotificationWithRetry(notificationId, retryCount + 1)
+                        .catch(retryError => {
+                            logger.error(`Error en reintento ${retryCount + 1} para notificación ${notificationId}:`, retryError);
+                        });
+                }, delay);
+            } else {
+                // Marcar como fallida definitivamente
+                logger.error(`❌ Notificación ${notificationId} falló definitivamente después de ${retryCount} reintentos: ${error.message}`);
+
+                try {
+                    const notification = await ScheduledNotification.findById(notificationId);
+                    if (notification && typeof notification.markAsFailed === 'function') {
+                        await notification.markAsFailed(`Failed after ${retryCount} retries: ${error.message}`);
+                    }
+                } catch (markError) {
+                    logger.error('Error adicional al marcar como fallida:', markError);
+                }
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Envía una notificación programada (método base)
      * @param {string} notificationId - ID de la notificación
      */
     async sendNotification(notificationId) {
@@ -263,11 +343,12 @@ class NotificationManager {
 
             message += '✅ Favor de dar seguimiento en este chat.';
 
-            // Enviar el mensaje al grupo
-            await this.bot.telegram.sendMessage(
+            // Enviar el mensaje al grupo con timeout específico
+            await this.sendMessageWithTimeout(
                 notification.targetGroupId,
                 message,
-                { parse_mode: 'Markdown' }
+                { parse_mode: 'Markdown' },
+                30000 // 30 segundos timeout
             );
 
             // Marcar como enviada
@@ -324,6 +405,45 @@ class NotificationManager {
         } catch (error) {
             logger.error(`Error al cancelar notificación ${notificationId}:`, error);
             return false;
+        }
+    }
+
+    /**
+     * Recupera notificaciones fallidas recientes y las reprograma
+     */
+    async recoverFailedNotifications() {
+        try {
+            const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+            // Buscar notificaciones fallidas de las últimas 24 horas
+            const failedNotifications = await ScheduledNotification.find({
+                status: 'FAILED',
+                scheduledDate: { $gte: oneDayAgo }
+            });
+
+            if (failedNotifications.length === 0) {
+                logger.debug('No hay notificaciones fallidas para recuperar');
+                return;
+            }
+
+            logger.info(`🔄 Recuperando ${failedNotifications.length} notificaciones fallidas`);
+
+            for (const notification of failedNotifications) {
+                try {
+                    // Reprogramar para 5 minutos en el futuro
+                    const newScheduledDate = new Date(Date.now() + 5 * 60 * 1000);
+                    await notification.reschedule(newScheduledDate);
+
+                    // Programar nuevamente
+                    await this.scheduleExistingNotification(notification);
+
+                    logger.info(`✅ Notificación fallida ${notification._id} reprogramada para ${moment(newScheduledDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm')} CDMX`);
+                } catch (recoveryError) {
+                    logger.error(`Error recuperando notificación ${notification._id}:`, recoveryError);
+                }
+            }
+        } catch (error) {
+            logger.error('Error en recuperación de notificaciones fallidas:', error);
         }
     }
 

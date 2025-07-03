@@ -1,5 +1,6 @@
 const { Telegraf } = require('telegraf');
 const express = require('express');
+const https = require('https');
 const connectDB = require('./database');
 const logger = require('./utils/logger');
 const config = require('./config');
@@ -33,7 +34,21 @@ async function initializeBot() {
         );
         logger.info('✅ Servicio de limpieza de estados iniciado');
 
-        const bot = new Telegraf(config.telegram.token);
+        // Configurar agente HTTPS con timeouts mejorados
+        const httpsAgent = new https.Agent({
+            keepAlive: true,
+            keepAliveMsecs: 10000,
+            timeout: 30000, // 30 segundos para conexiones
+            maxSockets: 1
+        });
+
+        const bot = new Telegraf(config.telegram.token, {
+            telegram: {
+                agent: httpsAgent,
+                webhookReply: false
+            },
+            handlerTimeout: 90000 // 90 segundos para handlers
+        });
 
         // AÑADIR AQUÍ: Inicializar NotificationManager
         try {
