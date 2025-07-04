@@ -795,12 +795,12 @@ const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
  * IMPORTANTE: Todas las fechas se calculan en zona horaria de México (America/Mexico_City)
  */
 const calcularHorasAutomaticas = (fechaBase, tiempoTrayectoMinutos = 0) => {
-    // Asegurar que trabajamos en zona horaria de México
-    const fechaBaseMexico = new Date(fechaBase.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    // Usar la fecha base directamente (Railway maneja la zona horaria del servidor)
+    // fechaBase ya debería estar en la zona horaria correcta del servidor
     
     // Contacto: entre 22 y 39 minutos después de la fecha base
     const minutosContacto = Math.floor(Math.random() * (39 - 22 + 1)) + 22;
-    const fechaContacto = new Date(fechaBaseMexico.getTime() + minutosContacto * 60000);
+    const fechaContacto = new Date(fechaBase.getTime() + minutosContacto * 60000);
 
     // Término: contacto + tiempo de trayecto multiplicado por factor 1.6
     const minutosTermino = Math.round(tiempoTrayectoMinutos * 1.6);
