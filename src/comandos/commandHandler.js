@@ -215,20 +215,14 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 const adminMenu = Markup.inlineKeyboard([
-                    [Markup.button.callback('🔧 Panel Administración Completo', 'admin_menu')],
-                    [Markup.button.callback('✏️ Editar Póliza (🚧 Construcción)', 'accion:editar_poliza')],
-                    [Markup.button.callback('🛠️ Editar Servicio (🚧 Construcción)', 'accion:editar_servicio')],
-                    [Markup.button.callback('📝 Editar Expediente (🚧 Construcción)', 'accion:editar_expediente')],
-                    [Markup.button.callback('🗑️ Eliminar Póliza', 'accion:delete')],
-                    [Markup.button.callback('📋 Ver Eliminadas', 'accion:ver_eliminadas')],
-                    [Markup.button.callback('🔄 Gestión BD (🚧 Construcción)', 'accion:gestion_bd')],
+                    [Markup.button.callback('🔧 Panel de Administración', 'admin_menu')],
                     [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
                 ]);
 
                 await ctx.editMessageText(
                     '🔧 **ADMINISTRACIÓN**\n\n' +
-                    'Sistema CRUD completo para gestión avanzada:\n\n' +
-                    '🔒 *Nota:* El Panel de Administración Completo requiere permisos de administrador.',
+                    'Accede al sistema completo de administración para gestionar pólizas, servicios y base de datos.\n\n' +
+                    '🔒 *Requiere permisos de administrador.*',
                     { parse_mode: 'Markdown', ...adminMenu }
                 );
             } catch (error) {
@@ -271,7 +265,7 @@ class CommandHandler {
                 await ctx.answerCbQuery();
                 // Esta funcionalidad ya existe, la mantenemos igual pero desde el nuevo menú
                 const deletedPolicies = await getDeletedPolicies();
-                
+
                 if (deletedPolicies.length === 0) {
                     await ctx.editMessageText(
                         'ℹ️ **Pólizas Eliminadas**\n\nNo hay pólizas marcadas como eliminadas.',
@@ -285,7 +279,7 @@ class CommandHandler {
                     return;
                 }
 
-                const deletedList = deletedPolicies.map(policy => 
+                const deletedList = deletedPolicies.map(policy =>
                     `• ${policy.numeroPoliza} - ${policy.titular}`
                 ).join('\n');
 

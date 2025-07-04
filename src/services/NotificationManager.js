@@ -323,24 +323,24 @@ class NotificationManager {
                 message += '✅ **SERVICIO EN TÉRMINO** ✅\n';
                 message += '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
                 message += `🔸 **${notification.expedienteNum}**\n`;
-                
+
                 // Añadir vehículo y color en una línea
                 if (notification.marcaModelo && notification.colorVehiculo) {
                     message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo}\n`;
                 } else if (notification.marcaModelo) {
                     message += `🔸 ${notification.marcaModelo}\n`;
                 }
-                
+
                 if (notification.placas) {
                     message += `🔸 ${notification.placas}\n`;
                 }
-                
+
                 // Extraer solo el destino final
                 if (notification.origenDestino) {
                     const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
                     message += `🔸 ➡️ ${destino}\n`;
                 }
-                
+
                 message += '✅ **Confirmar cierre** ✅';
             } else {
                 // Mensaje de CONTACTO en amarillo
@@ -348,24 +348,24 @@ class NotificationManager {
                 message += '⚠️ **SERVICIO EN CONTACTO** ⚠️\n';
                 message += '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
                 message += `🔸 **${notification.expedienteNum}**\n`;
-                
+
                 // Añadir vehículo y color en una línea
                 if (notification.marcaModelo && notification.colorVehiculo) {
                     message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo}\n`;
                 } else if (notification.marcaModelo) {
                     message += `🔸 ${notification.marcaModelo}\n`;
                 }
-                
+
                 if (notification.placas) {
                     message += `🔸 ${notification.placas}\n`;
                 }
-                
+
                 // Extraer solo el destino final
                 if (notification.origenDestino) {
                     const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
                     message += `🔸 ➡️ ${destino}\n`;
                 }
-                
+
                 message += '⚠️ **Seguimiento en chat** ⚠️';
             }
 
