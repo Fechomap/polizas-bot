@@ -38,7 +38,7 @@ class NotificationManager {
                 ]).catch(err => {
                     logger.error('Error en job de recuperación de notificaciones:', err);
                 });
-            }, 15 * 60 * 1000); // Cada 15 minutos
+            }, 1 * 60 * 1000); // Cada 1 minuto para mayor precisión
 
             this.isInitialized = true;
             logger.info('✅ NotificationManager inicializado correctamente');
