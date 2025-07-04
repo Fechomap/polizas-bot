@@ -315,10 +315,17 @@ class NotificationManager {
                 return;
             }
 
-            // Construir el mensaje
-            let message = '🕒 **Servicio en contacto**\n';
-            message += `📄 Expediente: ${notification.expedienteNum}\n`;
-            message += `🗓 Hora de contacto: ${notification.contactTime}\n`;
+            // Construir el mensaje según el tipo de notificación
+            let message = '';
+            if (notification.tipoNotificacion === 'TERMINO') {
+                message = '🏁 **Servicio en término**\n';
+                message += `📄 Expediente: ${notification.expedienteNum}\n`;
+                message += `🗓 Hora de término: ${notification.contactTime}\n`;
+            } else {
+                message = '🕒 **Servicio en contacto**\n';
+                message += `📄 Expediente: ${notification.expedienteNum}\n`;
+                message += `🗓 Hora de contacto: ${notification.contactTime}\n`;
+            }
 
             // Añadir datos adicionales si existen
             if (notification.marcaModelo) {
@@ -341,7 +348,11 @@ class NotificationManager {
                 message += `📍 Origen/Destino: ${notification.origenDestino}\n`;
             }
 
-            message += '✅ Favor de dar seguimiento en este chat.';
+            if (notification.tipoNotificacion === 'TERMINO') {
+                message += '🔚 Servicio completado. Favor de confirmar cierre.';
+            } else {
+                message += '✅ Favor de dar seguimiento en este chat.';
+            }
 
             // Enviar el mensaje al grupo con timeout específico
             await this.sendMessageWithTimeout(

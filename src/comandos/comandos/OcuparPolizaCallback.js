@@ -379,7 +379,80 @@ class OcuparPolizaCallback extends BaseCommand {
                     { parse_mode: 'Markdown' }
                 );
 
-                // TODO: Programar notificaciones automáticas usando el sistema existente
+                // Programar notificaciones automáticas usando el sistema existente
+                try {
+                    const { getInstance: getNotificationManager } = require('../../services/NotificationManager');
+                    const notificationManager = getNotificationManager(this.bot);
+
+                    if (!notificationManager || !notificationManager.isInitialized) {
+                        this.logError('NotificationManager no está inicializado para notificaciones automáticas');
+                    } else {
+                        // Formatear horas para notificaciones (HH:mm formato)
+                        const contactTimeStr = horasCalculadas.fechaContactoProgramada.toLocaleTimeString('es-MX', {
+                            timeZone: 'America/Mexico_City',
+                            hour12: false,
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+
+                        const terminoTimeStr = horasCalculadas.fechaTerminoProgramada.toLocaleTimeString('es-MX', {
+                            timeZone: 'America/Mexico_City',
+                            hour12: false,
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+
+                        // Obtener datos del registro para notificaciones
+                        const origenDestino = registro.origenDestino || 'Origen - Destino';
+                        const marcaModelo = `${policy.marca} ${policy.submarca} (${policy.año})`;
+
+                        this.logInfo('Programando notificaciones automáticas:', {
+                            expediente: registro.numeroExpediente,
+                            contacto: contactTimeStr,
+                            termino: terminoTimeStr,
+                            fechaContacto: horasCalculadas.fechaContactoProgramada.toISOString(),
+                            fechaTermino: horasCalculadas.fechaTerminoProgramada.toISOString()
+                        });
+
+                        // 1. Programar notificación de CONTACTO
+                        const notificationContacto = await notificationManager.scheduleNotification({
+                            numeroPoliza: numeroPoliza,
+                            targetGroupId: -1002212807945,
+                            contactTime: contactTimeStr,
+                            expedienteNum: registro.numeroExpediente,
+                            origenDestino: origenDestino,
+                            marcaModelo: marcaModelo,
+                            colorVehiculo: policy.color,
+                            placas: policy.placas,
+                            telefono: policy.telefono,
+                            scheduledDate: horasCalculadas.fechaContactoProgramada,
+                            tipoNotificacion: 'CONTACTO'
+                        });
+
+                        this.logInfo(`✅ Notificación de CONTACTO programada ID: ${notificationContacto._id} para ${contactTimeStr}`);
+
+                        // 2. Programar notificación de TÉRMINO
+                        const notificationTermino = await notificationManager.scheduleNotification({
+                            numeroPoliza: numeroPoliza,
+                            targetGroupId: -1002212807945,
+                            contactTime: terminoTimeStr,
+                            expedienteNum: registro.numeroExpediente,
+                            origenDestino: origenDestino,
+                            marcaModelo: marcaModelo,
+                            colorVehiculo: policy.color,
+                            placas: policy.placas,
+                            telefono: policy.telefono,
+                            scheduledDate: horasCalculadas.fechaTerminoProgramada,
+                            tipoNotificacion: 'TERMINO'
+                        });
+
+                        this.logInfo(`✅ Notificación de TÉRMINO programada ID: ${notificationTermino._id} para ${terminoTimeStr}`);
+                    }
+                } catch (notifyError) {
+                    this.logError('Error al programar notificaciones automáticas:', notifyError);
+                    // Continuar a pesar del error, no es crítico para el flujo principal
+                }
+
                 this.logInfo(`Servicio #${numeroServicio} confirmado y programado para póliza ${numeroPoliza}`);
             } catch (error) {
                 this.logError('Error en callback assignedService:', error);

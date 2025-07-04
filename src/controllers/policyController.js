@@ -791,21 +791,24 @@ const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
 
 /**
  * Genera horas aleatorias de contacto (22-39 min después) y término automático
+ * Término calculado como: tiempo_trayecto * 1.6 (factor de eficiencia proporcional)
  */
 const calcularHorasAutomaticas = (fechaBase, tiempoTrayectoMinutos = 0) => {
     // Contacto: entre 22 y 39 minutos después de la fecha base
     const minutosContacto = Math.floor(Math.random() * (39 - 22 + 1)) + 22;
     const fechaContacto = new Date(fechaBase.getTime() + minutosContacto * 60000);
 
-    // Término: contacto + tiempo de trayecto + 40 minutos adicionales
-    const minutosTermino = tiempoTrayectoMinutos + 40;
+    // Término: contacto + tiempo de trayecto multiplicado por factor 1.6
+    const minutosTermino = Math.round(tiempoTrayectoMinutos * 1.6);
     const fechaTermino = new Date(fechaContacto.getTime() + minutosTermino * 60000);
 
     return {
         fechaContactoProgramada: fechaContacto,
         fechaTerminoProgramada: fechaTermino,
         minutosContacto,
-        minutosTermino
+        minutosTermino,
+        tiempoTrayectoBase: tiempoTrayectoMinutos,
+        factorMultiplicador: 1.6
     };
 };
 

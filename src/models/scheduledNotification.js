@@ -74,6 +74,13 @@ const scheduledNotificationSchema = new mongoose.Schema({
         required: true
     },
 
+    // Tipo de notificación para diferenciar contacto y término
+    tipoNotificacion: {
+        type: String,
+        enum: ['CONTACTO', 'TERMINO', 'MANUAL'],
+        default: 'MANUAL'
+    },
+
     status: {
         type: String,
         enum: ['PENDING', 'SENT', 'FAILED', 'CANCELLED'],
