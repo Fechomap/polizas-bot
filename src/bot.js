@@ -8,6 +8,7 @@ const CommandHandler = require('./comandos/commandHandler');
 const handleGroupUpdate = require('./middleware/groupHandler');
 const { getInstance: getNotificationManager } = require('./services/NotificationManager');
 const stateCleanupService = require('./utils/StateCleanupService');
+const AdminModule = require('./admin');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -117,6 +118,12 @@ async function initializeBot() {
         logger.info('Registrando comandos...');
         new CommandHandler(bot);
         logger.info('✅ Comandos registrados');
+
+        // Inicializar módulo de administración
+        logger.info('Inicializando módulo de administración...');
+        const adminModule = new AdminModule(bot);
+        adminModule.initialize();
+        logger.info('✅ Módulo de administración inicializado');
 
         // Manejador de errores global
         bot.catch((err, ctx) => {

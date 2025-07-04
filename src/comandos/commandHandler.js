@@ -215,6 +215,7 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 const adminMenu = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔧 Panel Administración Completo', 'admin_menu')],
                     [Markup.button.callback('✏️ Editar Póliza (🚧 Construcción)', 'accion:editar_poliza')],
                     [Markup.button.callback('🛠️ Editar Servicio (🚧 Construcción)', 'accion:editar_servicio')],
                     [Markup.button.callback('📝 Editar Expediente (🚧 Construcción)', 'accion:editar_expediente')],
@@ -225,7 +226,9 @@ class CommandHandler {
                 ]);
 
                 await ctx.editMessageText(
-                    '🔧 **ADMINISTRACIÓN**\n\nSistema CRUD completo para gestión avanzada:',
+                    '🔧 **ADMINISTRACIÓN**\n\n' +
+                    'Sistema CRUD completo para gestión avanzada:\n\n' +
+                    '🔒 *Nota:* El Panel de Administración Completo requiere permisos de administrador.',
                     { parse_mode: 'Markdown', ...adminMenu }
                 );
             } catch (error) {

@@ -1,0 +1,157 @@
+const { Markup } = require('telegraf');
+const menuBuilder = require('./menuBuilder');
+
+class AdminMenu {
+  /**
+   * Muestra el menú principal de administración
+   */
+  static async showMainMenu(ctx) {
+    const menuText = `
+🔧 *PANEL DE ADMINISTRACIÓN*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Selecciona una opción para gestionar:
+
+📝 *Pólizas* - Editar, eliminar, restaurar
+🚗 *Servicios* - Gestionar servicios y registros
+💾 *Base de Datos* - Estadísticas y mantenimiento
+
+_Solo usuarios administradores pueden acceder a estas funciones._
+    `.trim();
+
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('📝 Gestión de Pólizas', 'admin_policy_menu'),
+        Markup.button.callback('🚗 Gestión de Servicios', 'admin_service_menu')
+      ],
+      [
+        Markup.button.callback('💾 Gestión Base de Datos', 'admin_database_menu')
+      ],
+      [
+        Markup.button.callback('⬅️ Volver al Menú Principal', 'start')
+      ]
+    ]);
+
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(menuText, {
+        parse_mode: 'Markdown',
+        ...keyboard
+      });
+    } else {
+      await ctx.reply(menuText, {
+        parse_mode: 'Markdown',
+        ...keyboard
+      });
+    }
+  }
+
+  /**
+   * Muestra el submenú de gestión de pólizas
+   */
+  static async showPolicyMenu(ctx) {
+    const menuText = `
+📝 *GESTIÓN DE PÓLIZAS*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Selecciona la operación a realizar:
+
+✏️ *Editar Póliza* - Modificar datos existentes
+🗑️ *Eliminar Póliza* - Marcar como eliminada
+🔄 *Restaurar Póliza* - Recuperar póliza eliminada
+📊 *Ver Estadísticas* - Resumen de pólizas
+    `.trim();
+
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('✏️ Editar Póliza', 'admin_policy_edit'),
+        Markup.button.callback('🗑️ Eliminar Póliza', 'admin_policy_delete')
+      ],
+      [
+        Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore'),
+        Markup.button.callback('📊 Ver Estadísticas', 'admin_policy_stats')
+      ],
+      [
+        Markup.button.callback('⬅️ Volver', 'admin_menu')
+      ]
+    ]);
+
+    await ctx.editMessageText(menuText, {
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  }
+
+  /**
+   * Muestra el submenú de gestión de servicios
+   */
+  static async showServiceMenu(ctx) {
+    const menuText = `
+🚗 *GESTIÓN DE SERVICIOS*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Selecciona la operación a realizar:
+
+✏️ *Editar Servicio* - Modificar datos del servicio
+📋 *Editar Registro* - Modificar registro asociado
+📍 *Gestionar Rutas* - Actualizar información de rutas
+📊 *Ver Estadísticas* - Resumen de servicios
+    `.trim();
+
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('✏️ Editar Servicio', 'admin_service_edit'),
+        Markup.button.callback('📋 Editar Registro', 'admin_service_editreg')
+      ],
+      [
+        Markup.button.callback('📍 Gestionar Rutas', 'admin_service_routes'),
+        Markup.button.callback('📊 Ver Estadísticas', 'admin_service_stats')
+      ],
+      [
+        Markup.button.callback('⬅️ Volver', 'admin_menu')
+      ]
+    ]);
+
+    await ctx.editMessageText(menuText, {
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  }
+
+  /**
+   * Muestra el submenú de gestión de base de datos
+   */
+  static async showDatabaseMenu(ctx) {
+    const menuText = `
+💾 *GESTIÓN BASE DE DATOS*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Herramientas de administración:
+
+📊 *Estadísticas* - Ver métricas del sistema
+🔄 *Ejecutar Scripts* - Scripts de mantenimiento
+📥 *Importar/Exportar* - Gestión de backups
+🧹 *Mantenimiento* - Limpieza y optimización
+    `.trim();
+
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback('📊 Estadísticas', 'admin_database_stats'),
+        Markup.button.callback('🔄 Ejecutar Scripts', 'admin_database_scripts')
+      ],
+      [
+        Markup.button.callback('📥 Importar/Exportar', 'admin_database_backup'),
+        Markup.button.callback('🧹 Mantenimiento', 'admin_database_maintenance')
+      ],
+      [
+        Markup.button.callback('⬅️ Volver', 'admin_menu')
+      ]
+    ]);
+
+    await ctx.editMessageText(menuText, {
+      parse_mode: 'Markdown',
+      ...keyboard
+    });
+  }
+}
+
+module.exports = AdminMenu;
