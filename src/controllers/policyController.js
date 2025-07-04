@@ -792,11 +792,15 @@ const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
 /**
  * Genera horas aleatorias de contacto (22-39 min después) y término automático
  * Término calculado como: tiempo_trayecto * 1.6 (factor de eficiencia proporcional)
+ * IMPORTANTE: Todas las fechas se calculan en zona horaria de México (America/Mexico_City)
  */
 const calcularHorasAutomaticas = (fechaBase, tiempoTrayectoMinutos = 0) => {
+    // Asegurar que trabajamos en zona horaria de México
+    const fechaBaseMexico = new Date(fechaBase.toLocaleString('en-US', { timeZone: 'America/Mexico_City' }));
+    
     // Contacto: entre 22 y 39 minutos después de la fecha base
     const minutosContacto = Math.floor(Math.random() * (39 - 22 + 1)) + 22;
-    const fechaContacto = new Date(fechaBase.getTime() + minutosContacto * 60000);
+    const fechaContacto = new Date(fechaBaseMexico.getTime() + minutosContacto * 60000);
 
     // Término: contacto + tiempo de trayecto multiplicado por factor 1.6
     const minutosTermino = Math.round(tiempoTrayectoMinutos * 1.6);
