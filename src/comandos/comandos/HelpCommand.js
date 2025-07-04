@@ -18,29 +18,71 @@ class HelpCommand extends BaseCommand {
     async sendHelpMessage(ctx) {
         try {
             const helpMessage = `
-        🤖 *Bot de Pólizas - Ayuda*
+🤖 **Bot de Pólizas - Guía Completa**
 
-        Selecciona una opción del menú principal para realizar acciones.
+📱 **COMANDOS PRINCIPALES**
 
-        *Descripción de las Opciones:*
+🏠 **MENÚ PRINCIPAL** (/start)
+Inicia el bot y muestra todas las opciones disponibles
 
-        🔹 *Consultar Póliza:* Busca y muestra la información de una póliza existente por su número.
-        🔹 *Registrar Póliza:* Inicia el proceso para añadir una póliza nueva a la base de datos.
-        🔹 *Añadir Pago:* Registra un pago realizado para una póliza específica.
-        🔹 *Añadir Servicio:* Registra un servicio (grúa, etc.) asociado a una póliza.
-        🔹 *Subir Archivos:* Permite adjuntar fotos o PDFs a una póliza existente.
-        🔹 *Eliminar Póliza:* Marca una póliza como eliminada (requiere permiso). Las pólizas eliminadas no aparecen en búsquedas normales.
-        🔹 *Reportes:* (En construcción) Mostrará información agregada sobre las pólizas.
-        🔹 *Ayuda:* Muestra este mensaje.
+📋 **CONSULTAR PÓLIZA**
+• Busca información completa de una póliza
+• Muestra: datos, pagos, servicios, archivos
+• Botón "Ocupar Póliza" para registro de servicios
 
-        *¿Cómo usar?*
-        1. Usa /start o presiona un botón "Volver al Menú" para ver las opciones principales.
-        2. Selecciona la acción que deseas realizar presionando el botón correspondiente.
-        3. El bot te pedirá la información necesaria (ej. número de póliza, datos de pago, etc.).
-        4. Envía la información solicitada como mensaje de texto.
-        5. Sigue las instrucciones hasta completar la acción.
-        6. Usa los botones "Volver al Menú" o "Cancelar" cuando estén disponibles para navegar.
-            `.trim(); // Trim para quitar espacios extra al inicio/final
+💾 **REGISTRAR PÓLIZA**
+• Crea nueva póliza con datos completos
+• Requiere: número, marca, modelo, año, placas, color
+
+💰 **AÑADIR PAGO**
+• Registra pagos realizados
+• Requiere: número de póliza, monto, fecha
+
+🚗 **AÑADIR SERVICIO** (⚡ AUTOMATIZADO)
+• Sistema completamente automatizado
+• Solo requiere: EXPEDIENTE
+• Calcula automáticamente: costo, fecha, ruta, horarios
+
+📁 **SUBIR ARCHIVOS**
+• Adjunta fotos y PDFs a pólizas
+• Almacenamiento seguro en Cloudflare R2
+
+🔧 **FUNCIONES ADMINISTRATIVAS**
+
+📊 **REPORTES DE PAGOS** - Pólizas con pagos pendientes
+📈 **REPORTES DE USO** - Pólizas sin servicios recientes  
+🗑️ **ELIMINAR PÓLIZA** - Borrado lógico (solo admins)
+📋 **VER ELIMINADAS** - Lista pólizas marcadas como eliminadas
+
+⚡ **FLUJO AUTOMATIZADO "OCUPAR PÓLIZA"**
+
+1️⃣ **TELÉFONO**: Muestra el actual, opciones CAMBIAR/MANTENER
+2️⃣ **UBICACIONES**: Solo pide ORIGEN y DESTINO  
+3️⃣ **AUTOMÁTICO**: Geocoding, ruta, cálculos
+4️⃣ **LEYENDA**: Envío explosivo automático al grupo
+5️⃣ **EXPEDIENTE**: Solo ingresa el número
+6️⃣ **ASIGNACIÓN**: Botones ✅ASIGNADO / ❌NO ASIGNADO
+7️⃣ **NOTIFICACIONES**: Contacto (22-39 min) y Término (ruta x1.6)
+
+💡 **CARACTERÍSTICAS CLAVE**
+
+✨ **Cálculos Automáticos**: distancia × $20 + $650
+📍 **HERE Maps**: Geocoding y rutas precisas  
+🟨 **Alertas Contacto**: Notificación amarilla automática
+🟩 **Alertas Término**: Notificación verde automática
+📊 **Doble Estado**: REGISTROS (intentos) + SERVICIOS (confirmados)
+☁️ **Cloudflare R2**: Almacenamiento escalable de archivos
+
+🚀 **NAVEGACIÓN**
+
+• Usa /start para volver al menú principal
+• Los botones desaparecen después de usarlos
+• Todos los procesos son cancelables
+• Estados separados por chat/hilo de conversación
+
+❓ **¿NECESITAS AYUDA?**
+Presiona "Volver al Menú" para ver todas las opciones disponibles.
+            `.trim();
 
             await ctx.replyWithMarkdown(helpMessage);
             this.logInfo('Mensaje de ayuda enviado', { chatId: ctx.chat.id });

@@ -67,21 +67,46 @@ NODE_ENV=production
 SESSION_TIMEOUT=1800000
 ```
 
-## Comandos del Bot
+## Comandos y Funcionalidades
 
-| Comando | Descripción |
-|---------|-------------|
-| `/start` | Bienvenida e introducción |
-| `/help` | Mostrar todos los comandos disponibles |
-| `/save` | Registrar Póliza |
-| `/get` | Consultar una póliza existente |
-| `/upload` | Subir fotos o PDFs para una póliza |
-| `/addpayment` | Registrar un nuevo pago |
-| `/addservice` | **Registrar un nuevo servicio** (automatizado) |
-| `/reportPayment` | Mostrar pólizas con pagos pendientes |
-| `/reportUsed` | Mostrar pólizas sin servicios recientes |
-| `/delete` | Marcar póliza como eliminada (Admin) |
-| `/listdeleted` | Listar pólizas eliminadas (Admin) |
+### 🎯 Comandos Principales
+
+| Comando | Función | Descripción |
+|---------|---------|-------------|
+| `/start` | **Menú Principal** | Inicia el bot y muestra todas las opciones disponibles |
+| **📋 Consultar Póliza** | `/get` | Busca y muestra información completa de una póliza |
+| **💾 Registrar Póliza** | `/save` | Crea una nueva póliza con datos completos |
+| **💰 Añadir Pago** | `/addpayment` | Registra pagos realizados para una póliza |
+| **🚗 Añadir Servicio** | `/addservice` | **Sistema automatizado** de registro de servicios |
+| **📁 Subir Archivos** | `/upload` | Adjunta fotos y PDFs a pólizas existentes |
+
+### 🔧 Funciones Administrativas
+
+| Función | Comando | Descripción |
+|---------|---------|-------------|
+| **📊 Reportes de Pagos** | `/reportPayment` | Pólizas con pagos pendientes |
+| **📈 Reportes de Uso** | `/reportUsed` | Pólizas sin servicios recientes |
+| **🗑️ Eliminar Póliza** | `/delete` | Borrado lógico (solo admins) |
+| **📋 Ver Eliminadas** | `/listdeleted` | Lista pólizas marcadas como eliminadas |
+| **❓ Ayuda** | Botón ayuda | Guía completa de uso |
+
+### ⚡ Flujo Automatizado de Servicios
+
+#### **Ocupar Póliza** - Proceso Simplificado
+1. **📱 Teléfono**: Muestra el existente con opciones `CAMBIAR/MANTENER`
+2. **📍 Ubicaciones**: Solo solicita `ORIGEN` y `DESTINO` (geocoding automático)
+3. **✨ Cálculos Automáticos**: 
+   - Costo: `distancia × $20 + $650`
+   - Fecha: Automática (momento actual)
+   - Ruta: HERE Maps con fallback Haversine
+4. **🎯 Leyenda Explosiva**: Envío automático al grupo con formato visual
+5. **📝 Registro**: Solo requiere número de expediente
+6. **⏰ Notificaciones**: Programación automática de contacto y término
+
+#### **Estados del Sistema**
+- **REGISTROS**: Todos los intentos (asignados y no asignados)
+- **SERVICIOS**: Solo confirmados como "Asignados"
+- **NOTIFICACIONES**: Contacto (22-39 min) y Término (ruta + 1.6×)
 
 ## Estructura del Proyecto
 

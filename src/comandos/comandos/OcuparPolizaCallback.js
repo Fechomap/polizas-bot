@@ -110,6 +110,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
+                // Remove the buttons first
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    this.logInfo('[keepPhone] Botones removidos del mensaje original');
+                } catch (editError) {
+                    this.logInfo('[keepPhone] No se pudo editar mensaje original:', editError.message);
+                }
+
                 // Get the policy to get the phone number
                 const policy = await getPolicyByNumber(numeroPoliza);
                 if (!policy) {
@@ -149,6 +157,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 const numeroPoliza = ctx.match[1];
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
+
+                // Remove the buttons first
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    this.logInfo('[changePhone] Botones removidos del mensaje original');
+                } catch (editError) {
+                    this.logInfo('[changePhone] No se pudo editar mensaje original:', editError.message);
+                }
 
                 this.logInfo(`[changePhone] Iniciando cambio de teléfono para póliza ${numeroPoliza}`, { chatId, threadId });
 
