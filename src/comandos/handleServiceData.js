@@ -91,12 +91,7 @@ async function handleServiceData(ctx, messageText) {
             const fechaStr = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
 
             await ctx.reply(
-                `✅ Se ha registrado el registro #${numeroRegistro} en la póliza *${numeroPoliza}*.\n\n` +
-                `Costo: $${costo.toFixed(2)}\n` +
-                `Fecha: ${fechaStr} (hoy)\n` +
-                `Expediente: ${expediente}\n` +
-                `Origen y Destino: ${origenDestino}\n\n` +
-                '⚠️ *Este es un REGISTRO, no un servicio confirmado aún.*',
+                `✅ Se ha hecho el registro #${numeroRegistro} en la póliza *${numeroPoliza}*, con el expediente ${expediente}`,
                 {
                     parse_mode: 'Markdown'
                 }
@@ -104,14 +99,13 @@ async function handleServiceData(ctx, messageText) {
 
             // Mostrar botones de Asignado/No Asignado después del registro
             await ctx.reply(
-                '🤔 *¿El servicio fue asignado?*\n\n' +
-                `Registro #${numeroRegistro} - Expediente: ${expediente}`,
+                '🤔 **INDICAME SI EL SERVICIO ESTA...**',
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
                         [
-                            Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}_${numeroRegistro}`),
-                            Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}_${numeroRegistro}`)
+                            Markup.button.callback('✅ ASIGNADO', `asig_yes_${numeroPoliza}_${numeroRegistro}`),
+                            Markup.button.callback('❌ NO ASIGNADO', `asig_no_${numeroPoliza}_${numeroRegistro}`)
                         ]
                     ])
                 }
@@ -205,13 +199,7 @@ async function handleServiceData(ctx, messageText) {
             });
 
             await ctx.reply(
-                `✅ Se ha registrado el registro #${numeroRegistro} en la póliza *${numeroPoliza}*.\n\n` +
-                '📊 *Datos calculados automáticamente:*\n' +
-                `• Costo: $${costo.toFixed(2)} (${distanciaKm}km × $20 + $650)\n` +
-                `• Fecha: ${fechaStr}\n` +
-                `• Expediente: ${expediente}\n` +
-                `• Origen y Destino: ${origenDestino}\n\n` +
-                '⚠️ *Este es un REGISTRO, no un servicio confirmado aún.*',
+                `✅ Se ha hecho el registro #${numeroRegistro} en la póliza *${numeroPoliza}*, con el expediente ${expediente}`,
                 {
                     parse_mode: 'Markdown'
                 }
@@ -219,14 +207,13 @@ async function handleServiceData(ctx, messageText) {
 
             // Mostrar botones de Asignado/No Asignado después del registro
             await ctx.reply(
-                '🤔 *¿El servicio fue asignado?*\n\n' +
-                `Registro #${numeroRegistro} - Expediente: ${expediente}`,
+                '🤔 **INDICAME SI EL SERVICIO ESTA...**',
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
                         [
-                            Markup.button.callback('✅ Asignado', `asig_yes_${numeroPoliza}_${numeroRegistro}`),
-                            Markup.button.callback('❌ No asignado', `asig_no_${numeroPoliza}_${numeroRegistro}`)
+                            Markup.button.callback('✅ ASIGNADO', `asig_yes_${numeroPoliza}_${numeroRegistro}`),
+                            Markup.button.callback('❌ NO ASIGNADO', `asig_no_${numeroPoliza}_${numeroRegistro}`)
                         ]
                     ])
                 }

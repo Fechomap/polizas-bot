@@ -60,25 +60,21 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 // Check if phone number already exists
                 if (policy.telefono) {
-                    // Show options to continue with existing number or change it
+                    // Show clean phone display with change/keep buttons
                     await ctx.reply(
-                        `📱 Esta póliza ya cuenta con un número telefónico registrado en el sistema: ${policy.telefono}\n` +
-                        'Si deseas cambiar el número telefónico, por favor ingrésalo a continuación.\n' +
-                        'De lo contrario, presiona OK para continuar.',
+                        `📱 ${policy.telefono}`,
                         Markup.inlineKeyboard([
-                            Markup.button.callback('✅ OK (Mantener número)', `keepPhone:${numeroPoliza}`)
+                            [Markup.button.callback('🔄 CAMBIAR', `changePhone:${numeroPoliza}`)],
+                            [Markup.button.callback('✅ MANTENER', `keepPhone:${numeroPoliza}`)]
                         ])
                     );
 
-                    // Set state to awaiting phone number (even if already exists)
-                    // This allows direct typing of a new number
-                    const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
-                    this.logInfo(`Estado de espera de teléfono guardado para teléfono existente: ${phoneSetResult ? 'OK' : 'FALLO'}`, {
+                    // No need to set awaiting state here - it will be set when CAMBIAR is pressed
+                    this.logInfo(`Mostrando opciones de teléfono para póliza ${numeroPoliza}`, {
                         chatId,
-                        threadId
+                        threadId,
+                        telefonoActual: policy.telefono
                     });
-                    const phoneHasResult = this.awaitingPhoneNumber.has(chatId, threadId);
-                    this.logInfo(`Verificación inmediata de estado teléfono (existente): ${phoneHasResult ? 'OK' : 'FALLO'}`);
                 } else {
                     // No phone number exists, request it
                     const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
@@ -136,15 +132,43 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 await ctx.reply(
                     `✅ Se mantendrá el número: ${policy.telefono}\n\n` +
-                    '📍 *Paso 1/2: Envía la ubicación del ORIGEN*\n\n' +
-                    '🔹 Opción 1: Envía coordenadas (ej: "19.1234,-99.5678")\n' +
-                    '🔹 Opción 2: Envía URL de Google Maps\n' +
-                    '🔹 Opción 3: En chat privado puedes compartir ubicación',
+                    '📍indica *ORIGEN*',
                     { parse_mode: 'Markdown' }
                 );
             } catch (error) {
                 this.logError('Error en callback keepPhone:', error);
                 await ctx.reply('❌ Error al procesar la acción.');
+            } finally {
+                await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for changing phone number
+        this.handler.registry.registerCallback(/changePhone:(.+)/, async (ctx) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+
+                this.logInfo(`[changePhone] Iniciando cambio de teléfono para póliza ${numeroPoliza}`, { chatId, threadId });
+
+                // Set state to awaiting phone number
+                const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
+                this.logInfo(`[changePhone] Estado de espera de teléfono guardado: ${phoneSetResult ? 'OK' : 'FALLO'}`, {
+                    chatId,
+                    threadId
+                });
+
+                await ctx.reply(
+                    `📱 Ingresa el *nuevo número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
+                    '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
+                    { parse_mode: 'Markdown' }
+                );
+
+                this.logInfo(`[changePhone] Esperando nuevo teléfono para póliza ${numeroPoliza}`, { chatId, threadId });
+            } catch (error) {
+                this.logError('Error en callback changePhone:', error);
+                await ctx.reply('❌ Error al procesar el cambio de teléfono.');
             } finally {
                 await ctx.answerCbQuery();
             }
@@ -245,19 +269,62 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 this.logInfo(`Iniciando registro de servicio para póliza: ${numeroPoliza}`, { chatId, threadId });
 
+                // Edit the original message to remove buttons
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    this.logInfo('Botones removidos del mensaje original');
+                } catch (editError) {
+                    this.logInfo('No se pudo editar mensaje original (probablemente ya fue editado):', editError.message);
+                }
+
+                // Send simplified expediente input message
                 await ctx.reply(
-                    '🚗 *Ingresa el número de expediente:*\n' +
-                    '📝 Ejemplo: EXP-2025-001\n\n' +
-                    '✅ Los demás datos se calculan automáticamente:\n' +
-                    '• Fecha: Se asigna automáticamente\n' +
-                    '• Costo: Se calcula según distancia\n' +
-                    '• Origen/Destino: Se toman de la ruta calculada',
+                    '🚗 **INGRESA EL NÚMERO DE EXPEDIENTE:**',
                     { parse_mode: 'Markdown' }
                 );
 
                 // Establecer el estado para esperar datos del servicio
                 this.handler.awaitingServiceData.set(chatId, numeroPoliza, threadId);
                 this.logInfo(`Estado establecido para esperar datos del servicio para ${numeroPoliza}`);
+
+                // NUEVO: Reenviar leyenda explosiva al grupo cuando se registra servicio
+                try {
+                    this.logInfo(`Regenerando y reenviando leyenda explosiva para ${numeroPoliza}`);
+                    
+                    // Obtener datos de la póliza
+                    const policy = await getPolicyByNumber(numeroPoliza);
+                    if (!policy) {
+                        this.logError(`No se pudo obtener póliza ${numeroPoliza} para reenviar leyenda`);
+                        return;
+                    }
+
+                    // Obtener coordenadas y datos de ruta guardados
+                    const flowStateManager = require('../../utils/FlowStateManager');
+                    const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+                    
+                    if (savedState && savedState.coordenadas && savedState.coordenadas.origen && savedState.coordenadas.destino) {
+                        const { origen, destino } = savedState.coordenadas;
+                        
+                        // Regenerar la leyenda explosiva usando el mismo método
+                        const enhancedData = await this.generateEnhancedLegend(
+                            policy, 
+                            origen, 
+                            destino, 
+                            savedState.rutaInfo || null
+                        );
+                        
+                        // Enviar leyenda explosiva al grupo
+                        const targetGroupId = -1002212807945;
+                        await ctx.telegram.sendMessage(targetGroupId, enhancedData.leyenda);
+                        
+                        this.logInfo(`✅ Leyenda explosiva reenviada al grupo ${targetGroupId} exitosamente`);
+                    } else {
+                        this.logError('No se encontraron coordenadas guardadas para regenerar leyenda');
+                    }
+                } catch (leyendaError) {
+                    this.logError('Error al reenviar leyenda explosiva:', leyendaError);
+                    // No detener el flujo si falla el reenvío de leyenda
+                }
 
             } catch (error) {
                 this.logError('Error en callback registrarServicio:', error);
@@ -275,6 +342,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 const threadId = StateKeyManager.getThreadId(ctx);
 
                 this.logInfo(`No registrar servicio para póliza: ${numeroPoliza}`, { chatId, threadId });
+
+                // Edit the original message to remove buttons
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    this.logInfo('Botones removidos del mensaje original');
+                } catch (editError) {
+                    this.logInfo('No se pudo editar mensaje original (probablemente ya fue editado):', editError.message);
+                }
 
                 await ctx.reply(
                     `✅ Proceso finalizado para póliza *${numeroPoliza}*.\n\n` +
@@ -304,6 +379,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 const threadId = StateKeyManager.getThreadId(ctx);
 
                 this.logInfo(`Registro ${numeroRegistro} marcado como ASIGNADO para póliza: ${numeroPoliza}`, { chatId, threadId });
+
+                // Edit the original message to remove buttons
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    this.logInfo('Botones ASIGNADO/NO ASIGNADO removidos del mensaje original');
+                } catch (editError) {
+                    this.logInfo('No se pudo editar mensaje original (probablemente ya fue editado):', editError.message);
+                }
 
                 // Obtener la póliza para extraer datos del registro
                 const policy = await getPolicyByNumber(numeroPoliza);
@@ -368,11 +451,8 @@ class OcuparPolizaCallback extends BaseCommand {
                 // Confirmar conversión con detalles automáticos
                 await ctx.reply(
                     `✅ *Registro convertido a Servicio #${numeroServicio}*\n\n` +
-                    `📋 Póliza: ${numeroPoliza}\n` +
-                    `📝 Expediente: ${registro.numeroExpediente}\n` +
-                    `💰 Costo: $${registro.costo.toFixed(2)}\n` +
-                    `📍 Ruta: ${registro.origenDestino}\n\n` +
-                    '⏰ *Programación automática:*\n' +
+                    '✨Los cálculos fueron realizados✨\n\n' +
+                    '⏰ *Programación:*\n' +
                     `📞 Contacto: ${fechaContactoStr}\n` +
                     `🏁 Término: ${fechaTerminoStr}\n\n` +
                     '🤖 Las notificaciones se enviarán automáticamente.',
@@ -473,6 +553,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 const threadId = StateKeyManager.getThreadId(ctx);
 
                 this.logInfo(`Registro ${numeroRegistro} marcado como NO ASIGNADO para póliza: ${numeroPoliza}`, { chatId, threadId });
+
+                // Edit the original message to remove buttons
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    this.logInfo('Botones ASIGNADO/NO ASIGNADO removidos del mensaje original');
+                } catch (editError) {
+                    this.logInfo('No se pudo editar mensaje original (probablemente ya fue editado):', editError.message);
+                }
 
                 // Marcar el registro como NO_ASIGNADO en la base de datos
                 const resultado = await marcarRegistroNoAsignado(numeroPoliza, numeroRegistro);
@@ -736,11 +824,17 @@ class OcuparPolizaCallback extends BaseCommand {
             const origenTexto = origenGeo.ubicacionCorta.toUpperCase();
             const destinoTexto = destinoGeo.ubicacionCorta.toUpperCase();
 
-            // Nuevo formato de leyenda según especificaciones
-            const leyenda = `⚠️ ${policy.aseguradora} ⚠️\n` +
-                `${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
-                `${origenTexto} - ${destinoTexto}\n` +
-                `${googleMapsUrl}`;
+            // Nuevo formato de leyenda con diseño visual llamativo
+            const leyenda = `⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n` +
+                `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
+                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n` +
+                `🚗 ${policy.marca} - ${policy.submarca} - ${policy.año}\n\n` +
+                `🔸 ORIGEN: ${origenTexto}\n` +
+                `🔸 DESTINO: ${destinoTexto}\n\n` +
+                `🗺️ ${googleMapsUrl}\n\n` +
+                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n` +
+                `🌟 S E R V I C I O     A C T I V O 🌟\n` +
+                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀`;
 
             this.logInfo(`Nueva leyenda generada: ${leyenda}`);
 
@@ -753,12 +847,18 @@ class OcuparPolizaCallback extends BaseCommand {
         } catch (error) {
             this.logError('Error generando leyenda mejorada:', error);
 
-            // Fallback: usar coordenadas directas
+            // Fallback: usar coordenadas directas con diseño visual llamativo
             const googleMapsUrl = this.hereMapsService.generateGoogleMapsUrl(origenCoords, destinoCoords);
-            const leyenda = `⚠️ ${policy.aseguradora} ⚠️\n` +
-                `${policy.marca} - ${policy.submarca} - ${policy.año}\n` +
-                `${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)} - ${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}\n` +
-                `${googleMapsUrl}`;
+            const leyenda = `⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n` +
+                `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
+                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n` +
+                `🚗 ${policy.marca} - ${policy.submarca} - ${policy.año}\n\n` +
+                `🔸 ORIGEN: ${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)}\n` +
+                `🔸 DESTINO: ${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}\n\n` +
+                `🗺️ ${googleMapsUrl}\n\n` +
+                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n` +
+                `🌟 S E R V I C I O     A C T I V O 🌟\n` +
+                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀`;
 
             return {
                 leyenda,
@@ -939,10 +1039,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             await ctx.reply(
                 `✅ Teléfono ${messageText} asignado a la póliza ${numeroPoliza}.\n\n` +
-                '📍 *Paso 1/2: Envía la ubicación del ORIGEN*\n\n' +
-                '🔹 Opción 1: Envía coordenadas (ej: "19.1234,-99.5678")\n' +
-                '🔹 Opción 2: Envía URL de Google Maps\n' +
-                '🔹 Opción 3: En chat privado puedes compartir ubicación',
+                '📍indica *ORIGEN*',
                 { parse_mode: 'Markdown' }
             );
 
@@ -1003,15 +1100,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             if (result.error) {
                 this.logError(`Error parsing origen-destino: ${result.error}`);
-                await ctx.reply(
-                    `❌ ${result.error}\n\n` +
-                    '📍 *Formatos aceptados:*\n' +
-                    '• Texto: "Neza - Tecamac"\n' +
-                    '• Coordenadas: "19.1234,-99.5678 - 19.5678,-99.1234"\n' +
-                    '• Google Maps URLs (origen y destino separados por guión)\n' +
-                    '• Comparte tu ubicación usando el botón 📍',
-                    { parse_mode: 'Markdown' }
-                );
+                await ctx.reply('❌ Formato inválido. 📍indica *ORIGEN - DESTINO*', { parse_mode: 'Markdown' });
                 return true;
             }
 
@@ -1099,34 +1188,62 @@ class OcuparPolizaCallback extends BaseCommand {
                 responseMessage += `\n🔗 [Ver ruta en Google Maps](${rutaInfo.googleMapsUrl})\n\n`;
             }
 
-            responseMessage += `📋 Aquí la leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
-                '¿Qué deseas hacer con esta leyenda?';
+            // Automatically send leyenda to group
+            const targetGroupId = -1002212807945; // ID fijo del grupo
+            
+            try {
+                this.logInfo(`Enviando leyenda automáticamente al grupo ${targetGroupId}`);
+                const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
+                this.logInfo(`Leyenda enviada automáticamente al grupo: ${targetGroupId}, messageId=${sentMsg.message_id}`);
 
-            // Send the message with buttons and store the message ID
-            const sentMessage = await ctx.reply(
-                responseMessage,
-                {
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: true,
-                    ...Markup.inlineKeyboard([
-                        [
-                            Markup.button.callback('📤 Enviar', `sendLeyenda:${numeroPoliza}`),
-                            Markup.button.callback('❌ Cancelar', `cancelLeyenda:${numeroPoliza}`)
-                        ]
-                    ])
+                // Send confirmation message with service registration options
+                await ctx.reply(
+                    responseMessage + 
+                    '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
+                    '🚗 ¿Deseas registrar un servicio?',
+                    {
+                        parse_mode: 'Markdown',
+                        disable_web_page_preview: true,
+                        ...Markup.inlineKeyboard([
+                            [
+                                Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
+                                Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
+                            ]
+                        ])
+                    }
+                );
+
+                this.logInfo('Flujo automático de leyenda completado exitosamente en handleOrigenDestino');
+            } catch (sendError) {
+                this.logError('Error al enviar leyenda automáticamente al grupo:', sendError);
+                
+                // Fallback: show manual buttons if automatic sending fails
+                responseMessage += `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
+                    '❌ Error enviando automáticamente. ¿Enviar manualmente?';
+
+                const sentMessage = await ctx.reply(
+                    responseMessage,
+                    {
+                        parse_mode: 'Markdown',
+                        disable_web_page_preview: true,
+                        ...Markup.inlineKeyboard([
+                            [
+                                Markup.button.callback('📤 Enviar', `sendLeyenda:${numeroPoliza}`),
+                                Markup.button.callback('❌ Cancelar', `cancelLeyenda:${numeroPoliza}`)
+                            ]
+                        ])
+                    }
+                );
+
+                // Store the message ID for potential editing
+                if (sentMessage) {
+                    this.messageIds.set(chatId, sentMessage.message_id, threadId);
+                    this.logInfo(`ID del mensaje guardado: ${sentMessage.message_id}`);
                 }
-            );
-
-            // Verificar mensaje enviado
-            if (sentMessage) {
-                // Store the message ID for later editing
-                this.messageIds.set(chatId, sentMessage.message_id, threadId);
-                this.logInfo(`ID del mensaje guardado: ${sentMessage.message_id}`);
-            } else {
-                this.logError('No se recibió respuesta al enviar mensaje con botones');
             }
 
-            // Clean up the origin-destination waiting state
+            // Clean up states
+            this.pendingLeyendas.delete(chatId, threadId);
             this.awaitingOrigenDestino.delete(chatId, threadId);
             return true; // Indicate that we handled this message
         } catch (error) {
@@ -1167,14 +1284,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 // Parse text input (coordinates or Google Maps URL)
                 coordenadas = this.hereMapsService.parseCoordinates(input);
                 if (!coordenadas) {
-                    await ctx.reply(
-                        '❌ No se pudieron extraer coordenadas válidas del origen.\n\n' +
-                        '📍 *Formatos aceptados:*\n' +
-                        '• Coordenadas: "19.1234,-99.5678"\n' +
-                        '• URL de Google Maps\n' +
-                        '• En chat privado: compartir ubicación',
-                        { parse_mode: 'Markdown' }
-                    );
+                    await ctx.reply('❌ Formato inválido. 📍indica *ORIGEN*', { parse_mode: 'Markdown' });
                     return false;
                 }
                 this.logInfo('Coordenadas de origen extraídas de texto', coordenadas);
@@ -1203,10 +1313,7 @@ class OcuparPolizaCallback extends BaseCommand {
             // Ask for destination
             await ctx.reply(
                 `✅ Origen registrado: ${coordenadas.lat}, ${coordenadas.lng}\n\n` +
-                '📍 *Paso 2/2: Envía la ubicación del DESTINO*\n\n' +
-                '🔹 Opción 1: Envía coordenadas (ej: "19.1234,-99.5678")\n' +
-                '🔹 Opción 2: Envía URL de Google Maps\n' +
-                '🔹 Opción 3: En chat privado puedes compartir ubicación',
+                '📍indica *DESTINO*',
                 { parse_mode: 'Markdown' }
             );
 
@@ -1248,14 +1355,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 // Parse text input (coordinates or Google Maps URL)
                 coordenadas = this.hereMapsService.parseCoordinates(input);
                 if (!coordenadas) {
-                    await ctx.reply(
-                        '❌ No se pudieron extraer coordenadas válidas del destino.\n\n' +
-                        '📍 *Formatos aceptados:*\n' +
-                        '• Coordenadas: "19.1234,-99.5678"\n' +
-                        '• URL de Google Maps\n' +
-                        '• En chat privado: compartir ubicación',
-                        { parse_mode: 'Markdown' }
-                    );
+                    await ctx.reply('❌ Formato inválido. 📍indica *DESTINO*', { parse_mode: 'Markdown' });
                     return false;
                 }
                 this.logInfo('Coordenadas de destino extraídas de texto', coordenadas);
@@ -1342,33 +1442,64 @@ class OcuparPolizaCallback extends BaseCommand {
                 responseMessage += `\n🔗 [Ver ruta en Google Maps](${rutaInfo.googleMapsUrl})\n\n`;
             }
 
-            responseMessage += `📋 Aquí la leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
-                '¿Qué deseas hacer con esta leyenda?';
+            // Automatically send leyenda to group
+            const targetGroupId = -1002212807945; // ID fijo del grupo
+            
+            try {
+                this.logInfo(`Enviando leyenda automáticamente al grupo ${targetGroupId}`);
+                const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
+                this.logInfo(`Leyenda enviada automáticamente al grupo: ${targetGroupId}, messageId=${sentMsg.message_id}`);
 
-            // Send the message with buttons and store the message ID
-            const sentMessage = await ctx.reply(
-                responseMessage,
-                {
-                    parse_mode: 'Markdown',
-                    disable_web_page_preview: true,
-                    reply_markup: {
-                        remove_keyboard: true,
-                        inline_keyboard: [
+                // Send confirmation message with service registration options
+                await ctx.reply(
+                    responseMessage + 
+                    '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
+                    '🚗 ¿Deseas registrar un servicio?',
+                    {
+                        parse_mode: 'Markdown',
+                        disable_web_page_preview: true,
+                        ...Markup.inlineKeyboard([
                             [
-                                { text: '📤 Enviar', callback_data: `sendLeyenda:${numeroPoliza}` },
-                                { text: '❌ Cancelar', callback_data: `cancelLeyenda:${numeroPoliza}` }
+                                Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
+                                Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
                             ]
-                        ]
+                        ])
                     }
-                }
-            );
+                );
 
-            // Store the message ID for later editing
-            if (sentMessage) {
-                this.messageIds.set(chatId, sentMessage.message_id, threadId);
+                this.logInfo('Flujo automático de leyenda completado exitosamente');
+            } catch (sendError) {
+                this.logError('Error al enviar leyenda automáticamente al grupo:', sendError);
+                
+                // Fallback: show manual buttons if automatic sending fails
+                responseMessage += `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
+                    '❌ Error enviando automáticamente. ¿Enviar manualmente?';
+
+                const sentMessage = await ctx.reply(
+                    responseMessage,
+                    {
+                        parse_mode: 'Markdown',
+                        disable_web_page_preview: true,
+                        reply_markup: {
+                            remove_keyboard: true,
+                            inline_keyboard: [
+                                [
+                                    { text: '📤 Enviar', callback_data: `sendLeyenda:${numeroPoliza}` },
+                                    { text: '❌ Cancelar', callback_data: `cancelLeyenda:${numeroPoliza}` }
+                                ]
+                            ]
+                        }
+                    }
+                );
+
+                // Store the message ID for potential editing
+                if (sentMessage) {
+                    this.messageIds.set(chatId, sentMessage.message_id, threadId);
+                }
             }
 
-            // Clear destination state
+            // Clean up states
+            this.pendingLeyendas.delete(chatId, threadId);
             this.awaitingDestino.delete(chatId, threadId);
             return true;
 

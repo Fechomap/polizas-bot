@@ -318,40 +318,55 @@ class NotificationManager {
             // Construir el mensaje según el tipo de notificación
             let message = '';
             if (notification.tipoNotificacion === 'TERMINO') {
-                message = '🏁 **Servicio en término**\n';
-                message += `📄 Expediente: ${notification.expedienteNum}\n`;
-                message += `🗓 Hora de término: ${notification.contactTime}\n`;
+                // Mensaje de TÉRMINO en verde
+                message = '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
+                message += '✅ **SERVICIO EN TÉRMINO** ✅\n';
+                message += '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
+                message += `🔸 **${notification.expedienteNum}**\n`;
+                
+                // Añadir vehículo y color en una línea
+                if (notification.marcaModelo && notification.colorVehiculo) {
+                    message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo}\n`;
+                } else if (notification.marcaModelo) {
+                    message += `🔸 ${notification.marcaModelo}\n`;
+                }
+                
+                if (notification.placas) {
+                    message += `🔸 ${notification.placas}\n`;
+                }
+                
+                // Extraer solo el destino final
+                if (notification.origenDestino) {
+                    const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                    message += `🔸 ➡️ ${destino}\n`;
+                }
+                
+                message += '✅ **Confirmar cierre** ✅';
             } else {
-                message = '🕒 **Servicio en contacto**\n';
-                message += `📄 Expediente: ${notification.expedienteNum}\n`;
-                message += `🗓 Hora de contacto: ${notification.contactTime}\n`;
-            }
-
-            // Añadir datos adicionales si existen
-            if (notification.marcaModelo) {
-                message += `🚗 Vehículo: ${notification.marcaModelo}\n`;
-            }
-
-            if (notification.colorVehiculo) {
-                message += `🎨 Color: ${notification.colorVehiculo}\n`;
-            }
-
-            if (notification.placas) {
-                message += `🔢 Placas: ${notification.placas}\n`;
-            }
-
-            if (notification.telefono) {
-                message += `📱 Teléfono: ${notification.telefono}\n`;
-            }
-
-            if (notification.origenDestino) {
-                message += `📍 Origen/Destino: ${notification.origenDestino}\n`;
-            }
-
-            if (notification.tipoNotificacion === 'TERMINO') {
-                message += '🔚 Servicio completado. Favor de confirmar cierre.';
-            } else {
-                message += '✅ Favor de dar seguimiento en este chat.';
+                // Mensaje de CONTACTO en amarillo
+                message = '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
+                message += '⚠️ **SERVICIO EN CONTACTO** ⚠️\n';
+                message += '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
+                message += `🔸 **${notification.expedienteNum}**\n`;
+                
+                // Añadir vehículo y color en una línea
+                if (notification.marcaModelo && notification.colorVehiculo) {
+                    message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo}\n`;
+                } else if (notification.marcaModelo) {
+                    message += `🔸 ${notification.marcaModelo}\n`;
+                }
+                
+                if (notification.placas) {
+                    message += `🔸 ${notification.placas}\n`;
+                }
+                
+                // Extraer solo el destino final
+                if (notification.origenDestino) {
+                    const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                    message += `🔸 ➡️ ${destino}\n`;
+                }
+                
+                message += '⚠️ **Seguimiento en chat** ⚠️';
             }
 
             // Enviar el mensaje al grupo con timeout específico
