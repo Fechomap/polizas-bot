@@ -182,6 +182,122 @@ class CommandHandler {
             }
         });
 
+        // NUEVO: Submenú PÓLIZAS
+        this.bot.action('accion:polizas', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                const polizasMenu = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔍 Consultar Póliza', 'accion:consultar')],
+                    [Markup.button.callback('💾 Registrar Póliza', 'accion:registrar')],
+                    [Markup.button.callback('💰 Añadir Pago', 'accion:addpayment')],
+                    [Markup.button.callback('🚗 Añadir Servicio', 'accion:addservice')],
+                    [Markup.button.callback('📁 Subir Archivos', 'accion:upload')],
+                    [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
+                ]);
+
+                await ctx.editMessageText(
+                    '📋 **GESTIÓN DE PÓLIZAS**\n\nSelecciona la acción que deseas realizar:',
+                    { parse_mode: 'Markdown', ...polizasMenu }
+                );
+            } catch (error) {
+                logger.error('Error en accion:polizas:', error);
+                await ctx.reply('❌ Error al mostrar el menú de pólizas.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // NUEVO: Submenú ADMINISTRACIÓN
+        this.bot.action('accion:administracion', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                const adminMenu = Markup.inlineKeyboard([
+                    [Markup.button.callback('✏️ Editar Póliza (🚧 Construcción)', 'accion:editar_poliza')],
+                    [Markup.button.callback('🛠️ Editar Servicio (🚧 Construcción)', 'accion:editar_servicio')],
+                    [Markup.button.callback('📝 Editar Expediente (🚧 Construcción)', 'accion:editar_expediente')],
+                    [Markup.button.callback('🗑️ Eliminar Póliza', 'accion:delete')],
+                    [Markup.button.callback('📋 Ver Eliminadas', 'accion:ver_eliminadas')],
+                    [Markup.button.callback('🔄 Gestión BD (🚧 Construcción)', 'accion:gestion_bd')],
+                    [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
+                ]);
+
+                await ctx.editMessageText(
+                    '🔧 **ADMINISTRACIÓN**\n\nSistema CRUD completo para gestión avanzada:',
+                    { parse_mode: 'Markdown', ...adminMenu }
+                );
+            } catch (error) {
+                logger.error('Error en accion:administracion:', error);
+                await ctx.reply('❌ Error al mostrar el menú de administración.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // NUEVO: Funciones en construcción
+        this.bot.action(['accion:editar_poliza', 'accion:editar_servicio', 'accion:editar_expediente', 'accion:gestion_bd'], async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                await ctx.editMessageText(
+                    '🚧 **Función en Desarrollo**\n\n' +
+                    'Esta característica estará disponible próximamente.\n' +
+                    'Incluirá edición completa de:\n' +
+                    '• Datos de póliza\n' +
+                    '• Información de servicios\n' +
+                    '• Detalles de expedientes\n' +
+                    '• Gestión avanzada de base de datos',
+                    {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('⬅️ Volver a Administración', 'accion:administracion')],
+                            [Markup.button.callback('🏠 Menú Principal', 'accion:volver_menu')]
+                        ])
+                    }
+                );
+            } catch (error) {
+                logger.error('Error en función en construcción:', error);
+                await ctx.reply('❌ Error al mostrar información.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
+        // NUEVO: Ver eliminadas
+        this.bot.action('accion:ver_eliminadas', async (ctx) => {
+            try {
+                await ctx.answerCbQuery();
+                // Esta funcionalidad ya existe, la mantenemos igual pero desde el nuevo menú
+                const deletedPolicies = await getDeletedPolicies();
+                
+                if (deletedPolicies.length === 0) {
+                    await ctx.editMessageText(
+                        'ℹ️ **Pólizas Eliminadas**\n\nNo hay pólizas marcadas como eliminadas.',
+                        {
+                            parse_mode: 'Markdown',
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.callback('⬅️ Volver a Administración', 'accion:administracion')]
+                            ])
+                        }
+                    );
+                    return;
+                }
+
+                const deletedList = deletedPolicies.map(policy => 
+                    `• ${policy.numeroPoliza} - ${policy.titular}`
+                ).join('\n');
+
+                await ctx.editMessageText(
+                    `📋 **Pólizas Eliminadas** (${deletedPolicies.length})\n\n${deletedList}`,
+                    {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('⬅️ Volver a Administración', 'accion:administracion')]
+                        ])
+                    }
+                );
+            } catch (error) {
+                logger.error('Error en accion:ver_eliminadas:', error);
+                await ctx.reply('❌ Error al mostrar pólizas eliminadas.');
+                try { await ctx.answerCbQuery('Error'); } catch {}
+            }
+        });
+
         // Consultar Póliza
         this.bot.action('accion:consultar', async (ctx) => {
             try {
@@ -413,14 +529,17 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 // Mostrar submenú de reportes
-                await ctx.reply('📊 *Reportes Disponibles*', {
-                    parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                        [Markup.button.callback('💰 Pólizas con Pagos Pendientes', 'accion:reportPayment')],
-                        [Markup.button.callback('🚗 Pólizas Prioritarias', 'accion:reportUsed')],
-                        [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
-                    ])
-                });
+                await ctx.editMessageText(
+                    '📊 **REPORTES Y ESTADÍSTICAS**\n\nSelecciona el tipo de reporte:',
+                    {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('💰 Pólizas con Pagos Pendientes', 'accion:reportPayment')],
+                            [Markup.button.callback('🚗 Pólizas sin Servicios Recientes', 'accion:reportUsed')],
+                            [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
+                        ])
+                    }
+                );
             } catch (error) {
                 logger.error('Error en accion:reportes:', error);
                 try { await ctx.answerCbQuery('Error'); } catch {}

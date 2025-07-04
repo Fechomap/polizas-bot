@@ -21,26 +21,18 @@ class StartCommand extends BaseCommand {
             try {
                 const mainMenu = Markup.inlineKeyboard([
                     [
-                        Markup.button.callback('Consultar Póliza', 'accion:consultar'),
-                        Markup.button.callback('Registrar Póliza', 'accion:registrar')
+                        Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),
+                        Markup.button.callback('🔧 ADMINISTRACIÓN', 'accion:administracion')
                     ],
                     [
-                        Markup.button.callback('Añadir Pago', 'accion:addpayment'),
-                        Markup.button.callback('Añadir Servicio', 'accion:addservice')
-                    ],
-                    [
-                        Markup.button.callback('Subir Archivos', 'accion:upload'),
-                        Markup.button.callback('Eliminar Póliza', 'accion:delete')
-                    ],
-                    [
-                        Markup.button.callback('Reportes', 'accion:reportes'), // Placeholder, needs submenu
-                        Markup.button.callback('Ayuda', 'accion:help')
+                        Markup.button.callback('📊 REPORTES', 'accion:reportes'),
+                        Markup.button.callback('❓ AYUDA', 'accion:help')
                     ]
                 ]);
 
                 await ctx.reply(
-                    '¡Bienvenido al Bot de Pólizas! 🤖\n\nSelecciona una opción:',
-                    mainMenu
+                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:',
+                    { parse_mode: 'Markdown', ...mainMenu }
                 );
                 this.logInfo('Menú principal mostrado vía /start', { chatId: ctx.chat.id });
             } catch (error) {
@@ -54,36 +46,28 @@ class StartCommand extends BaseCommand {
     async showMainMenu(ctx) {
         try {
             const mainMenu = Markup.inlineKeyboard([
-                 [
-                    Markup.button.callback('Consultar Póliza', 'accion:consultar'),
-                    Markup.button.callback('Registrar Póliza', 'accion:registrar')
+                [
+                    Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),
+                    Markup.button.callback('🔧 ADMINISTRACIÓN', 'accion:administracion')
                 ],
                 [
-                    Markup.button.callback('Añadir Pago', 'accion:addpayment'),
-                    Markup.button.callback('Añadir Servicio', 'accion:addservice')
-                ],
-                [
-                    Markup.button.callback('Subir Archivos', 'accion:upload'),
-                    Markup.button.callback('Eliminar Póliza', 'accion:delete')
-                ],
-                [
-                    Markup.button.callback('Reportes', 'accion:reportes'), // Placeholder
-                    Markup.button.callback('Ayuda', 'accion:help')
+                    Markup.button.callback('📊 REPORTES', 'accion:reportes'),
+                    Markup.button.callback('❓ AYUDA', 'accion:help')
                 ]
             ]);
 
             // Podríamos editar el mensaje anterior si existe ctx.callbackQuery
             if (ctx.callbackQuery) {
                  await ctx.editMessageText(
-                    'Menú Principal:',
-                    mainMenu
+                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:',
+                    { parse_mode: 'Markdown', ...mainMenu }
                 );
                 await ctx.answerCbQuery();
             } else {
                 // Si no es callback, enviamos uno nuevo
                 await ctx.reply(
-                    'Menú Principal:',
-                    mainMenu
+                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:',
+                    { parse_mode: 'Markdown', ...mainMenu }
                 );
             }
              this.logInfo('Menú principal mostrado', { chatId: ctx.chat.id });
