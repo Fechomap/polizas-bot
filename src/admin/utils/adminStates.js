@@ -1,11 +1,17 @@
-const FlowStateManager = require('../../utils/FlowStateManager');
 const logger = require('../../utils/logger');
 
-class AdminStateManager extends FlowStateManager {
+class AdminStateManager {
     constructor() {
-        super();
         this.ADMIN_TIMEOUT = 5 * 60 * 1000; // 5 minutos para operaciones admin
         this.adminStates = new Map();
+        this.timeouts = new Map();
+    }
+
+    /**
+     * Crea una clave de estado basada en userId y chatId
+     */
+    createStateKey(userId, chatId) {
+        return `${userId}:${chatId}`;
     }
 
     /**

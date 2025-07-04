@@ -36,6 +36,50 @@ class AdminModule {
             return adminMenu.showMainMenu(ctx);
         });
 
+        // Callbacks específicos para selección de pólizas
+        this.bot.action(/^admin_policy_select:(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            try {
+                await this.handlers.policy.handlePolicySelection(ctx, policyId);
+            } catch (error) {
+                logger.error('Error al seleccionar póliza:', error);
+                await ctx.answerCbQuery('Error al cargar la póliza', { show_alert: true });
+            }
+        });
+
+        // Callbacks específicos para eliminación
+        this.bot.action(/^admin_policy_delete_confirm:(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            try {
+                await this.handlers.policy.handleDeleteConfirmation(ctx, policyId);
+            } catch (error) {
+                logger.error('Error al confirmar eliminación:', error);
+                await ctx.answerCbQuery('Error al procesar eliminación', { show_alert: true });
+            }
+        });
+
+        // Callbacks específicos para restauración
+        this.bot.action(/^admin_policy_restore_confirm:(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            try {
+                await this.handlers.policy.handleRestoreConfirmation(ctx, policyId);
+            } catch (error) {
+                logger.error('Error al restaurar póliza:', error);
+                await ctx.answerCbQuery('Error al restaurar póliza', { show_alert: true });
+            }
+        });
+
+        // Callbacks para ejecutar restauración
+        this.bot.action(/^admin_policy_restore_execute:(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            try {
+                await this.handlers.policy.handleRestoreExecution(ctx, policyId);
+            } catch (error) {
+                logger.error('Error al ejecutar restauración:', error);
+                await ctx.answerCbQuery('Error al restaurar póliza', { show_alert: true });
+            }
+        });
+
         // Callbacks para submenús
         this.bot.action(/^admin_(.+)$/, adminAuth.requireAdmin, async (ctx) => {
             const action = ctx.match[1];
@@ -50,6 +94,22 @@ class AdminModule {
             } catch (error) {
                 logger.error('Error en callback admin:', error);
                 await ctx.answerCbQuery('Error al procesar la solicitud', { show_alert: true });
+            }
+        });
+
+        // Interceptar mensajes de texto para búsquedas admin
+        this.bot.on('text', async (ctx, next) => {
+            try {
+                // Intentar procesar como búsqueda de póliza
+                const handled = await this.handlers.policy.handleTextMessage(ctx);
+
+                if (!handled) {
+                    // Si no fue procesado por admin, continuar con el flujo normal
+                    return next();
+                }
+            } catch (error) {
+                logger.error('Error al procesar mensaje de texto en admin:', error);
+                return next();
             }
         });
     }

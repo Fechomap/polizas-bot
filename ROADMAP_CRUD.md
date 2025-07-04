@@ -12,12 +12,12 @@ Implementación de sistema CRUD completo para administración del bot de póliza
 | Fase | Estado | Progreso | Fecha |
 |------|--------|----------|-------|
 | FASE 1: Infraestructura Base | ✅ Completada | 100% | 4 jul 2025 |
-| FASE 2: Edición de Pólizas | 🚀 En Progreso | 0% | 4 jul 2025 |
+| FASE 2: Edición de Pólizas | 🚀 En Progreso | 25% | 4 jul 2025 |
 | FASE 3: Gestión Servicios | ⏳ Pendiente | 0% | - |
 | FASE 4: Gestión BD | ⏳ Pendiente | 0% | - |
 | FASE 5: Testing y Despliegue | ⏳ Pendiente | 0% | - |
 
-**Progreso Total: 20% (1/5 fases completadas)**
+**Progreso Total: 23% (1/5 fases completadas + Fase 2 iniciada)**
 
 ---
 
@@ -109,7 +109,13 @@ gantt
 
 ### Tareas Detalladas:
 
-#### 2.1 Edición por Categorías (4 días)
+#### 2.1 Sistema de Búsqueda (2 días) ✅
+- [x] Búsqueda por número de póliza
+- [x] Búsqueda por titular/RFC
+- [x] Autocompletado inteligente
+- [x] Manejo de resultados múltiples
+
+#### 2.2 Edición por Categorías (4 días)
 - [ ] Implementar menú de categorías:
   - Datos Personales
   - Domicilio
@@ -119,12 +125,6 @@ gantt
 - [ ] Flujos de edición para cada campo
 - [ ] Validaciones específicas por tipo
 - [ ] Confirmación de cambios
-
-#### 2.2 Sistema de Búsqueda (2 días)
-- [ ] Búsqueda por número de póliza
-- [ ] Búsqueda por titular/RFC
-- [ ] Autocompletado inteligente
-- [ ] Manejo de resultados múltiples
 
 #### 2.3 Eliminación Lógica (2 días)
 - [ ] Implementar estado 'ELIMINADO'

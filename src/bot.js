@@ -114,16 +114,16 @@ async function initializeBot() {
         // Agregar middleware de grupo
         bot.use(handleGroupUpdate);
 
-        // Registrar comandos
-        logger.info('Registrando comandos...');
-        new CommandHandler(bot);
-        logger.info('✅ Comandos registrados');
-
-        // Inicializar módulo de administración
+        // Inicializar módulo de administración ANTES de CommandHandler para mayor prioridad
         logger.info('Inicializando módulo de administración...');
         const adminModule = new AdminModule(bot);
         adminModule.initialize();
         logger.info('✅ Módulo de administración inicializado');
+
+        // Registrar comandos
+        logger.info('Registrando comandos...');
+        new CommandHandler(bot);
+        logger.info('✅ Comandos registrados');
 
         // Manejador de errores global
         bot.catch((err, ctx) => {
