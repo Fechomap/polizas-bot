@@ -178,6 +178,16 @@ class CommandHandler {
                 await ctx.answerCbQuery();
                 // Limpiar cualquier estado pendiente antes de volver al menú
                 this.clearChatState(ctx.chat.id);
+                
+                // CRÍTICO: Limpiar también estado administrativo para evitar interferencia
+                try {
+                    const AdminStateManager = require('../admin/utils/adminStates');
+                    AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
+                } catch (error) {
+                    // Si no existe el módulo admin, continuar normalmente
+                    logger.debug('Módulo admin no disponible para limpieza de estado');
+                }
+                
                 await this.startCommandInstance.showMainMenu(ctx); // Usa la instancia guardada
             } catch (error) {
                 logger.error('Error en accion:volver_menu:', error);
