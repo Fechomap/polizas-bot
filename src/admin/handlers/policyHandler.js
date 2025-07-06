@@ -184,7 +184,7 @@ _Intenta con otro término de búsqueda._
 
             // Verificar el tipo de operación para determinar qué hacer con un solo resultado
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
-            
+
             if (searchResults.length === 1) {
                 if (adminState && adminState.operation === 'policy_mass_search_for_delete') {
                     // Para eliminación, mostrar los resultados como lista para selección

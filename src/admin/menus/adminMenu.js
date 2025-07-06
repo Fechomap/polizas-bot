@@ -89,22 +89,18 @@ Selecciona la operación a realizar:
 🚗 *GESTIÓN DE SERVICIOS*
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Selecciona la operación a realizar:
+Busca y edita servicios/registros directamente por expediente:
 
-✏️ *Editar Servicio* - Modificar datos del servicio
-📋 *Editar Registro* - Modificar registro asociado
-📍 *Gestionar Rutas* - Actualizar información de rutas
-📊 *Ver Estadísticas* - Resumen de servicios
+✏️ **Editar por Expediente** - Buscar servicio o registro
+🔍 **Búsqueda unificada** - Servicios y registros en una sola búsqueda
+📝 **Campos editables** - Expediente, costo, fechas, estados
+
+_Funciona tanto para servicios como para registros._
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('✏️ Editar Servicio', 'admin_service_edit'),
-                Markup.button.callback('📋 Editar Registro', 'admin_service_editreg')
-            ],
-            [
-                Markup.button.callback('📍 Gestionar Rutas', 'admin_service_routes'),
-                Markup.button.callback('📊 Ver Estadísticas', 'admin_service_stats')
+                Markup.button.callback('✏️ Editar por Expediente', 'admin_service_edit')
             ],
             [
                 Markup.button.callback('⬅️ Volver', 'admin_menu')

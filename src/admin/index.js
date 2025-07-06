@@ -295,6 +295,109 @@ class AdminModule {
             }
         });
 
+        // Callbacks específicos para servicios
+        this.bot.action(/^admin_service_select:(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            try {
+                await this.handlers.service.handlePolicySelection(ctx, policyId);
+            } catch (error) {
+                logger.error('Error al seleccionar póliza para servicios:', error);
+                await ctx.answerCbQuery('Error al cargar la póliza', { show_alert: true });
+            }
+        });
+
+        // Callback para mostrar lista de servicios
+        this.bot.action(/^admin_service_list:(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            try {
+                await this.handlers.service.showServicesList(ctx, policyId);
+            } catch (error) {
+                logger.error('Error al mostrar lista de servicios:', error);
+                await ctx.answerCbQuery('Error al cargar servicios', { show_alert: true });
+            }
+        });
+
+        // Callback para editar servicio específico
+        this.bot.action(/^admin_service_edit_item:(.+):(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            const serviceIndex = ctx.match[2];
+            try {
+                await this.handlers.service.showServiceEditMenu(ctx, policyId, serviceIndex);
+            } catch (error) {
+                logger.error('Error al mostrar menú de edición de servicio:', error);
+                await ctx.answerCbQuery('Error al cargar servicio', { show_alert: true });
+            }
+        });
+
+        // Callback para edición directa de servicio/registro por expediente
+        this.bot.action(/^admin_service_direct_edit:(.+):(.+):(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            const type = ctx.match[2]; // 'servicio' o 'registro'
+            const itemIndex = parseInt(ctx.match[3]);
+            try {
+                const Policy = require('../models/policy');
+                const policy = await Policy.findById(policyId);
+                if (!policy) {
+                    await ctx.answerCbQuery('Póliza no encontrada', { show_alert: true });
+                    return;
+                }
+
+                const item = type === 'servicio' ? policy.servicios[itemIndex] : policy.registros[itemIndex];
+                if (!item) {
+                    await ctx.answerCbQuery('Elemento no encontrado', { show_alert: true });
+                    return;
+                }
+
+                const result = { policy, type, item, itemIndex };
+                await this.handlers.service.showServiceDirectEdit(ctx, result);
+            } catch (error) {
+                logger.error('Error al mostrar edición directa:', error);
+                await ctx.answerCbQuery('Error al cargar elemento', { show_alert: true });
+            }
+        });
+
+        // Callback para editar campos específicos de servicio/registro
+        this.bot.action(/^admin_field:(.+):(.+):(.+):(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const policyId = ctx.match[1];
+            const type = ctx.match[2]; // 'servicio' o 'registro'
+            const itemIndex = parseInt(ctx.match[3]);
+            const fieldName = ctx.match[4];
+            try {
+                await this.handlers.service.startFieldEdit(ctx, policyId, type, itemIndex, fieldName);
+            } catch (error) {
+                logger.error('Error al iniciar edición de campo:', error);
+                await ctx.answerCbQuery('Error al iniciar edición', { show_alert: true });
+            }
+        });
+
+        // Callback para valores de campo predefinidos
+        this.bot.action(/^admin_val:(.+):(.+):(.+):(.+):(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const shortId = ctx.match[1];
+            const type = ctx.match[2]; // 'servicio' o 'registro'
+            const itemIndex = parseInt(ctx.match[3]);
+            const fieldName = ctx.match[4];
+            const value = ctx.match[5];
+            try {
+                await this.handlers.service.handleFieldValueShort(ctx, shortId, type, itemIndex, fieldName, value);
+            } catch (error) {
+                logger.error('Error al procesar valor de campo:', error);
+                await ctx.answerCbQuery('Error al procesar valor', { show_alert: true });
+            }
+        });
+
+        // Callback para volver a edición directa
+        this.bot.action(/^admin_direct:(.+):(.+):(.+)$/, adminAuth.requireAdmin, async (ctx) => {
+            const shortId = ctx.match[1];
+            const type = ctx.match[2]; // 'servicio' o 'registro'
+            const itemIndex = parseInt(ctx.match[3]);
+            try {
+                await this.handlers.service.showServiceDirectEditShort(ctx, shortId, type, itemIndex);
+            } catch (error) {
+                logger.error('Error al mostrar edición directa:', error);
+                await ctx.answerCbQuery('Error al cargar elemento', { show_alert: true });
+            }
+        });
+
         // Callbacks para submenús
         this.bot.action(/^admin_(.+)$/, adminAuth.requireAdmin, async (ctx) => {
             const action = ctx.match[1];
@@ -314,15 +417,36 @@ class AdminModule {
 
         // Interceptar mensajes de texto para búsquedas admin y edición de campos
         this.bot.on('text', async (ctx, next) => {
+            logger.info('🔍 [ADMIN-DEBUG] Mensaje de texto recibido', {
+                text: ctx.message.text,
+                userId: ctx.from.id,
+                chatId: ctx.chat.id
+            });
+
             try {
+                // Verificar estado admin actual
+                const adminState = require('./utils/adminStates').getAdminState(ctx.from.id, ctx.chat.id);
+                logger.info('🔍 [ADMIN-DEBUG] Estado admin actual:', adminState);
+
                 // Intentar procesar como búsqueda de póliza o edición de campo
-                const handled = await this.handlers.policy.handleTextMessage(ctx);
+                let handled = await this.handlers.policy.handleTextMessage(ctx);
+                logger.info('🔍 [ADMIN-DEBUG] Procesado por policy handler:', handled);
+
+                // Si no fue procesado por policy, intentar con service
+                if (!handled) {
+                    handled = await this.handlers.service.handleTextMessage(ctx);
+                    logger.info('🔍 [ADMIN-DEBUG] Procesado por service handler:', handled);
+                }
 
                 if (!handled) {
+                    logger.info('🔍 [ADMIN-DEBUG] No procesado por admin, pasando a next()');
                     // Si no fue procesado por admin, continuar con el flujo normal
                     return next();
                 }
+
+                logger.info('🔍 [ADMIN-DEBUG] Mensaje procesado por admin exitosamente');
             } catch (error) {
+                logger.error('🔍 [ADMIN-DEBUG] Error al procesar mensaje:', error);
                 logger.error('Error al procesar mensaje de texto en admin:', error);
                 return next();
             }

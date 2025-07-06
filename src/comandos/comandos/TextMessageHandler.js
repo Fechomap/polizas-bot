@@ -73,7 +73,7 @@ class TextMessageHandler extends BaseCommand {
         });
 
         // Get the OcuparPolizaCallback instance if it's registered later
-        this.bot.on('text', async (ctx) => {
+        this.bot.on('text', async (ctx, next) => {
             // Lazy load the ocuparPolizaCallback if needed
             if (!this.ocuparPolizaCallback && this.handler.registry) {
                 const commands = this.handler.registry.getAllCommands();
@@ -92,8 +92,8 @@ class TextMessageHandler extends BaseCommand {
 
                 // Ignore commands
                 if (messageText.startsWith('/')) {
-                    this.logInfo('[TextMsgHandler] Ignorando comando.');
-                    return;
+                    this.logInfo('[TextMsgHandler] Ignorando comando, pasando a siguiente middleware.');
+                    return next();
                 }
 
                 // --- LOGGING AÑADIDO ---
@@ -551,9 +551,8 @@ class TextMessageHandler extends BaseCommand {
 
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Ningún estado activo coincidió con el mensaje.');
-                // Si llegamos aquí y no es un comando, simplemente ignoramos el mensaje
-                // No enviamos ninguna respuesta para permitir mensajes de seguimiento naturales
-                return;
+                // Si llegamos aquí y no es un comando, pasar al siguiente middleware (AdminModule)
+                return next();
             } catch (error) {
                 this.logError('Error general al procesar mensaje de texto:', error);
                 await ctx.reply('❌ Error al procesar el mensaje. Intenta nuevamente.');
