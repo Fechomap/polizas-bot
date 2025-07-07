@@ -6,8 +6,11 @@ const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
 const handleGroupUpdate = require('./middleware/groupHandler');
+const authMiddleware = require('./middleware/authMiddleware');
 const { getInstance: getNotificationManager } = require('./services/NotificationManager');
 const stateCleanupService = require('./utils/StateCleanupService');
+const AdminModule = require('./admin');
+const CalculationScheduler = require('./admin/utils/calculationScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -110,8 +113,23 @@ async function initializeBot() {
             }
         });
 
+        // Middleware de autorización (PRIMERO - más importante)
+        bot.use(authMiddleware());
+
         // Agregar middleware de grupo
         bot.use(handleGroupUpdate);
+
+        // Inicializar módulo de administración ANTES de CommandHandler para mayor prioridad
+        logger.info('Inicializando módulo de administración...');
+        const adminModule = new AdminModule(bot);
+        adminModule.initialize();
+        logger.info('✅ Módulo de administración inicializado');
+
+        // Inicializar sistema de cálculo automático
+        logger.info('Inicializando sistema de cálculo automático...');
+        const calculationScheduler = new CalculationScheduler(bot);
+        calculationScheduler.initialize();
+        logger.info('✅ Sistema de cálculo automático inicializado');
 
         // Registrar comandos
         logger.info('Registrando comandos...');
@@ -144,6 +162,15 @@ async function initializeBot() {
             } catch (stopError) {
                 logger.error('Error al detener sistema de notificaciones:', stopError);
             }
+
+            // Detener sistema de cálculo automático
+            try {
+                calculationScheduler.stopAllJobs();
+                logger.info('✅ Sistema de cálculo automático detenido correctamente');
+            } catch (stopError) {
+                logger.error('Error al detener sistema de cálculo:', stopError);
+            }
+
             // Detener servicio de limpieza de estados
             try {
                 stateCleanupService.stop();

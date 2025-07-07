@@ -797,7 +797,7 @@ const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
 const calcularHorasAutomaticas = (fechaBase, tiempoTrayectoMinutos = 0) => {
     // Usar la fecha base directamente (Railway maneja la zona horaria del servidor)
     // fechaBase ya debería estar en la zona horaria correcta del servidor
-    
+
     // Contacto: entre 22 y 39 minutos después de la fecha base
     const minutosContacto = Math.floor(Math.random() * (39 - 22 + 1)) + 22;
     const fechaContacto = new Date(fechaBase.getTime() + minutosContacto * 60000);

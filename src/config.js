@@ -18,6 +18,14 @@ const config = {
     },
     uploads: {
         maxSize: parseInt(process.env.MAX_UPLOAD_SIZE || '20971520')
+    },
+    admin: {
+        sessionTimeout: 5 * 60 * 1000, // 5 minutos
+        auditRetentionDays: parseInt(process.env.AUDIT_RETENTION_DAYS || '90'),
+        features: {
+            enableAudit: true,
+            enableAdvancedStats: false // Se habilitará en Fase 4
+        }
     }
 };
 

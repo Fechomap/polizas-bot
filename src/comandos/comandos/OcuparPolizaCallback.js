@@ -306,7 +306,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 // NUEVO: Reenviar leyenda explosiva al grupo cuando se registra servicio
                 try {
                     this.logInfo(`Regenerando y reenviando leyenda explosiva para ${numeroPoliza}`);
-                    
+
                     // Obtener datos de la póliza
                     const policy = await getPolicyByNumber(numeroPoliza);
                     if (!policy) {
@@ -317,22 +317,22 @@ class OcuparPolizaCallback extends BaseCommand {
                     // Obtener coordenadas y datos de ruta guardados
                     const flowStateManager = require('../../utils/FlowStateManager');
                     const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
-                    
+
                     if (savedState && savedState.coordenadas && savedState.coordenadas.origen && savedState.coordenadas.destino) {
                         const { origen, destino } = savedState.coordenadas;
-                        
+
                         // Regenerar la leyenda explosiva usando el mismo método
                         const enhancedData = await this.generateEnhancedLegend(
-                            policy, 
-                            origen, 
-                            destino, 
+                            policy,
+                            origen,
+                            destino,
                             savedState.rutaInfo || null
                         );
-                        
+
                         // Enviar leyenda explosiva al grupo
                         const targetGroupId = -1002212807945;
                         await ctx.telegram.sendMessage(targetGroupId, enhancedData.leyenda);
-                        
+
                         this.logInfo(`✅ Leyenda explosiva reenviada al grupo ${targetGroupId} exitosamente`);
                     } else {
                         this.logError('No se encontraron coordenadas guardadas para regenerar leyenda');
@@ -841,16 +841,16 @@ class OcuparPolizaCallback extends BaseCommand {
             const destinoTexto = destinoGeo.ubicacionCorta.toUpperCase();
 
             // Nuevo formato de leyenda con diseño visual llamativo
-            const leyenda = `⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n` +
+            const leyenda = '⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n' +
                 `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
-                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n` +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n' +
                 `🚗 ${policy.marca} - ${policy.submarca} - ${policy.año}\n\n` +
                 `🔸 ORIGEN: ${origenTexto}\n` +
                 `🔸 DESTINO: ${destinoTexto}\n\n` +
                 `🗺️ ${googleMapsUrl}\n\n` +
-                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n` +
-                `🌟 S E R V I C I O     A C T I V O 🌟\n` +
-                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀`;
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n' +
+                '🌟 S E R V I C I O     A C T I V O 🌟\n' +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀';
 
             this.logInfo(`Nueva leyenda generada: ${leyenda}`);
 
@@ -865,16 +865,16 @@ class OcuparPolizaCallback extends BaseCommand {
 
             // Fallback: usar coordenadas directas con diseño visual llamativo
             const googleMapsUrl = this.hereMapsService.generateGoogleMapsUrl(origenCoords, destinoCoords);
-            const leyenda = `⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n` +
+            const leyenda = '⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n' +
                 `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
-                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n` +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n' +
                 `🚗 ${policy.marca} - ${policy.submarca} - ${policy.año}\n\n` +
                 `🔸 ORIGEN: ${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)}\n` +
                 `🔸 DESTINO: ${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}\n\n` +
                 `🗺️ ${googleMapsUrl}\n\n` +
-                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n` +
-                `🌟 S E R V I C I O     A C T I V O 🌟\n` +
-                `🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀`;
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n' +
+                '🌟 S E R V I C I O     A C T I V O 🌟\n' +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀';
 
             return {
                 leyenda,
@@ -1206,7 +1206,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             // Automatically send leyenda to group
             const targetGroupId = -1002212807945; // ID fijo del grupo
-            
+
             try {
                 this.logInfo(`Enviando leyenda automáticamente al grupo ${targetGroupId}`);
                 const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
@@ -1214,7 +1214,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 // Send confirmation message with service registration options
                 await ctx.reply(
-                    responseMessage + 
+                    responseMessage +
                     '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
                     '🚗 ¿Deseas registrar un servicio?',
                     {
@@ -1232,7 +1232,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.logInfo('Flujo automático de leyenda completado exitosamente en handleOrigenDestino');
             } catch (sendError) {
                 this.logError('Error al enviar leyenda automáticamente al grupo:', sendError);
-                
+
                 // Fallback: show manual buttons if automatic sending fails
                 responseMessage += `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
                     '❌ Error enviando automáticamente. ¿Enviar manualmente?';
@@ -1460,7 +1460,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             // Automatically send leyenda to group
             const targetGroupId = -1002212807945; // ID fijo del grupo
-            
+
             try {
                 this.logInfo(`Enviando leyenda automáticamente al grupo ${targetGroupId}`);
                 const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
@@ -1468,7 +1468,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 // Send confirmation message with service registration options
                 await ctx.reply(
-                    responseMessage + 
+                    responseMessage +
                     '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
                     '🚗 ¿Deseas registrar un servicio?',
                     {
@@ -1486,7 +1486,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.logInfo('Flujo automático de leyenda completado exitosamente');
             } catch (sendError) {
                 this.logError('Error al enviar leyenda automáticamente al grupo:', sendError);
-                
+
                 // Fallback: show manual buttons if automatic sending fails
                 responseMessage += `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
                     '❌ Error enviando automáticamente. ¿Enviar manualmente?';

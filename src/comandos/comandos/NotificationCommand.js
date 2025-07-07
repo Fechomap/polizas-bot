@@ -52,7 +52,7 @@ class NotificationCommand extends BaseCommand {
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('📋 Ver listado completo', 'notification:list')],
+                            [Markup.button.callback('📋 Ver notificaciones del día', 'notification:list')],
                             [Markup.button.callback('⏰ Ver próximas hoy', 'notification:today')],
                             [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')],
                             [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
@@ -77,37 +77,63 @@ class NotificationCommand extends BaseCommand {
 
                 await ctx.answerCbQuery();
 
-                const notificationManager = getNotificationManager(this.bot);
-                const pendingNotifications = await notificationManager.getPendingNotifications();
+                const ScheduledNotification = require('../../models/scheduledNotification');
+                
+                // Obtener todas las notificaciones del día actual
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
 
-                if (pendingNotifications.length === 0) {
-                    return await ctx.reply('📅 No hay notificaciones programadas pendientes.');
+                const todayNotifications = await ScheduledNotification.find({
+                    scheduledDate: {
+                        $gte: today,
+                        $lt: tomorrow
+                    }
+                }).sort({ scheduledDate: 1 });
+
+                if (todayNotifications.length === 0) {
+                    return await ctx.reply(
+                        '📅 No hay notificaciones programadas para hoy.',
+                        {
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                                [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
+                            ])
+                        }
+                    );
                 }
 
-                // Ordenar por fecha
-                pendingNotifications.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
-
-                // Dividir en bloques de 10 máximo
-                const chunkSize = 10;
-                const totalChunks = Math.ceil(pendingNotifications.length / chunkSize);
+                // Dividir en bloques de 8 máximo
+                const chunkSize = 8;
+                const totalChunks = Math.ceil(todayNotifications.length / chunkSize);
 
                 for (let i = 0; i < totalChunks; i++) {
-                    const chunk = pendingNotifications.slice(i * chunkSize, (i + 1) * chunkSize);
+                    const chunk = todayNotifications.slice(i * chunkSize, (i + 1) * chunkSize);
 
-                    let message = `📋 *Notificaciones Programadas (${i+1}/${totalChunks})*\n\n`;
+                    let message = `📋 *Notificaciones de HOY (${i+1}/${totalChunks})*\n\n`;
 
                     chunk.forEach(notification => {
                         const scheduledDate = new Date(notification.scheduledDate);
-                        const formattedDate = `${scheduledDate.getDate()}/${scheduledDate.getMonth()+1} ${scheduledDate.getHours()}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
+                        const formattedTime = `${scheduledDate.getHours()}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
+                        
+                        // Emoji según el estado
+                        const statusEmoji = {
+                            'PENDING': '⏳',
+                            'SENT': '✅',
+                            'FAILED': '❌',
+                            'CANCELLED': '🚫'
+                        }[notification.status] || '❓';
 
-                        message += `🔹 *ID:* ${notification._id.toString().slice(-6)}\n`;
+                        message += `${statusEmoji} *${formattedTime}* - ${notification.status}\n`;
                         message += `📝 Póliza: ${notification.numeroPoliza}\n`;
-                        message += `⏰ Hora: ${notification.contactTime} (${formattedDate})\n`;
                         message += `📄 Exp: ${notification.expedienteNum}\n`;
 
-                        if (i < totalChunks - 1 || chunk.indexOf(notification) < chunk.length - 1) {
-                            message += '\n';
+                        if (notification.marcaModelo) {
+                            message += `🚗 ${notification.marcaModelo}\n`;
                         }
+
+                        message += '\n';
                     });
 
                     // Añadir botones solo al último mensaje
@@ -125,7 +151,7 @@ class NotificationCommand extends BaseCommand {
                 }
             } catch (error) {
                 this.logError('Error en notification:list:', error);
-                await ctx.reply('❌ Error al obtener notificaciones.');
+                await ctx.reply('❌ Error al obtener notificaciones del día.');
             }
         });
 
@@ -284,7 +310,7 @@ class NotificationCommand extends BaseCommand {
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('📋 Ver listado completo', 'notification:list')],
+                            [Markup.button.callback('📋 Ver notificaciones del día', 'notification:list')],
                             [Markup.button.callback('⏰ Ver próximas hoy', 'notification:today')],
                             [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')],
                             [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
