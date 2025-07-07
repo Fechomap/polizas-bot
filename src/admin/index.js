@@ -5,6 +5,7 @@ const policyHandler = require('./handlers/policyHandler');
 const serviceHandler = require('./handlers/serviceHandler');
 const databaseHandler = require('./handlers/databaseHandler');
 const reportsHandler = require('./handlers/reportsHandler');
+const SimpleScriptsHandler = require('./handlers/simpleScriptsHandler');
 
 class AdminModule {
     constructor(bot) {
@@ -13,7 +14,8 @@ class AdminModule {
             policy: policyHandler,
             service: serviceHandler,
             database: databaseHandler,
-            reports: reportsHandler
+            reports: reportsHandler,
+            scripts: new SimpleScriptsHandler()
         };
     }
 
@@ -544,6 +546,16 @@ class AdminModule {
             } catch (error) {
                 logger.error('Error al generar reporte ejecutivo para mes específico:', error);
                 await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        // Callback para exportar Excel
+        this.bot.action('admin_database_export', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.scripts.handleExportExcel(ctx);
+            } catch (error) {
+                logger.error('Error al exportar Excel:', error);
+                await ctx.answerCbQuery('Error al exportar Excel', { show_alert: true });
             }
         });
 

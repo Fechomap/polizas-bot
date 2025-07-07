@@ -1116,7 +1116,7 @@ Selecciona el período para analizar:
             // Convertir a buffer
             const chunks = [];
             pdfDoc.on('data', chunk => chunks.push(chunk));
-            
+
             const pdfBuffer = await new Promise((resolve, reject) => {
                 pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
                 pdfDoc.on('error', reject);

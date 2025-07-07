@@ -161,22 +161,19 @@ _Reportes en PDF con gráficas y tablas listos para imprimir._
 💾 *GESTIÓN BASE DE DATOS*
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Herramientas de administración:
+Exportación de datos:
 
-📊 *Estadísticas* - Ver métricas del sistema
-🔄 *Ejecutar Scripts* - Scripts de mantenimiento
-📥 *Importar/Exportar* - Gestión de backups
-🧹 *Mantenimiento* - Limpieza y optimización
+📊 *Exportar Excel* - Descarga completa de pólizas
+_Estados actualizados automáticamente a las 3:00 AM_
+
+🤖 *Sistema automático*:
+• Cálculo diario: 3:00 AM
+• Limpieza semanal: Domingos 4:00 AM
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('📊 Estadísticas', 'admin_database_stats'),
-                Markup.button.callback('🔄 Ejecutar Scripts', 'admin_database_scripts')
-            ],
-            [
-                Markup.button.callback('📥 Importar/Exportar', 'admin_database_backup'),
-                Markup.button.callback('🧹 Mantenimiento', 'admin_database_maintenance')
+                Markup.button.callback('📊 Exportar Excel', 'admin_database_export')
             ],
             [
                 Markup.button.callback('⬅️ Volver', 'admin_menu')

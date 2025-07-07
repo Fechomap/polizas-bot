@@ -490,14 +490,14 @@ class ReportsHandlerV2 {
     static async getDailyExecutiveAnalysis(startDate, endDate) {
         try {
             logger.info('Iniciando análisis ejecutivo diario', { startDate, endDate });
-            
+
             // Obtener TODAS las pólizas del mes (activas y eliminadas)
             const allPolicies = await Policy.find({
                 $or: [
                     // Pólizas creadas en el mes
                     { fechaEmision: { $gte: startDate, $lte: endDate } },
                     // Pólizas eliminadas en el mes
-                    { 
+                    {
                         fechaEliminacion: { $gte: startDate, $lte: endDate },
                         estado: 'ELIMINADO'
                     }
@@ -507,7 +507,7 @@ class ReportsHandlerV2 {
             // Inicializar estructura de datos por día
             const dailyData = new Map();
             const currentDate = new Date(startDate);
-            
+
             while (currentDate <= endDate) {
                 const dayKey = currentDate.getDate();
                 dailyData.set(dayKey, {
@@ -533,7 +533,7 @@ class ReportsHandlerV2 {
                 if (policy.fechaEmision >= startDate && policy.fechaEmision <= endDate) {
                     const day = policy.fechaEmision.getDate();
                     const dayStats = dailyData.get(day);
-                    
+
                     if (dayStats) {
                         dayStats.policiesCreated++;
                         dayStats.createdPolicies.push({
@@ -554,7 +554,7 @@ class ReportsHandlerV2 {
                         // Contar servicios/registros del día
                         if (policy.servicios && policy.servicios.length > 0) {
                             policy.servicios.forEach(servicio => {
-                                if (servicio.fechaServicio && 
+                                if (servicio.fechaServicio &&
                                     servicio.fechaServicio.getDate() === day) {
                                     dayStats.servicesRegistered++;
                                 }
@@ -563,7 +563,7 @@ class ReportsHandlerV2 {
 
                         if (policy.registros && policy.registros.length > 0) {
                             policy.registros.forEach(registro => {
-                                if (registro.fechaRegistro && 
+                                if (registro.fechaRegistro &&
                                     registro.fechaRegistro.getDate() === day) {
                                     dayStats.servicesRegistered++;
                                 }
@@ -573,8 +573,8 @@ class ReportsHandlerV2 {
                         // Calcular inversión total (estimada por pagos)
                         if (policy.pagos && policy.pagos.length > 0) {
                             policy.pagos.forEach(pago => {
-                                if (pago.fechaPago && 
-                                    pago.fechaPago >= startDate && 
+                                if (pago.fechaPago &&
+                                    pago.fechaPago >= startDate &&
                                     pago.fechaPago <= endDate) {
                                     dayStats.totalInvestment += (pago.monto || 0);
                                 }
@@ -584,14 +584,14 @@ class ReportsHandlerV2 {
                 }
 
                 // Pólizas eliminadas en el mes
-                if (policy.fechaEliminacion && 
-                    policy.fechaEliminacion >= startDate && 
-                    policy.fechaEliminacion <= endDate && 
+                if (policy.fechaEliminacion &&
+                    policy.fechaEliminacion >= startDate &&
+                    policy.fechaEliminacion <= endDate &&
                     policy.estado === 'ELIMINADO') {
-                    
+
                     const day = policy.fechaEliminacion.getDate();
                     const dayStats = dailyData.get(day);
-                    
+
                     if (dayStats) {
                         dayStats.policiesDeleted++;
                         dayStats.deletedPolicies.push({
@@ -616,7 +616,7 @@ class ReportsHandlerV2 {
             // Calcular cambio neto y estadísticas finales
             const dailyAnalysis = Array.from(dailyData.values()).map(dayData => {
                 dayData.netPolicyChange = dayData.policiesCreated - dayData.policiesDeleted;
-                
+
                 // Convertir mapas a arrays ordenados
                 dayData.insurerRanking = Object.entries(dayData.servicesByInsurer)
                     .sort((a, b) => b[1] - a[1])
@@ -636,13 +636,13 @@ class ReportsHandlerV2 {
                 totalServicesRegistered: dailyAnalysis.reduce((sum, day) => sum + day.servicesRegistered, 0),
                 totalInvestment: dailyAnalysis.reduce((sum, day) => sum + day.totalInvestment, 0),
                 netPolicyChange: dailyAnalysis.reduce((sum, day) => sum + day.netPolicyChange, 0),
-                peakRegistrationDay: dailyAnalysis.reduce((peak, day) => 
-                    day.policiesCreated > peak.policiesCreated ? day : peak, 
-                    dailyAnalysis[0]
+                peakRegistrationDay: dailyAnalysis.reduce((peak, day) =>
+                    day.policiesCreated > peak.policiesCreated ? day : peak,
+                dailyAnalysis[0]
                 ),
-                peakDeletionDay: dailyAnalysis.reduce((peak, day) => 
-                    day.policiesDeleted > peak.policiesDeleted ? day : peak, 
-                    dailyAnalysis[0]
+                peakDeletionDay: dailyAnalysis.reduce((peak, day) =>
+                    day.policiesDeleted > peak.policiesDeleted ? day : peak,
+                dailyAnalysis[0]
                 )
             };
 
@@ -650,7 +650,7 @@ class ReportsHandlerV2 {
             const patterns = {
                 avgPoliciesPerDay: Math.round(monthlyStats.totalPoliciesCreated / dailyAnalysis.length * 100) / 100,
                 avgDeletionsPerDay: Math.round(monthlyStats.totalPoliciesDeleted / dailyAnalysis.length * 100) / 100,
-                retentionRate: monthlyStats.totalPoliciesCreated > 0 
+                retentionRate: monthlyStats.totalPoliciesCreated > 0
                     ? Math.round((1 - monthlyStats.totalPoliciesDeleted / monthlyStats.totalPoliciesCreated) * 100 * 100) / 100
                     : 100,
                 mostActiveWeekdays: this.analyzeWeekdayPatterns(dailyAnalysis, startDate),
@@ -724,7 +724,7 @@ class ReportsHandlerV2 {
         const secondHalfAvg = secondHalf.reduce((sum, day) => sum + day.policiesCreated, 0) / secondHalf.length;
 
         const slope = secondHalfAvg - firstHalfAvg;
-        
+
         let trend = 'ESTABLE';
         if (slope > 0.5) trend = 'CRECIENTE';
         else if (slope < -0.5) trend = 'DECRECIENTE';
@@ -740,7 +740,7 @@ class ReportsHandlerV2 {
 
         policies.forEach(policy => {
             const insurer = policy.aseguradora || 'SIN ESPECIFICAR';
-            
+
             if (!insurerMap.has(insurer)) {
                 insurerMap.set(insurer, {
                     name: insurer,
@@ -761,9 +761,9 @@ class ReportsHandlerV2 {
             }
 
             // Pólizas eliminadas
-            if (policy.fechaEliminacion && 
-                policy.fechaEliminacion >= startDate && 
-                policy.fechaEliminacion <= endDate && 
+            if (policy.fechaEliminacion &&
+                policy.fechaEliminacion >= startDate &&
+                policy.fechaEliminacion <= endDate &&
                 policy.estado === 'ELIMINADO') {
                 stats.policiesDeleted++;
             }
@@ -785,11 +785,11 @@ class ReportsHandlerV2 {
 
         return Array.from(insurerMap.values()).map(stats => ({
             ...stats,
-            retentionRate: stats.policiesCreated > 0 
+            retentionRate: stats.policiesCreated > 0
                 ? Math.round((1 - stats.policiesDeleted / stats.policiesCreated) * 100 * 100) / 100
                 : 100,
             netPolicyChange: stats.policiesCreated - stats.policiesDeleted,
-            roi: stats.totalServiceCosts > 0 
+            roi: stats.totalServiceCosts > 0
                 ? Math.round(((stats.totalInvestment - stats.totalServiceCosts) / stats.totalServiceCosts) * 100 * 100) / 100
                 : 0
         })).sort((a, b) => b.policiesCreated - a.policiesCreated);
@@ -811,7 +811,7 @@ class ReportsHandlerV2 {
 
             // Configurar fuente y codificación UTF-8
             doc.font('Helvetica');
-            
+
             // Asegurar codificación UTF-8 correcta
             doc.info.Title = 'Reporte Ejecutivo Diario';
             doc.info.Subject = `Análisis diario - ${period}`;
@@ -819,16 +819,16 @@ class ReportsHandlerV2 {
 
             // ENCABEZADO PRINCIPAL
             doc.fontSize(24)
-               .fillColor('#00D2FF')
-               .text('REPORTE EJECUTIVO DIARIO', 50, 50);
+                .fillColor('#00D2FF')
+                .text('REPORTE EJECUTIVO DIARIO', 50, 50);
 
             doc.fontSize(16)
-               .fillColor('#333333')
-               .text(`Periodo: ${period}`, 50, 85);
+                .fillColor('#333333')
+                .text(`Periodo: ${period}`, 50, 85);
 
             // GENERAR GRÁFICA DE DISTRIBUCIÓN DIARIA
             const chartBuffer = await this.generateDailyDistributionChart(executiveData);
-            
+
             // Insertar gráfica en el PDF (tamaño más compacto)
             if (chartBuffer) {
                 doc.image(chartBuffer, 50, 120, { width: 650, height: 220 });
@@ -836,117 +836,117 @@ class ReportsHandlerV2 {
 
             // NUEVA PÁGINA para el contenido
             doc.addPage();
-            
+
             // RESUMEN EJECUTIVO (Nueva página)
             let yPos = 50;
             const { monthlyStats, patterns, dailyAnalysis } = executiveData;
 
             // Cuadros de métricas principales
             doc.fontSize(14)
-               .fillColor('#FFFFFF')
-               .rect(50, yPos, 150, 60)
-               .fill('#667eea');
+                .fillColor('#FFFFFF')
+                .rect(50, yPos, 150, 60)
+                .fill('#667eea');
 
             doc.fillColor('#FFFFFF')
-               .text('POLIZAS CREADAS', 55, yPos + 10)
-               .fontSize(20)
-               .text(monthlyStats.totalPoliciesCreated.toString(), 55, yPos + 30);
+                .text('POLIZAS CREADAS', 55, yPos + 10)
+                .fontSize(20)
+                .text(monthlyStats.totalPoliciesCreated.toString(), 55, yPos + 30);
 
             doc.fontSize(14)
-               .fillColor('#FFFFFF')
-               .rect(220, yPos, 150, 60)
-               .fill('#764ba2');
+                .fillColor('#FFFFFF')
+                .rect(220, yPos, 150, 60)
+                .fill('#764ba2');
 
             doc.fillColor('#FFFFFF')
-               .text('POLIZAS ELIMINADAS', 225, yPos + 10)
-               .fontSize(20)
-               .text(monthlyStats.totalPoliciesDeleted.toString(), 225, yPos + 30);
+                .text('POLIZAS ELIMINADAS', 225, yPos + 10)
+                .fontSize(20)
+                .text(monthlyStats.totalPoliciesDeleted.toString(), 225, yPos + 30);
 
             doc.fontSize(14)
-               .fillColor('#FFFFFF')
-               .rect(390, yPos, 150, 60)
-               .fill('#f093fb');
+                .fillColor('#FFFFFF')
+                .rect(390, yPos, 150, 60)
+                .fill('#f093fb');
 
             doc.fillColor('#FFFFFF')
-               .text('CAMBIO NETO', 395, yPos + 10)
-               .fontSize(12)
-               .text('(Creadas - Eliminadas)', 395, yPos + 22)
-               .fontSize(20)
-               .text(monthlyStats.netPolicyChange.toString(), 395, yPos + 35);
+                .text('CAMBIO NETO', 395, yPos + 10)
+                .fontSize(12)
+                .text('(Creadas - Eliminadas)', 395, yPos + 22)
+                .fontSize(20)
+                .text(monthlyStats.netPolicyChange.toString(), 395, yPos + 35);
 
             doc.fontSize(14)
-               .fillColor('#FFFFFF')
-               .rect(560, yPos, 150, 60)
-               .fill('#4facfe');
+                .fillColor('#FFFFFF')
+                .rect(560, yPos, 150, 60)
+                .fill('#4facfe');
 
             doc.fillColor('#FFFFFF')
-               .text('TASA RETENCION', 565, yPos + 10)
-               .fontSize(12)
-               .text('(No eliminadas)', 565, yPos + 22)
-               .fontSize(20)
-               .text(`${patterns.retentionRate}%`, 565, yPos + 35);
+                .text('TASA RETENCION', 565, yPos + 10)
+                .fontSize(12)
+                .text('(No eliminadas)', 565, yPos + 22)
+                .fontSize(20)
+                .text(`${patterns.retentionRate}%`, 565, yPos + 35);
 
             yPos += 80;
 
-            // ANÁLISIS POR DÍA (Sección principal)  
+            // ANÁLISIS POR DÍA (Sección principal)
             doc.fontSize(18)
-               .fillColor('#00D2FF')
-               .text('ANALISIS DIARIO DETALLADO', 50, yPos);
+                .fillColor('#00D2FF')
+                .text('ANALISIS DIARIO DETALLADO', 50, yPos);
 
             yPos += 35;
 
             // Encabezados de tabla
             doc.fontSize(10)
-               .fillColor('#333333');
+                .fillColor('#333333');
 
             const colWidths = [40, 60, 60, 60, 80, 120, 200];
             const headers = ['DIA', 'CREADAS', 'ELIMINADAS', 'NETO', 'SERVICIOS', 'TOP ASEGURADORA', 'MOTIVOS ELIMINACION'];
-            
+
             let xPos = 50;
             headers.forEach((header, i) => {
                 doc.rect(xPos, yPos, colWidths[i], 25)
-                   .fill('#e6f3ff');
-                
+                    .fill('#e6f3ff');
+
                 doc.fillColor('#333333')
-                   .text(header, xPos + 5, yPos + 8);
-                
+                    .text(header, xPos + 5, yPos + 8);
+
                 xPos += colWidths[i];
             });
 
             yPos += 25;
 
             // Datos por día - Solo mostrar días con actividad para evitar páginas vacías
-            const activeDays = dailyAnalysis.filter(day => 
+            const activeDays = dailyAnalysis.filter(day =>
                 day.policiesCreated > 0 || day.policiesDeleted > 0 || day.servicesRegistered > 0
             );
 
             if (activeDays.length === 0) {
                 doc.fontSize(12)
-                   .fillColor('#666666')
-                   .text('No hay actividad registrada en este período', 50, yPos + 40);
+                    .fillColor('#666666')
+                    .text('No hay actividad registrada en este período', 50, yPos + 40);
                 yPos += 60;
             } else {
                 activeDays.forEach((day, index) => {
                     if (yPos > 480) { // Nueva página si es necesario
                         doc.addPage();
                         yPos = 50;
-                        
+
                         // Repetir encabezados en nueva página
                         doc.fontSize(18)
-                           .fillColor('#00D2FF')
-                           .text('ANALISIS DIARIO DETALLADO (Continuación)', 50, yPos);
+                            .fillColor('#00D2FF')
+                            .text('ANALISIS DIARIO DETALLADO (Continuación)', 50, yPos);
                         yPos += 30;
-                        
+
                         // Encabezados de tabla
                         xPos = 50;
                         headers.forEach((header, i) => {
                             doc.rect(xPos, yPos, colWidths[i], 25)
-                               .fill('#e6f3ff');
-                            
+                                .fill('#e6f3ff');
+
                             doc.fillColor('#333333')
-                               .fontSize(10)
-                               .text(header, xPos + 5, yPos + 8);
-                            
+                                .fontSize(10)
+                                .text(header, xPos + 5, yPos + 8);
+
                             xPos += colWidths[i];
                         });
                         yPos += 25;
@@ -954,18 +954,18 @@ class ReportsHandlerV2 {
 
                     // Color alternado para filas
                     const bgColor = index % 2 === 0 ? '#f8f9fa' : '#ffffff';
-                    
+
                     xPos = 50;
                     headers.forEach((_, i) => {
                         doc.rect(xPos, yPos, colWidths[i], 18)
-                           .fill(bgColor);
+                            .fill(bgColor);
                         xPos += colWidths[i];
                     });
 
                     // Datos
                     xPos = 50;
                     doc.fillColor('#333333')
-                       .fontSize(9);
+                        .fontSize(9);
 
                     // Día
                     doc.text(day.day.toString(), xPos + 5, yPos + 5);
@@ -982,17 +982,17 @@ class ReportsHandlerV2 {
                     // Cambio neto
                     const netChange = day.netPolicyChange;
                     doc.fillColor(netChange >= 0 ? '#28a745' : '#dc3545')
-                       .text(netChange > 0 ? `+${netChange}` : netChange.toString(), xPos + 5, yPos + 5);
+                        .text(netChange > 0 ? `+${netChange}` : netChange.toString(), xPos + 5, yPos + 5);
                     xPos += colWidths[3];
 
                     // Servicios
                     doc.fillColor('#333333')
-                       .text(day.servicesRegistered.toString(), xPos + 5, yPos + 5);
+                        .text(day.servicesRegistered.toString(), xPos + 5, yPos + 5);
                     xPos += colWidths[4];
 
                     // Top aseguradora
                     const topInsurer = day.insurerRanking[0] || ['N/A', 0];
-                    const insurerText = topInsurer[0].length > 15 ? 
+                    const insurerText = topInsurer[0].length > 15 ?
                         topInsurer[0].substring(0, 12) + '...' : topInsurer[0];
                     doc.text(`${insurerText} (${topInsurer[1]})`, xPos + 5, yPos + 5);
                     xPos += colWidths[5];
@@ -1012,22 +1012,22 @@ class ReportsHandlerV2 {
 
             // ANÁLISIS DE PATRONES
             doc.fontSize(18)
-               .fillColor('#00D2FF')
-               .text('ANALISIS DE PATRONES Y TENDENCIAS', 50, yPos);
+                .fillColor('#00D2FF')
+                .text('ANALISIS DE PATRONES Y TENDENCIAS', 50, yPos);
 
             yPos += 40;
 
             // Días de la semana más activos
             doc.fontSize(14)
-               .fillColor('#333333')
-               .text('ACTIVIDAD POR DIA DE LA SEMANA:', 50, yPos);
+                .fillColor('#333333')
+                .text('ACTIVIDAD POR DIA DE LA SEMANA:', 50, yPos);
 
             yPos += 25;
 
             patterns.mostActiveWeekdays.slice(0, 5).forEach((weekday, index) => {
                 doc.fontSize(11)
-                   .fillColor('#666666')
-                   .text(`${index + 1}. ${weekday.name}: ${weekday.avgPolicies} polizas/dia promedio`, 70, yPos);
+                    .fillColor('#666666')
+                    .text(`${index + 1}. ${weekday.name}: ${weekday.avgPolicies} polizas/dia promedio`, 70, yPos);
                 yPos += 18;
             });
 
@@ -1035,40 +1035,40 @@ class ReportsHandlerV2 {
 
             // Tendencia de crecimiento
             doc.fontSize(14)
-               .fillColor('#333333')
-               .text('TENDENCIA DE CRECIMIENTO:', 50, yPos);
+                .fillColor('#333333')
+                .text('TENDENCIA DE CRECIMIENTO:', 50, yPos);
 
             yPos += 25;
 
-            const trendColor = patterns.growthTrend.trend === 'CRECIENTE' ? '#28a745' : 
-                              patterns.growthTrend.trend === 'DECRECIENTE' ? '#dc3545' : '#ffc107';
-            
+            const trendColor = patterns.growthTrend.trend === 'CRECIENTE' ? '#28a745' :
+                patterns.growthTrend.trend === 'DECRECIENTE' ? '#dc3545' : '#ffc107';
+
             doc.fontSize(12)
-               .fillColor(trendColor)
-               .text(`${patterns.growthTrend.trend} (pendiente: ${patterns.growthTrend.slope})`, 70, yPos);
+                .fillColor(trendColor)
+                .text(`${patterns.growthTrend.trend} (pendiente: ${patterns.growthTrend.slope})`, 70, yPos);
 
             yPos += 40;
 
             // ANÁLISIS POR ASEGURADORA
             doc.fontSize(14)
-               .fillColor('#333333')
-               .text('TOP 5 ASEGURADORAS DEL MES:', 50, yPos);
+                .fillColor('#333333')
+                .text('TOP 5 ASEGURADORAS DEL MES:', 50, yPos);
 
             yPos += 25;
 
             executiveData.insurerAnalysis.slice(0, 5).forEach((insurer, index) => {
                 doc.fontSize(10)
-                   .fillColor('#666666')
-                   .text(`${index + 1}. ${insurer.name}:`, 70, yPos)
-                   .text(`Creadas: ${insurer.policiesCreated} | Eliminadas: ${insurer.policiesDeleted} | Retención: ${insurer.retentionRate}%`, 70, yPos + 12);
+                    .fillColor('#666666')
+                    .text(`${index + 1}. ${insurer.name}:`, 70, yPos)
+                    .text(`Creadas: ${insurer.policiesCreated} | Eliminadas: ${insurer.policiesDeleted} | Retención: ${insurer.retentionRate}%`, 70, yPos + 12);
                 yPos += 30;
             });
 
             // PIE DE PÁGINA
             doc.fontSize(8)
-               .fillColor('#666666')
-               .text(`Generado el ${new Date().toLocaleString('es-MX')} | Sistema de Gestion de Polizas IA`, 50, 520)
-               .text('Generated with Claude Code | Co-Authored-By: Claude <noreply@anthropic.com>', 400, 520);
+                .fillColor('#666666')
+                .text(`Generado el ${new Date().toLocaleString('es-MX')} | Sistema de Gestion de Polizas IA`, 50, 520)
+                .text('Generated with Claude Code | Co-Authored-By: Claude <noreply@anthropic.com>', 400, 520);
 
             return doc;
 
@@ -1084,18 +1084,18 @@ class ReportsHandlerV2 {
     static async generateDailyDistributionChart(executiveData) {
         try {
             const ChartGenerator = require('../utils/chartGenerator');
-            
+
             // Preparar datos para la gráfica
             const { dailyAnalysis } = executiveData;
-            
+
             // Crear arrays de datos ordenados por día
             const labels = [];
             const createdData = [];
             const deletedData = [];
-            
+
             // Determinar el rango de días del mes actual
             const maxDay = Math.max(...dailyAnalysis.map(d => d.day), 30);
-            
+
             // Asegurar que tenemos datos para todos los días del mes
             for (let day = 1; day <= maxDay; day++) {
                 const dayData = dailyAnalysis.find(d => d.day === day) || {
@@ -1103,7 +1103,7 @@ class ReportsHandlerV2 {
                     policiesCreated: 0,
                     policiesDeleted: 0
                 };
-                
+
                 labels.push(`${day}`);
                 createdData.push(dayData.policiesCreated);
                 deletedData.push(dayData.policiesDeleted);
@@ -1218,7 +1218,7 @@ class ReportsHandlerV2 {
 
             // Generar la gráfica (tamaño más compacto para PDF)
             const chartBuffer = await ChartGenerator.generateChart(chartConfig, 900, 300);
-            
+
             logger.info('Gráfica de distribución diaria generada exitosamente', {
                 totalDays: dailyAnalysis.length,
                 maxCreated: Math.max(...createdData),
