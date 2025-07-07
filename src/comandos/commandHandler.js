@@ -44,7 +44,8 @@ const {
     SaveCommand,
     DeleteCommand,
     ReportPaymentCommand,
-    ReportUsedCommand
+    ReportUsedCommand,
+    NotificationCommand
 } = require('./comandos');
 
 class CommandHandler {
@@ -145,6 +146,10 @@ class CommandHandler {
         const reportUsedCmd = new ReportUsedCommand(this);
         this.registry.registerCommand(reportUsedCmd);
         reportUsedCmd.register();
+
+        const notificationCmd = new NotificationCommand(this);
+        this.registry.registerCommand(notificationCmd);
+        notificationCmd.register();
 
         const excelUploadCmd = new ExcelUploadHandler(this);
         this.registry.registerCommand(excelUploadCmd);

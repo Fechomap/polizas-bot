@@ -17,10 +17,10 @@ class CalculationScheduler {
      */
     initialize() {
         logger.info('🔄 Inicializando sistema de cálculo automático');
-        
+
         // Cálculo de estados diario a las 3:00 AM
         this.scheduleDailyCalculation();
-        
+
         // Limpieza semanal domingos a las 4:00 AM
         this.scheduleWeeklyCleanup();
 
@@ -66,7 +66,7 @@ class CalculationScheduler {
      */
     async executeDailyCalculation() {
         const startTime = Date.now();
-        
+
         try {
             // Notificar inicio
             if (this.adminChatId) {
@@ -81,7 +81,7 @@ class CalculationScheduler {
             await this.executeScript('calculoEstadosDB.js');
 
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            
+
             // Notificar éxito
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
@@ -95,7 +95,7 @@ class CalculationScheduler {
 
         } catch (error) {
             logger.error('❌ Error en cálculo de estados:', error);
-            
+
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
@@ -111,7 +111,7 @@ class CalculationScheduler {
      */
     async executeWeeklyCleanup() {
         const startTime = Date.now();
-        
+
         try {
             // Notificar inicio
             if (this.adminChatId) {
@@ -122,7 +122,7 @@ class CalculationScheduler {
                 );
             }
 
-            let cleanupStats = {
+            const cleanupStats = {
                 logsDeleted: 0
             };
 
@@ -130,7 +130,7 @@ class CalculationScheduler {
             cleanupStats.logsDeleted = await this.cleanOldLogs();
 
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
-            
+
             // Notificar éxito
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
@@ -144,7 +144,7 @@ class CalculationScheduler {
 
         } catch (error) {
             logger.error('❌ Error en limpieza semanal:', error);
-            
+
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
@@ -160,7 +160,7 @@ class CalculationScheduler {
      */
     async executeScript(scriptName) {
         const scriptPath = path.join(this.scriptsPath, scriptName);
-        
+
         return new Promise((resolve, reject) => {
             const child = spawn('node', [scriptPath], {
                 cwd: this.scriptsPath,
@@ -207,7 +207,7 @@ class CalculationScheduler {
             for (const file of files) {
                 const filePath = path.join(logsPath, file);
                 const stats = await fs.stat(filePath);
-                
+
                 if (stats.mtime < sevenDaysAgo) {
                     await fs.unlink(filePath);
                     deletedCount++;
@@ -226,7 +226,7 @@ class CalculationScheduler {
      */
     stopAllJobs() {
         logger.info('🛑 Deteniendo todos los trabajos programados');
-        
+
         for (const [name, job] of this.jobs.entries()) {
             job.stop();
             logger.info(`🛑 Trabajo detenido: ${name}`);

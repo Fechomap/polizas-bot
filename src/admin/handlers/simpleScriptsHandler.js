@@ -13,7 +13,7 @@ class SimpleScriptsHandler {
      */
     async handleExportExcel(ctx) {
         const userId = ctx.from.id;
-        
+
         // Verificar si ya hay un script corriendo para este usuario
         if (this.runningScripts.has(userId)) {
             await ctx.reply('⚠️ Ya tienes un proceso de exportación ejecutándose. Espera a que termine.');
@@ -86,10 +86,10 @@ class SimpleScriptsHandler {
 
             // Procesar resultado
             const elapsed = Math.floor((Date.now() - this.runningScripts.get(userId).startTime) / 1000);
-            
+
             let successMessage = '✅ *Exportación completada*\n\n';
             successMessage += `⏱️ Tiempo total: ${elapsed}s\n`;
-            
+
             // Agregar información específica del script
             if (output.includes('Total procesado:')) {
                 const matches = output.match(/Total procesado: (\d+)/);
@@ -113,11 +113,11 @@ class SimpleScriptsHandler {
 
         } catch (error) {
             const elapsed = Math.floor((Date.now() - this.runningScripts.get(userId).startTime) / 1000);
-            
-            let errorMessage = `❌ *Error en exportación*\n\n`;
+
+            let errorMessage = '❌ *Error en exportación*\n\n';
             errorMessage += `⏱️ Tiempo transcurrido: ${elapsed}s\n`;
             errorMessage += `🔥 Error: ${error.message}\n`;
-            
+
             if (errorOutput) {
                 errorMessage += `\n📋 Detalles:\n\`\`\`\n${errorOutput.slice(0, 500)}\`\`\``;
             }
@@ -143,10 +143,10 @@ class SimpleScriptsHandler {
         try {
             const backupDir = path.join(this.scriptsPath, 'backup');
             const files = await fs.readdir(backupDir);
-            
+
             // Buscar archivos Excel
             const excelFiles = files.filter(f => f.endsWith('.xlsx'));
-            
+
             if (excelFiles.length === 0) {
                 await ctx.reply('⚠️ No se encontró archivo Excel generado');
                 return;
