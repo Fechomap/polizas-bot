@@ -4,6 +4,7 @@ const adminAuth = require('./middleware/adminAuth');
 const policyHandler = require('./handlers/policyHandler');
 const serviceHandler = require('./handlers/serviceHandler');
 const databaseHandler = require('./handlers/databaseHandler');
+const reportsHandler = require('./handlers/reportsHandler');
 
 class AdminModule {
     constructor(bot) {
@@ -11,7 +12,8 @@ class AdminModule {
         this.handlers = {
             policy: policyHandler,
             service: serviceHandler,
-            database: databaseHandler
+            database: databaseHandler,
+            reports: reportsHandler
         };
     }
 
@@ -395,6 +397,153 @@ class AdminModule {
             } catch (error) {
                 logger.error('Error al mostrar edición directa:', error);
                 await ctx.answerCbQuery('Error al cargar elemento', { show_alert: true });
+            }
+        });
+
+        // Callbacks específicos para reportes mensuales
+        this.bot.action('admin_reports_monthly_current', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                const now = new Date();
+                const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                const period = `${this.handlers.reports.formatMonth(startDate)}`;
+
+                await this.handlers.reports.generateMonthlyReportForPeriod(ctx, startDate, endDate, period);
+            } catch (error) {
+                logger.error('Error al generar reporte mensual actual:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_monthly_previous', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                const now = new Date();
+                const startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+                const period = `${this.handlers.reports.formatMonth(startDate)}`;
+
+                await this.handlers.reports.generateMonthlyReportForPeriod(ctx, startDate, endDate, period);
+            } catch (error) {
+                logger.error('Error al generar reporte mensual anterior:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_monthly_select', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.reports.showMonthSelection(ctx);
+            } catch (error) {
+                logger.error('Error al mostrar selección de mes:', error);
+                await ctx.answerCbQuery('Error al mostrar selección', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_monthly_comparative', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.reports.generateComparativeReport(ctx);
+            } catch (error) {
+                logger.error('Error al generar reporte comparativo:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        // Callbacks para reportes semanales
+        this.bot.action('admin_reports_weekly_current', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.reports.generateCurrentWeekReport(ctx);
+            } catch (error) {
+                logger.error('Error al generar reporte semanal actual:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_weekly_last', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.reports.generateLastWeekReport(ctx);
+            } catch (error) {
+                logger.error('Error al generar reporte semanal anterior:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_weekly_compare', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.reports.generateWeeklyComparison(ctx);
+            } catch (error) {
+                logger.error('Error al generar comparación semanal:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        // Callback para selección específica de mes
+        this.bot.action(/^admin_reports_month_(\d+)_(\d+)$/, adminAuth.requireAdmin, async (ctx) => {
+            try {
+                const monthIndex = parseInt(ctx.match[1]);
+                const year = parseInt(ctx.match[2]);
+
+                const startDate = new Date(year, monthIndex, 1);
+                const endDate = new Date(year, monthIndex + 1, 0);
+                const period = `${this.handlers.reports.formatMonth(startDate)}`;
+
+                await this.handlers.reports.generateMonthlyReportForPeriod(ctx, startDate, endDate, period);
+            } catch (error) {
+                logger.error('Error al generar reporte para mes específico:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        // Callbacks específicos para reportes ejecutivos diarios
+        this.bot.action('admin_reports_executive_current', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                const now = new Date();
+                const startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                const period = `${this.handlers.reports.formatMonth(startDate)}`;
+
+                await this.handlers.reports.generateExecutiveReportForPeriod(ctx, startDate, endDate, period);
+            } catch (error) {
+                logger.error('Error al generar reporte ejecutivo actual:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_executive_previous', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                const now = new Date();
+                const startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+                const period = `${this.handlers.reports.formatMonth(startDate)}`;
+
+                await this.handlers.reports.generateExecutiveReportForPeriod(ctx, startDate, endDate, period);
+            } catch (error) {
+                logger.error('Error al generar reporte ejecutivo anterior:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_reports_executive_select', adminAuth.requireAdmin, async (ctx) => {
+            try {
+                await this.handlers.reports.showMonthSelection(ctx, 'executive');
+            } catch (error) {
+                logger.error('Error al mostrar selección de mes ejecutivo:', error);
+                await ctx.answerCbQuery('Error al mostrar selección', { show_alert: true });
+            }
+        });
+
+        // Callback para selección específica de mes ejecutivo
+        this.bot.action(/^admin_reports_executive_month_(\d+)_(\d+)$/, adminAuth.requireAdmin, async (ctx) => {
+            try {
+                const monthIndex = parseInt(ctx.match[1]);
+                const year = parseInt(ctx.match[2]);
+
+                const startDate = new Date(year, monthIndex, 1);
+                const endDate = new Date(year, monthIndex + 1, 0);
+                const period = `${this.handlers.reports.formatMonth(startDate)}`;
+
+                await this.handlers.reports.generateExecutiveReportForPeriod(ctx, startDate, endDate, period);
+            } catch (error) {
+                logger.error('Error al generar reporte ejecutivo para mes específico:', error);
+                await ctx.answerCbQuery('Error al generar reporte', { show_alert: true });
             }
         });
 

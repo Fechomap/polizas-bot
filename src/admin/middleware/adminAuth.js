@@ -7,8 +7,13 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 class AdminAuth {
     /**
-   * Verifica si un usuario es administrador del grupo
-   */
+     * Verifica si un usuario es administrador
+     *
+     * SISTEMA DE AUTORIZACIÓN:
+     * 1. CHAT PRIVADO: Solo el ADMIN_USER_ID puede acceder
+     * 2. GRUPOS: Administradores de Telegram + ADMIN_USER_ID
+     * 3. SUPERADMIN: ADMIN_USER_ID tiene acceso total siempre
+     */
     static async isAdmin(ctx) {
         try {
             const userId = ctx.from?.id;
@@ -16,7 +21,23 @@ class AdminAuth {
 
             if (!userId || !chatId) return false;
 
-            // Verificar caché
+            // ADMINISTRADOR PRINCIPAL - ID específico para acceso total
+            const MAIN_ADMIN_ID = parseInt(process.env.ADMIN_USER_ID);
+            if (!MAIN_ADMIN_ID) {
+                logger.error('ADMIN_USER_ID no configurado en variables de entorno');
+                return false;
+            }
+
+            if (userId === MAIN_ADMIN_ID) {
+                return true;
+            }
+
+            // Para chats privados, solo el administrador principal
+            if (ctx.chat.type === 'private') {
+                return userId === MAIN_ADMIN_ID;
+            }
+
+            // Verificar caché para grupos
             const cacheKey = `${chatId}:${userId}`;
             const cached = adminCache.get(cacheKey);
 
@@ -24,17 +45,24 @@ class AdminAuth {
                 return cached.isAdmin;
             }
 
-            // Obtener información del miembro
-            const member = await ctx.getChatMember(userId);
-            const isAdmin = ['creator', 'administrator'].includes(member.status);
+            // Para grupos: verificar permisos de Telegram
+            try {
+                const member = await ctx.getChatMember(userId);
+                const isAdmin = ['creator', 'administrator'].includes(member.status);
 
-            // Guardar en caché
-            adminCache.set(cacheKey, {
-                isAdmin,
-                timestamp: Date.now()
-            });
+                // Guardar en caché
+                adminCache.set(cacheKey, {
+                    isAdmin,
+                    timestamp: Date.now()
+                });
 
-            return isAdmin;
+                return isAdmin;
+            } catch (groupError) {
+                // Si falla getChatMember, denegar acceso
+                logger.warn('No se pudieron verificar permisos en grupo:', groupError.message);
+                return false;
+            }
+
         } catch (error) {
             logger.error('Error verificando permisos de admin:', error);
             return false;

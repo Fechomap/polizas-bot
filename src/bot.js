@@ -6,6 +6,7 @@ const logger = require('./utils/logger');
 const config = require('./config');
 const CommandHandler = require('./comandos/commandHandler');
 const handleGroupUpdate = require('./middleware/groupHandler');
+const authMiddleware = require('./middleware/authMiddleware');
 const { getInstance: getNotificationManager } = require('./services/NotificationManager');
 const stateCleanupService = require('./utils/StateCleanupService');
 const AdminModule = require('./admin');
@@ -110,6 +111,9 @@ async function initializeBot() {
                 await ctx.reply('❌ Error al procesar el comando.');
             }
         });
+
+        // Middleware de autorización (PRIMERO - más importante)
+        bot.use(authMiddleware());
 
         // Agregar middleware de grupo
         bot.use(handleGroupUpdate);

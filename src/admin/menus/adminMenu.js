@@ -14,7 +14,8 @@ Selecciona una opción para gestionar:
 
 📝 *Pólizas* - Editar, eliminar, restaurar
 🚗 *Servicios* - Gestionar servicios y registros
-💾 *Base de Datos* - Estadísticas y mantenimiento
+📊 *Reportes* - Estadísticas visuales en PDF
+💾 *Base de Datos* - Scripts y mantenimiento
 
 _Solo usuarios administradores pueden acceder a estas funciones._
     `.trim();
@@ -25,6 +26,7 @@ _Solo usuarios administradores pueden acceder a estas funciones._
                 Markup.button.callback('🚗 Gestión de Servicios', 'admin_service_menu')
             ],
             [
+                Markup.button.callback('📊 Reportes PDF', 'admin_reports_menu'),
                 Markup.button.callback('💾 Gestión Base de Datos', 'admin_database_menu')
             ],
             [
@@ -101,6 +103,44 @@ _Funciona tanto para servicios como para registros._
         const keyboard = Markup.inlineKeyboard([
             [
                 Markup.button.callback('✏️ Editar por Expediente', 'admin_service_edit')
+            ],
+            [
+                Markup.button.callback('⬅️ Volver', 'admin_menu')
+            ]
+        ]);
+
+        await ctx.editMessageText(menuText, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
+    }
+
+    /**
+     * Muestra el submenú de reportes PDF
+     */
+    static async showReportsMenu(ctx) {
+        const menuText = `
+📊 *REPORTES PDF*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Genera reportes visuales con estadísticas:
+
+📈 *Mensual* - Contratación por aseguradora
+📅 *Semanal* - Servicios y tendencias 
+📋 *Personalizado* - Rango de fechas específico
+🎯 *Resumen Ejecutivo* - Métricas consolidadas
+
+_Reportes en PDF con gráficas y tablas listos para imprimir._
+        `.trim();
+
+        const keyboard = Markup.inlineKeyboard([
+            [
+                Markup.button.callback('📈 Reporte Mensual', 'admin_reports_monthly'),
+                Markup.button.callback('📅 Reporte Semanal', 'admin_reports_weekly')
+            ],
+            [
+                Markup.button.callback('📋 Reporte Personalizado', 'admin_reports_custom'),
+                Markup.button.callback('🎯 Resumen Ejecutivo', 'admin_reports_executive')
             ],
             [
                 Markup.button.callback('⬅️ Volver', 'admin_menu')
