@@ -114,8 +114,10 @@ class NotificationCommand extends BaseCommand {
                     let message = `📋 *Notificaciones de HOY (${i+1}/${totalChunks})*\n\n`;
 
                     chunk.forEach(notification => {
-                        const scheduledDate = new Date(notification.scheduledDate);
-                        const formattedTime = `${scheduledDate.getHours()}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
+                        // CRÍTICO: Usar moment-timezone para mostrar hora correcta en CDMX
+                        const moment = require('moment-timezone');
+                        const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                        const formattedTime = scheduledMoment.format('HH:mm');
                         
                         // Emoji según el estado
                         const statusEmoji = {
@@ -201,8 +203,10 @@ class NotificationCommand extends BaseCommand {
                 let message = `⏰ *Notificaciones para HOY (${todayNotifications.length})*\n\n`;
 
                 todayNotifications.forEach(notification => {
-                    const scheduledDate = new Date(notification.scheduledDate);
-                    const formattedTime = `${scheduledDate.getHours()}:${String(scheduledDate.getMinutes()).padStart(2, '0')}`;
+                    // CRÍTICO: Usar moment-timezone para mostrar hora correcta en CDMX
+                    const moment = require('moment-timezone');
+                    const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                    const formattedTime = scheduledMoment.format('HH:mm');
 
                     message += `🔹 *${formattedTime}* - ${notification.expedienteNum}\n`;
                     message += `📝 Póliza: ${notification.numeroPoliza}\n`;
