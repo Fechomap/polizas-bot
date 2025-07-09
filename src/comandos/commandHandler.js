@@ -182,7 +182,8 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 // Limpiar cualquier estado pendiente antes de volver al menú
-                this.clearChatState(ctx.chat.id);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(ctx.chat.id, threadId);
 
                 // CRÍTICO: Limpiar también estado administrativo para evitar interferencia
                 try {
@@ -346,7 +347,8 @@ class CommandHandler {
         this.bot.action('accion:registrar', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                this.clearChatState(ctx.chat.id);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(ctx.chat.id, threadId);
 
                 // Obtener la instancia de ExcelUploadHandler
                 const excelUploadCmd = this.registry.getCommand('excelUpload');
@@ -400,7 +402,8 @@ class CommandHandler {
                 }
 
                 // Limpiar otros estados
-                this.clearChatState(ctx.chat.id);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(ctx.chat.id, threadId);
 
                 await ctx.editMessageText('Registro cancelado.'); // Editar mensaje original
             } catch (error) {
@@ -414,8 +417,10 @@ class CommandHandler {
         this.bot.action('accion:addpayment', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                this.clearChatState(ctx.chat.id);
-                this.awaitingPaymentPolicyNumber.set(ctx.chat.id, true);
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(chatId, threadId);
+                this.awaitingPaymentPolicyNumber.set(chatId, true, threadId);
                 await ctx.reply('💰 Introduce el número de póliza para añadir el pago:');
             } catch (error) {
                 logger.error('Error en accion:addpayment:', error);
@@ -429,11 +434,11 @@ class CommandHandler {
             try {
                 await ctx.answerCbQuery();
                 const chatId = ctx.chat.id;
-                const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+                const threadId = StateKeyManager.getThreadId(ctx);
                 // this.clearChatState(chatId, threadId);
                 // Limpiar solo estados específicos que no necesitamos conservar
-                this.awaitingPaymentPolicyNumber.delete(chatId);
-                this.awaitingPaymentData.delete(chatId);
+                this.awaitingPaymentPolicyNumber.delete(chatId, threadId);
+                this.awaitingPaymentData.delete(chatId, threadId);
 
                 // Intentar cargar el contexto de flujo activo
                 const flowStateManager = require('../utils/FlowStateManager');
@@ -443,8 +448,8 @@ class CommandHandler {
                     logger.info(`Usando póliza activa del hilo: ${policyNumber}, thread: ${threadId || 'ninguno'}`);
                     const policy = await getPolicyByNumber(policyNumber);
                     if (policy) {
-                        this.awaitingServicePolicyNumber.delete(chatId);
-                        this.awaitingServiceData.set(chatId, policyNumber);
+                        this.awaitingServicePolicyNumber.delete(chatId, threadId);
+                        this.awaitingServiceData.set(chatId, policyNumber, threadId);
                         await ctx.reply(
                             `✅ Usando póliza activa *${policyNumber}* de este hilo.\n\n` +
                             '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
@@ -464,8 +469,8 @@ class CommandHandler {
                 if (global.pendingContactTime && global.pendingContactTime.chatId === chatId) {
                     const { numeroPoliza, time } = global.pendingContactTime;
                     global.pendingContactTime = null;
-                    this.awaitingServicePolicyNumber.delete(chatId);
-                    this.awaitingServiceData.set(chatId, numeroPoliza);
+                    this.awaitingServicePolicyNumber.delete(chatId, threadId);
+                    this.awaitingServiceData.set(chatId, numeroPoliza, threadId);
                     await ctx.reply(
                         `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
                         '🚗 *Ingresa la información del servicio (4 líneas):*\n' +
@@ -478,7 +483,7 @@ class CommandHandler {
                         { parse_mode: 'Markdown' }
                     );
                 } else {
-                    this.awaitingServicePolicyNumber.set(chatId, true);
+                    this.awaitingServicePolicyNumber.set(chatId, true, threadId);
                     await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
                 }
             } catch (error) {
@@ -492,8 +497,9 @@ class CommandHandler {
         this.bot.action('accion:upload', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                this.clearChatState(ctx.chat.id);
-                this.awaitingUploadPolicyNumber.set(ctx.chat.id, true);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(ctx.chat.id, threadId);
+                this.awaitingUploadPolicyNumber.set(ctx.chat.id, true, threadId);
                 await ctx.reply('📤 Introduce el número de póliza para subir archivos:');
             } catch (error) {
                 logger.error('Error en accion:upload:', error);
@@ -506,8 +512,9 @@ class CommandHandler {
         this.bot.action('accion:delete', async (ctx) => {
             try {
                 await ctx.answerCbQuery();
-                this.clearChatState(ctx.chat.id);
-                this.awaitingDeletePolicyNumber.set(ctx.chat.id, true);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(ctx.chat.id, threadId);
+                this.awaitingDeletePolicyNumber.set(ctx.chat.id, true, threadId);
                 await ctx.reply('🗑️ Introduce el número (o números separados por espacio/coma/línea) de la(s) póliza(s) a eliminar:');
             } catch (error) {
                 logger.error('Error en accion:delete:', error);
@@ -681,7 +688,7 @@ class CommandHandler {
             this.bot.action(pattern, async (ctx) => {
                 try {
                     // Asegurarse de limpiar el estado si un callback inicia un nuevo flujo
-                    // this.clearChatState(ctx.chat.id); // Quizás no aquí, depende del callback
+                    // this.clearChatState(ctx.chat.id, threadId); // Quizás no aquí, depende del callback
                     await handler(ctx);
                 } catch (error) {
                     logger.error(`Error en callback ${pattern}:`, error);
@@ -836,7 +843,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:registrar
     async handleSaveData(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
             const lines = messageText
                 .split('\n')
@@ -848,7 +855,7 @@ class CommandHandler {
             const EXPECTED_LINES = 19;
             if (lines.length < EXPECTED_LINES) {
                 // No limpiar estado aquí, permitir corrección o cancelación
-                // this.awaitingSaveData.delete(chatId);
+                // this.awaitingSaveData.delete(chatId, threadId);
                 await ctx.reply(
                     `❌ Los datos no están completos. Se requieren ${EXPECTED_LINES} líneas de información.\n` +
                     'Puedes corregir y reenviar la información, o cancelar.',
@@ -931,7 +938,7 @@ class CommandHandler {
             logger.info('✅ Póliza guardada:', { numeroPoliza: savedPolicy.numeroPoliza });
 
             // Limpiar el estado de espera
-            this.awaitingSaveData.delete(chatId);
+            this.awaitingSaveData.delete(chatId, threadId);
 
             await ctx.reply(
                 '✅ Póliza guardada exitosamente:\n' +
@@ -956,7 +963,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:delete (recibe N° póliza)
     async handleDeletePolicyFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
             // Procesar la entrada del usuario para extraer múltiples números de póliza
             // Aceptamos números separados por saltos de línea, comas o espacios
@@ -1006,7 +1013,7 @@ class CommandHandler {
                     `${encontradas.length > 0 ? 'Se procederá con las encontradas.' : 'Ninguna póliza válida para eliminar. Proceso cancelado.'}`
                 );
                 if (encontradas.length === 0) {
-                    this.awaitingDeletePolicyNumber.delete(chatId); // Cancelar si ninguna es válida
+                    this.awaitingDeletePolicyNumber.delete(chatId, threadId); // Cancelar si ninguna es válida
                     return;
                 }
             }
@@ -1034,17 +1041,17 @@ class CommandHandler {
             );
 
             // Guardamos los números de póliza VÁLIDOS para usarlos cuando recibamos el motivo
-            this.awaitingDeleteReason = this.awaitingDeleteReason || new Map();
-            this.awaitingDeleteReason.set(chatId, encontradas); // Guardar solo las válidas
+            this.awaitingDeleteReason = this.awaitingDeleteReason || StateKeyManager.createThreadSafeStateMap();
+            this.awaitingDeleteReason.set(chatId, encontradas, threadId); // Guardar solo las válidas
 
             // Limpiamos el estado de espera del número de póliza
-            this.awaitingDeletePolicyNumber.delete(chatId);
+            this.awaitingDeletePolicyNumber.delete(chatId, threadId);
         } catch (error) {
             logger.error('Error en handleDeletePolicyFlow:', error);
             await ctx.reply('❌ Hubo un error al procesar la solicitud. Intenta nuevamente.');
             // Limpiar estados en caso de error inesperado
-            this.awaitingDeletePolicyNumber.delete(chatId);
-            if (this.awaitingDeleteReason) this.awaitingDeleteReason.delete(chatId);
+            this.awaitingDeletePolicyNumber.delete(chatId, threadId);
+            if (this.awaitingDeleteReason) this.awaitingDeleteReason.delete(chatId, threadId);
         }
     }
 
@@ -1052,7 +1059,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:addpayment (recibe N° póliza)
     async handleAddPaymentPolicyNumber(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
             const numeroPoliza = messageText.trim().toUpperCase();
 
@@ -1063,7 +1070,7 @@ class CommandHandler {
                 // No limpiar estado, permitir reintento
             } else {
                 // Guardamos la póliza en un Map, junto al chatId
-                this.awaitingPaymentData.set(chatId, numeroPoliza);
+                this.awaitingPaymentData.set(chatId, numeroPoliza, threadId);
 
                 // Indicamos qué datos requerimos
                 await ctx.reply(
@@ -1076,23 +1083,23 @@ class CommandHandler {
                     { parse_mode: 'Markdown' }
                 );
                 // Ya no esperamos la póliza, ahora esperamos los datos
-                this.awaitingPaymentPolicyNumber.delete(chatId);
+                this.awaitingPaymentPolicyNumber.delete(chatId, threadId);
             }
         } catch (error) {
             logger.error('Error en handleAddPaymentPolicyNumber:', error);
             await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
             // Limpiar ambos estados en caso de error
-            this.awaitingPaymentPolicyNumber.delete(chatId);
-            this.awaitingPaymentData.delete(chatId);
+            this.awaitingPaymentPolicyNumber.delete(chatId, threadId);
+            this.awaitingPaymentData.delete(chatId, threadId);
         }
     }
 
     // Manejo del flujo INICIADO por accion:addpayment (recibe datos de pago)
     async handlePaymentData(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
-            const numeroPoliza = this.awaitingPaymentData.get(chatId);
+            const numeroPoliza = this.awaitingPaymentData.get(chatId, threadId);
             if (!numeroPoliza) {
                 // El estado se perdió, guiar al usuario
                 logger.warn(`Se recibieron datos de pago sin una póliza en espera para chatId: ${chatId}`);
@@ -1141,7 +1148,7 @@ class CommandHandler {
                 }
             );
             // Limpiar el estado al finalizar correctamente
-            this.awaitingPaymentData.delete(chatId);
+            this.awaitingPaymentData.delete(chatId, threadId);
         } catch (error) {
             logger.error('Error en handlePaymentData:', error);
             await ctx.reply('❌ Error al procesar el pago. Verifica los datos e intenta nuevamente.');
@@ -1235,7 +1242,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:addservice (recibe N° póliza)
     async handleAddServicePolicyNumber(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || null;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
             const flowStateManager = require('../utils/FlowStateManager');
             const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
@@ -1258,7 +1265,7 @@ class CommandHandler {
                         numeroPoliza: policyNumber,
                         origenDestino: origenDestino,
                         usarFechaActual: true
-                    });
+                    }, threadId);
 
                     // Si tenemos origen/destino, pedimos solo 2 datos
                     if (origenDestino) {
@@ -1287,7 +1294,7 @@ class CommandHandler {
                         );
                     }
 
-                    this.awaitingServicePolicyNumber.delete(chatId);
+                    this.awaitingServicePolicyNumber.delete(chatId, threadId);
                     return;
                 }
             }
@@ -1300,7 +1307,7 @@ class CommandHandler {
                 // No limpiar estado
             } else {
                 // Guardamos en un Map la póliza destino
-                this.awaitingServiceData.set(chatId, numeroPoliza);
+                this.awaitingServiceData.set(chatId, numeroPoliza, threadId);
                 // Pedimos los 4 datos en 4 líneas
                 await ctx.reply(
                     `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
@@ -1314,24 +1321,24 @@ class CommandHandler {
                     { parse_mode: 'Markdown' }
                 );
                 // Ya no esperamos la póliza, ahora esperamos los datos
-                this.awaitingServicePolicyNumber.delete(chatId);
+                this.awaitingServicePolicyNumber.delete(chatId, threadId);
             }
         } catch (error) {
             logger.error('Error en handleAddServicePolicyNumber:', error);
             await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
             // Limpiar ambos estados en caso de error
-            this.awaitingServicePolicyNumber.delete(chatId);
-            this.awaitingServiceData.delete(chatId);
+            this.awaitingServicePolicyNumber.delete(chatId, threadId);
+            this.awaitingServiceData.delete(chatId, threadId);
         }
     }
 
     // Manejo del flujo INICIADO por accion:addservice (recibe datos del servicio)
     async handleServiceData(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
             // Obtener la data guardada (puede ser string o objeto)
-            const policyData = this.awaitingServiceData.get(chatId);
+            const policyData = this.awaitingServiceData.get(chatId, threadId);
 
             if (!policyData) {
                 logger.warn(`Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`);
@@ -1487,7 +1494,7 @@ class CommandHandler {
             // ...
 
             // Limpiar el estado al finalizar correctamente
-            this.awaitingServiceData.delete(chatId);
+            this.awaitingServiceData.delete(chatId, threadId);
 
             // También limpiar el estado de espera de hora de contacto en OcuparPolizaCallback
             const ocuparPolizaCmd = this.registry.getCommand('ocuparPoliza');
@@ -1512,7 +1519,7 @@ class CommandHandler {
     // Manejo del flujo INICIADO por accion:upload (recibe N° póliza)
     async handleUploadFlow(ctx, messageText) {
         const chatId = ctx.chat.id;
-        const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+        const threadId = StateKeyManager.getThreadId(ctx);
         try {
             // Removed duplicate chatId assignment.
             const numeroPoliza = messageText.trim().toUpperCase();
@@ -1527,7 +1534,7 @@ class CommandHandler {
             }
 
             // Guardamos en un Map qué póliza está usando este chat
-            this.uploadTargets.set(chatId, numeroPoliza);
+            this.uploadTargets.set(chatId, numeroPoliza, threadId);
 
             // Avisamos al usuario que puede subir los archivos
             await ctx.reply(
@@ -1543,13 +1550,13 @@ class CommandHandler {
                 }
             );
             // Ya no esperamos el número de póliza, ahora esperamos archivos
-            this.awaitingUploadPolicyNumber.delete(chatId);
+            this.awaitingUploadPolicyNumber.delete(chatId, threadId);
         } catch (error) {
             logger.error('Error en handleUploadFlow:', error);
             await ctx.reply('❌ Error al procesar el número de póliza. Intenta nuevamente.');
             // Limpiar ambos estados en caso de error
-            this.awaitingUploadPolicyNumber.delete(chatId);
-            this.uploadTargets.delete(chatId);
+            this.awaitingUploadPolicyNumber.delete(chatId, threadId);
+            this.uploadTargets.delete(chatId, threadId);
         }
     }
 

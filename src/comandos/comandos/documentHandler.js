@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const { getPolicyByNumber } = require('../controllers/policyController');
 const XLSX = require('xlsx');
 const { Markup } = require('telegraf');
+const StateKeyManager = require('../utils/StateKeyManager');
 
 /**
  * Clase para manejar todos los documentos (PDFs y Excel) en un solo lugar
@@ -52,7 +53,8 @@ class DocumentHandler {
                 }
 
                 // PASO 2: Verificar si estamos esperando un PDF para una póliza
-                const numeroPoliza = this.handler.uploadTargets.get(chatId);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                const numeroPoliza = this.handler.uploadTargets.get(chatId, threadId);
                 if (numeroPoliza) {
                     logger.info(`Decidiendo procesar como PDF para póliza ${numeroPoliza}`, { chatId });
 
@@ -111,7 +113,8 @@ class DocumentHandler {
             this.excelUploadHandler.awaitingExcelUpload.delete(chatId);
 
             // Limpiar otros estados posibles
-            this.handler.clearChatState(chatId);
+            const threadId = StateKeyManager.getThreadId(ctx);
+            this.handler.clearChatState(chatId, threadId);
 
             // Mostrar botón para volver al menú
             await ctx.reply('Selecciona una opción:',
@@ -126,8 +129,9 @@ class DocumentHandler {
             await ctx.reply('❌ Error al procesar el archivo Excel. Detalles: ' + error.message);
 
             // Limpiar estado en caso de error
+            const threadId = StateKeyManager.getThreadId(ctx);
             this.excelUploadHandler.awaitingExcelUpload.delete(chatId);
-            this.handler.clearChatState(chatId);
+            this.handler.clearChatState(chatId, threadId);
         }
     }
 
@@ -171,7 +175,8 @@ class DocumentHandler {
             logger.error('Error al procesar PDF:', error);
             await ctx.reply('❌ Error al procesar el documento PDF.');
             // Considerar limpiar estado en error
-            this.handler.uploadTargets.delete(ctx.chat.id);
+            const threadId = StateKeyManager.getThreadId(ctx);
+            this.handler.uploadTargets.delete(ctx.chat.id, threadId);
         }
     }
 

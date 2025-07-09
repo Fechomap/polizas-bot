@@ -26,7 +26,7 @@ class TextMessageHandler extends BaseCommand {
         this.bot.on('location', async (ctx) => {
             try {
                 const chatId = ctx.chat.id;
-                const threadId = ctx.message?.message_thread_id || null;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
                 this.logInfo('Procesando ubicación compartida de Telegram', {
                     chatId,
@@ -81,7 +81,7 @@ class TextMessageHandler extends BaseCommand {
             }
             try {
                 const chatId = ctx.chat.id;
-                const threadId = ctx.message?.message_thread_id || null;
+                const threadId = StateKeyManager.getThreadId(ctx);
                 const messageText = ctx.message.text.trim();
 
                 // Log para depuración
@@ -99,7 +99,7 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingSaveData');
                 // 1) If we're in /save flow
-                if (this.handler.awaitingSaveData.get(chatId)) {
+                if (this.handler.awaitingSaveData.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingSaveData activo. Llamando a handleSaveData.'); // Log añadido
                     await this.handler.handleSaveData(ctx, messageText);
                     return;
@@ -129,7 +129,7 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingUploadPolicyNumber');
                 // 3) If we're waiting for a policy number for /upload
-                if (this.handler.awaitingUploadPolicyNumber.get(chatId)) {
+                if (this.handler.awaitingUploadPolicyNumber.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingUploadPolicyNumber activo. Llamando a handleUploadFlow.'); // Log añadido
                     await this.handler.handleUploadFlow(ctx, messageText);
                     return;
@@ -138,7 +138,7 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingDeletePolicyNumber');
                 // 4) If we're waiting for a policy number for /delete
-                if (this.handler.awaitingDeletePolicyNumber.get(chatId)) {
+                if (this.handler.awaitingDeletePolicyNumber.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingDeletePolicyNumber activo. Llamando a handleDeletePolicyFlow.'); // Log añadido
                     await this.handler.handleDeletePolicyFlow(ctx, messageText);
                     return;
@@ -147,7 +147,7 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingPaymentPolicyNumber');
                 // 5) If we're waiting for a policy number for /addpayment
-                if (this.handler.awaitingPaymentPolicyNumber.get(chatId)) {
+                if (this.handler.awaitingPaymentPolicyNumber.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingPaymentPolicyNumber activo. Llamando a handleAddPaymentPolicyNumber.'); // Log añadido
                     await this.handler.handleAddPaymentPolicyNumber(ctx, messageText);
                     return;
@@ -156,7 +156,7 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingPaymentData');
                 // 6) If we're waiting for payment data (amount/date) for /addpayment
-                if (this.handler.awaitingPaymentData.get(chatId)) {
+                if (this.handler.awaitingPaymentData.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingPaymentData activo. Llamando a handlePaymentData.'); // Log añadido
                     await this.handler.handlePaymentData(ctx, messageText);
                     return;
@@ -209,7 +209,7 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingServicePolicyNumber');
                 // 7) Waiting for a policy number for /addservice
-                if (this.handler.awaitingServicePolicyNumber.get(chatId)) {
+                if (this.handler.awaitingServicePolicyNumber.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingServicePolicyNumber activo. Llamando a handleAddServicePolicyNumber.'); // Log añadido
                     await this.handler.handleAddServicePolicyNumber(ctx, messageText);
                     return;
@@ -436,9 +436,9 @@ class TextMessageHandler extends BaseCommand {
                 // --- LOGGING AÑADIDO ---
                 this.logInfo('[TextMsgHandler] Verificando estado: awaitingDeleteReason');
                 // Handle delete reason
-                if (this.handler.awaitingDeleteReason && this.handler.awaitingDeleteReason.get(chatId)) {
+                if (this.handler.awaitingDeleteReason && this.handler.awaitingDeleteReason.get(chatId, threadId)) {
                     this.logInfo('[TextMsgHandler] Estado awaitingDeleteReason activo. Procesando motivo.'); // Log añadido
-                    const numeroPolizas = this.handler.awaitingDeleteReason.get(chatId);
+                    const numeroPolizas = this.handler.awaitingDeleteReason.get(chatId, threadId);
                     const motivo = messageText.trim() === 'ninguno' ? '' : messageText.trim();
 
                     try {
@@ -544,7 +544,7 @@ class TextMessageHandler extends BaseCommand {
                         ]));
                     } finally {
                         // Clean up the waiting state
-                        this.handler.awaitingDeleteReason.delete(chatId); // Clean state regardless of success/error
+                        this.handler.awaitingDeleteReason.delete(chatId, threadId); // Clean state regardless of success/error
                     }
                     return;
                 }

@@ -2,10 +2,11 @@
 const { Markup } = require('telegraf');
 const { addRegistroToPolicy } = require('../controllers/policyController');
 const logger = require('../utils/logger');
+const StateKeyManager = require('../utils/StateKeyManager');
 
 async function handleServiceData(ctx, messageText) {
     const chatId = ctx.chat.id;
-    const threadId = ctx.message?.message_thread_id || ctx.callbackQuery?.message?.message_thread_id;
+    const threadId = StateKeyManager.getThreadId(ctx);
     try {
         // Obtener la data guardada (puede ser string o objeto)
         const policyData = this.awaitingServiceData.get(chatId, threadId);

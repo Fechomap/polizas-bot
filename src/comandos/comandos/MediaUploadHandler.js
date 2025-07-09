@@ -3,6 +3,7 @@ const BaseCommand = require('./BaseCommand');
 const fetch = require('node-fetch');
 const { getPolicyByNumber } = require('../../controllers/policyController');
 const { getInstance } = require('../../services/CloudflareStorage');
+const StateKeyManager = require('../../utils/StateKeyManager');
 
 class MediaUploadHandler extends BaseCommand {
     constructor(handler) {
@@ -27,7 +28,8 @@ class MediaUploadHandler extends BaseCommand {
         this.bot.on('photo', async (ctx) => {
             try {
                 const chatId = ctx.chat.id;
-                const numeroPoliza = this.uploadTargets.get(chatId);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                const numeroPoliza = this.uploadTargets.get(chatId, threadId);
 
                 if (!numeroPoliza) {
                     // Guide user to the button flow if state is missing
@@ -83,12 +85,13 @@ class MediaUploadHandler extends BaseCommand {
                 await ctx.reply('✅ Foto guardada correctamente en almacenamiento seguro.');
                 this.logInfo('Foto guardada', { numeroPoliza });
                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
-                // this.uploadTargets.delete(ctx.chat.id);
+                // this.uploadTargets.delete(ctx.chat.id, threadId);
             } catch (error) {
                 this.logError('Error al procesar foto:', error);
                 await ctx.reply('❌ Error al procesar la foto.');
                 // Considerar limpiar estado en error
-                this.uploadTargets.delete(ctx.chat.id);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.uploadTargets.delete(ctx.chat.id, threadId);
             }
         });
 
@@ -106,7 +109,8 @@ class MediaUploadHandler extends BaseCommand {
                     return next(); // Call next() to pass control
                 }
 
-                const numeroPoliza = this.uploadTargets.get(chatId);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                const numeroPoliza = this.uploadTargets.get(chatId, threadId);
 
                 if (!numeroPoliza) {
                     return await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
@@ -162,12 +166,13 @@ class MediaUploadHandler extends BaseCommand {
                 await ctx.reply('✅ PDF guardado correctamente en almacenamiento seguro.');
                 this.logInfo('PDF guardado', { numeroPoliza });
                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
-                // this.uploadTargets.delete(ctx.chat.id);
+                // this.uploadTargets.delete(ctx.chat.id, threadId);
             } catch (error) {
                 this.logError('Error al procesar documento:', error);
                 await ctx.reply('❌ Error al procesar el documento.');
                 // Considerar limpiar estado en error
-                this.uploadTargets.delete(ctx.chat.id);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.uploadTargets.delete(ctx.chat.id, threadId);
             }
         });
     }

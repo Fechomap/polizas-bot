@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const { savePolicy, DuplicatePolicyError, savePoliciesBatch } = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
 const logger = require('../../utils/logger');
+const StateKeyManager = require('../../utils/StateKeyManager');
 
 class ExcelUploadHandler extends BaseCommand {
     constructor(handler) {
@@ -80,7 +81,8 @@ class ExcelUploadHandler extends BaseCommand {
                 this.awaitingExcelUpload.delete(chatId);
 
                 // Limpiar otros estados posibles
-                this.handler.clearChatState(chatId);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.handler.clearChatState(chatId, threadId);
 
                 // Mostrar botón para volver al menú
                 await ctx.reply('Selecciona una opción:',
@@ -93,8 +95,9 @@ class ExcelUploadHandler extends BaseCommand {
                 this.logError('Excel: Error general al procesar documento Excel:', error);
                 await ctx.reply('❌ Error al procesar el archivo Excel. Por favor, inténtalo nuevamente.');
                 // Limpiar estado en caso de error
+                const threadId = StateKeyManager.getThreadId(ctx);
                 this.awaitingExcelUpload.delete(ctx.chat.id);
-                this.handler.clearChatState(ctx.chat.id);
+                this.handler.clearChatState(ctx.chat.id, threadId);
             }
         });
     }
