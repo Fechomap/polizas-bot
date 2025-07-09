@@ -38,7 +38,7 @@ class NotificationManager {
                 ]).catch(err => {
                     logger.error('Error en job de recuperación de notificaciones:', err);
                 });
-            }, 1 * 60 * 1000); // Cada 1 minuto para mayor precisión
+            }, 5 * 60 * 1000); // Cada 5 minutos - PARCHE EMERGENCIA anti-duplicados
 
             this.isInitialized = true;
             logger.info('✅ NotificationManager inicializado correctamente');
@@ -50,31 +50,38 @@ class NotificationManager {
 
     /**
      * Carga notificaciones pendientes desde MongoDB
+     * PARCHE EMERGENCIA: Recuperación inteligente con control de duplicados
      */
     async loadPendingNotifications() {
         try {
             // Usar momento para la comparación con zona horaria correcta
             const nowCDMX = moment().tz('America/Mexico_City').toDate();
+            const fiveMinutesAgo = new Date(nowCDMX.getTime() - 5 * 60 * 1000);
 
-            // Obtener notificaciones PENDING cuyo tiempo programado sea en el futuro
+            // PARCHE EMERGENCIA: Solo recuperar notificaciones que no se han intentado recuperar recientemente
             const pendingNotifications = await ScheduledNotification.find({
                 status: 'PENDING',
-                scheduledDate: { $gt: nowCDMX }
+                scheduledDate: { $gt: nowCDMX },
+                // Evitar reprocesamiento frecuente
+                $or: [
+                    { lastScheduledAt: { $exists: false } },
+                    { lastScheduledAt: { $lt: fiveMinutesAgo } }
+                ]
             }).sort({ scheduledDate: 1 });
 
             if (pendingNotifications.length === 0) {
-                logger.info('No hay notificaciones pendientes para programar');
+                logger.info('[RECOVERY] No hay notificaciones pendientes para programar');
                 return;
             }
 
-            logger.info(`Cargando ${pendingNotifications.length} notificaciones pendientes`);
+            logger.info(`[RECOVERY] Cargando ${pendingNotifications.length} notificaciones pendientes (filtradas por tiempo)`);
 
             // Programar cada notificación
             for (const notification of pendingNotifications) {
                 await this.scheduleExistingNotification(notification);
             }
 
-            logger.info('✅ Notificaciones pendientes cargadas exitosamente');
+            logger.info('✅ [RECOVERY] Notificaciones pendientes cargadas exitosamente');
         } catch (error) {
             logger.error('Error al cargar notificaciones pendientes:', error);
             throw error;
@@ -88,8 +95,31 @@ class NotificationManager {
     async scheduleExistingNotification(notification) {
         try {
             const notificationId = notification._id.toString();
+            
+            // PARCHE EMERGENCIA: Logs detallados para debugging
+            logger.info(`[SCHEDULE_CHECK] Intentando programar ${notificationId}`, {
+                numeroPoliza: notification.numeroPoliza,
+                expediente: notification.expedienteNum,
+                tipo: notification.tipoNotificacion,
+                hasTimer: this.activeTimers.has(notificationId),
+                currentStatus: notification.status
+            });
+            
+            // Validación estricta de timer activo
             if (this.activeTimers.has(notificationId)) {
-                logger.info(`Notificación ${notificationId} ya tiene un timer programado, omitiendo`);
+                logger.warn(`[DUPLICATE_PREVENTED] ${notificationId} ya tiene timer activo`);
+                return;
+            }
+            
+            // Verificar estado actual en BD para prevenir race conditions
+            const currentNotification = await ScheduledNotification.findById(notificationId);
+            if (!currentNotification) {
+                logger.warn(`[INVALID_STATE] ${notificationId} no encontrada en BD`);
+                return;
+            }
+            
+            if (currentNotification.status !== 'PENDING') {
+                logger.warn(`[INVALID_STATE] ${notificationId} no está PENDING: ${currentNotification.status}`);
                 return;
             }
             // Usar momento para manejar zonas horarias correctamente
@@ -299,21 +329,26 @@ class NotificationManager {
      * @param {string} notificationId - ID de la notificación
      */
     async sendNotification(notificationId) {
-        // Limpiar el timer de la lista
-        this.activeTimers.delete(notificationId);
-
         let notification = null;
         try {
-            // Bloqueo atómico: marcar como PROCESSING para evitar envíos simultáneos
+            // PARCHE EMERGENCIA: Verificar estado ANTES de limpiar timer
             notification = await ScheduledNotification.findOneAndUpdate(
                 { _id: notificationId, status: 'PENDING' },
                 { status: 'PROCESSING' },
                 { new: true }
             );
+            
             if (!notification) {
-                logger.warn(`Notificación ${notificationId} no encontrada o no está PENDING`);
+                logger.warn(`[SEND_BLOCKED] ${notificationId} no encontrada o no está PENDING`);
+                // Limpiar timer solo si no se puede procesar
+                this.activeTimers.delete(notificationId);
                 return;
             }
+            
+            // Ahora sí limpiar el timer después de confirmar que se puede procesar
+            this.activeTimers.delete(notificationId);
+            
+            logger.info(`[SEND_START] Enviando notificación ${notificationId}`);
 
             // Construir el mensaje según el tipo de notificación
             let message = '';
