@@ -644,6 +644,36 @@ class AdminModule {
             }
         });
 
+        // Callback para limpieza automática (resumen previo)
+        this.bot.action('admin_database_autocleanup', adminAuth.requireAdmin, async ctx => {
+            try {
+                await this.handlers.scripts.handleAutoCleanup(ctx);
+            } catch (error) {
+                logger.error('Error en limpieza automática:', error);
+                await ctx.answerCbQuery('Error en limpieza automática', { show_alert: true });
+            }
+        });
+
+        // Callback para confirmar limpieza automática
+        this.bot.action('admin_autocleanup_confirm', adminAuth.requireAdmin, async ctx => {
+            try {
+                await this.handlers.scripts.executeAutoCleanupConfirmed(ctx);
+            } catch (error) {
+                logger.error('Error al ejecutar limpieza confirmada:', error);
+                await ctx.answerCbQuery('Error al ejecutar limpieza', { show_alert: true });
+            }
+        });
+
+        // Callback para cancelar limpieza automática
+        this.bot.action('admin_autocleanup_cancel', adminAuth.requireAdmin, async ctx => {
+            try {
+                await this.handlers.scripts.cancelAutoCleanup(ctx);
+            } catch (error) {
+                logger.error('Error al cancelar limpieza:', error);
+                await ctx.answerCbQuery('Error al cancelar', { show_alert: true });
+            }
+        });
+
         // Callbacks para submenús
         this.bot.action(/^admin_(.+)$/, adminAuth.requireAdmin, async ctx => {
             const action = ctx.match[1];

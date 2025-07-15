@@ -151,18 +151,20 @@ _Reportes en PDF con gráficas y tablas listos para imprimir._
 💾 *GESTIÓN BASE DE DATOS*
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Exportación de datos:
+Exportación y limpieza de datos:
 
 📊 *Exportar Excel* - Descarga completa de pólizas
-_Estados actualizados automáticamente a las 3:00 AM_
+🧹 *Limpieza Automática* - Eliminar pólizas con ≥2 servicios
 
 🤖 *Sistema automático*:
 • Cálculo diario: 3:00 AM
+• Limpieza pólizas: 3:30 AM
 • Limpieza semanal: Domingos 4:00 AM
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('📊 Exportar Excel', 'admin_database_export')],
+            [Markup.button.callback('🧹 Limpieza Automática', 'admin_database_autocleanup')],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 

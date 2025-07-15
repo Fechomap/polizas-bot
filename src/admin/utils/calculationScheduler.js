@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const logger = require('../../utils/logger');
+const AutoCleanupService = require('../../services/AutoCleanupService');
 
 class CalculationScheduler {
     constructor(bot) {
@@ -10,6 +11,7 @@ class CalculationScheduler {
         this.scriptsPath = path.join(__dirname, '../../../scripts');
         this.adminChatId = process.env.ADMIN_CHAT_ID; // ID del chat admin para notificaciones
         this.jobs = new Map();
+        this.autoCleanupService = new AutoCleanupService();
     }
 
     /**
@@ -20,6 +22,9 @@ class CalculationScheduler {
 
         // Cálculo de estados diario a las 3:00 AM
         this.scheduleDailyCalculation();
+
+        // Limpieza automática de pólizas a las 3:30 AM
+        this.scheduleAutoCleanup();
 
         // Limpieza semanal domingos a las 4:00 AM
         this.scheduleWeeklyCleanup();
@@ -46,6 +51,27 @@ class CalculationScheduler {
 
         this.jobs.set('dailyCalculation', dailyCalculationJob);
         logger.info('📅 Cálculo de estados programado para las 3:00 AM');
+    }
+
+    /**
+     * Programa limpieza automática de pólizas a las 3:30 AM
+     */
+    scheduleAutoCleanup() {
+        // Ejecutar todos los días a las 3:30 AM (30 min después del cálculo de estados)
+        const autoCleanupJob = cron.schedule(
+            '30 3 * * *',
+            async () => {
+                logger.info('🧹 Iniciando limpieza automática de pólizas');
+                await this.executeAutoCleanup();
+            },
+            {
+                scheduled: true,
+                timezone: 'America/Mexico_City'
+            }
+        );
+
+        this.jobs.set('autoCleanup', autoCleanupJob);
+        logger.info('📅 Limpieza automática de pólizas programada para las 3:30 AM');
     }
 
     /**
@@ -162,6 +188,134 @@ class CalculationScheduler {
     }
 
     /**
+     * Ejecuta limpieza automática de pólizas
+     */
+    async executeAutoCleanup() {
+        const startTime = Date.now();
+
+        try {
+            // Notificar inicio
+            if (this.adminChatId) {
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    '🧹 *Limpieza Automática de Pólizas*\\n\\n⏳ Iniciando eliminación automática...',
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+
+            // Ejecutar limpieza automática
+            const result = await this.autoCleanupService.executeAutoCleanup();
+
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+            if (result.success) {
+                // Formatear mensaje de éxito
+                let successMessage = '✅ *Limpieza Automática Completada*\\n\\n';
+                successMessage += `⏱️ Tiempo: ${elapsed}s\\n`;
+                successMessage += `🗑️ Pólizas eliminadas automáticamente: ${result.stats.automaticDeletions}\\n`;
+                successMessage += `⚠️ Pólizas vencidas encontradas: ${result.stats.expiredPoliciesFound}\\n`;
+
+                if (result.stats.errors > 0) {
+                    successMessage += `❌ Errores: ${result.stats.errors}\\n`;
+                }
+
+                // Enviar reporte de pólizas vencidas si las hay
+                if (result.expiredPolicies.length > 0) {
+                    successMessage += '\\n📋 Reporte de pólizas vencidas enviado por separado';
+
+                    // Enviar reporte detallado de pólizas vencidas
+                    await this.sendExpiredPoliciesReport(result.expiredPolicies);
+                }
+
+                if (this.adminChatId) {
+                    await this.bot.telegram.sendMessage(this.adminChatId, successMessage, {
+                        parse_mode: 'MarkdownV2'
+                    });
+                }
+
+                logger.info(`✅ Limpieza automática completada en ${elapsed}s`, result.stats);
+            } else {
+                // Error en la limpieza
+                if (this.adminChatId) {
+                    await this.bot.telegram.sendMessage(
+                        this.adminChatId,
+                        `❌ *Error en Limpieza Automática*\\n\\n🔥 ${result.error}\\n\\n📋 Revisar logs para más detalles`,
+                        { parse_mode: 'MarkdownV2' }
+                    );
+                }
+            }
+        } catch (error) {
+            logger.error('❌ Error en limpieza automática:', error);
+
+            if (this.adminChatId) {
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    `❌ *Error Crítico en Limpieza Automática*\\n\\n🔥 ${error.message}\\n\\n📋 Revisar logs inmediatamente`,
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+        }
+    }
+
+    /**
+     * Envía reporte detallado de pólizas vencidas para revisión manual
+     */
+    async sendExpiredPoliciesReport(expiredPolicies) {
+        if (!this.adminChatId || expiredPolicies.length === 0) {
+            return;
+        }
+
+        try {
+            // Mensaje de cabecera
+            let reportMessage = '📋 *REPORTE PÓLIZAS VENCIDAS*\\n';
+            reportMessage += '*Para Revisión Manual*\\n\\n';
+            reportMessage += `Total encontradas: ${expiredPolicies.length}\\n\\n`;
+
+            // Dividir en grupos de 10 para evitar mensajes muy largos
+            const POLICIES_PER_MESSAGE = 10;
+
+            for (let i = 0; i < expiredPolicies.length; i += POLICIES_PER_MESSAGE) {
+                const chunk = expiredPolicies.slice(i, i + POLICIES_PER_MESSAGE);
+
+                let chunkMessage = '';
+                if (i === 0) {
+                    chunkMessage = reportMessage;
+                }
+
+                chunk.forEach((poliza, index) => {
+                    const num = i + index + 1;
+                    chunkMessage += `${num}\\. *${poliza.numeroPoliza}*\\n`;
+                    chunkMessage += `   Titular: ${poliza.titular}\\n`;
+                    chunkMessage += `   Aseguradora: ${poliza.aseguradora}\\n`;
+                    chunkMessage += `   Servicios: ${poliza.servicios}\\n`;
+                    chunkMessage += `   Días transcurridos: ${poliza.diasVencida}\\n\\n`;
+                });
+
+                await this.bot.telegram.sendMessage(this.adminChatId, chunkMessage, {
+                    parse_mode: 'MarkdownV2'
+                });
+
+                // Pausa entre mensajes para evitar flood
+                if (i + POLICIES_PER_MESSAGE < expiredPolicies.length) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+
+            // Mensaje final con instrucciones
+            const instructionsMessage =
+                '💡 *Instrucciones:*\\n\\n' +
+                'Estas pólizas tienen estado VENCIDA y requieren revisión manual\\. ' +
+                'Usa el panel de administración para eliminarlas una por una o en lotes si corresponde\\.';
+
+            await this.bot.telegram.sendMessage(this.adminChatId, instructionsMessage, {
+                parse_mode: 'MarkdownV2'
+            });
+        } catch (error) {
+            logger.error('❌ Error enviando reporte de pólizas vencidas:', error);
+        }
+    }
+
+    /**
      * Ejecuta un script y devuelve el resultado
      */
     async executeScript(scriptName) {
@@ -259,6 +413,14 @@ class CalculationScheduler {
     async executeManualCalculation() {
         logger.info('🔄 Ejecutando cálculo manual');
         await this.executeDailyCalculation();
+    }
+
+    /**
+     * Ejecuta limpieza automática manual
+     */
+    async executeManualAutoCleanup() {
+        logger.info('🧹 Ejecutando limpieza automática manual');
+        await this.executeAutoCleanup();
     }
 }
 
