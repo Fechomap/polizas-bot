@@ -20,28 +20,28 @@ class PolicyHandler {
     }
 
     /**
-   * Maneja las acciones relacionadas con pólizas
-   */
+     * Maneja las acciones relacionadas con pólizas
+     */
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-            case 'menu':
-                return await AdminMenu.showPolicyMenu(ctx);
+                case 'menu':
+                    return await AdminMenu.showPolicyMenu(ctx);
 
-            case 'edit':
-                return await this.handlePolicyEdit(ctx);
+                case 'edit':
+                    return await this.handlePolicyEdit(ctx);
 
-            case 'delete':
-                return await this.handlePolicyDelete(ctx);
+                case 'delete':
+                    return await this.handlePolicyDelete(ctx);
 
-            case 'restore':
-                return await this.handlePolicyRestore(ctx);
+                case 'restore':
+                    return await this.handlePolicyRestore(ctx);
 
-            case 'stats':
-                return await this.handleStats(ctx);
+                case 'stats':
+                    return await this.handleStats(ctx);
 
-            default:
-                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+                default:
+                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en PolicyHandler:', error);
@@ -55,11 +55,7 @@ class PolicyHandler {
     static async handlePolicyEdit(ctx) {
         try {
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            AdminStateManager.createAdminState(
-                ctx.from.id,
-                ctx.chat.id,
-                'policy_search_for_edit'
-            );
+            AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'policy_search_for_edit');
 
             const searchText = `
 🔍 *BUSCAR PÓLIZA PARA EDITAR*
@@ -86,7 +82,6 @@ _El sistema buscará automáticamente y mostrará las coincidencias._
             await AuditLogger.log(ctx, 'policy_search_initiated', 'policy', {
                 operation: 'search_for_edit'
             });
-
         } catch (error) {
             logger.error('Error al iniciar búsqueda de póliza:', error);
             await ctx.reply('❌ Error al iniciar la búsqueda. Intenta nuevamente.');
@@ -99,22 +94,27 @@ _El sistema buscará automáticamente y mostrará las coincidencias._
     static async handlePolicySearch(ctx, searchTerm) {
         try {
             // Detectar si hay múltiples términos (separados por saltos de línea)
-            const terms = searchTerm.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+            const terms = searchTerm
+                .split('\n')
+                .map(t => t.trim())
+                .filter(t => t.length > 0);
 
             let searchResults = [];
             const processedTerms = [];
 
             if (terms.length > 1) {
                 // Búsqueda múltiple - NUEVA FUNCIONALIDAD MASIVA
-                for (const term of terms.slice(0, 10)) { // Máximo 10 términos para eliminación masiva
+                for (const term of terms.slice(0, 10)) {
+                    // Máximo 10 términos para eliminación masiva
                     const results = await this.searchPolicies(term);
                     searchResults.push(...results);
                     processedTerms.push(term);
                 }
 
                 // Eliminar duplicados por _id
-                const uniqueResults = searchResults.filter((policy, index, self) =>
-                    index === self.findIndex(p => p._id.toString() === policy._id.toString())
+                const uniqueResults = searchResults.filter(
+                    (policy, index, self) =>
+                        index === self.findIndex(p => p._id.toString() === policy._id.toString())
                 );
                 searchResults = uniqueResults;
 
@@ -126,7 +126,7 @@ _El sistema buscará automáticamente y mostrará las coincidencias._
 No se encontraron pólizas con ninguno de los ${terms.length} términos buscados.
 
 **Términos buscados:**
-${terms.map((t, i) => `${i+1}. ${t}`).join('\n')}
+${terms.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 
 _Intenta con términos individuales o verifica la ortografía._
                     `.trim();
@@ -136,7 +136,11 @@ _Intenta con términos individuales o verifica la ortografía._
 
                     if (adminState && adminState.operation === 'policy_mass_search_for_delete') {
                         // Mostrar resultados para eliminación masiva
-                        await this.showMultipleResultsForDeletion(ctx, searchResults, processedTerms);
+                        await this.showMultipleResultsForDeletion(
+                            ctx,
+                            searchResults,
+                            processedTerms
+                        );
                     } else {
                         // Mostrar resultados múltiples normales
                         await this.showMultipleSearchResults(ctx, searchResults, processedTerms);
@@ -189,7 +193,10 @@ _Intenta con otro término de búsqueda._
                 if (adminState && adminState.operation === 'policy_mass_search_for_delete') {
                     // Para eliminación, mostrar los resultados como lista para selección
                     await this.showMultipleResultsForDeletion(ctx, searchResults, [searchTerm]);
-                } else if (adminState && adminState.operation === 'policy_mass_search_for_restore') {
+                } else if (
+                    adminState &&
+                    adminState.operation === 'policy_mass_search_for_restore'
+                ) {
                     // Para restauración, mostrar resultados para selección
                     await this.showMultipleResultsForRestore(ctx, searchResults, [searchTerm]);
                 } else {
@@ -200,7 +207,10 @@ _Intenta con otro término de búsqueda._
                 // Para múltiples resultados, usar la lógica ya existente
                 if (adminState && adminState.operation === 'policy_mass_search_for_delete') {
                     await this.showMultipleResultsForDeletion(ctx, searchResults, [searchTerm]);
-                } else if (adminState && adminState.operation === 'policy_mass_search_for_restore') {
+                } else if (
+                    adminState &&
+                    adminState.operation === 'policy_mass_search_for_restore'
+                ) {
                     await this.showMultipleResultsForRestore(ctx, searchResults, [searchTerm]);
                 } else {
                     await this.showSearchResults(ctx, searchResults, searchTerm);
@@ -211,7 +221,6 @@ _Intenta con otro término de búsqueda._
                 searchTerm,
                 resultsCount: searchResults.length
             });
-
         } catch (error) {
             logger.error('Error al buscar pólizas:', error);
             await ctx.reply('❌ Error en la búsqueda. Intenta nuevamente.');
@@ -234,7 +243,9 @@ _Intenta con otro término de búsqueda._
         };
 
         const policies = await Policy.find(searchQuery)
-            .select('numeroPoliza titular rfc correo contraseña calle colonia municipio estadoRegion cp agenteCotizador aseguradora fechaEmision telefono estadoPoliza fechaFinCobertura fechaFinGracia marca submarca año color serie placas calificacion totalServicios servicios registros estado fechaEliminacion motivoEliminacion')
+            .select(
+                'numeroPoliza titular rfc correo contraseña calle colonia municipio estadoRegion cp agenteCotizador aseguradora fechaEmision telefono estadoPoliza fechaFinCobertura fechaFinGracia marca submarca año color serie placas calificacion totalServicios servicios registros estado fechaEliminacion motivoEliminacion'
+            )
             .sort({ fechaEmision: -1 })
             .limit(10);
 
@@ -301,7 +312,7 @@ Selecciona una póliza:
         try {
             // Obtener información adicional de servicios para cada póliza
             const enrichedResults = await Promise.all(
-                results.map(async (policy) => {
+                results.map(async policy => {
                     const serviciosCount = policy.servicios ? policy.servicios.length : 0;
                     const estadoText = this.getPolicyStatusText(policy);
 
@@ -357,16 +368,10 @@ Selecciona una póliza:
 
             // Actualizar estado para selección masiva
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            AdminStateManager.createAdminState(
-                ctx.from.id,
-                ctx.chat.id,
-                'policy_mass_selection',
-                {
-                    foundPolicies: enrichedResults,
-                    searchTerms: processedTerms
-                }
-            );
-
+            AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'policy_mass_selection', {
+                foundPolicies: enrichedResults,
+                searchTerms: processedTerms
+            });
         } catch (error) {
             logger.error('Error al mostrar resultados para eliminación masiva:', error);
             await ctx.reply('❌ Error al mostrar los resultados. Intenta nuevamente.');
@@ -458,7 +463,10 @@ Selecciona una póliza:
 
             if (currentSelection.length > 0) {
                 actionButtons.push([
-                    Markup.button.callback(`🗑️ Eliminar Seleccionadas (${currentSelection.length})`, 'admin_confirm_mass_deletion')
+                    Markup.button.callback(
+                        `🗑️ Eliminar Seleccionadas (${currentSelection.length})`,
+                        'admin_confirm_mass_deletion'
+                    )
                 ]);
             }
 
@@ -492,7 +500,6 @@ Selecciona una póliza:
             AdminStateManager.updateAdminState(ctx.from.id, ctx.chat.id, {
                 currentView: 'mass_selection'
             });
-
         } catch (error) {
             logger.error('Error al mostrar interfaz de selección masiva:', error);
             await ctx.reply('❌ Error al cargar la interfaz de selección.');
@@ -507,7 +514,9 @@ Selecciona una póliza:
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
 
             if (!adminState || adminState.operation !== 'policy_mass_selection') {
-                await ctx.answerCbQuery('❌ Error: Estado de selección no válido', { show_alert: true });
+                await ctx.answerCbQuery('❌ Error: Estado de selección no válido', {
+                    show_alert: true
+                });
                 return;
             }
 
@@ -530,7 +539,6 @@ Selecciona una póliza:
 
             // Refrescar interfaz
             await this.showMassSelectionInterface(ctx, '');
-
         } catch (error) {
             logger.error('Error al cambiar selección:', error);
             await ctx.answerCbQuery('❌ Error al cambiar selección', { show_alert: true });
@@ -545,7 +553,9 @@ Selecciona una póliza:
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
 
             if (!adminState || !adminState.data.foundPolicies) {
-                await ctx.answerCbQuery('❌ Error: No hay pólizas para seleccionar', { show_alert: true });
+                await ctx.answerCbQuery('❌ Error: No hay pólizas para seleccionar', {
+                    show_alert: true
+                });
                 return;
             }
 
@@ -557,7 +567,6 @@ Selecciona una póliza:
 
             await ctx.answerCbQuery(`✅ ${allPolicyIds.length} pólizas seleccionadas`);
             await this.showMassSelectionInterface(ctx, '');
-
         } catch (error) {
             logger.error('Error al seleccionar todas:', error);
             await ctx.answerCbQuery('❌ Error al seleccionar todas', { show_alert: true });
@@ -575,7 +584,6 @@ Selecciona una póliza:
 
             await ctx.answerCbQuery('⬜ Todas las pólizas deseleccionadas');
             await this.showMassSelectionInterface(ctx, '');
-
         } catch (error) {
             logger.error('Error al deseleccionar todas:', error);
             await ctx.answerCbQuery('❌ Error al deseleccionar todas', { show_alert: true });
@@ -589,7 +597,11 @@ Selecciona una póliza:
         try {
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
 
-            if (!adminState || !adminState.data.selectedPolicies || adminState.data.selectedPolicies.length === 0) {
+            if (
+                !adminState ||
+                !adminState.data.selectedPolicies ||
+                adminState.data.selectedPolicies.length === 0
+            ) {
                 await ctx.answerCbQuery('❌ No hay pólizas seleccionadas', { show_alert: true });
                 return;
             }
@@ -649,7 +661,6 @@ Selecciona una póliza:
                     selectedPolicyIds: selectedPolicies
                 }
             );
-
         } catch (error) {
             logger.error('Error al mostrar confirmación masiva:', error);
             await ctx.reply('❌ Error al mostrar confirmación.');
@@ -662,22 +673,27 @@ Selecciona una póliza:
     static async handleDeletedPolicySearch(ctx, searchTerm) {
         try {
             // Detectar si hay múltiples términos (separados por saltos de línea)
-            const terms = searchTerm.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+            const terms = searchTerm
+                .split('\n')
+                .map(t => t.trim())
+                .filter(t => t.length > 0);
 
             let searchResults = [];
             const processedTerms = [];
 
             if (terms.length > 1) {
                 // Búsqueda múltiple de pólizas eliminadas
-                for (const term of terms.slice(0, 20)) { // Máximo 20 términos para restauración masiva
+                for (const term of terms.slice(0, 20)) {
+                    // Máximo 20 términos para restauración masiva
                     const results = await this.searchDeletedPolicies(term);
                     searchResults.push(...results);
                     processedTerms.push(term);
                 }
 
                 // Eliminar duplicados por _id
-                const uniqueResults = searchResults.filter((policy, index, self) =>
-                    index === self.findIndex(p => p._id.toString() === policy._id.toString())
+                const uniqueResults = searchResults.filter(
+                    (policy, index, self) =>
+                        index === self.findIndex(p => p._id.toString() === policy._id.toString())
                 );
                 searchResults = uniqueResults;
 
@@ -689,7 +705,7 @@ Selecciona una póliza:
 No se encontraron pólizas eliminadas con los términos buscados.
 
 **Términos buscados:**
-${terms.map((t, i) => `${i+1}. ${t}`).join('\n')}
+${terms.map((t, i) => `${i + 1}. ${t}`).join('\n')}
 
 _Verifica que las pólizas estén marcadas como ELIMINADAS._
                     `.trim();
@@ -744,7 +760,6 @@ _Intenta con otro término de búsqueda._
                 // Múltiples resultados - mostrar para selección
                 await this.showMultipleResultsForRestore(ctx, searchResults, [searchTerm]);
             }
-
         } catch (error) {
             logger.error('Error en búsqueda de pólizas eliminadas:', error);
             await ctx.reply('❌ Error al buscar pólizas eliminadas. Intenta nuevamente.');
@@ -780,9 +795,11 @@ _Intenta con otro término de búsqueda._
         try {
             // Obtener información adicional de servicios para cada póliza eliminada
             const enrichedResults = await Promise.all(
-                results.map(async (policy) => {
+                results.map(async policy => {
                     const serviciosCount = policy.servicios ? policy.servicios.length : 0;
-                    const deleteDate = new Date(policy.fechaEliminacion).toLocaleDateString('es-MX');
+                    const deleteDate = new Date(policy.fechaEliminacion).toLocaleDateString(
+                        'es-MX'
+                    );
 
                     return {
                         ...policy.toObject(),
@@ -846,7 +863,6 @@ _Intenta con otro término de búsqueda._
                     searchTerms: processedTerms
                 }
             );
-
         } catch (error) {
             logger.error('Error al mostrar resultados para restauración masiva:', error);
             await ctx.reply('❌ Error al mostrar los resultados. Intenta nuevamente.');
@@ -876,7 +892,10 @@ _Intenta con otro término de búsqueda._
 
         const keyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('✅ Sí, Restaurar', `admin_policy_restore_execute:${policy._id}`),
+                Markup.button.callback(
+                    '✅ Sí, Restaurar',
+                    `admin_policy_restore_execute:${policy._id}`
+                ),
                 Markup.button.callback('❌ No Restaurar', 'admin_policy_restore')
             ],
             [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
@@ -952,16 +971,16 @@ Selecciona una póliza:
      * Muestra los detalles de una póliza específica
      */
     static async showPolicyDetails(ctx, policy) {
-        const formatDate = (date) => {
+        const formatDate = date => {
             if (!date) return 'No definida';
             return new Date(date).toLocaleDateString('es-MX');
         };
 
-        const formatPhone = (phone) => {
+        const formatPhone = phone => {
             if (!phone) return 'No definido';
             // Formatear teléfono mexicano: 5526538255 -> (55) 2653-8255
             if (phone.length === 10) {
-                return `(${phone.slice(0,2)}) ${phone.slice(2,6)}-${phone.slice(6)}`;
+                return `(${phone.slice(0, 2)}) ${phone.slice(2, 6)}-${phone.slice(6)}`;
             }
             return phone;
         };
@@ -1011,8 +1030,14 @@ Selecciona una póliza:
 
         const keyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('✏️ Editar Datos', `admin_policy_edit_categories:${policy._id}`),
-                Markup.button.callback('📋 Ver Servicios', `admin_policy_view_services:${policy._id}`)
+                Markup.button.callback(
+                    '✏️ Editar Datos',
+                    `admin_policy_edit_categories:${policy._id}`
+                ),
+                Markup.button.callback(
+                    '📋 Ver Servicios',
+                    `admin_policy_view_services:${policy._id}`
+                )
             ],
             [
                 Markup.button.callback('🗑️ Eliminar', `admin_policy_delete_confirm:${policy._id}`),
@@ -1061,7 +1086,6 @@ Selecciona una póliza:
             }
 
             await this.showPolicyDetails(ctx, policy);
-
         } catch (error) {
             logger.error('Error al seleccionar póliza:', error);
             await ctx.reply('❌ Error al cargar la póliza.');
@@ -1082,46 +1106,46 @@ Selecciona una póliza:
 
         // Manejar diferentes operaciones admin
         switch (adminState.operation) {
-        case 'policy_search_for_edit':
-        case 'policy_search_for_delete':
-        case 'policy_mass_search_for_delete':
-            if (messageText.length < 2) {
-                await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+            case 'policy_search_for_edit':
+            case 'policy_search_for_delete':
+            case 'policy_mass_search_for_delete':
+                if (messageText.length < 2) {
+                    await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+                    return true;
+                }
+                await this.handlePolicySearch(ctx, messageText);
                 return true;
-            }
-            await this.handlePolicySearch(ctx, messageText);
-            return true;
 
-        case 'policy_mass_search_for_restore':
-            if (messageText.length < 2) {
-                await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+            case 'policy_mass_search_for_restore':
+                if (messageText.length < 2) {
+                    await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+                    return true;
+                }
+                await this.handleDeletedPolicySearch(ctx, messageText);
                 return true;
-            }
-            await this.handleDeletedPolicySearch(ctx, messageText);
-            return true;
 
-        case 'policy_deletion_reason':
-            if (messageText.length < 3) {
-                await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
+            case 'policy_deletion_reason':
+                if (messageText.length < 3) {
+                    await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
+                    return true;
+                }
+                await this.handleDeletionReason(ctx, messageText);
                 return true;
-            }
-            await this.handleDeletionReason(ctx, messageText);
-            return true;
 
-        case 'policy_mass_deletion_reason':
-            if (messageText.length < 3) {
-                await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
+            case 'policy_mass_deletion_reason':
+                if (messageText.length < 3) {
+                    await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
+                    return true;
+                }
+                await this.handleMassDeletionReason(ctx, messageText);
                 return true;
-            }
-            await this.handleMassDeletionReason(ctx, messageText);
-            return true;
 
-        case 'field_editing':
-            await this.processFieldEdit(ctx, messageText);
-            return true;
+            case 'field_editing':
+                await this.processFieldEdit(ctx, messageText);
+                return true;
 
-        default:
-            return false;
+            default:
+                return false;
         }
     }
 
@@ -1155,9 +1179,9 @@ La póliza ha sido restaurada y está ACTIVA nuevamente.
                 await ctx.editMessageText(successText, {
                     parse_mode: 'Markdown',
                     reply_markup: {
-                        inline_keyboard: [[
-                            { text: '⬅️ Volver al Menú', callback_data: 'admin_policy_menu' }
-                        ]]
+                        inline_keyboard: [
+                            [{ text: '⬅️ Volver al Menú', callback_data: 'admin_policy_menu' }]
+                        ]
                     }
                 });
 
@@ -1166,11 +1190,9 @@ La póliza ha sido restaurada y está ACTIVA nuevamente.
                     policyNumber: policy.numeroPoliza,
                     result: 'success'
                 });
-
             } else {
                 await ctx.reply('❌ Error: No se pudo restaurar la póliza.');
             }
-
         } catch (error) {
             logger.error('Error al ejecutar restauración:', error);
             await ctx.reply('❌ Error al restaurar la póliza.');
@@ -1222,7 +1244,6 @@ _La eliminación es lógica y se puede restaurar posteriormente._
             await AuditLogger.log(ctx, 'policy_mass_delete_initiated', 'policy', {
                 operation: 'mass_search_for_delete'
             });
-
         } catch (error) {
             logger.error('Error al iniciar eliminación masiva:', error);
             await ctx.reply('❌ Error al iniciar el proceso. Intenta nuevamente.');
@@ -1266,7 +1287,12 @@ _La restauración devuelve las pólizas al estado ACTIVO._
             `.trim();
 
             const keyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('📅 Ver Eliminadas Recientes', 'admin_show_recent_deleted')],
+                [
+                    Markup.button.callback(
+                        '📅 Ver Eliminadas Recientes',
+                        'admin_show_recent_deleted'
+                    )
+                ],
                 [Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]
             ]);
 
@@ -1278,7 +1304,6 @@ _La restauración devuelve las pólizas al estado ACTIVO._
             await AuditLogger.log(ctx, 'policy_mass_restore_initiated', 'policy', {
                 operation: 'mass_search_for_restore'
             });
-
         } catch (error) {
             logger.error('Error al iniciar restauración masiva:', error);
             await ctx.reply('❌ Error al iniciar el proceso. Intenta nuevamente.');
@@ -1313,9 +1338,7 @@ Selecciona una para restaurar:
             ]);
         });
 
-        buttons.push([
-            [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
-        ]);
+        buttons.push([[Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]]);
 
         const keyboard = Markup.inlineKeyboard(buttons);
 
@@ -1364,13 +1387,10 @@ Escribe el motivo de eliminación o presiona Cancelar:
 
             // Cambiar estado para esperar el motivo
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            AdminStateManager.createAdminState(
-                ctx.from.id,
-                ctx.chat.id,
-                'policy_deletion_reason',
-                { policyId, policyNumber: policy.numeroPoliza }
-            );
-
+            AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'policy_deletion_reason', {
+                policyId,
+                policyNumber: policy.numeroPoliza
+            });
         } catch (error) {
             logger.error('Error en confirmación de eliminación:', error);
             await ctx.reply('❌ Error al procesar la solicitud.');
@@ -1405,7 +1425,10 @@ Escribe el motivo de eliminación o presiona Cancelar:
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('✅ Sí, Restaurar', `admin_policy_restore_execute:${policyId}`),
+                    Markup.button.callback(
+                        '✅ Sí, Restaurar',
+                        `admin_policy_restore_execute:${policyId}`
+                    ),
                     Markup.button.callback('❌ Cancelar', 'admin_policy_restore')
                 ]
             ]);
@@ -1414,7 +1437,6 @@ Escribe el motivo de eliminación o presiona Cancelar:
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error en confirmación de restauración:', error);
             await ctx.reply('❌ Error al procesar la solicitud.');
@@ -1453,9 +1475,9 @@ Se puede restaurar desde "Restaurar Póliza".
                 await ctx.reply(successText, {
                     parse_mode: 'Markdown',
                     reply_markup: {
-                        inline_keyboard: [[
-                            { text: '⬅️ Volver al Menú', callback_data: 'admin_policy_menu' }
-                        ]]
+                        inline_keyboard: [
+                            [{ text: '⬅️ Volver al Menú', callback_data: 'admin_policy_menu' }]
+                        ]
                     }
                 });
 
@@ -1465,15 +1487,15 @@ Se puede restaurar desde "Restaurar Póliza".
                     reason,
                     result: 'success'
                 });
-
             } else {
-                await ctx.reply('❌ Error: No se pudo eliminar la póliza. Verifica que esté activa.');
+                await ctx.reply(
+                    '❌ Error: No se pudo eliminar la póliza. Verifica que esté activa.'
+                );
             }
 
             // Limpiar estado
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
             return true;
-
         } catch (error) {
             logger.error('Error al procesar eliminación:', error);
             await ctx.reply('❌ Error al eliminar la póliza.');
@@ -1518,19 +1540,18 @@ Selecciona la categoría a editar:
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('📱 Datos Personales', `admin_edit_personal:${policyId}`),
+                    Markup.button.callback(
+                        '📱 Datos Personales',
+                        `admin_edit_personal:${policyId}`
+                    ),
                     Markup.button.callback('🏠 Domicilio', `admin_edit_address:${policyId}`)
                 ],
                 [
                     Markup.button.callback('🚗 Vehículo', `admin_edit_vehicle:${policyId}`),
                     Markup.button.callback('📄 Datos Póliza', `admin_edit_policy:${policyId}`)
                 ],
-                [
-                    Markup.button.callback('💰 Info Financiera', `admin_edit_financial:${policyId}`)
-                ],
-                [
-                    Markup.button.callback('⬅️ Volver a Detalles', `admin_policy_select:${policyId}`)
-                ]
+                [Markup.button.callback('💰 Info Financiera', `admin_edit_financial:${policyId}`)],
+                [Markup.button.callback('⬅️ Volver a Detalles', `admin_policy_select:${policyId}`)]
             ]);
 
             await ctx.editMessageText(menuText, {
@@ -1543,7 +1564,6 @@ Selecciona la categoría a editar:
                 editingPolicy: policyId.toString(),
                 operation: 'category_selection'
             });
-
         } catch (error) {
             logger.error('Error al mostrar menú de categorías:', error);
             await ctx.reply('❌ Error al cargar el menú de edición.');
@@ -1588,18 +1608,18 @@ Selecciona el campo a editar:
                     Markup.button.callback('📞 Teléfono', `admin_edit_field:telefono:${policyId}`)
                 ],
                 [
-                    Markup.button.callback('🔑 Contraseña', `admin_edit_field:contraseña:${policyId}`)
+                    Markup.button.callback(
+                        '🔑 Contraseña',
+                        `admin_edit_field:contraseña:${policyId}`
+                    )
                 ],
-                [
-                    Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)
-                ]
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar datos personales:', error);
             await ctx.reply('❌ Error al cargar los datos personales.');
@@ -1640,22 +1660,20 @@ Selecciona el campo a editar:
                     Markup.button.callback('🏘️ Colonia', `admin_edit_field:colonia:${policyId}`)
                 ],
                 [
-                    Markup.button.callback('🏙️ Municipio', `admin_edit_field:municipio:${policyId}`),
+                    Markup.button.callback(
+                        '🏙️ Municipio',
+                        `admin_edit_field:municipio:${policyId}`
+                    ),
                     Markup.button.callback('🗺️ Estado', `admin_edit_field:estadoRegion:${policyId}`)
                 ],
-                [
-                    Markup.button.callback('📮 CP', `admin_edit_field:cp:${policyId}`)
-                ],
-                [
-                    Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)
-                ]
+                [Markup.button.callback('📮 CP', `admin_edit_field:cp:${policyId}`)],
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar domicilio:', error);
             await ctx.reply('❌ Error al cargar el domicilio.');
@@ -1704,16 +1722,13 @@ Selecciona el campo a editar:
                     Markup.button.callback('🔢 Serie', `admin_edit_field:serie:${policyId}`),
                     Markup.button.callback('🚙 Placas', `admin_edit_field:placas:${policyId}`)
                 ],
-                [
-                    Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)
-                ]
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar vehículo:', error);
             await ctx.reply('❌ Error al cargar los datos del vehículo.');
@@ -1732,7 +1747,7 @@ Selecciona el campo a editar:
                 return;
             }
 
-            const formatDate = (date) => {
+            const formatDate = date => {
                 if (!date) return 'No definida';
                 return new Date(date).toLocaleDateString('es-MX');
             };
@@ -1756,27 +1771,39 @@ Selecciona el campo a editar:
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('🏢 Aseguradora', `admin_edit_field:aseguradora:${policyId}`),
-                    Markup.button.callback('👨‍💼 Agente', `admin_edit_field:agenteCotizador:${policyId}`)
+                    Markup.button.callback(
+                        '🏢 Aseguradora',
+                        `admin_edit_field:aseguradora:${policyId}`
+                    ),
+                    Markup.button.callback(
+                        '👨‍💼 Agente',
+                        `admin_edit_field:agenteCotizador:${policyId}`
+                    )
                 ],
                 [
-                    Markup.button.callback('📅 Emisión', `admin_edit_field:fechaEmision:${policyId}`),
+                    Markup.button.callback(
+                        '📅 Emisión',
+                        `admin_edit_field:fechaEmision:${policyId}`
+                    ),
                     Markup.button.callback('📊 Estado', `admin_edit_field:estadoPoliza:${policyId}`)
                 ],
                 [
-                    Markup.button.callback('🗓️ Fin Cobertura', `admin_edit_field:fechaFinCobertura:${policyId}`),
-                    Markup.button.callback('🗓️ Fin Gracia', `admin_edit_field:fechaFinGracia:${policyId}`)
+                    Markup.button.callback(
+                        '🗓️ Fin Cobertura',
+                        `admin_edit_field:fechaFinCobertura:${policyId}`
+                    ),
+                    Markup.button.callback(
+                        '🗓️ Fin Gracia',
+                        `admin_edit_field:fechaFinGracia:${policyId}`
+                    )
                 ],
-                [
-                    Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)
-                ]
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar datos de póliza:', error);
             await ctx.reply('❌ Error al cargar los datos de la póliza.');
@@ -1812,23 +1839,29 @@ Selecciona el campo a editar:
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('⭐ Calificación', `admin_edit_field:calificacion:${policyId}`),
+                    Markup.button.callback(
+                        '⭐ Calificación',
+                        `admin_edit_field:calificacion:${policyId}`
+                    ),
                     Markup.button.callback('📊 Estado', `admin_edit_field:estado:${policyId}`)
                 ],
                 [
-                    Markup.button.callback('🔢 Días Cobertura', `admin_edit_field:diasRestantesCobertura:${policyId}`),
-                    Markup.button.callback('🔢 Días Gracia', `admin_edit_field:diasRestantesGracia:${policyId}`)
+                    Markup.button.callback(
+                        '🔢 Días Cobertura',
+                        `admin_edit_field:diasRestantesCobertura:${policyId}`
+                    ),
+                    Markup.button.callback(
+                        '🔢 Días Gracia',
+                        `admin_edit_field:diasRestantesGracia:${policyId}`
+                    )
                 ],
-                [
-                    Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)
-                ]
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar información financiera:', error);
             await ctx.reply('❌ Error al cargar la información financiera.');
@@ -1877,18 +1910,12 @@ Escribe el nuevo valor o presiona Cancelar:
 
             // Configurar estado para edición de campo
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            AdminStateManager.createAdminState(
-                ctx.from.id,
-                ctx.chat.id,
-                'field_editing',
-                {
-                    policyId: policyId.toString(),
-                    fieldName,
-                    currentValue,
-                    fieldInfo
-                }
-            );
-
+            AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'field_editing', {
+                policyId: policyId.toString(),
+                fieldName,
+                currentValue,
+                fieldInfo
+            });
         } catch (error) {
             logger.error('Error al iniciar edición de campo:', error);
             await ctx.reply('❌ Error al iniciar la edición.');
@@ -2063,12 +2090,14 @@ Escribe el nuevo valor o presiona Cancelar:
             }
         };
 
-        return fieldInfoMap[fieldName] || {
-            displayName: fieldName,
-            instructions: 'Escribe el nuevo valor',
-            validation: 'Texto libre',
-            type: 'string'
-        };
+        return (
+            fieldInfoMap[fieldName] || {
+                displayName: fieldName,
+                instructions: 'Escribe el nuevo valor',
+                validation: 'Texto libre',
+                type: 'string'
+            }
+        );
     }
 
     /**
@@ -2086,24 +2115,34 @@ Escribe el nuevo valor o presiona Cancelar:
 
             // Rechazar comandos durante la edición
             if (newValue.startsWith('/')) {
-                await ctx.reply('❌ No se pueden usar comandos durante la edición de campos.\n\nEscribe el nuevo valor o presiona "❌ Cancelar" en el menú anterior.');
+                await ctx.reply(
+                    '❌ No se pueden usar comandos durante la edición de campos.\n\nEscribe el nuevo valor o presiona "❌ Cancelar" en el menú anterior.'
+                );
                 return true;
             }
 
             // Validar el nuevo valor
             const validation = this.validateFieldValue(newValue, fieldInfo);
             if (!validation.isValid) {
-                await ctx.reply(`❌ **Error de validación:**\n${validation.error}\n\nIntenta nuevamente:`);
+                await ctx.reply(
+                    `❌ **Error de validación:**\n${validation.error}\n\nIntenta nuevamente:`
+                );
                 return true;
             }
 
             const processedValue = validation.processedValue;
 
             // Mostrar confirmación antes de guardar
-            await this.showFieldEditConfirmation(ctx, policyId, fieldName, currentValue, processedValue, fieldInfo);
+            await this.showFieldEditConfirmation(
+                ctx,
+                policyId,
+                fieldName,
+                currentValue,
+                processedValue,
+                fieldInfo
+            );
 
             return true;
-
         } catch (error) {
             logger.error('Error al procesar edición de campo:', error);
             await ctx.reply('❌ Error al procesar la edición.');
@@ -2119,118 +2158,143 @@ Escribe el nuevo valor o presiona Cancelar:
         const trimmedValue = value.trim();
 
         switch (fieldInfo.type) {
-        case 'string':
-            if (trimmedValue.length < 3) {
-                return { isValid: false, error: 'El valor debe tener al menos 3 caracteres' };
-            }
-            return { isValid: true, processedValue: trimmedValue };
+            case 'string':
+                if (trimmedValue.length < 3) {
+                    return { isValid: false, error: 'El valor debe tener al menos 3 caracteres' };
+                }
+                return { isValid: true, processedValue: trimmedValue };
 
-        case 'rfc':
-            if (!/^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$/.test(trimmedValue.toUpperCase())) {
-                return { isValid: false, error: 'RFC inválido. Formato: XXXX######XXX' };
-            }
-            return { isValid: true, processedValue: trimmedValue.toUpperCase() };
+            case 'rfc':
+                if (!/^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$/.test(trimmedValue.toUpperCase())) {
+                    return { isValid: false, error: 'RFC inválido. Formato: XXXX######XXX' };
+                }
+                return { isValid: true, processedValue: trimmedValue.toUpperCase() };
 
-        case 'email':
-            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
-                return { isValid: false, error: 'Email inválido. Formato: ejemplo@dominio.com' };
-            }
-            return { isValid: true, processedValue: trimmedValue.toLowerCase() };
+            case 'email':
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
+                    return {
+                        isValid: false,
+                        error: 'Email inválido. Formato: ejemplo@dominio.com'
+                    };
+                }
+                return { isValid: true, processedValue: trimmedValue.toLowerCase() };
 
-        case 'phone':
-            const phoneClean = trimmedValue.replace(/\D/g, '');
-            if (phoneClean.length !== 10) {
-                return { isValid: false, error: 'Teléfono debe tener 10 dígitos' };
-            }
-            return { isValid: true, processedValue: phoneClean };
+            case 'phone':
+                const phoneClean = trimmedValue.replace(/\D/g, '');
+                if (phoneClean.length !== 10) {
+                    return { isValid: false, error: 'Teléfono debe tener 10 dígitos' };
+                }
+                return { isValid: true, processedValue: phoneClean };
 
-        case 'cp':
-            const cpClean = trimmedValue.replace(/\D/g, '');
-            if (cpClean.length !== 5) {
-                return { isValid: false, error: 'Código postal debe tener 5 dígitos' };
-            }
-            return { isValid: true, processedValue: cpClean };
+            case 'cp':
+                const cpClean = trimmedValue.replace(/\D/g, '');
+                if (cpClean.length !== 5) {
+                    return { isValid: false, error: 'Código postal debe tener 5 dígitos' };
+                }
+                return { isValid: true, processedValue: cpClean };
 
-        case 'year':
-            const year = parseInt(trimmedValue);
-            const currentYear = new Date().getFullYear();
-            if (isNaN(year) || year < 1990 || year > currentYear + 1) {
-                return { isValid: false, error: `Año debe ser entre 1990 y ${currentYear + 1}` };
-            }
-            return { isValid: true, processedValue: year };
+            case 'year':
+                const year = parseInt(trimmedValue);
+                const currentYear = new Date().getFullYear();
+                if (isNaN(year) || year < 1990 || year > currentYear + 1) {
+                    return {
+                        isValid: false,
+                        error: `Año debe ser entre 1990 y ${currentYear + 1}`
+                    };
+                }
+                return { isValid: true, processedValue: year };
 
-        case 'date':
-            const dateMatch = trimmedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-            if (!dateMatch) {
-                return { isValid: false, error: 'Fecha inválida. Formato: DD/MM/AAAA' };
-            }
-            const [, day, month, year2] = dateMatch;
-            const date = new Date(year2, month - 1, day);
-            if (date.getDate() != day || date.getMonth() != month - 1 || date.getFullYear() != year2) {
-                return { isValid: false, error: 'Fecha inválida. Verifica día/mes/año' };
-            }
-            return { isValid: true, processedValue: date };
+            case 'date':
+                const dateMatch = trimmedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if (!dateMatch) {
+                    return { isValid: false, error: 'Fecha inválida. Formato: DD/MM/AAAA' };
+                }
+                const [, day, month, year2] = dateMatch;
+                const date = new Date(year2, month - 1, day);
+                if (
+                    date.getDate() != day ||
+                    date.getMonth() != month - 1 ||
+                    date.getFullYear() != year2
+                ) {
+                    return { isValid: false, error: 'Fecha inválida. Verifica día/mes/año' };
+                }
+                return { isValid: true, processedValue: date };
 
-        case 'rating':
-            const rating = parseInt(trimmedValue);
-            if (isNaN(rating) || rating < 0 || rating > 100) {
-                return { isValid: false, error: 'Calificación debe ser un número entre 0 y 100' };
-            }
-            return { isValid: true, processedValue: rating };
+            case 'rating':
+                const rating = parseInt(trimmedValue);
+                if (isNaN(rating) || rating < 0 || rating > 100) {
+                    return {
+                        isValid: false,
+                        error: 'Calificación debe ser un número entre 0 y 100'
+                    };
+                }
+                return { isValid: true, processedValue: rating };
 
-        case 'number':
-            const num = parseInt(trimmedValue);
-            if (isNaN(num) || num < 0) {
-                return { isValid: false, error: 'Debe ser un número positivo' };
-            }
-            return { isValid: true, processedValue: num };
+            case 'number':
+                const num = parseInt(trimmedValue);
+                if (isNaN(num) || num < 0) {
+                    return { isValid: false, error: 'Debe ser un número positivo' };
+                }
+                return { isValid: true, processedValue: num };
 
-        case 'status':
-            const validStatuses = ['ACTIVO', 'INACTIVO', 'ELIMINADO'];
-            const upperValue = trimmedValue.toUpperCase();
-            if (!validStatuses.includes(upperValue)) {
-                return { isValid: false, error: 'Estado debe ser: ACTIVO, INACTIVO o ELIMINADO' };
-            }
-            return { isValid: true, processedValue: upperValue };
+            case 'status':
+                const validStatuses = ['ACTIVO', 'INACTIVO', 'ELIMINADO'];
+                const upperValue = trimmedValue.toUpperCase();
+                if (!validStatuses.includes(upperValue)) {
+                    return {
+                        isValid: false,
+                        error: 'Estado debe ser: ACTIVO, INACTIVO o ELIMINADO'
+                    };
+                }
+                return { isValid: true, processedValue: upperValue };
 
-        case 'vin':
-            const vinClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-            if (vinClean.length !== 17) {
-                return { isValid: false, error: 'VIN debe tener 17 caracteres alfanuméricos' };
-            }
-            // Validación básica de VIN: no contiene I, O, Q
-            if (/[IOQ]/.test(vinClean)) {
-                return { isValid: false, error: 'VIN no puede contener las letras I, O o Q' };
-            }
-            return { isValid: true, processedValue: vinClean };
+            case 'vin':
+                const vinClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                if (vinClean.length !== 17) {
+                    return { isValid: false, error: 'VIN debe tener 17 caracteres alfanuméricos' };
+                }
+                // Validación básica de VIN: no contiene I, O, Q
+                if (/[IOQ]/.test(vinClean)) {
+                    return { isValid: false, error: 'VIN no puede contener las letras I, O o Q' };
+                }
+                return { isValid: true, processedValue: vinClean };
 
-        case 'plates':
-            const plateClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-            if (plateClean.length < 6 || plateClean.length > 7) {
-                return { isValid: false, error: 'Placas deben tener 6 o 7 caracteres' };
-            }
-            // Validar formato mexicano: ABC1234 o 123ABC
-            if (!/^[A-Z]{3}[0-9]{3,4}$|^[0-9]{3}[A-Z]{3,4}$/.test(plateClean)) {
-                return { isValid: false, error: 'Formato de placas inválido. Usar ABC1234 o 123ABC' };
-            }
-            return { isValid: true, processedValue: plateClean };
+            case 'plates':
+                const plateClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                if (plateClean.length < 6 || plateClean.length > 7) {
+                    return { isValid: false, error: 'Placas deben tener 6 o 7 caracteres' };
+                }
+                // Validar formato mexicano: ABC1234 o 123ABC
+                if (!/^[A-Z]{3}[0-9]{3,4}$|^[0-9]{3}[A-Z]{3,4}$/.test(plateClean)) {
+                    return {
+                        isValid: false,
+                        error: 'Formato de placas inválido. Usar ABC1234 o 123ABC'
+                    };
+                }
+                return { isValid: true, processedValue: plateClean };
 
-        default:
-            return { isValid: true, processedValue: trimmedValue };
+            default:
+                return { isValid: true, processedValue: trimmedValue };
         }
     }
 
     /**
      * Muestra confirmación antes de aplicar cambios
      */
-    static async showFieldEditConfirmation(ctx, policyId, fieldName, oldValue, newValue, fieldInfo) {
+    static async showFieldEditConfirmation(
+        ctx,
+        policyId,
+        fieldName,
+        oldValue,
+        newValue,
+        fieldInfo
+    ) {
         try {
             const policy = await Policy.findById(policyId);
 
-            const escapeMarkdown = (text) => {
+            const escapeMarkdown = text => {
                 if (!text) return 'No definido';
-                return text.toString()
-                    .replace(/[_*[\]()~`>#+=|{}.!@-]/g, '\\$&');
+                return text.toString().replace(/[_*[\]()~`>#+=|{}.!@-]/g, '\\$&');
             };
 
             const formatValue = (value, type) => {
@@ -2259,8 +2323,14 @@ ${formatValue(newValue, fieldInfo.type)}
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('✅ Confirmar', `admin_confirm_edit:${policyId}:${fieldName}`),
-                    Markup.button.callback('❌ Cancelar', `admin_policy_edit_categories:${policyId}`)
+                    Markup.button.callback(
+                        '✅ Confirmar',
+                        `admin_confirm_edit:${policyId}:${fieldName}`
+                    ),
+                    Markup.button.callback(
+                        '❌ Cancelar',
+                        `admin_policy_edit_categories:${policyId}`
+                    )
                 ]
             ]);
 
@@ -2279,19 +2349,13 @@ ${formatValue(newValue, fieldInfo.type)}
 
             // Actualizar estado con los datos para confirmar
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            AdminStateManager.createAdminState(
-                ctx.from.id,
-                ctx.chat.id,
-                'field_confirmation',
-                {
-                    policyId: policyId.toString(),
-                    fieldName,
-                    oldValue,
-                    newValue,
-                    fieldInfo
-                }
-            );
-
+            AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'field_confirmation', {
+                policyId: policyId.toString(),
+                fieldName,
+                oldValue,
+                newValue,
+                fieldInfo
+            });
         } catch (error) {
             logger.error('Error al mostrar confirmación:', error);
             await ctx.reply('❌ Error al mostrar confirmación. Operación cancelada.');
@@ -2317,11 +2381,10 @@ ${formatValue(newValue, fieldInfo.type)}
             const updateData = {};
             updateData[fieldName] = newValue;
 
-            const updatedPolicy = await Policy.findByIdAndUpdate(
-                policyId,
-                updateData,
-                { new: true, runValidators: true }
-            );
+            const updatedPolicy = await Policy.findByIdAndUpdate(policyId, updateData, {
+                new: true,
+                runValidators: true
+            });
 
             if (!updatedPolicy) {
                 await ctx.reply('❌ Error: No se pudo actualizar la póliza.');
@@ -2341,7 +2404,10 @@ El cambio se ha guardado exitosamente.
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('✏️ Editar Otro Campo', `admin_policy_edit_categories:${policyId}`),
+                    Markup.button.callback(
+                        '✏️ Editar Otro Campo',
+                        `admin_policy_edit_categories:${policyId}`
+                    ),
                     Markup.button.callback('👁️ Ver Detalles', `admin_policy_select:${policyId}`)
                 ]
             ]);
@@ -2352,7 +2418,10 @@ El cambio se ha guardado exitosamente.
             });
 
             // Log de auditoría
-            await AuditLogger.logChange(ctx, 'field_updated', updatedPolicy,
+            await AuditLogger.logChange(
+                ctx,
+                'field_updated',
+                updatedPolicy,
                 { [fieldName]: oldValue },
                 { [fieldName]: newValue },
                 'policy'
@@ -2360,7 +2429,6 @@ El cambio se ha guardado exitosamente.
 
             // Limpiar estado
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-
         } catch (error) {
             logger.error('Error al ejecutar cambio:', error);
             await ctx.reply('❌ Error al guardar el cambio en la base de datos.');
@@ -2399,8 +2467,9 @@ Todas las pólizas están activas en el sistema.
             }
 
             // Mostrar usando la función de múltiples resultados
-            await this.showMultipleResultsForRestore(ctx, deletedPolicies, ['Eliminadas recientes']);
-
+            await this.showMultipleResultsForRestore(ctx, deletedPolicies, [
+                'Eliminadas recientes'
+            ]);
         } catch (error) {
             logger.error('Error al mostrar pólizas eliminadas recientes:', error);
             await ctx.reply('❌ Error al cargar pólizas eliminadas.');
@@ -2460,7 +2529,10 @@ Todas las pólizas están activas en el sistema.
 
             if (currentSelection.length > 0) {
                 actionButtons.push([
-                    Markup.button.callback(`🔄 Restaurar Seleccionadas (${currentSelection.length})`, 'admin_confirm_mass_restore')
+                    Markup.button.callback(
+                        `🔄 Restaurar Seleccionadas (${currentSelection.length})`,
+                        'admin_confirm_mass_restore'
+                    )
                 ]);
             }
 
@@ -2494,7 +2566,6 @@ Todas las pólizas están activas en el sistema.
             AdminStateManager.updateAdminState(ctx.from.id, ctx.chat.id, {
                 currentView: 'mass_restore_selection'
             });
-
         } catch (error) {
             logger.error('Error al mostrar interfaz de selección masiva para restauración:', error);
             await ctx.reply('❌ Error al cargar la interfaz de selección.');
@@ -2509,7 +2580,9 @@ Todas las pólizas están activas en el sistema.
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
 
             if (!adminState || adminState.operation !== 'policy_mass_restore_selection') {
-                await ctx.answerCbQuery('❌ Error: Estado de selección no válido', { show_alert: true });
+                await ctx.answerCbQuery('❌ Error: Estado de selección no válido', {
+                    show_alert: true
+                });
                 return;
             }
 
@@ -2532,7 +2605,6 @@ Todas las pólizas están activas en el sistema.
 
             // Refrescar interfaz
             await this.showMassRestoreSelectionInterface(ctx);
-
         } catch (error) {
             logger.error('Error al cambiar selección de restauración:', error);
             await ctx.answerCbQuery('❌ Error al cambiar selección', { show_alert: true });
@@ -2547,7 +2619,9 @@ Todas las pólizas están activas en el sistema.
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
 
             if (!adminState || !adminState.data.foundPolicies) {
-                await ctx.answerCbQuery('❌ Error: No hay pólizas para seleccionar', { show_alert: true });
+                await ctx.answerCbQuery('❌ Error: No hay pólizas para seleccionar', {
+                    show_alert: true
+                });
                 return;
             }
 
@@ -2559,7 +2633,6 @@ Todas las pólizas están activas en el sistema.
 
             await ctx.answerCbQuery(`✅ ${allPolicyIds.length} pólizas seleccionadas`);
             await this.showMassRestoreSelectionInterface(ctx);
-
         } catch (error) {
             logger.error('Error al seleccionar todas para restaurar:', error);
             await ctx.answerCbQuery('❌ Error al seleccionar todas', { show_alert: true });
@@ -2577,7 +2650,6 @@ Todas las pólizas están activas en el sistema.
 
             await ctx.answerCbQuery('⬜ Todas las pólizas deseleccionadas');
             await this.showMassRestoreSelectionInterface(ctx);
-
         } catch (error) {
             logger.error('Error al deseleccionar todas para restaurar:', error);
             await ctx.answerCbQuery('❌ Error al deseleccionar todas', { show_alert: true });
@@ -2591,7 +2663,11 @@ Todas las pólizas están activas en el sistema.
         try {
             const adminState = AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id);
 
-            if (!adminState || !adminState.data.selectedPolicies || adminState.data.selectedPolicies.length === 0) {
+            if (
+                !adminState ||
+                !adminState.data.selectedPolicies ||
+                adminState.data.selectedPolicies.length === 0
+            ) {
                 await ctx.answerCbQuery('❌ No hay pólizas seleccionadas', { show_alert: true });
                 return;
             }
@@ -2649,7 +2725,6 @@ Todas las pólizas están activas en el sistema.
                 confirmationPending: true,
                 selectedPolicyDetails
             });
-
         } catch (error) {
             logger.error('Error al mostrar confirmación de restauración masiva:', error);
             await ctx.reply('❌ Error al mostrar confirmación.');
@@ -2777,7 +2852,6 @@ Todas las pólizas están activas en el sistema.
             // Limpiar estado
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
             return true;
-
         } catch (error) {
             logger.error('Error al procesar eliminación masiva:', error);
             await ctx.reply('❌ Error al procesar la eliminación masiva.');
@@ -2815,7 +2889,6 @@ No se han eliminado pólizas.
             await AuditLogger.log(ctx, 'policy_mass_deletion_cancelled', 'policy', {
                 operation: 'cancelled_by_user'
             });
-
         } catch (error) {
             logger.error('Error al cancelar eliminación masiva:', error);
             await ctx.reply('❌ Error al cancelar la operación.');
@@ -2939,7 +3012,6 @@ No se han eliminado pólizas.
 
             // Limpiar estado
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-
         } catch (error) {
             logger.error('Error al ejecutar restauración masiva:', error);
             await ctx.reply('❌ Error al procesar la restauración masiva.');
@@ -2947,10 +3019,10 @@ No se han eliminado pólizas.
     }
 
     /**
-   * Muestra estadísticas de pólizas
-   */
+     * Muestra estadísticas de pólizas
+     */
     static async handleStats(ctx) {
-    // Por ahora mostrar placeholder
+        // Por ahora mostrar placeholder
         const statsText = `
 📊 *ESTADÍSTICAS DE PÓLIZAS*
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -2966,9 +3038,7 @@ _Las estadísticas completas estarán disponibles en la Fase 4._
         await ctx.editMessageText(statsText, {
             parse_mode: 'Markdown',
             reply_markup: {
-                inline_keyboard: [[
-                    { text: '⬅️ Volver', callback_data: 'admin_policy_menu' }
-                ]]
+                inline_keyboard: [[{ text: '⬅️ Volver', callback_data: 'admin_policy_menu' }]]
             }
         });
     }

@@ -32,13 +32,17 @@ class CalculationScheduler {
      */
     scheduleDailyCalculation() {
         // Ejecutar todos los días a las 3:00 AM
-        const dailyCalculationJob = cron.schedule('0 3 * * *', async () => {
-            logger.info('🔄 Iniciando cálculo de estados automático');
-            await this.executeDailyCalculation();
-        }, {
-            scheduled: true,
-            timezone: 'America/Mexico_City'
-        });
+        const dailyCalculationJob = cron.schedule(
+            '0 3 * * *',
+            async () => {
+                logger.info('🔄 Iniciando cálculo de estados automático');
+                await this.executeDailyCalculation();
+            },
+            {
+                scheduled: true,
+                timezone: 'America/Mexico_City'
+            }
+        );
 
         this.jobs.set('dailyCalculation', dailyCalculationJob);
         logger.info('📅 Cálculo de estados programado para las 3:00 AM');
@@ -49,13 +53,17 @@ class CalculationScheduler {
      */
     scheduleWeeklyCleanup() {
         // Ejecutar domingos a las 4:00 AM
-        const weeklyCleanupJob = cron.schedule('0 4 * * 0', async () => {
-            logger.info('🧹 Iniciando limpieza semanal automática');
-            await this.executeWeeklyCleanup();
-        }, {
-            scheduled: true,
-            timezone: 'America/Mexico_City'
-        });
+        const weeklyCleanupJob = cron.schedule(
+            '0 4 * * 0',
+            async () => {
+                logger.info('🧹 Iniciando limpieza semanal automática');
+                await this.executeWeeklyCleanup();
+            },
+            {
+                scheduled: true,
+                timezone: 'America/Mexico_City'
+            }
+        );
 
         this.jobs.set('weeklyCleanup', weeklyCleanupJob);
         logger.info('📅 Limpieza semanal programada para domingos 4:00 AM');
@@ -92,7 +100,6 @@ class CalculationScheduler {
             }
 
             logger.info(`✅ Cálculo de estados completado en ${elapsed}s`);
-
         } catch (error) {
             logger.error('❌ Error en cálculo de estados:', error);
 
@@ -141,7 +148,6 @@ class CalculationScheduler {
             }
 
             logger.info(`✅ Limpieza semanal completada en ${elapsed}s`, cleanupStats);
-
         } catch (error) {
             logger.error('❌ Error en limpieza semanal:', error);
 
@@ -170,23 +176,25 @@ class CalculationScheduler {
             let output = '';
             let errorOutput = '';
 
-            child.stdout.on('data', (data) => {
+            child.stdout.on('data', data => {
                 output += data.toString();
             });
 
-            child.stderr.on('data', (data) => {
+            child.stderr.on('data', data => {
                 errorOutput += data.toString();
             });
 
-            child.on('close', (code) => {
+            child.on('close', code => {
                 if (code === 0) {
                     resolve(output);
                 } else {
-                    reject(new Error(`Script ${scriptName} falló con código ${code}: ${errorOutput}`));
+                    reject(
+                        new Error(`Script ${scriptName} falló con código ${code}: ${errorOutput}`)
+                    );
                 }
             });
 
-            child.on('error', (err) => {
+            child.on('error', err => {
                 reject(err);
             });
         });

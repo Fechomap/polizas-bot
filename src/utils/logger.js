@@ -3,7 +3,7 @@ const { createLogger, format, transports } = require('winston');
 const moment = require('moment-timezone'); // AÑADIR ESTA LÍNEA
 
 // Formato personalizado para incluir zona horaria
-const timezoneFormat = format((info) => {
+const timezoneFormat = format(info => {
     info.timestamp = moment().tz('America/Mexico_City').format('YYYY-MM-DD HH:mm:ss z');
     return info;
 });
@@ -24,10 +24,7 @@ const logger = createLogger({
     defaultMeta: { service: 'polizas-bot' },
     transports: [
         new transports.Console({
-            format: format.combine(
-                format.colorize(),
-                format.simple()
-            )
+            format: format.combine(format.colorize(), format.simple())
         })
     ]
 });

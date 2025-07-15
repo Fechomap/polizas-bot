@@ -24,7 +24,7 @@ const config = {
     dryRun: process.argv.includes('--dry-run'),
     deleteBinaries: process.argv.includes('--delete-binaries'),
     limit: getLimitFromArgs(),
-    batchSize: 10, // Procesar en lotes para evitar sobrecarga
+    batchSize: 10 // Procesar en lotes para evitar sobrecarga
 };
 
 function getLimitFromArgs() {
@@ -80,12 +80,11 @@ async function main() {
         const limit = config.limit || totalCount;
 
         while (skip < Math.min(limit, totalCount)) {
-            const policies = await Policy.find(query)
-                .skip(skip)
-                .limit(config.batchSize)
-                .lean(); // Usar lean() para mejor performance
+            const policies = await Policy.find(query).skip(skip).limit(config.batchSize).lean(); // Usar lean() para mejor performance
 
-            console.log(`\n📦 Procesando lote ${Math.floor(skip / config.batchSize) + 1} (${policies.length} pólizas)`);
+            console.log(
+                `\n📦 Procesando lote ${Math.floor(skip / config.batchSize) + 1} (${policies.length} pólizas)`
+            );
 
             for (const policy of policies) {
                 await migratePolicyFiles(policy, storage);
@@ -96,10 +95,12 @@ async function main() {
 
         // Mostrar estadísticas finales
         showFinalStats();
-
     } catch (error) {
         console.error('❌ Error en migración:', error);
-        logger.error('Error en migración de archivos', { error: error.message, stack: error.stack });
+        logger.error('Error en migración de archivos', {
+            error: error.message,
+            stack: error.stack
+        });
         process.exit(1);
     } finally {
         await mongoose.disconnect();
@@ -148,16 +149,10 @@ async function migratePolicyFiles(policy, storage) {
         if (hasChanges && !config.dryRun) {
             if (config.deleteBinaries) {
                 // Eliminar datos binarios y reemplazar con URLs
-                await Policy.updateOne(
-                    { _id: policy._id },
-                    { $set: updates }
-                );
+                await Policy.updateOne({ _id: policy._id }, { $set: updates });
             } else {
                 // Agregar URLs manteniendo datos binarios
-                await Policy.updateOne(
-                    { _id: policy._id },
-                    { $set: { 'archivos.urls': updates } }
-                );
+                await Policy.updateOne({ _id: policy._id }, { $set: { 'archivos.urls': updates } });
             }
 
             console.log(`✅ Póliza ${policy.numeroPoliza} actualizada en MongoDB`);
@@ -168,7 +163,6 @@ async function migratePolicyFiles(policy, storage) {
         } else {
             stats.skipped++;
         }
-
     } catch (error) {
         console.error(`❌ Error procesando póliza ${policy.numeroPoliza}:`, error.message);
         stats.errors.push({
@@ -192,7 +186,9 @@ async function migrateFiles(files, policyNumber, fileType, storage) {
             }
 
             const originalName = `${fileType}-${Date.now()}-${i + 1}.${fileType === 'foto' ? 'jpg' : 'pdf'}`;
-            console.log(`📤 Subiendo ${fileType} ${i + 1}/${files.length} (${file.data.length} bytes)`);
+            console.log(
+                `📤 Subiendo ${fileType} ${i + 1}/${files.length} (${file.data.length} bytes)`
+            );
 
             let uploadResult;
             if (!config.dryRun) {
@@ -239,7 +235,6 @@ async function migrateFiles(files, policyNumber, fileType, storage) {
             stats.totalFiles++;
 
             console.log(`✅ ${fileType} migrado: ${uploadResult.url}`);
-
         } catch (error) {
             console.error(`❌ Error migrando ${fileType} ${i + 1}:`, error.message);
             stats.errors.push({

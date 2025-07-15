@@ -15,7 +15,7 @@ class TestCommand extends BaseCommand {
     }
 
     register() {
-        this.bot.command(this.getCommandName(), async (ctx) => {
+        this.bot.command(this.getCommandName(), async ctx => {
             try {
                 await ctx.reply('✅ Test command is working!');
                 this.logInfo('Test command executed', { chatId: ctx.chat.id });

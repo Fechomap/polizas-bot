@@ -60,7 +60,9 @@ class FileHandler {
             const files = fileType === 'foto' ? policy.archivos.fotos : policy.archivos.pdfs;
 
             if (!files || files.length === 0) {
-                logger.info(`ℹ️ No hay ${fileType === 'foto' ? 'fotos' : 'PDFs'} para la póliza: ${numeroPoliza}`);
+                logger.info(
+                    `ℹ️ No hay ${fileType === 'foto' ? 'fotos' : 'PDFs'} para la póliza: ${numeroPoliza}`
+                );
                 return [];
             }
 

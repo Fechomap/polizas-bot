@@ -176,11 +176,14 @@ class FlowStateManager {
         if (!threadId) {
             for (const [otherContextKey, stateMap] of this.flowStates.entries()) {
                 if (otherContextKey.startsWith(`${chatId}-`) && stateMap.has(numeroPoliza)) {
-                    logger.warn('Intento de acceso a flujo sin threadId, pero existe en otro hilo', {
-                        chatId,
-                        numeroPoliza,
-                        existingThread: otherContextKey.split('-')[1]
-                    });
+                    logger.warn(
+                        'Intento de acceso a flujo sin threadId, pero existe en otro hilo',
+                        {
+                            chatId,
+                            numeroPoliza,
+                            existingThread: otherContextKey.split('-')[1]
+                        }
+                    );
                     return false;
                 }
             }
@@ -210,10 +213,13 @@ class FlowStateManager {
                 if (lastUpdate < cutoffTime) {
                     stateMap.delete(flowId);
                     removed++;
-                    logger.debug(`Eliminado contexto antiguo: ${flowId} (contextKey: ${contextKey})`, {
-                        lastUpdate: new Date(lastUpdate).toISOString(),
-                        age: Math.round((now - lastUpdate) / 1000 / 60) + ' minutos'
-                    });
+                    logger.debug(
+                        `Eliminado contexto antiguo: ${flowId} (contextKey: ${contextKey})`,
+                        {
+                            lastUpdate: new Date(lastUpdate).toISOString(),
+                            age: Math.round((now - lastUpdate) / 1000 / 60) + ' minutos'
+                        }
+                    );
                 }
             }
 

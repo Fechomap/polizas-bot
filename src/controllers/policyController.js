@@ -18,7 +18,7 @@ class DuplicatePolicyError extends Error {
  * @returns {Promise<Object>} - La póliza guardada
  * @throws {DuplicatePolicyError} Si la póliza ya existe
  */
-const savePolicy = async (policyData) => {
+const savePolicy = async policyData => {
     try {
         logger.info('Intentando guardar póliza:', { numeroPoliza: policyData.numeroPoliza });
         const newPolicy = new Policy(policyData);
@@ -31,7 +31,9 @@ const savePolicy = async (policyData) => {
             error: error.message
         });
         if (error.code === 11000 && error.keyPattern && error.keyPattern.numeroPoliza) {
-            throw new DuplicatePolicyError(`Ya existe una póliza con el número: ${policyData.numeroPoliza}`);
+            throw new DuplicatePolicyError(
+                `Ya existe una póliza con el número: ${policyData.numeroPoliza}`
+            );
         }
         throw error;
     }
@@ -42,7 +44,7 @@ const savePolicy = async (policyData) => {
  * @param {string} numeroPoliza - El número de la póliza.
  * @returns {Promise<Object|null>} - La póliza encontrada o null si no existe.
  */
-const getPolicyByNumber = async (numeroPoliza) => {
+const getPolicyByNumber = async numeroPoliza => {
     try {
         logger.info('Buscando póliza en la base de datos:', { numeroPoliza });
 
@@ -97,7 +99,7 @@ const markPolicyAsDeleted = async (numeroPoliza, motivo = '') => {
                 motivoEliminacion: motivo
             },
             {
-                new: true,          // Retorna el documento actualizado
+                new: true, // Retorna el documento actualizado
                 runValidators: false // No ejecuta validadores de esquema
             }
         );
@@ -124,7 +126,7 @@ const markPolicyAsDeleted = async (numeroPoliza, motivo = '') => {
  * @returns {Promise<Object|null>} - La póliza eliminada o null si no existe.
  * @deprecated Use markPolicyAsDeleted para borrado lógico
  */
-const deletePolicyByNumber = async (numeroPoliza) => {
+const deletePolicyByNumber = async numeroPoliza => {
     const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
     return await Policy.findOneAndDelete({ numeroPoliza: normalizedNumero });
 };
@@ -184,7 +186,9 @@ const addFileToPolicy = async (numeroPoliza, fileBuffer, fileType) => {
  */
 const addPaymentToPolicy = async (numeroPoliza, monto, fechaPago) => {
     try {
-        logger.info(`Añadiendo pago a la póliza: ${numeroPoliza} por $${monto} en ${fechaPago.toISOString()}`);
+        logger.info(
+            `Añadiendo pago a la póliza: ${numeroPoliza} por $${monto} en ${fechaPago.toISOString()}`
+        );
 
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
@@ -219,7 +223,15 @@ const addPaymentToPolicy = async (numeroPoliza, monto, fechaPago) => {
  * @param {Object} rutaInfo - Información de la ruta calculada (opcional).
  * @returns {Promise<Object|null>} - Póliza actualizada o null si no existe.
  */
-const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpediente, origenDestino, coordenadas = null, rutaInfo = null) => {
+const addServiceToPolicy = async (
+    numeroPoliza,
+    costo,
+    fechaServicio,
+    numeroExpediente,
+    origenDestino,
+    coordenadas = null,
+    rutaInfo = null
+) => {
     try {
         logger.info(`Añadiendo servicio a la póliza: ${numeroPoliza}`, {
             coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
@@ -288,7 +300,9 @@ const addServiceToPolicy = async (numeroPoliza, costo, fechaServicio, numeroExpe
 
         // Guardamos la póliza
         const updatedPolicy = await policy.save();
-        logger.info(`Servicio #${nextServiceNumber} añadido correctamente a la póliza ${numeroPoliza}`);
+        logger.info(
+            `Servicio #${nextServiceNumber} añadido correctamente a la póliza ${numeroPoliza}`
+        );
         return updatedPolicy;
     } catch (error) {
         logger.error('Error al añadir servicio a la póliza:', {
@@ -339,7 +353,9 @@ const getSusceptiblePolicies = async () => {
             const diasTranscurridos = Math.floor(msTranscurridos / (1000 * 60 * 60 * 24));
 
             // 3. Ordenar pagos por fecha ascendente y acumular 30 días por cada pago
-            const pagosOrdenados = pagos.sort((a, b) => new Date(a.fechaPago) - new Date(b.fechaPago));
+            const pagosOrdenados = pagos.sort(
+                (a, b) => new Date(a.fechaPago) - new Date(b.fechaPago)
+            );
             let diasCubiertos = 0;
 
             for (const pago of pagosOrdenados) {
@@ -392,7 +408,7 @@ const getOldUnusedPolicies = async () => {
     const allPolicies = await Policy.find({ estado: 'ACTIVO' }).lean();
 
     // 2) Armamos un array con datos calculados
-    const polConCampos = allPolicies.map((pol) => {
+    const polConCampos = allPolicies.map(pol => {
         const msDesdeEmision = now - pol.fechaEmision;
         const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
 
@@ -482,7 +498,7 @@ const getDeletedPolicies = async () => {
  * @param {string} numeroPoliza - Número de la póliza a restaurar
  * @returns {Promise<Object|null>} - La póliza restaurada o null si no existe
  */
-const restorePolicy = async (numeroPoliza) => {
+const restorePolicy = async numeroPoliza => {
     try {
         const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
 
@@ -518,7 +534,7 @@ const restorePolicy = async (numeroPoliza) => {
  * @param {Array} policiesData - Array de objetos con datos de pólizas
  * @returns {Promise<Object>} - Resultados del procesamiento
  */
-const savePoliciesBatch = async (policiesData) => {
+const savePoliciesBatch = async policiesData => {
     const results = {
         total: policiesData.length,
         successful: 0,
@@ -542,7 +558,9 @@ const savePoliciesBatch = async (policiesData) => {
                 });
 
                 if (existingPolicy) {
-                    throw new DuplicatePolicyError(`Ya existe una póliza con el número: ${policyData.numeroPoliza}`);
+                    throw new DuplicatePolicyError(
+                        `Ya existe una póliza con el número: ${policyData.numeroPoliza}`
+                    );
                 }
 
                 const newPolicy = new Policy(policyData);
@@ -605,7 +623,15 @@ const savePoliciesBatch = async (policiesData) => {
 /**
  * Añade un REGISTRO (intento de servicio) a la póliza. No cuenta como servicio hasta confirmarse.
  */
-const addRegistroToPolicy = async (numeroPoliza, costo, fechaRegistro, numeroExpediente, origenDestino, coordenadas = null, rutaInfo = null) => {
+const addRegistroToPolicy = async (
+    numeroPoliza,
+    costo,
+    fechaRegistro,
+    numeroExpediente,
+    origenDestino,
+    coordenadas = null,
+    rutaInfo = null
+) => {
     try {
         logger.info(`Añadiendo REGISTRO a la póliza: ${numeroPoliza}`, {
             coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
@@ -678,7 +704,9 @@ const addRegistroToPolicy = async (numeroPoliza, costo, fechaRegistro, numeroExp
         policy.registros.push(registroData);
 
         const updatedPolicy = await policy.save();
-        logger.info(`Registro #${nextRegistroNumber} añadido correctamente a la póliza ${numeroPoliza}`);
+        logger.info(
+            `Registro #${nextRegistroNumber} añadido correctamente a la póliza ${numeroPoliza}`
+        );
         return updatedPolicy;
     } catch (error) {
         logger.error('Error al añadir registro a la póliza:', {
@@ -692,9 +720,16 @@ const addRegistroToPolicy = async (numeroPoliza, costo, fechaRegistro, numeroExp
 /**
  * Convierte un REGISTRO en SERVICIO confirmado con fechas de contacto y término programadas
  */
-const convertirRegistroAServicio = async (numeroPoliza, numeroRegistro, fechaContactoProgramada, fechaTerminoProgramada) => {
+const convertirRegistroAServicio = async (
+    numeroPoliza,
+    numeroRegistro,
+    fechaContactoProgramada,
+    fechaTerminoProgramada
+) => {
     try {
-        logger.info(`Convirtiendo registro ${numeroRegistro} a servicio en póliza: ${numeroPoliza}`);
+        logger.info(
+            `Convirtiendo registro ${numeroRegistro} a servicio en póliza: ${numeroPoliza}`
+        );
 
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
@@ -741,7 +776,9 @@ const convertirRegistroAServicio = async (numeroPoliza, numeroRegistro, fechaCon
         policy.servicios.push(servicioData);
 
         const updatedPolicy = await policy.save();
-        logger.info(`Registro #${numeroRegistro} convertido a servicio #${nextServiceNumber} en póliza ${numeroPoliza}`);
+        logger.info(
+            `Registro #${numeroRegistro} convertido a servicio #${nextServiceNumber} en póliza ${numeroPoliza}`
+        );
         return { updatedPolicy, numeroServicio: nextServiceNumber };
     } catch (error) {
         logger.error('Error al convertir registro a servicio:', {
@@ -758,7 +795,9 @@ const convertirRegistroAServicio = async (numeroPoliza, numeroRegistro, fechaCon
  */
 const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
     try {
-        logger.info(`Marcando registro ${numeroRegistro} como NO ASIGNADO en póliza: ${numeroPoliza}`);
+        logger.info(
+            `Marcando registro ${numeroRegistro} como NO ASIGNADO en póliza: ${numeroPoliza}`
+        );
 
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
@@ -777,7 +816,9 @@ const marcarRegistroNoAsignado = async (numeroPoliza, numeroRegistro) => {
         registro.estado = 'NO_ASIGNADO';
 
         const updatedPolicy = await policy.save();
-        logger.info(`Registro #${numeroRegistro} marcado como NO ASIGNADO en póliza ${numeroPoliza}`);
+        logger.info(
+            `Registro #${numeroRegistro} marcado como NO ASIGNADO en póliza ${numeroPoliza}`
+        );
         return updatedPolicy;
     } catch (error) {
         logger.error('Error al marcar registro como no asignado:', {

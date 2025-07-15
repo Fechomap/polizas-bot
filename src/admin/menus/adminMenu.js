@@ -3,8 +3,8 @@ const menuBuilder = require('./menuBuilder');
 
 class AdminMenu {
     /**
-   * Muestra el menú principal de administración
-   */
+     * Muestra el menú principal de administración
+     */
     static async showMainMenu(ctx) {
         const menuText = `
 🔧 *PANEL DE ADMINISTRACIÓN*
@@ -29,9 +29,7 @@ _Solo usuarios administradores pueden acceder a estas funciones._
                 Markup.button.callback('📊 Reportes PDF', 'admin_reports_menu'),
                 Markup.button.callback('💾 Gestión Base de Datos', 'admin_database_menu')
             ],
-            [
-                Markup.button.callback('⬅️ Volver al Menú Principal', 'accion:volver_menu')
-            ]
+            [Markup.button.callback('⬅️ Volver al Menú Principal', 'accion:volver_menu')]
         ]);
 
         if (ctx.callbackQuery) {
@@ -48,8 +46,8 @@ _Solo usuarios administradores pueden acceder a estas funciones._
     }
 
     /**
-   * Muestra el submenú de gestión de pólizas
-   */
+     * Muestra el submenú de gestión de pólizas
+     */
     static async showPolicyMenu(ctx) {
         const menuText = `
 📝 *GESTIÓN DE PÓLIZAS*
@@ -72,9 +70,7 @@ Selecciona la operación a realizar:
                 Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore'),
                 Markup.button.callback('📊 Ver Estadísticas', 'admin_policy_stats')
             ],
-            [
-                Markup.button.callback('⬅️ Volver', 'admin_menu')
-            ]
+            [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
         await ctx.editMessageText(menuText, {
@@ -84,8 +80,8 @@ Selecciona la operación a realizar:
     }
 
     /**
-   * Muestra el submenú de gestión de servicios
-   */
+     * Muestra el submenú de gestión de servicios
+     */
     static async showServiceMenu(ctx) {
         const menuText = `
 🚗 *GESTIÓN DE SERVICIOS*
@@ -101,12 +97,8 @@ _Funciona tanto para servicios como para registros._
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
-            [
-                Markup.button.callback('✏️ Editar por Expediente', 'admin_service_edit')
-            ],
-            [
-                Markup.button.callback('⬅️ Volver', 'admin_menu')
-            ]
+            [Markup.button.callback('✏️ Editar por Expediente', 'admin_service_edit')],
+            [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
         await ctx.editMessageText(menuText, {
@@ -142,9 +134,7 @@ _Reportes en PDF con gráficas y tablas listos para imprimir._
                 Markup.button.callback('📋 Reporte Personalizado', 'admin_reports_custom'),
                 Markup.button.callback('🎯 Resumen Ejecutivo', 'admin_reports_executive')
             ],
-            [
-                Markup.button.callback('⬅️ Volver', 'admin_menu')
-            ]
+            [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
         await ctx.editMessageText(menuText, {
@@ -154,8 +144,8 @@ _Reportes en PDF con gráficas y tablas listos para imprimir._
     }
 
     /**
-   * Muestra el submenú de gestión de base de datos
-   */
+     * Muestra el submenú de gestión de base de datos
+     */
     static async showDatabaseMenu(ctx) {
         const menuText = `
 💾 *GESTIÓN BASE DE DATOS*
@@ -172,12 +162,8 @@ _Estados actualizados automáticamente a las 3:00 AM_
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
-            [
-                Markup.button.callback('📊 Exportar Excel', 'admin_database_export')
-            ],
-            [
-                Markup.button.callback('⬅️ Volver', 'admin_menu')
-            ]
+            [Markup.button.callback('📊 Exportar Excel', 'admin_database_export')],
+            [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
         await ctx.editMessageText(menuText, {

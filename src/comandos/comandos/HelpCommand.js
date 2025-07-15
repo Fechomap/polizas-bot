@@ -93,11 +93,12 @@ Presiona "Volver al Menú" para ver todas las opciones disponibles.
                 await ctx.reply('❌ Error al mostrar la ayuda.');
             } else {
                 // Podríamos intentar responder al callback con error si es posible
-                try { await ctx.answerCbQuery('Error al mostrar ayuda'); } catch {}
+                try {
+                    await ctx.answerCbQuery('Error al mostrar ayuda');
+                } catch {}
             }
         }
     }
-
 
     register() {
         // No longer registering the /help command directly.

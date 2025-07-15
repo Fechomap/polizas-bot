@@ -80,7 +80,10 @@ class StateKeyManager {
                 const key = StateKeyManager.getContextKey(chatId, threadId);
                 // Problema detectado: Loguear para verificar que la clave se está generando correctamente
                 const exists = stateMap.has(key);
-                logger.debug(`Verificando estado para key=${key}, existe=${exists}`, { chatId, threadId });
+                logger.debug(`Verificando estado para key=${key}, existe=${exists}`, {
+                    chatId,
+                    threadId
+                });
                 return exists;
             },
 
@@ -91,7 +94,7 @@ class StateKeyManager {
             },
 
             // Elimina todos los valores asociados a un chatId, sin importar el threadId
-            deleteAll: (chatId) => {
+            deleteAll: chatId => {
                 let count = 0;
                 const keysToDelete = [];
 
@@ -113,7 +116,7 @@ class StateKeyManager {
             },
 
             // Retorna todos los valores de un chatId
-            getAllByChatId: (chatId) => {
+            getAllByChatId: chatId => {
                 const result = [];
                 for (const [key, value] of stateMap.entries()) {
                     if (key === `${chatId}` || key.startsWith(`${chatId}:`)) {

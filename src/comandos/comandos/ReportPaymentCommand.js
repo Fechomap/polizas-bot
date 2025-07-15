@@ -23,13 +23,15 @@ class ReportPaymentCommand extends BaseCommand {
             const susceptibles = await getSusceptiblePolicies();
 
             if (!susceptibles.length) {
-                return await ctx.reply('✅ No hay pólizas susceptibles de falta de pago. Todas están al corriente.');
+                return await ctx.reply(
+                    '✅ No hay pólizas susceptibles de falta de pago. Todas están al corriente.'
+                );
             }
 
             // Armamos un arreglo de líneas
             const lines = [];
             lines.push('⚠️ *Pólizas con Pagos Pendientes*\n');
-            susceptibles.forEach((pol) => {
+            susceptibles.forEach(pol => {
                 // Ensure properties exist before accessing
                 const numeroPoliza = pol.numeroPoliza || 'N/A';
                 const diasDeImpago = pol.diasDeImpago !== undefined ? pol.diasDeImpago : 'N/A';
@@ -50,13 +52,11 @@ class ReportPaymentCommand extends BaseCommand {
                 await ctx.replyWithMarkdown(chunk);
             }
             this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
-
         } catch (error) {
             this.logError(`Error en ${this.getCommandName()}:`, error);
             await this.replyError(ctx, 'Ocurrió un error al generar el reporte de pago.');
         }
     }
-
 
     register() {
         // No longer registering the /reportPayment command directly.

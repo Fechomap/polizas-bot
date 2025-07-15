@@ -8,7 +8,7 @@ const Policy = require('../src/models/policy');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Función para limpiar directorio
-const cleanDirectory = async (dir) => {
+const cleanDirectory = async dir => {
     try {
         await rimraf(dir);
         console.log(`✅ Directorio limpiado: ${dir}`);
@@ -19,7 +19,7 @@ const cleanDirectory = async (dir) => {
 };
 
 // Función para esperar
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const connectDB = async () => {
     try {
@@ -36,7 +36,7 @@ const connectDB = async () => {
     }
 };
 
-const ensureDirectoryExists = async (dirPath) => {
+const ensureDirectoryExists = async dirPath => {
     try {
         await fs.access(dirPath);
     } catch {
@@ -72,11 +72,15 @@ const exportData = async () => {
 
         for (const policy of policies) {
             processedCount++;
-            console.log(`\nProcesando póliza ${processedCount}/${policies.length}: ${policy.numeroPoliza}`);
+            console.log(
+                `\nProcesando póliza ${processedCount}/${policies.length}: ${policy.numeroPoliza}`
+            );
 
             // Verificar si la póliza está eliminada
             if (policy.estado === 'ELIMINADO') {
-                console.log(`⚠️ Póliza ${policy.numeroPoliza} está ELIMINADA, omitiendo archivos adjuntos.`);
+                console.log(
+                    `⚠️ Póliza ${policy.numeroPoliza} está ELIMINADA, omitiendo archivos adjuntos.`
+                );
             } else {
                 // Solo procesar archivos si no está eliminada
                 const policyDir = path.join(filesDir, policy.numeroPoliza);
@@ -100,10 +104,15 @@ const exportData = async () => {
                                     contentType: foto.contentType || 'image/jpeg'
                                 });
                                 totalFiles++;
-                                console.log(`✅ Foto ${fileName} guardada para póliza ${policy.numeroPoliza}`);
+                                console.log(
+                                    `✅ Foto ${fileName} guardada para póliza ${policy.numeroPoliza}`
+                                );
                                 await delay(200);
                             } catch (err) {
-                                console.error(`❌ Error al guardar foto ${i + 1} de póliza ${policy.numeroPoliza}:`, err);
+                                console.error(
+                                    `❌ Error al guardar foto ${i + 1} de póliza ${policy.numeroPoliza}:`,
+                                    err
+                                );
                             }
                         }
                     }
@@ -124,10 +133,15 @@ const exportData = async () => {
                                     contentType: pdf.contentType || 'application/pdf'
                                 });
                                 totalFiles++;
-                                console.log(`✅ PDF ${fileName} guardado para póliza ${policy.numeroPoliza}`);
+                                console.log(
+                                    `✅ PDF ${fileName} guardado para póliza ${policy.numeroPoliza}`
+                                );
                                 await delay(200);
                             } catch (err) {
-                                console.error(`❌ Error al guardar PDF ${i + 1} de póliza ${policy.numeroPoliza}:`, err);
+                                console.error(
+                                    `❌ Error al guardar PDF ${i + 1} de póliza ${policy.numeroPoliza}:`,
+                                    err
+                                );
                             }
                         }
                     }
@@ -158,32 +172,35 @@ const exportData = async () => {
                 'FECHA DE EMISION': policy.fechaEmision
                     ? new Date(policy.fechaEmision).toISOString().split('T')[0]
                     : '',
-                'ESTADO_POLIZA': policy.estadoPoliza || '',
-                'FECHA_FIN_COBERTURA': policy.fechaFinCobertura || '',
-                'FECHA_FIN_GRACIA': policy.fechaFinGracia || '',
-                'DIAS_RESTANTES_COBERTURA': policy.diasRestantesCobertura || '',
-                'DIAS_RESTANTES_GRACIA': policy.diasRestantesGracia || '',
-                'NUM_FOTOS': policy.archivos && policy.archivos.fotos ? policy.archivos.fotos.length : 0,
-                'NUM_PDFS': policy.archivos && policy.archivos.pdfs ? policy.archivos.pdfs.length : 0,
-                'ESTADO_DB': policy.estado || 'ACTIVO',
+                ESTADO_POLIZA: policy.estadoPoliza || '',
+                FECHA_FIN_COBERTURA: policy.fechaFinCobertura || '',
+                FECHA_FIN_GRACIA: policy.fechaFinGracia || '',
+                DIAS_RESTANTES_COBERTURA: policy.diasRestantesCobertura || '',
+                DIAS_RESTANTES_GRACIA: policy.diasRestantesGracia || '',
+                NUM_FOTOS:
+                    policy.archivos && policy.archivos.fotos ? policy.archivos.fotos.length : 0,
+                NUM_PDFS: policy.archivos && policy.archivos.pdfs ? policy.archivos.pdfs.length : 0,
+                ESTADO_DB: policy.estado || 'ACTIVO'
             };
 
             const pagos = policy.pagos || [];
             for (let i = 0; i < 12; i++) {
                 const pago = pagos[i];
                 row[`PAGO${i + 1}_MONTO`] = pago ? pago.monto : '';
-                row[`PAGO${i + 1}_FECHA`] = pago && pago.fechaPago
-                    ? new Date(pago.fechaPago).toISOString().split('T')[0]
-                    : '';
+                row[`PAGO${i + 1}_FECHA`] =
+                    pago && pago.fechaPago
+                        ? new Date(pago.fechaPago).toISOString().split('T')[0]
+                        : '';
             }
 
             const servicios = policy.servicios || [];
             for (let i = 0; i < 12; i++) {
                 const servicio = servicios[i];
                 row[`SERVICIO${i + 1}_COSTO`] = servicio ? servicio.costo : '';
-                row[`SERVICIO${i + 1}_FECHA`] = servicio && servicio.fechaServicio
-                    ? new Date(servicio.fechaServicio).toISOString().split('T')[0]
-                    : '';
+                row[`SERVICIO${i + 1}_FECHA`] =
+                    servicio && servicio.fechaServicio
+                        ? new Date(servicio.fechaServicio).toISOString().split('T')[0]
+                        : '';
                 row[`SERVICIO${i + 1}_EXPEDIENTE`] = servicio ? servicio.numeroExpediente : '';
                 row[`SERVICIO${i + 1}_ORIGEN_DESTINO`] = servicio ? servicio.origenDestino : '';
             }

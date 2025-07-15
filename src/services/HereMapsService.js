@@ -73,20 +73,29 @@ class HereMapsService {
             throw new Error('HERE Maps API key not configured');
         }
 
-        if (!origen || !destino || typeof origen.lat !== 'number' || typeof origen.lng !== 'number' ||
-            typeof destino.lat !== 'number' || typeof destino.lng !== 'number') {
+        if (
+            !origen ||
+            !destino ||
+            typeof origen.lat !== 'number' ||
+            typeof origen.lng !== 'number' ||
+            typeof destino.lat !== 'number' ||
+            typeof destino.lng !== 'number'
+        ) {
             throw new Error('Invalid coordinates provided');
         }
 
         try {
-            const url = `${this.routingBaseUrl}/routes?` +
+            const url =
+                `${this.routingBaseUrl}/routes?` +
                 `origin=${origen.lat},${origen.lng}&` +
                 `destination=${destino.lat},${destino.lng}&` +
                 'transportMode=car&' +
                 'return=summary&' +
                 `apikey=${this.apiKey}`;
 
-            logger.info(`Calculando ruta HERE Maps: ${origen.lat},${origen.lng} -> ${destino.lat},${destino.lng}`);
+            logger.info(
+                `Calculando ruta HERE Maps: ${origen.lat},${origen.lng} -> ${destino.lat},${destino.lng}`
+            );
 
             const response = await fetch(url, {
                 method: 'GET',
@@ -122,7 +131,6 @@ class HereMapsService {
 
             logger.info(`Ruta calculada: ${distanciaKm}km, ${tiempoMinutos}min`);
             return resultado;
-
         } catch (error) {
             logger.error('Error calculating route with HERE Maps:', error);
 
@@ -130,7 +138,9 @@ class HereMapsService {
             const distanciaAproximada = this.calculateHaversineDistance(origen, destino);
             const tiempoAproximado = Math.round(distanciaAproximada * 2); // Aprox 2 min por km en ciudad
 
-            logger.info(`Usando cálculo aproximado: ${distanciaAproximada}km, ${tiempoAproximado}min`);
+            logger.info(
+                `Usando cálculo aproximado: ${distanciaAproximada}km, ${tiempoAproximado}min`
+            );
 
             return {
                 distanciaKm: distanciaAproximada,
@@ -152,9 +162,12 @@ class HereMapsService {
         const dLat = this.toRadians(destino.lat - origen.lat);
         const dLng = this.toRadians(destino.lng - origen.lng);
 
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(this.toRadians(origen.lat)) * Math.cos(this.toRadians(destino.lat)) *
-                  Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(this.toRadians(origen.lat)) *
+                Math.cos(this.toRadians(destino.lat)) *
+                Math.sin(dLng / 2) *
+                Math.sin(dLng / 2);
 
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = R * c;
@@ -197,7 +210,8 @@ class HereMapsService {
         }
 
         try {
-            const url = 'https://revgeocode.search.hereapi.com/v1/revgeocode?' +
+            const url =
+                'https://revgeocode.search.hereapi.com/v1/revgeocode?' +
                 `at=${lat},${lng}&` +
                 'lang=es-MX&' +
                 `apikey=${this.apiKey}`;
@@ -240,7 +254,6 @@ class HereMapsService {
 
             logger.info(`Geocoding reverso exitoso: ${resultado.ubicacionCorta}`);
             return resultado;
-
         } catch (error) {
             logger.error('Error en geocoding reverso:', error);
 
@@ -313,7 +326,6 @@ class HereMapsService {
             resultado.rutaInfo = await this.calculateRoute(resultado.origen, resultado.destino);
 
             return resultado;
-
         } catch (error) {
             logger.error('Error processing user input:', error);
             resultado.error = `Error al procesar coordenadas: ${error.message}`;

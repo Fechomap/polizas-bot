@@ -4,7 +4,6 @@ const { Markup } = require('telegraf');
 const { getPolicyByNumber } = require('../../controllers/policyController');
 const StateKeyManager = require('../../utils/StateKeyManager');
 
-
 class GetCommand extends BaseCommand {
     constructor(handler) {
         super(handler);
@@ -24,7 +23,9 @@ class GetCommand extends BaseCommand {
         // No longer registering the /get command directly.
         // The flow is initiated by the 'accion:consultar' button in CommandHandler.
         // The 'getPoliza:' callback is also handled centrally in CommandHandler.
-        this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando ni callback aquí.`);
+        this.logInfo(
+            `Comando ${this.getCommandName()} cargado, pero no registra /comando ni callback aquí.`
+        );
     }
 
     // This method is now primarily called by TextMessageHandler when awaitingGetPolicyNumber is true.
@@ -43,10 +44,15 @@ class GetCommand extends BaseCommand {
             } else {
                 // Guardar en FlowStateManager con threadId
                 const flowStateManager = require('../../utils/FlowStateManager');
-                flowStateManager.saveState(chatId, numeroPoliza, {
-                    active: true,
-                    activeSince: new Date().toISOString()
-                }, threadId);
+                flowStateManager.saveState(
+                    chatId,
+                    numeroPoliza,
+                    {
+                        active: true,
+                        activeSince: new Date().toISOString()
+                    },
+                    threadId
+                );
 
                 // Determine how many services there are
                 const servicios = policy.servicios || [];
@@ -90,10 +96,20 @@ class GetCommand extends BaseCommand {
                 await ctx.replyWithMarkdown(
                     mensaje,
                     Markup.inlineKeyboard([
-                        [ Markup.button.callback('📸 Ver Fotos', `verFotos:${policy.numeroPoliza}`), // Keep existing buttons
-                            Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`) ],
-                        [ Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`) ],
-                        [ Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu') ]
+                        [
+                            Markup.button.callback(
+                                '📸 Ver Fotos',
+                                `verFotos:${policy.numeroPoliza}`
+                            ), // Keep existing buttons
+                            Markup.button.callback('📄 Ver PDFs', `verPDFs:${policy.numeroPoliza}`)
+                        ],
+                        [
+                            Markup.button.callback(
+                                '🚗 Ocupar Póliza',
+                                `ocuparPoliza:${policy.numeroPoliza}`
+                            )
+                        ],
+                        [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
                     ])
                 );
                 this.logInfo('Información de póliza enviada', {

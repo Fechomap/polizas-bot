@@ -11,7 +11,7 @@ class ChartGenerator {
             width: 800,
             height: 400,
             backgroundColour: 'transparent',
-            chartCallback: (ChartJS) => {
+            chartCallback: ChartJS => {
                 // Registrar plugins personalizados
                 ChartJS.defaults.font.family = 'Arial, sans-serif';
                 ChartJS.defaults.font.size = 12;
@@ -73,15 +73,17 @@ class ChartGenerator {
             type: 'bar',
             data: {
                 labels: labels,
-                datasets: [{
-                    label: 'Pólizas Contratadas',
-                    data: values,
-                    backgroundColor: this.createGradients(palette.primary, values.length),
-                    borderColor: palette.primary,
-                    borderWidth: 2,
-                    borderRadius: 8,
-                    borderSkipped: false,
-                }]
+                datasets: [
+                    {
+                        label: 'Pólizas Contratadas',
+                        data: values,
+                        backgroundColor: this.createGradients(palette.primary, values.length),
+                        borderColor: palette.primary,
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false
+                    }
+                ]
             },
             options: {
                 responsive: false,
@@ -108,8 +110,11 @@ class ChartGenerator {
                         borderWidth: 1,
                         cornerRadius: 8,
                         callbacks: {
-                            label: function(context) {
-                                const percentage = ((context.parsed.y / data.totalPolicies) * 100).toFixed(1);
+                            label: function (context) {
+                                const percentage = (
+                                    (context.parsed.y / data.totalPolicies) *
+                                    100
+                                ).toFixed(1);
                                 return `${context.parsed.y} pólizas (${percentage}%)`;
                             }
                         }
@@ -309,21 +314,19 @@ class ChartGenerator {
             type: 'doughnut',
             data: {
                 labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: [
-                        'rgba(255, 7, 58, 0.8)',    // Rojo matrix para sin servicios
-                        'rgba(255, 214, 10, 0.8)',  // Amarillo para un servicio
-                        'rgba(57, 255, 20, 0.8)'    // Verde matrix para completos
-                    ],
-                    borderColor: [
-                        '#FF073A',
-                        '#FFD60A',
-                        '#39FF14'
-                    ],
-                    borderWidth: 3,
-                    hoverBorderWidth: 5
-                }]
+                datasets: [
+                    {
+                        data: data,
+                        backgroundColor: [
+                            'rgba(255, 7, 58, 0.8)', // Rojo matrix para sin servicios
+                            'rgba(255, 214, 10, 0.8)', // Amarillo para un servicio
+                            'rgba(57, 255, 20, 0.8)' // Verde matrix para completos
+                        ],
+                        borderColor: ['#FF073A', '#FFD60A', '#39FF14'],
+                        borderWidth: 3,
+                        hoverBorderWidth: 5
+                    }
+                ]
             },
             options: {
                 responsive: false,
@@ -360,7 +363,7 @@ class ChartGenerator {
                         borderWidth: 1,
                         cornerRadius: 8,
                         callbacks: {
-                            label: function(context) {
+                            label: function (context) {
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
                                 const percentage = ((context.parsed / total) * 100).toFixed(1);
                                 return `${context.label}: ${context.parsed} (${percentage}%)`;
@@ -434,7 +437,7 @@ class ChartGenerator {
                 responsive: false,
                 interaction: {
                     mode: 'index',
-                    intersect: false,
+                    intersect: false
                 },
                 plugins: {
                     title: {
@@ -523,7 +526,7 @@ class ChartGenerator {
                         position: 'right',
                         beginAtZero: true,
                         grid: {
-                            drawOnChartArea: false,
+                            drawOnChartArea: false
                         },
                         ticks: {
                             color: '#00FFFF',
@@ -632,9 +635,12 @@ class ChartGenerator {
                         borderWidth: 1,
                         cornerRadius: 8,
                         callbacks: {
-                            afterBody: function(context) {
+                            afterBody: function (context) {
                                 const aseg = aseguradoras[context[0].dataIndex];
-                                return [`ROI: ${aseg.roi}%`, `Eficiencia: ${aseg.serviceUsageRate}%`];
+                                return [
+                                    `ROI: ${aseg.roi}%`,
+                                    `Eficiencia: ${aseg.serviceUsageRate}%`
+                                ];
                             }
                         }
                     }
@@ -695,7 +701,7 @@ class ChartGenerator {
                 width,
                 height,
                 backgroundColour: 'white',
-                chartCallback: (ChartJS) => {
+                chartCallback: ChartJS => {
                     ChartJS.defaults.font.family = 'Arial, sans-serif';
                     ChartJS.defaults.font.size = 12;
                     ChartJS.defaults.color = '#333333';

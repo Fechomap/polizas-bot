@@ -15,10 +15,10 @@ const Policy = require('../src/models/policy');
 
 // Ruta para guardar un registro de ejecución
 const logDir = path.join(__dirname, 'logs');
-const logFilePath = path.join(logDir, `calculo_${new Date().toISOString().slice(0,10)}.log`);
+const logFilePath = path.join(logDir, `calculo_${new Date().toISOString().slice(0, 10)}.log`);
 
 // Función para escribir en el log
-const escribirLog = async (mensaje) => {
+const escribirLog = async mensaje => {
     const timestamp = new Date().toISOString();
     const logMensaje = `[${timestamp}] ${mensaje}\n`;
 
@@ -26,7 +26,7 @@ const escribirLog = async (mensaje) => {
     try {
         await fs.mkdir(logDir, { recursive: true });
     } catch (err) {
-    // Ignorar error si el directorio ya existe
+        // Ignorar error si el directorio ya existe
         if (err.code !== 'EEXIST') throw err;
     }
 
@@ -79,7 +79,7 @@ const calcularPuntaje = (estado, diasCobertura, diasGracia, servicios) => {
     if (estado === 'VENCIDA') return 0;
 
     // Seleccionar días según el estado
-    const dias = (estado === 'PERIODO DE GRACIA') ? diasGracia : diasCobertura;
+    const dias = estado === 'PERIODO DE GRACIA' ? diasGracia : diasCobertura;
 
     let puntaje = 0;
     // Para pólizas sin servicios
@@ -108,7 +108,7 @@ const calcularPuntaje = (estado, diasCobertura, diasGracia, servicios) => {
 // Función principal para actualizar todas las pólizas
 const actualizarEstados = async () => {
     try {
-    // Conectar a MongoDB
+        // Conectar a MongoDB
         const connected = await connectDB();
         if (!connected) {
             await escribirLog('❌ No se pudo conectar a la base de datos. Abortando operación.');
@@ -138,7 +138,9 @@ const actualizarEstados = async () => {
             try {
                 // Verificar si tiene fecha de emisión
                 if (!policy.fechaEmision) {
-                    await escribirLog(`⚠️ Póliza ${policy.numeroPoliza} sin fecha de emisión, omitiendo.`);
+                    await escribirLog(
+                        `⚠️ Póliza ${policy.numeroPoliza} sin fecha de emisión, omitiendo.`
+                    );
                     continue;
                 }
 
@@ -171,7 +173,7 @@ const actualizarEstados = async () => {
                         // Simplemente está VIGENTE
                         estado = 'VIGENTE';
                     } else {
-                        estado = (diasGracia >= 0) ? 'PERIODO DE GRACIA' : 'VENCIDA';
+                        estado = diasGracia >= 0 ? 'PERIODO DE GRACIA' : 'VENCIDA';
                     }
                 }
 
@@ -187,9 +189,9 @@ const actualizarEstados = async () => {
                     fechaFinCobertura: fechaFinCobertura,
                     fechaFinGracia: fechaFinGracia,
                     diasRestantesCobertura: diasCobertura || 0, // Asegurar que no sea undefined
-                    diasRestantesGracia: diasGracia || 0,       // Asegurar que no sea undefined
-                    totalServicios: servicios || 0,             // Asegurar que no sea undefined
-                    calificacion: puntaje || 0                  // Asegurar que no sea undefined
+                    diasRestantesGracia: diasGracia || 0, // Asegurar que no sea undefined
+                    totalServicios: servicios || 0, // Asegurar que no sea undefined
+                    calificacion: puntaje || 0 // Asegurar que no sea undefined
                 };
 
                 // Actualizar documento usando findByIdAndUpdate para evitar validaciones
@@ -201,11 +203,14 @@ const actualizarEstados = async () => {
 
                 // Mostrar progreso cada 20 pólizas
                 if (procesadas % 20 === 0) {
-                    await escribirLog(`🔄 Procesadas ${procesadas} de ${policies.length} pólizas...`);
+                    await escribirLog(
+                        `🔄 Procesadas ${procesadas} de ${policies.length} pólizas...`
+                    );
                 }
-
             } catch (error) {
-                await escribirLog(`❌ Error al procesar póliza ${policy.numeroPoliza}: ${error.message}`);
+                await escribirLog(
+                    `❌ Error al procesar póliza ${policy.numeroPoliza}: ${error.message}`
+                );
                 errores++;
             }
         }
@@ -219,7 +224,6 @@ const actualizarEstados = async () => {
         await escribirLog(`\n📋 Total pólizas procesadas: ${procesadas}`);
         await escribirLog(`📋 Total errores: ${errores}`);
         await escribirLog(`\n✅ Cálculo de estados completado - ${new Date().toISOString()}`);
-
     } catch (error) {
         await escribirLog(`❌ Error general: ${error.message}`);
     } finally {

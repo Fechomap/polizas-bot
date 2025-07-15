@@ -31,8 +31,9 @@ class StateCleanupService {
 
         // Programar limpieza periódica
         this.cleanupInterval = setInterval(() => {
-            this.runCleanup()
-                .catch(err => logger.error('Error en limpieza periódica de estados:', err));
+            this.runCleanup().catch(err =>
+                logger.error('Error en limpieza periódica de estados:', err)
+            );
         }, intervalMs);
 
         logger.info('✅ StateCleanupService iniciado', {

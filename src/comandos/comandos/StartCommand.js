@@ -17,7 +17,7 @@ class StartCommand extends BaseCommand {
 
     register() {
         // Mantenemos el comando /start por ahora, pero mostramos el menú inline
-        this.bot.command(this.getCommandName(), async (ctx) => {
+        this.bot.command(this.getCommandName(), async ctx => {
             try {
                 const mainMenu = Markup.inlineKeyboard([
                     [
@@ -77,7 +77,9 @@ class StartCommand extends BaseCommand {
             if (!ctx.callbackQuery) {
                 await ctx.reply('❌ Error al mostrar el menú.');
             } else {
-                try { await ctx.answerCbQuery('Error al mostrar menú'); } catch {}
+                try {
+                    await ctx.answerCbQuery('Error al mostrar menú');
+                } catch {}
             }
         }
     }

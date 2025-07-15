@@ -25,7 +25,6 @@ class DeleteCommand extends BaseCommand {
         // The admin check should ideally happen within the action handler in CommandHandler.js
         this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
 
-
         // Note: The actual handling of the text inputs (policy number, delete reason)
         // is done within TextMessageHandler.js by checking the state flags
         // (awaitingDeletePolicyNumber, awaitingDeleteReason) set by this command

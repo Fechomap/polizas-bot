@@ -8,8 +8,8 @@ class MenuBuilder {
     }
 
     /**
-   * Añade un botón al menú
-   */
+     * Añade un botón al menú
+     */
     addButton(text, callbackData) {
         this.currentRow.push(Markup.button.callback(text, callbackData));
 
@@ -22,8 +22,8 @@ class MenuBuilder {
     }
 
     /**
-   * Fuerza el inicio de una nueva fila
-   */
+     * Fuerza el inicio de una nueva fila
+     */
     newRow() {
         if (this.currentRow.length > 0) {
             this.buttons.push([...this.currentRow]);
@@ -33,8 +33,8 @@ class MenuBuilder {
     }
 
     /**
-   * Añade un botón de navegación (volver, cancelar, etc)
-   */
+     * Añade un botón de navegación (volver, cancelar, etc)
+     */
     addNavigationButton(text, callbackData) {
         this.newRow();
         this.buttons.push([Markup.button.callback(text, callbackData)]);
@@ -42,8 +42,8 @@ class MenuBuilder {
     }
 
     /**
-   * Añade botones de paginación
-   */
+     * Añade botones de paginación
+     */
     addPagination(currentPage, totalPages, baseCallback) {
         if (totalPages <= 1) return this;
 
@@ -56,9 +56,7 @@ class MenuBuilder {
             );
         }
 
-        paginationRow.push(
-            Markup.button.callback(`📄 ${currentPage}/${totalPages}`, 'noop')
-        );
+        paginationRow.push(Markup.button.callback(`📄 ${currentPage}/${totalPages}`, 'noop'));
 
         if (currentPage < totalPages) {
             paginationRow.push(
@@ -71,10 +69,10 @@ class MenuBuilder {
     }
 
     /**
-   * Construye el teclado inline final
-   */
+     * Construye el teclado inline final
+     */
     build() {
-    // Añadir última fila si tiene botones
+        // Añadir última fila si tiene botones
         if (this.currentRow.length > 0) {
             this.buttons.push(this.currentRow);
         }
@@ -83,9 +81,14 @@ class MenuBuilder {
     }
 
     /**
-   * Método estático para crear un menú de confirmación
-   */
-    static confirmationMenu(confirmCallback, cancelCallback, confirmText = '✅ Confirmar', cancelText = '❌ Cancelar') {
+     * Método estático para crear un menú de confirmación
+     */
+    static confirmationMenu(
+        confirmCallback,
+        cancelCallback,
+        confirmText = '✅ Confirmar',
+        cancelText = '❌ Cancelar'
+    ) {
         return Markup.inlineKeyboard([
             [
                 Markup.button.callback(confirmText, confirmCallback),
@@ -95,8 +98,8 @@ class MenuBuilder {
     }
 
     /**
-   * Método estático para crear un menú de categorías
-   */
+     * Método estático para crear un menú de categorías
+     */
     static categoryMenu(categories, baseCallback, backCallback) {
         const builder = new MenuBuilder();
 
@@ -113,8 +116,8 @@ class MenuBuilder {
     }
 
     /**
-   * Método estático para crear breadcrumbs
-   */
+     * Método estático para crear breadcrumbs
+     */
     static breadcrumbs(path) {
         const parts = path.map(p => p.name).join(' › ');
         return `📍 ${parts}`;

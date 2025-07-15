@@ -15,8 +15,8 @@ class AdminStateManager {
     }
 
     /**
-   * Crea un estado administrativo con timeout especial
-   */
+     * Crea un estado administrativo con timeout especial
+     */
     createAdminState(userId, chatId, operation, data = {}) {
         const stateKey = this.createStateKey(userId, chatId);
 
@@ -39,8 +39,8 @@ class AdminStateManager {
     }
 
     /**
-   * Obtiene el estado administrativo actual
-   */
+     * Obtiene el estado administrativo actual
+     */
     getAdminState(userId, chatId) {
         const stateKey = this.createStateKey(userId, chatId);
         const state = this.adminStates.get(stateKey);
@@ -55,8 +55,8 @@ class AdminStateManager {
     }
 
     /**
-   * Actualiza el estado administrativo
-   */
+     * Actualiza el estado administrativo
+     */
     updateAdminState(userId, chatId, updates) {
         const state = this.getAdminState(userId, chatId);
 
@@ -79,8 +79,8 @@ class AdminStateManager {
     }
 
     /**
-   * Limpia el estado administrativo
-   */
+     * Limpia el estado administrativo
+     */
     clearAdminState(userId, chatId) {
         const stateKey = this.createStateKey(userId, chatId);
         const state = this.adminStates.get(stateKey);
@@ -92,10 +92,10 @@ class AdminStateManager {
     }
 
     /**
-   * Configura timeout para estado admin
-   */
+     * Configura timeout para estado admin
+     */
     setAdminTimeout(stateKey) {
-    // Limpiar timeout existente si hay uno
+        // Limpiar timeout existente si hay uno
         if (this.timeouts.has(stateKey)) {
             clearTimeout(this.timeouts.get(stateKey));
         }
@@ -113,8 +113,8 @@ class AdminStateManager {
     }
 
     /**
-   * Obtiene estadísticas de estados admin activos
-   */
+     * Obtiene estadísticas de estados admin activos
+     */
     getAdminStats() {
         const stats = {
             activeStates: this.adminStates.size,
@@ -130,8 +130,8 @@ class AdminStateManager {
     }
 
     /**
-   * Limpia estados admin antiguos
-   */
+     * Limpia estados admin antiguos
+     */
     cleanupOldAdminStates() {
         const now = Date.now();
         let cleaned = 0;

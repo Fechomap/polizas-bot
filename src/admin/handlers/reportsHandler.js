@@ -14,23 +14,23 @@ class ReportsHandler {
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-            case 'menu':
-                return await AdminMenu.showReportsMenu(ctx);
+                case 'menu':
+                    return await AdminMenu.showReportsMenu(ctx);
 
-            case 'monthly':
-                return await this.handleMonthlyReport(ctx);
+                case 'monthly':
+                    return await this.handleMonthlyReport(ctx);
 
-            case 'weekly':
-                return await this.handleWeeklyReport(ctx);
+                case 'weekly':
+                    return await this.handleWeeklyReport(ctx);
 
-            case 'custom':
-                return await this.handleCustomReport(ctx);
+                case 'custom':
+                    return await this.handleCustomReport(ctx);
 
-            case 'executive':
-                return await this.handleExecutiveReport(ctx);
+                case 'executive':
+                    return await this.handleExecutiveReport(ctx);
 
-            default:
-                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+                default:
+                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en ReportsHandler:', error);
@@ -66,16 +66,13 @@ Selecciona el período para generar el reporte:
                     Markup.button.callback('📊 Seleccionar Mes', 'admin_reports_monthly_select'),
                     Markup.button.callback('📈 Comparativo 6M', 'admin_reports_monthly_comparative')
                 ],
-                [
-                    Markup.button.callback('⬅️ Volver', 'admin_reports_menu')
-                ]
+                [Markup.button.callback('⬅️ Volver', 'admin_reports_menu')]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar opciones mensuales:', error);
             await ctx.reply('❌ Error al mostrar opciones de reporte mensual.');
@@ -91,12 +88,15 @@ Selecciona el período para generar el reporte:
 
             const loadingMessage = await ctx.editMessageText(
                 '📊 *GENERANDO REPORTE EMPRESARIAL*\n' +
-                `📅 Período: ${period}\n\n` +
-                '⏳ Extrayendo datos de MongoDB...'
+                    `📅 Período: ${period}\n\n` +
+                    '⏳ Extrayendo datos de MongoDB...'
             );
 
             // Obtener datos empresariales reales CON CICLO DE VIDA COMPLETO
-            const reportData = await ReportsHandlerV2.getComprehensiveMonthlyDataV2(startDate, endDate);
+            const reportData = await ReportsHandlerV2.getComprehensiveMonthlyDataV2(
+                startDate,
+                endDate
+            );
 
             // Debug: verificar datos antes de generar PDF
             logger.info('Datos obtenidos para reporte mensual:', {
@@ -111,9 +111,9 @@ Selecciona el período para generar el reporte:
                 loadingMessage.message_id,
                 undefined,
                 '📊 *GENERANDO REPORTE EMPRESARIAL*\n' +
-                `📅 Período: ${period}\n\n` +
-                `📈 Procesando ${reportData.totalPolicies} pólizas...\n` +
-                `🔄 Analizando ${reportData.totalServices} servicios...`
+                    `📅 Período: ${period}\n\n` +
+                    `📈 Procesando ${reportData.totalPolicies} pólizas...\n` +
+                    `🔄 Analizando ${reportData.totalServices} servicios...`
             );
 
             await ctx.telegram.editMessageText(
@@ -121,9 +121,9 @@ Selecciona el período para generar el reporte:
                 loadingMessage.message_id,
                 undefined,
                 '📊 *GENERANDO REPORTE EMPRESARIAL*\n' +
-                `📅 Período: ${period}\n\n` +
-                '💰 Calculando análisis financiero...\n' +
-                '📊 Generando métricas de rendimiento...'
+                    `📅 Período: ${period}\n\n` +
+                    '💰 Calculando análisis financiero...\n' +
+                    '📊 Generando métricas de rendimiento...'
             );
 
             // Generar PDF profesional horizontal
@@ -134,19 +134,22 @@ Selecciona el período para generar el reporte:
                 loadingMessage.message_id,
                 undefined,
                 '📊 *GENERANDO REPORTE EMPRESARIAL*\n' +
-                `📅 Período: ${period}\n\n` +
-                '✅ Finalizando reporte...'
+                    `📅 Período: ${period}\n\n` +
+                    '✅ Finalizando reporte...'
             );
 
             // Enviar PDF
             const filename = `reporte_empresarial_${startDate.getFullYear()}_${(startDate.getMonth() + 1).toString().padStart(2, '0')}.pdf`;
-            await ctx.replyWithDocument({
-                source: pdfBuffer,
-                filename
-            }, {
-                caption: this.generateEnterpriseReportSummary(reportData, period),
-                parse_mode: 'Markdown'
-            });
+            await ctx.replyWithDocument(
+                {
+                    source: pdfBuffer,
+                    filename
+                },
+                {
+                    caption: this.generateEnterpriseReportSummary(reportData, period),
+                    parse_mode: 'Markdown'
+                }
+            );
 
             // Volver al menú
             await AdminMenu.showReportsMenu(ctx);
@@ -159,7 +162,6 @@ Selecciona el período para generar el reporte:
                 startDate: startDate.toISOString(),
                 endDate: endDate.toISOString()
             });
-
         } catch (error) {
             logger.error('Error al generar reporte mensual empresarial:', error);
             await ctx.reply('❌ Error al generar el reporte. Intenta nuevamente.');
@@ -231,20 +233,12 @@ Selecciona el período para generar el reporte:
                         },
                         expiredPolicies: {
                             $sum: {
-                                $cond: [
-                                    { $eq: ['$estadoPoliza', 'VENCIDA'] },
-                                    1,
-                                    0
-                                ]
+                                $cond: [{ $eq: ['$estadoPoliza', 'VENCIDA'] }, 1, 0]
                             }
                         },
                         activePolicies: {
                             $sum: {
-                                $cond: [
-                                    { $eq: ['$estadoPoliza', 'VIGENTE'] },
-                                    1,
-                                    0
-                                ]
+                                $cond: [{ $eq: ['$estadoPoliza', 'VIGENTE'] }, 1, 0]
                             }
                         }
                     }
@@ -278,7 +272,12 @@ Selecciona el período para generar el reporte:
                                             $multiply: [
                                                 {
                                                     $divide: [
-                                                        { $subtract: ['$totalPaymentAmount', '$totalServiceCost'] },
+                                                        {
+                                                            $subtract: [
+                                                                '$totalPaymentAmount',
+                                                                '$totalServiceCost'
+                                                            ]
+                                                        },
                                                         '$totalServiceCost'
                                                     ]
                                                 },
@@ -365,7 +364,12 @@ Selecciona el período para generar el reporte:
                                             $multiply: [
                                                 {
                                                     $divide: [
-                                                        { $subtract: ['$totalRevenue', '$totalCosts'] },
+                                                        {
+                                                            $subtract: [
+                                                                '$totalRevenue',
+                                                                '$totalCosts'
+                                                            ]
+                                                        },
                                                         '$totalRevenue'
                                                     ]
                                                 },
@@ -403,7 +407,6 @@ Selecciona el período para generar el reporte:
                 },
                 generatedAt: new Date()
             };
-
         } catch (error) {
             logger.error('Error obteniendo datos comprensivos:', error);
             throw error;
@@ -425,10 +428,12 @@ Selecciona el período para generar el reporte:
                     totalPolicies: data?.totalPolicies,
                     totalServices: data?.totalServices,
                     hasFinancialSummary: !!data?.financialSummary,
-                    financialData: data?.financialSummary ? {
-                        totalRevenue: data.financialSummary.totalRevenue,
-                        totalRevenueInMonth: data.financialSummary.totalRevenueInMonth
-                    } : 'NO DATA',
+                    financialData: data?.financialSummary
+                        ? {
+                              totalRevenue: data.financialSummary.totalRevenue,
+                              totalRevenueInMonth: data.financialSummary.totalRevenueInMonth
+                          }
+                        : 'NO DATA',
                     hasAseguradoraAnalysis: !!data?.aseguradoraAnalysis,
                     aseguradorasCount: data?.aseguradoraAnalysis?.length || 0,
                     hasPolicyAnalysis: !!data?.policyAnalysis,
@@ -502,7 +507,11 @@ Selecciona el período para generar el reporte:
                         .fontSize(10)
                         .fillColor('#4a5568')
                         .text(`Nuevas: ${data.policyAnalysis.newPoliciesInMonth}`, 50, startY + 60)
-                        .text(`Anteriores: ${data.policyAnalysis.previousPoliciesWithActivity}`, 50, startY + 75);
+                        .text(
+                            `Anteriores: ${data.policyAnalysis.previousPoliciesWithActivity}`,
+                            50,
+                            startY + 75
+                        );
                 }
 
                 // Columna 2: Servicios
@@ -520,25 +529,29 @@ Selecciona el período para generar el reporte:
                 doc.font('Arial-Bold')
                     .fontSize(14)
                     .fillColor('#1a365d')
-                    .text('INGRESOS TOTALES', 50 + (colWidth * 2), startY);
+                    .text('INGRESOS TOTALES', 50 + colWidth * 2, startY);
 
                 doc.font('Arial')
                     .fontSize(32)
                     .fillColor('#38a169')
-                    .text(`$${this.formatCurrency(data.financialSummary?.totalRevenue || 0)}`, 50 + (colWidth * 2), startY + 25);
+                    .text(
+                        `$${this.formatCurrency(data.financialSummary?.totalRevenue || 0)}`,
+                        50 + colWidth * 2,
+                        startY + 25
+                    );
 
                 // Columna 4: Utilidad
                 doc.font('Arial-Bold')
                     .fontSize(14)
                     .fillColor('#1a365d')
-                    .text('MARGEN DE UTILIDAD', 50 + (colWidth * 3), startY);
+                    .text('MARGEN DE UTILIDAD', 50 + colWidth * 3, startY);
 
                 const profitMargin = data.financialSummary?.profitMargin || 0;
                 const marginColor = profitMargin >= 0 ? '#38a169' : '#e53e3e';
                 doc.font('Arial')
                     .fontSize(32)
                     .fillColor(marginColor)
-                    .text(`${profitMargin}%`, 50 + (colWidth * 3), startY + 25);
+                    .text(`${profitMargin}%`, 50 + colWidth * 3, startY + 25);
 
                 // TABLA DE ASEGURADORAS (Formato horizontal optimizado)
                 const tableStartY = 280;
@@ -607,8 +620,16 @@ Selecciona el período para generar el reporte:
                         .text(aseg.totalPolicies.toString(), cols.policies, currentRowY)
                         .text(aseg.totalServices.toString(), cols.services, currentRowY)
                         .text(`${aseg.serviceUsageRate}%`, cols.usage, currentRowY)
-                        .text(`$${this.formatCurrency(aseg.totalPaymentAmount)}`, cols.revenue, currentRowY)
-                        .text(`$${this.formatCurrency(aseg.totalServiceCost)}`, cols.costs, currentRowY)
+                        .text(
+                            `$${this.formatCurrency(aseg.totalPaymentAmount)}`,
+                            cols.revenue,
+                            currentRowY
+                        )
+                        .text(
+                            `$${this.formatCurrency(aseg.totalServiceCost)}`,
+                            cols.costs,
+                            currentRowY
+                        )
                         .text(`${aseg.roi}%`, cols.roi, currentRowY)
                         .fillColor(statusColor)
                         .text(statusText, cols.status, currentRowY)
@@ -644,23 +665,47 @@ Selecciona el período para generar el reporte:
                         .fillColor('#4a5568')
                         .text('Mismo Mes', 50, ageY)
                         .text('1 Mes', 50 + ageColWidth, ageY)
-                        .text('2 Meses', 50 + (ageColWidth * 2), ageY)
-                        .text('3 Meses', 50 + (ageColWidth * 3), ageY)
-                        .text('4 Meses', 50 + (ageColWidth * 4), ageY)
-                        .text('5 Meses', 50 + (ageColWidth * 5), ageY)
-                        .text('6+ Meses', 50 + (ageColWidth * 6), ageY);
+                        .text('2 Meses', 50 + ageColWidth * 2, ageY)
+                        .text('3 Meses', 50 + ageColWidth * 3, ageY)
+                        .text('4 Meses', 50 + ageColWidth * 4, ageY)
+                        .text('5 Meses', 50 + ageColWidth * 5, ageY)
+                        .text('6+ Meses', 50 + ageColWidth * 6, ageY);
 
                     // Valores
                     doc.font('Arial')
                         .fontSize(20)
                         .fillColor('#2b6cb0')
                         .text(data.policyAnalysis.byAge.month0.toString(), 50, ageY + 25)
-                        .text(data.policyAnalysis.byAge.month1.toString(), 50 + ageColWidth, ageY + 25)
-                        .text(data.policyAnalysis.byAge.month2.toString(), 50 + (ageColWidth * 2), ageY + 25)
-                        .text(data.policyAnalysis.byAge.month3.toString(), 50 + (ageColWidth * 3), ageY + 25)
-                        .text(data.policyAnalysis.byAge.month4.toString(), 50 + (ageColWidth * 4), ageY + 25)
-                        .text(data.policyAnalysis.byAge.month5.toString(), 50 + (ageColWidth * 5), ageY + 25)
-                        .text(data.policyAnalysis.byAge.month6Plus.toString(), 50 + (ageColWidth * 6), ageY + 25);
+                        .text(
+                            data.policyAnalysis.byAge.month1.toString(),
+                            50 + ageColWidth,
+                            ageY + 25
+                        )
+                        .text(
+                            data.policyAnalysis.byAge.month2.toString(),
+                            50 + ageColWidth * 2,
+                            ageY + 25
+                        )
+                        .text(
+                            data.policyAnalysis.byAge.month3.toString(),
+                            50 + ageColWidth * 3,
+                            ageY + 25
+                        )
+                        .text(
+                            data.policyAnalysis.byAge.month4.toString(),
+                            50 + ageColWidth * 4,
+                            ageY + 25
+                        )
+                        .text(
+                            data.policyAnalysis.byAge.month5.toString(),
+                            50 + ageColWidth * 5,
+                            ageY + 25
+                        )
+                        .text(
+                            data.policyAnalysis.byAge.month6Plus.toString(),
+                            50 + ageColWidth * 6,
+                            ageY + 25
+                        );
                 }
 
                 // ANÁLISIS FINANCIERO COMPARATIVO
@@ -728,9 +773,10 @@ Selecciona el período para generar el reporte:
                             .fill(bgColor)
                             .stroke('#e2e8f0');
 
-                        const percent = metric.historic > 0
-                            ? Math.round((metric.month / metric.historic) * 100)
-                            : 0;
+                        const percent =
+                            metric.historic > 0
+                                ? Math.round((metric.month / metric.historic) * 100)
+                                : 0;
 
                         doc.font('Arial')
                             .fontSize(9)
@@ -738,15 +784,26 @@ Selecciona el período para generar el reporte:
                             .text(metric.name, finCols.metric, currentFinY);
 
                         if (metric.isCount) {
-                            doc.text(metric.historic.toString(), finCols.historic, currentFinY)
-                                .text(metric.month.toString(), finCols.month, currentFinY);
+                            doc.text(
+                                metric.historic.toString(),
+                                finCols.historic,
+                                currentFinY
+                            ).text(metric.month.toString(), finCols.month, currentFinY);
                         } else {
-                            doc.text(`$${this.formatCurrency(metric.historic)}`, finCols.historic, currentFinY)
-                                .text(`$${this.formatCurrency(metric.month)}`, finCols.month, currentFinY);
+                            doc.text(
+                                `$${this.formatCurrency(metric.historic)}`,
+                                finCols.historic,
+                                currentFinY
+                            ).text(
+                                `$${this.formatCurrency(metric.month)}`,
+                                finCols.month,
+                                currentFinY
+                            );
                         }
 
-                        doc.fillColor(percent > 50 ? '#38a169' : percent > 25 ? '#d69e2e' : '#e53e3e')
-                            .text(`${percent}%`, finCols.percent, currentFinY);
+                        doc.fillColor(
+                            percent > 50 ? '#38a169' : percent > 25 ? '#d69e2e' : '#e53e3e'
+                        ).text(`${percent}%`, finCols.percent, currentFinY);
 
                         currentFinY += 22;
                     });
@@ -765,7 +822,8 @@ Selecciona el período para generar el reporte:
 
                 // GRÁFICA FUTURISTA 1: DISTRIBUCIÓN POR ASEGURADORA
                 try {
-                    const distributionChart = await chartGenerator.generateInsuranceDistributionChart(data);
+                    const distributionChart =
+                        await chartGenerator.generateInsuranceDistributionChart(data);
                     doc.image(distributionChart, 50, 100, { width: 350, height: 175 });
                 } catch (chartError) {
                     logger.error('Error generando gráfica de distribución:', chartError);
@@ -778,7 +836,9 @@ Selecciona el período para generar el reporte:
                 // GRÁFICA FUTURISTA 2: TENDENCIAS TEMPORALES
                 try {
                     if (data.dailyAnalysis && data.dailyAnalysis.length > 0) {
-                        const trendChart = await chartGenerator.generateDailyTrendChart(data.dailyAnalysis);
+                        const trendChart = await chartGenerator.generateDailyTrendChart(
+                            data.dailyAnalysis
+                        );
                         doc.image(trendChart, 420, 100, { width: 350, height: 175 });
                     }
                 } catch (chartError) {
@@ -791,7 +851,9 @@ Selecciona el período para generar el reporte:
 
                 // GRÁFICA FUTURISTA 3: ANÁLISIS DE SERVICIOS (DONA)
                 try {
-                    const serviceChart = await chartGenerator.generateServiceAnalysisChart(data.serviciosStats);
+                    const serviceChart = await chartGenerator.generateServiceAnalysisChart(
+                        data.serviciosStats
+                    );
                     doc.image(serviceChart, 50, 300, { width: 200, height: 200 });
                 } catch (chartError) {
                     logger.error('Error generando gráfica de servicios:', chartError);
@@ -803,7 +865,9 @@ Selecciona el período para generar el reporte:
 
                 // GRÁFICA FUTURISTA 4: ROI FINANCIERO
                 try {
-                    const roiChart = await chartGenerator.generateROIChart(data.aseguradoraAnalysis);
+                    const roiChart = await chartGenerator.generateROIChart(
+                        data.aseguradoraAnalysis
+                    );
                     doc.image(roiChart, 270, 300, { width: 400, height: 200 });
                 } catch (chartError) {
                     logger.error('Error generando gráfica ROI:', chartError);
@@ -825,7 +889,6 @@ Selecciona el período para generar el reporte:
                     );
 
                 doc.end();
-
             } catch (error) {
                 reject(error);
             }
@@ -854,33 +917,24 @@ Selecciona el período para generar el reporte:
         // Barras
         dailyData.forEach((day, index) => {
             const barHeight = (day.policiesCount / maxValue) * height;
-            const barX = x + (index * (barWidth + 2)) + 5;
+            const barX = x + index * (barWidth + 2) + 5;
             const barY = y + height - barHeight;
 
             // Barra con gradiente visual
-            doc.rect(barX, barY, barWidth, barHeight)
-                .fill('#4299e1');
+            doc.rect(barX, barY, barWidth, barHeight).fill('#4299e1');
 
             // Etiqueta del día
             doc.font('Arial')
                 .fontSize(8)
                 .fillColor('#2d3748')
-                .text(
-                    day._id.day.toString(),
-                    barX + (barWidth / 2) - 5,
-                    y + height + 5
-                );
+                .text(day._id.day.toString(), barX + barWidth / 2 - 5, y + height + 5);
 
             // Valor encima de la barra
             if (day.policiesCount > 0) {
                 doc.font('Arial')
                     .fontSize(8)
                     .fillColor('#2d3748')
-                    .text(
-                        day.policiesCount.toString(),
-                        barX + (barWidth / 2) - 5,
-                        barY - 15
-                    );
+                    .text(day.policiesCount.toString(), barX + barWidth / 2 - 5, barY - 15);
             }
         });
 
@@ -909,13 +963,11 @@ Selecciona el período para generar el reporte:
         let currentY = startY;
 
         // Headers
-        doc.font('Arial-Bold')
-            .fontSize(9)
-            .fillColor('#2d3748');
+        doc.font('Arial-Bold').fontSize(9).fillColor('#2d3748');
 
         const headers = ['Día', 'Pólizas', 'Servicios', 'Día', 'Pólizas', 'Servicios'];
         headers.forEach((header, index) => {
-            doc.text(header, currentX + (index * colWidth), currentY);
+            doc.text(header, currentX + index * colWidth, currentY);
         });
 
         currentY += rowHeight + 5;
@@ -926,22 +978,20 @@ Selecciona el período para generar el reporte:
             const leftDay = dailyData[i];
             const rightDay = dailyData[i + half];
 
-            doc.font('Arial')
-                .fontSize(8)
-                .fillColor('#4a5568');
+            doc.font('Arial').fontSize(8).fillColor('#4a5568');
 
             // Columna izquierda
             if (leftDay) {
                 doc.text(leftDay._id.day.toString(), startX, currentY)
                     .text(leftDay.policiesCount.toString(), startX + colWidth, currentY)
-                    .text(leftDay.servicesCount.toString(), startX + (colWidth * 2), currentY);
+                    .text(leftDay.servicesCount.toString(), startX + colWidth * 2, currentY);
             }
 
             // Columna derecha
             if (rightDay) {
-                doc.text(rightDay._id.day.toString(), startX + (colWidth * 3), currentY)
-                    .text(rightDay.policiesCount.toString(), startX + (colWidth * 4), currentY)
-                    .text(rightDay.servicesCount.toString(), startX + (colWidth * 5), currentY);
+                doc.text(rightDay._id.day.toString(), startX + colWidth * 3, currentY)
+                    .text(rightDay.policiesCount.toString(), startX + colWidth * 4, currentY)
+                    .text(rightDay.servicesCount.toString(), startX + colWidth * 5, currentY);
             }
 
             currentY += rowHeight;
@@ -962,14 +1012,16 @@ Selecciona el período para generar el reporte:
     static generateEnterpriseReportSummary(reportData, period) {
         const topAseguradora = reportData.aseguradoraAnalysis?.[0];
 
-        return '📊 **REPORTE EMPRESARIAL MENSUAL**\n' +
-               `📅 **Período:** ${period}\n` +
-               `📈 **Pólizas Activas:** ${reportData.totalPolicies || 0}\n` +
-               `🚗 **Servicios Ejecutados:** ${reportData.totalServices || 0}\n` +
-               `🏢 **Top Aseguradora:** ${topAseguradora?._id || 'N/A'} (${topAseguradora?.totalPolicies || 0} pólizas)\n` +
-               `💰 **Ingresos:** $${this.formatCurrency(reportData.financialSummary?.totalRevenue || 0)}\n` +
-               `📊 **Margen:** ${reportData.financialSummary?.profitMargin || 0}%\n` +
-               `⏰ **Generado:** ${new Date().toLocaleString('es-MX')}`;
+        return (
+            '📊 **REPORTE EMPRESARIAL MENSUAL**\n' +
+            `📅 **Período:** ${period}\n` +
+            `📈 **Pólizas Activas:** ${reportData.totalPolicies || 0}\n` +
+            `🚗 **Servicios Ejecutados:** ${reportData.totalServices || 0}\n` +
+            `🏢 **Top Aseguradora:** ${topAseguradora?._id || 'N/A'} (${topAseguradora?.totalPolicies || 0} pólizas)\n` +
+            `💰 **Ingresos:** $${this.formatCurrency(reportData.financialSummary?.totalRevenue || 0)}\n` +
+            `📊 **Margen:** ${reportData.financialSummary?.profitMargin || 0}%\n` +
+            `⏰ **Generado:** ${new Date().toLocaleString('es-MX')}`
+        );
     }
 
     /**
@@ -985,8 +1037,18 @@ Selecciona el período para generar el reporte:
      */
     static formatMonth(date) {
         const months = [
-            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+            'Enero',
+            'Febrero',
+            'Marzo',
+            'Abril',
+            'Mayo',
+            'Junio',
+            'Julio',
+            'Agosto',
+            'Septiembre',
+            'Octubre',
+            'Noviembre',
+            'Diciembre'
         ];
         return `${months[date.getMonth()]} ${date.getFullYear()}`;
     }
@@ -997,18 +1059,16 @@ Selecciona el período para generar el reporte:
     static async handleWeeklyReport(ctx) {
         await ctx.editMessageText(
             '📅 *REPORTES SEMANALES*\n\n' +
-            'Los reportes semanales están siendo rediseñados para incluir:\n\n' +
-            '• Análisis de rendimiento semanal\n' +
-            '• Comparativas vs semanas anteriores\n' +
-            '• Métricas de productividad\n' +
-            '• Tendencias de contratación\n\n' +
-            'Disponible en la próxima actualización.',
+                'Los reportes semanales están siendo rediseñados para incluir:\n\n' +
+                '• Análisis de rendimiento semanal\n' +
+                '• Comparativas vs semanas anteriores\n' +
+                '• Métricas de productividad\n' +
+                '• Tendencias de contratación\n\n' +
+                'Disponible en la próxima actualización.',
             {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [[
-                        { text: '⬅️ Volver', callback_data: 'admin_reports_menu' }
-                    ]]
+                    inline_keyboard: [[{ text: '⬅️ Volver', callback_data: 'admin_reports_menu' }]]
                 }
             }
         );
@@ -1020,18 +1080,16 @@ Selecciona el período para generar el reporte:
     static async handleCustomReport(ctx) {
         await ctx.editMessageText(
             '📋 *REPORTES PERSONALIZADOS*\n\n' +
-            'Sistema de reportes personalizados en desarrollo:\n\n' +
-            '• Selección de rangos de fechas específicos\n' +
-            '• Filtros por aseguradora y criterios\n' +
-            '• Métricas personalizadas\n' +
-            '• Exportación en múltiples formatos\n\n' +
-            'Próximamente disponible.',
+                'Sistema de reportes personalizados en desarrollo:\n\n' +
+                '• Selección de rangos de fechas específicos\n' +
+                '• Filtros por aseguradora y criterios\n' +
+                '• Métricas personalizadas\n' +
+                '• Exportación en múltiples formatos\n\n' +
+                'Próximamente disponible.',
             {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [[
-                        { text: '⬅️ Volver', callback_data: 'admin_reports_menu' }
-                    ]]
+                    inline_keyboard: [[{ text: '⬅️ Volver', callback_data: 'admin_reports_menu' }]]
                 }
             }
         );
@@ -1069,19 +1127,14 @@ Selecciona el período para analizar:
                     Markup.button.callback('Mes Actual', 'admin_reports_executive_current'),
                     Markup.button.callback('Mes Anterior', 'admin_reports_executive_previous')
                 ],
-                [
-                    Markup.button.callback('Seleccionar Mes', 'admin_reports_executive_select')
-                ],
-                [
-                    Markup.button.callback('⬅️ Volver', 'admin_reports_menu')
-                ]
+                [Markup.button.callback('Seleccionar Mes', 'admin_reports_executive_select')],
+                [Markup.button.callback('⬅️ Volver', 'admin_reports_menu')]
             ]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error al mostrar opciones ejecutivas:', error);
             await ctx.reply('❌ Error al mostrar opciones de reporte ejecutivo.');
@@ -1097,17 +1150,20 @@ Selecciona el período para analizar:
 
             const loadingMessage = await ctx.editMessageText(
                 '🎯 *GENERANDO REPORTE EJECUTIVO DIARIO*\n' +
-                `📅 Período: ${period}\n\n` +
-                '⏳ Analizando registros diarios...'
+                    `📅 Período: ${period}\n\n` +
+                    '⏳ Analizando registros diarios...'
             );
 
             // Obtener análisis ejecutivo diario
-            const executiveData = await ReportsHandlerV2.getDailyExecutiveAnalysis(startDate, endDate);
+            const executiveData = await ReportsHandlerV2.getDailyExecutiveAnalysis(
+                startDate,
+                endDate
+            );
 
             await ctx.editMessageText(
                 '🎯 *GENERANDO REPORTE EJECUTIVO DIARIO*\n' +
-                `📅 Período: ${period}\n\n` +
-                '📊 Creando visualizaciones y PDF...'
+                    `📅 Período: ${period}\n\n` +
+                    '📊 Creando visualizaciones y PDF...'
             );
 
             // Generar PDF del reporte ejecutivo
@@ -1166,10 +1222,15 @@ El reporte completo incluye análisis detallado día por día, patrones de elimi
                     caption: resumenText,
                     parse_mode: 'Markdown',
                     reply_markup: {
-                        inline_keyboard: [[
-                            { text: '📊 Nuevo Reporte', callback_data: 'admin_reports_executive' },
-                            { text: '⬅️ Menú Principal', callback_data: 'admin_reports_menu' }
-                        ]]
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📊 Nuevo Reporte',
+                                    callback_data: 'admin_reports_executive'
+                                },
+                                { text: '⬅️ Menú Principal', callback_data: 'admin_reports_menu' }
+                            ]
+                        ]
                     }
                 }
             );
@@ -1179,20 +1240,21 @@ El reporte completo incluye análisis detallado día por día, patrones de elimi
                 totalPolicies: monthlyStats.totalPoliciesCreated,
                 fileSize: pdfBuffer.length
             });
-
         } catch (error) {
             logger.error('Error generando reporte ejecutivo:', error);
             await ctx.editMessageText(
                 '❌ *ERROR AL GENERAR REPORTE*\n\n' +
-                'Hubo un problema al generar el reporte ejecutivo diario.\n' +
-                'Por favor intenta nuevamente.',
+                    'Hubo un problema al generar el reporte ejecutivo diario.\n' +
+                    'Por favor intenta nuevamente.',
                 {
                     parse_mode: 'Markdown',
                     reply_markup: {
-                        inline_keyboard: [[
-                            { text: '🔄 Reintentar', callback_data: 'admin_reports_executive' },
-                            { text: '⬅️ Volver', callback_data: 'admin_reports_menu' }
-                        ]]
+                        inline_keyboard: [
+                            [
+                                { text: '🔄 Reintentar', callback_data: 'admin_reports_executive' },
+                                { text: '⬅️ Volver', callback_data: 'admin_reports_menu' }
+                            ]
+                        ]
                     }
                 }
             );
@@ -1206,8 +1268,18 @@ El reporte completo incluye análisis detallado día por día, patrones de elimi
         try {
             const currentDate = new Date();
             const months = [
-                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+                'Enero',
+                'Febrero',
+                'Marzo',
+                'Abril',
+                'Mayo',
+                'Junio',
+                'Julio',
+                'Agosto',
+                'Septiembre',
+                'Octubre',
+                'Noviembre',
+                'Diciembre'
             ];
 
             const isExecutive = type === 'executive';
@@ -1248,15 +1320,12 @@ Selecciona el mes que deseas analizar:
                 keyboard.push(row);
             }
 
-            keyboard.push([
-                { text: '⬅️ Volver', callback_data: backButton }
-            ]);
+            keyboard.push([{ text: '⬅️ Volver', callback_data: backButton }]);
 
             await ctx.editMessageText(menuText, {
                 parse_mode: 'Markdown',
                 reply_markup: { inline_keyboard: keyboard }
             });
-
         } catch (error) {
             logger.error('Error al mostrar selección de mes:', error);
             await ctx.reply('❌ Error al mostrar selección de mes.');
@@ -1272,7 +1341,7 @@ Selecciona el mes que deseas analizar:
 
             const loadingMessage = await ctx.editMessageText(
                 '📊 *GENERANDO ANÁLISIS COMPARATIVO 6 MESES*\n\n' +
-                '⏳ Extrayendo datos históricos...'
+                    '⏳ Extrayendo datos históricos...'
             );
 
             // Obtener datos de los últimos 6 meses
@@ -1283,7 +1352,10 @@ Selecciona el mes que deseas analizar:
                 const startDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
                 const endDate = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
 
-                const monthData = await ReportsHandlerV2.getComprehensiveMonthlyDataV2(startDate, endDate);
+                const monthData = await ReportsHandlerV2.getComprehensiveMonthlyDataV2(
+                    startDate,
+                    endDate
+                );
                 reports.push({
                     month: this.formatMonth(startDate),
                     monthIndex: startDate.getMonth(),
@@ -1297,7 +1369,7 @@ Selecciona el mes que deseas analizar:
                     loadingMessage.message_id,
                     undefined,
                     '📊 *GENERANDO ANÁLISIS COMPARATIVO 6 MESES*\n\n' +
-                    `📈 Procesando mes ${i + 1}/6: ${this.formatMonth(startDate)}...`
+                        `📈 Procesando mes ${i + 1}/6: ${this.formatMonth(startDate)}...`
                 );
             }
 
@@ -1306,30 +1378,35 @@ Selecciona el mes que deseas analizar:
                 loadingMessage.message_id,
                 undefined,
                 '📊 *GENERANDO ANÁLISIS COMPARATIVO 6 MESES*\n\n' +
-                '📊 Generando análisis de tendencias...\n' +
-                '💰 Calculando métricas comparativas...'
+                    '📊 Generando análisis de tendencias...\n' +
+                    '💰 Calculando métricas comparativas...'
             );
 
             // Generar PDF comparativo
             const pdfBuffer = await this.generateComparativePDF(reports);
             const filename = `analisis_comparativo_6_meses_${new Date().toISOString().split('T')[0]}.pdf`;
 
-            await ctx.replyWithDocument({
-                source: pdfBuffer,
-                filename
-            }, {
-                caption: this.generateComparativeSummary(reports),
-                parse_mode: 'Markdown'
-            });
+            await ctx.replyWithDocument(
+                {
+                    source: pdfBuffer,
+                    filename
+                },
+                {
+                    caption: this.generateComparativeSummary(reports),
+                    parse_mode: 'Markdown'
+                }
+            );
 
             await AdminMenu.showReportsMenu(ctx);
 
             await AuditLogger.log(ctx, 'comparative_6_month_report_generated', 'reports', {
                 monthsAnalyzed: reports.length,
                 totalPolicies: reports.reduce((sum, r) => sum + r.data.totalPolicies, 0),
-                totalRevenue: reports.reduce((sum, r) => sum + r.data.financialSummary.totalRevenue, 0)
+                totalRevenue: reports.reduce(
+                    (sum, r) => sum + r.data.financialSummary.totalRevenue,
+                    0
+                )
             });
-
         } catch (error) {
             logger.error('Error al generar reporte comparativo:', error);
             await ctx.reply('❌ Error al generar el análisis comparativo. Intenta nuevamente.');
@@ -1378,7 +1455,9 @@ Selecciona el mes que deseas analizar:
                 doc.font('Arial-Bold')
                     .fontSize(14)
                     .fillColor('#2b6cb0')
-                    .text(`Período: ${reports[5].month} - ${reports[0].month}`, 50, 110, { align: 'center' });
+                    .text(`Período: ${reports[5].month} - ${reports[0].month}`, 50, 110, {
+                        align: 'center'
+                    });
 
                 // LÍNEA SEPARADORA
                 doc.strokeColor('#e2e8f0')
@@ -1403,7 +1482,9 @@ Selecciona el mes que deseas analizar:
                 doc.font('Arial')
                     .fontSize(14)
                     .fillColor('#4a5568')
-                    .text('Inteligencia Artificial Aplicada al Crecimiento', 50, 60, { align: 'center' });
+                    .text('Inteligencia Artificial Aplicada al Crecimiento', 50, 60, {
+                        align: 'center'
+                    });
 
                 // GRÁFICA FUTURISTA PRINCIPAL: EVOLUCIÓN COMPARATIVA
                 try {
@@ -1417,7 +1498,15 @@ Selecciona el mes que deseas analizar:
                         .text('Error al generar gráfica comparativa de evolución', 50, 150);
 
                     // Fallback a gráficas básicas
-                    this.drawMonthlyTrendChart(doc, reports, 70, 200, 650, 150, 'EVOLUCIÓN DE PÓLIZAS (FALLBACK)');
+                    this.drawMonthlyTrendChart(
+                        doc,
+                        reports,
+                        70,
+                        200,
+                        650,
+                        150,
+                        'EVOLUCIÓN DE PÓLIZAS (FALLBACK)'
+                    );
                 }
 
                 // FOOTER
@@ -1432,7 +1521,6 @@ Selecciona el mes que deseas analizar:
                     );
 
                 doc.end();
-
             } catch (error) {
                 reject(error);
             }
@@ -1490,9 +1578,10 @@ Selecciona el mes que deseas analizar:
             }
 
             // Calcular eficiencia (servicios por póliza)
-            const efficiency = report.data.totalPolicies > 0
-                ? (report.data.totalServices / report.data.totalPolicies).toFixed(2)
-                : '0.00';
+            const efficiency =
+                report.data.totalPolicies > 0
+                    ? (report.data.totalServices / report.data.totalPolicies).toFixed(2)
+                    : '0.00';
 
             // Fondo de fila
             doc.rect(startX - 5, currentRowY - 3, 692, 20)
@@ -1505,11 +1594,23 @@ Selecciona el mes que deseas analizar:
                 .text(report.month, cols.month, currentRowY)
                 .text(report.data.totalPolicies.toString(), cols.policies, currentRowY)
                 .text(report.data.totalServices.toString(), cols.services, currentRowY)
-                .text(`$${this.formatCurrency(report.data.financialSummary.totalRevenue)}`, cols.revenue, currentRowY)
-                .text(`$${this.formatCurrency(report.data.financialSummary.totalCosts)}`, cols.costs, currentRowY)
+                .text(
+                    `$${this.formatCurrency(report.data.financialSummary.totalRevenue)}`,
+                    cols.revenue,
+                    currentRowY
+                )
+                .text(
+                    `$${this.formatCurrency(report.data.financialSummary.totalCosts)}`,
+                    cols.costs,
+                    currentRowY
+                )
                 .text(`${report.data.financialSummary.profitMargin}%`, cols.margin, currentRowY)
                 .fillColor(growthRate >= 0 ? '#38a169' : '#e53e3e')
-                .text(`${growthRate >= 0 ? '+' : ''}${growthRate.toFixed(1)}%`, cols.growth, currentRowY)
+                .text(
+                    `${growthRate >= 0 ? '+' : ''}${growthRate.toFixed(1)}%`,
+                    cols.growth,
+                    currentRowY
+                )
                 .fillColor('#2d3748')
                 .text(efficiency, cols.efficiency, currentRowY);
 
@@ -1544,29 +1645,28 @@ Selecciona el mes que deseas analizar:
         // Barras
         data.forEach((value, index) => {
             const barHeight = (value / maxValue) * height;
-            const barX = x + (index * (barWidth + 10)) + 10;
+            const barX = x + index * (barWidth + 10) + 10;
             const barY = y + height - barHeight;
 
             // Gradiente de color basado en valor
             const intensity = value / maxValue;
             const color = intensity > 0.7 ? '#38a169' : intensity > 0.4 ? '#3182ce' : '#ed8936';
 
-            doc.rect(barX, barY, barWidth, barHeight)
-                .fill(color);
+            doc.rect(barX, barY, barWidth, barHeight).fill(color);
 
             // Etiqueta del mes
             const monthLabel = reports[index].month.substring(0, 3);
             doc.font('Arial')
                 .fontSize(8)
                 .fillColor('#2d3748')
-                .text(monthLabel, barX + (barWidth / 2) - 10, y + height + 5);
+                .text(monthLabel, barX + barWidth / 2 - 10, y + height + 5);
 
             // Valor encima de la barra
             if (value > 0) {
                 doc.font('Arial')
                     .fontSize(8)
                     .fillColor('#2d3748')
-                    .text(value.toString(), barX + (barWidth / 2) - 8, barY - 15);
+                    .text(value.toString(), barX + barWidth / 2 - 8, barY - 15);
             }
         });
     }
@@ -1599,12 +1699,11 @@ Selecciona el mes que deseas analizar:
             .stroke();
 
         // Línea de tendencia
-        doc.strokeColor('#3182ce')
-            .lineWidth(3);
+        doc.strokeColor('#3182ce').lineWidth(3);
 
         data.forEach((value, index) => {
-            const pointX = x + (index * stepX);
-            const pointY = y + height - ((value / maxValue) * height);
+            const pointX = x + index * stepX;
+            const pointY = y + height - (value / maxValue) * height;
 
             if (index === 0) {
                 doc.moveTo(pointX, pointY);
@@ -1613,8 +1712,7 @@ Selecciona el mes que deseas analizar:
             }
 
             // Punto
-            doc.circle(pointX, pointY, 3)
-                .fill('#3182ce');
+            doc.circle(pointX, pointY, 3).fill('#3182ce');
 
             // Etiqueta
             const monthLabel = reports[index].month.substring(0, 3);
@@ -1635,21 +1733,33 @@ Selecciona el mes que deseas analizar:
         const oldest = reports[reports.length - 1];
 
         const totalPolicies = reports.reduce((sum, r) => sum + r.data.totalPolicies, 0);
-        const totalRevenue = reports.reduce((sum, r) => sum + r.data.financialSummary.totalRevenue, 0);
+        const totalRevenue = reports.reduce(
+            (sum, r) => sum + r.data.financialSummary.totalRevenue,
+            0
+        );
 
-        const growthRate = oldest.data.totalPolicies > 0
-            ? (((latest.data.totalPolicies - oldest.data.totalPolicies) / oldest.data.totalPolicies) * 100).toFixed(1)
-            : 0;
+        const growthRate =
+            oldest.data.totalPolicies > 0
+                ? (
+                      ((latest.data.totalPolicies - oldest.data.totalPolicies) /
+                          oldest.data.totalPolicies) *
+                      100
+                  ).toFixed(1)
+                : 0;
 
-        return '📊 **ANÁLISIS COMPARATIVO 6 MESES**\n' +
-               `📅 **Período:** ${oldest.month} - ${latest.month}\n` +
-               `📈 **Total Pólizas:** ${totalPolicies}\n` +
-               `💰 **Ingresos Totales:** $${this.formatCurrency(totalRevenue)}\n` +
-               `📊 **Crecimiento:** ${growthRate >= 0 ? '+' : ''}${growthRate}%\n` +
-               `🏆 **Mejor Mes:** ${reports.reduce((best, current) =>
-                   current.data.totalPolicies > best.data.totalPolicies ? current : best
-               ).month}\n` +
-               `⏰ **Generado:** ${new Date().toLocaleString('es-MX')}`;
+        return (
+            '📊 **ANÁLISIS COMPARATIVO 6 MESES**\n' +
+            `📅 **Período:** ${oldest.month} - ${latest.month}\n` +
+            `📈 **Total Pólizas:** ${totalPolicies}\n` +
+            `💰 **Ingresos Totales:** $${this.formatCurrency(totalRevenue)}\n` +
+            `📊 **Crecimiento:** ${growthRate >= 0 ? '+' : ''}${growthRate}%\n` +
+            `🏆 **Mejor Mes:** ${
+                reports.reduce((best, current) =>
+                    current.data.totalPolicies > best.data.totalPolicies ? current : best
+                ).month
+            }\n` +
+            `⏰ **Generado:** ${new Date().toLocaleString('es-MX')}`
+        );
     }
 }
 

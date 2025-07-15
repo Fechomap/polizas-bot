@@ -19,11 +19,13 @@ class NotificationCommand extends BaseCommand {
     }
 
     register() {
-        this.bot.command(this.getCommandName(), async (ctx) => {
+        this.bot.command(this.getCommandName(), async ctx => {
             try {
                 // Verificar si es administrador
                 if (ctx.from.id !== this.ADMIN_ID) {
-                    return await ctx.reply('⚠️ Este comando está restringido solo para administradores.');
+                    return await ctx.reply(
+                        '⚠️ Este comando está restringido solo para administradores.'
+                    );
                 }
 
                 // Obtener instancia del NotificationManager
@@ -35,7 +37,9 @@ class NotificationCommand extends BaseCommand {
                         await notificationManager.initialize();
                     } catch (initError) {
                         this.logError('Error al inicializar NotificationManager:', initError);
-                        return await ctx.reply('❌ Error al inicializar el sistema de notificaciones.');
+                        return await ctx.reply(
+                            '❌ Error al inicializar el sistema de notificaciones.'
+                        );
                     }
                 }
 
@@ -48,11 +52,16 @@ class NotificationCommand extends BaseCommand {
 
                 await ctx.reply(
                     `📋 *${pendingNotifications.length} Notificaciones Pendientes*\n` +
-                    'Selecciona una opción:',
+                        'Selecciona una opción:',
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('📋 Ver notificaciones del día', 'notification:list')],
+                            [
+                                Markup.button.callback(
+                                    '📋 Ver notificaciones del día',
+                                    'notification:list'
+                                )
+                            ],
                             [Markup.button.callback('⏰ Ver próximas hoy', 'notification:today')],
                             [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')],
                             [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
@@ -68,7 +77,7 @@ class NotificationCommand extends BaseCommand {
         });
 
         // Callback para ver lista completa
-        this.handler.registry.registerCallback('notification:list', async (ctx) => {
+        this.handler.registry.registerCallback('notification:list', async ctx => {
             try {
                 // Verificar si es administrador
                 if (ctx.from.id !== this.ADMIN_ID) {
@@ -78,7 +87,7 @@ class NotificationCommand extends BaseCommand {
                 await ctx.answerCbQuery();
 
                 const ScheduledNotification = require('../../models/scheduledNotification');
-                
+
                 // Obtener todas las notificaciones del día actual
                 const now = new Date();
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -93,15 +102,12 @@ class NotificationCommand extends BaseCommand {
                 }).sort({ scheduledDate: 1 });
 
                 if (todayNotifications.length === 0) {
-                    return await ctx.reply(
-                        '📅 No hay notificaciones programadas para hoy.',
-                        {
-                            ...Markup.inlineKeyboard([
-                                [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                                [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
-                            ])
-                        }
-                    );
+                    return await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                            [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
+                        ])
+                    });
                 }
 
                 // Dividir en bloques de 8 máximo
@@ -111,21 +117,24 @@ class NotificationCommand extends BaseCommand {
                 for (let i = 0; i < totalChunks; i++) {
                     const chunk = todayNotifications.slice(i * chunkSize, (i + 1) * chunkSize);
 
-                    let message = `📋 *Notificaciones de HOY (${i+1}/${totalChunks})*\n\n`;
+                    let message = `📋 *Notificaciones de HOY (${i + 1}/${totalChunks})*\n\n`;
 
                     chunk.forEach(notification => {
                         // CRÍTICO: Usar moment-timezone para mostrar hora correcta en CDMX
                         const moment = require('moment-timezone');
-                        const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                        const scheduledMoment = moment(notification.scheduledDate).tz(
+                            'America/Mexico_City'
+                        );
                         const formattedTime = scheduledMoment.format('HH:mm');
-                        
+
                         // Emoji según el estado
-                        const statusEmoji = {
-                            'PENDING': '⏳',
-                            'SENT': '✅',
-                            'FAILED': '❌',
-                            'CANCELLED': '🚫'
-                        }[notification.status] || '❓';
+                        const statusEmoji =
+                            {
+                                PENDING: '⏳',
+                                SENT: '✅',
+                                FAILED: '❌',
+                                CANCELLED: '🚫'
+                            }[notification.status] || '❓';
 
                         message += `${statusEmoji} *${formattedTime}* - ${notification.status}\n`;
                         message += `📝 Póliza: ${notification.numeroPoliza}\n`;
@@ -158,7 +167,7 @@ class NotificationCommand extends BaseCommand {
         });
 
         // Callback para ver notificaciones de hoy
-        this.handler.registry.registerCallback('notification:today', async (ctx) => {
+        this.handler.registry.registerCallback('notification:today', async ctx => {
             try {
                 // Verificar si es administrador
                 if (ctx.from.id !== this.ADMIN_ID) {
@@ -186,26 +195,27 @@ class NotificationCommand extends BaseCommand {
                 });
 
                 if (todayNotifications.length === 0) {
-                    return await ctx.reply(
-                        '📅 No hay notificaciones programadas para hoy.',
-                        {
-                            ...Markup.inlineKeyboard([
-                                [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                                [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
-                            ])
-                        }
-                    );
+                    return await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                            [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
+                        ])
+                    });
                 }
 
                 // Ordenar por hora
-                todayNotifications.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+                todayNotifications.sort(
+                    (a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate)
+                );
 
                 let message = `⏰ *Notificaciones para HOY (${todayNotifications.length})*\n\n`;
 
                 todayNotifications.forEach(notification => {
                     // CRÍTICO: Usar moment-timezone para mostrar hora correcta en CDMX
                     const moment = require('moment-timezone');
-                    const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                    const scheduledMoment = moment(notification.scheduledDate).tz(
+                        'America/Mexico_City'
+                    );
                     const formattedTime = scheduledMoment.format('HH:mm');
 
                     message += `🔹 *${formattedTime}* - ${notification.expedienteNum}\n`;
@@ -232,7 +242,7 @@ class NotificationCommand extends BaseCommand {
         });
 
         // Callback para estadísticas
-        this.handler.registry.registerCallback('notification:stats', async (ctx) => {
+        this.handler.registry.registerCallback('notification:stats', async ctx => {
             try {
                 // Verificar si es administrador
                 if (ctx.from.id !== this.ADMIN_ID) {
@@ -261,7 +271,10 @@ class NotificationCommand extends BaseCommand {
                                 {
                                     $project: {
                                         dayMonthYear: {
-                                            $dateToString: { format: '%Y-%m-%d', date: '$scheduledDate' }
+                                            $dateToString: {
+                                                format: '%Y-%m-%d',
+                                                date: '$scheduledDate'
+                                            }
                                         }
                                     }
                                 },
@@ -275,7 +288,9 @@ class NotificationCommand extends BaseCommand {
 
                 // Formatear las estadísticas
                 const totalCount = stats[0].total.length > 0 ? stats[0].total[0].value : 0;
-                const statusCount = stats[0].byStatus.map(item => `${item._id}: ${item.count}`).join('\n');
+                const statusCount = stats[0].byStatus
+                    .map(item => `${item._id}: ${item.count}`)
+                    .join('\n');
 
                 const now = new Date();
                 const today = now.toISOString().substring(0, 10);
@@ -301,7 +316,7 @@ class NotificationCommand extends BaseCommand {
         });
 
         // Callback para volver
-        this.handler.registry.registerCallback('notification:back', async (ctx) => {
+        this.handler.registry.registerCallback('notification:back', async ctx => {
             try {
                 await ctx.answerCbQuery();
 
@@ -310,11 +325,16 @@ class NotificationCommand extends BaseCommand {
 
                 await ctx.reply(
                     `📋 *${pendingNotifications.length} Notificaciones Pendientes*\n` +
-                    'Selecciona una opción:',
+                        'Selecciona una opción:',
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('📋 Ver notificaciones del día', 'notification:list')],
+                            [
+                                Markup.button.callback(
+                                    '📋 Ver notificaciones del día',
+                                    'notification:list'
+                                )
+                            ],
                             [Markup.button.callback('⏰ Ver próximas hoy', 'notification:today')],
                             [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')],
                             [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]

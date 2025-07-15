@@ -1,4 +1,9 @@
-const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const {
+    S3Client,
+    PutObjectCommand,
+    DeleteObjectCommand,
+    GetObjectCommand
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const logger = require('../utils/logger');
 const crypto = require('crypto');
@@ -15,8 +20,8 @@ class CloudflareStorage {
             endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
             credentials: {
                 accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY,
-                secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_KEY,
-            },
+                secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_KEY
+            }
         });
         this.bucket = process.env.CLOUDFLARE_R2_BUCKET;
         this.publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL; // Para URLs públicas

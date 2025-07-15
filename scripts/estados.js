@@ -11,7 +11,7 @@ const fs = require('fs').promises;
 
 // Para crear un log de esta ejecución
 const logDir = path.join(__dirname, 'logs');
-const logFilePath = path.join(logDir, `estados_${new Date().toISOString().slice(0,10)}.log`);
+const logFilePath = path.join(logDir, `estados_${new Date().toISOString().slice(0, 10)}.log`);
 
 // Función para escribir logs
 async function escribirLog(mensaje) {
@@ -19,7 +19,7 @@ async function escribirLog(mensaje) {
     const logMensaje = `[${timestamp}] ${mensaje}\n`;
 
     try {
-    // Asegurar que el directorio de logs exista
+        // Asegurar que el directorio de logs exista
         try {
             await fs.mkdir(logDir, { recursive: true });
         } catch (err) {
@@ -39,18 +39,18 @@ async function escribirLog(mensaje) {
 // Función para ejecutar un script como proceso hijo y esperar a que termine
 function ejecutarScript(scriptPath) {
     return new Promise((resolve, reject) => {
-    // Obtener la ruta completa del script
+        // Obtener la ruta completa del script
         const fullPath = path.join(__dirname, scriptPath);
 
         escribirLog(`🚀 Ejecutando script: ${scriptPath}`);
 
         // Crear el proceso hijo
         const childProcess = spawn('node', [fullPath], {
-            stdio: 'inherit', // Para que redireccione stdout y stderr a la consola principal
+            stdio: 'inherit' // Para que redireccione stdout y stderr a la consola principal
         });
 
         // Manejar la finalización del proceso
-        childProcess.on('close', (code) => {
+        childProcess.on('close', code => {
             if (code === 0) {
                 escribirLog(`✅ Script ${scriptPath} completado exitosamente (código ${code})`);
                 resolve();
@@ -61,7 +61,7 @@ function ejecutarScript(scriptPath) {
         });
 
         // Manejar errores
-        childProcess.on('error', (err) => {
+        childProcess.on('error', err => {
             escribirLog(`❌ Error al ejecutar ${scriptPath}: ${err.message}`);
             reject(err);
         });
@@ -86,10 +86,11 @@ async function ejecutarProceso() {
         await escribirLog('🎉 Proceso completo finalizado con éxito');
 
         // Información sobre los archivos generados
-        const dateStr = new Date().toISOString().slice(0,10);
-        await escribirLog(`📋 Logs disponibles en: ${logDir}/calculo_${dateStr}.log y ${logFilePath}`);
+        const dateStr = new Date().toISOString().slice(0, 10);
+        await escribirLog(
+            `📋 Logs disponibles en: ${logDir}/calculo_${dateStr}.log y ${logFilePath}`
+        );
         await escribirLog('📊 Excel exportado en: scripts/backup/');
-
     } catch (error) {
         await escribirLog(`❌ Error en el proceso: ${error.message}`);
         process.exit(1);

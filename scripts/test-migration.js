@@ -47,12 +47,16 @@ async function testMigration() {
 
             if (policy.archivos?.fotos?.length > 0) {
                 const firstPhoto = policy.archivos.fotos[0];
-                console.log(`   - Primera foto: ${firstPhoto.data?.length || 0} bytes, tipo: ${firstPhoto.contentType}`);
+                console.log(
+                    `   - Primera foto: ${firstPhoto.data?.length || 0} bytes, tipo: ${firstPhoto.contentType}`
+                );
             }
 
             if (policy.archivos?.pdfs?.length > 0) {
                 const firstPdf = policy.archivos.pdfs[0];
-                console.log(`   - Primer PDF: ${firstPdf.data?.length || 0} bytes, tipo: ${firstPdf.contentType}`);
+                console.log(
+                    `   - Primer PDF: ${firstPdf.data?.length || 0} bytes, tipo: ${firstPdf.contentType}`
+                );
             }
         });
 
@@ -61,7 +65,6 @@ async function testMigration() {
         console.log('- Dry run: node scripts/migrate-files-to-r2.js --dry-run --limit=5');
         console.log('- Migración real: node scripts/migrate-files-to-r2.js --limit=5');
         console.log('- Migración completa: node scripts/migrate-files-to-r2.js');
-
     } catch (error) {
         console.error('❌ Error en prueba:', error);
     } finally {

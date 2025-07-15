@@ -1,7 +1,11 @@
 // src/comandos/comandos/ExcelUploadHandler.js
 const BaseCommand = require('./BaseCommand');
 const XLSX = require('xlsx');
-const { savePolicy, DuplicatePolicyError, savePoliciesBatch } = require('../../controllers/policyController');
+const {
+    savePolicy,
+    DuplicatePolicyError,
+    savePoliciesBatch
+} = require('../../controllers/policyController');
 const { Markup } = require('telegraf');
 const logger = require('../../utils/logger');
 const StateKeyManager = require('../../utils/StateKeyManager');
@@ -21,16 +25,21 @@ class ExcelUploadHandler extends BaseCommand {
     }
 
     register() {
-        this.logInfo(`Comando ${this.getCommandName()} cargado, registrando manejador de documentos Excel`);
+        this.logInfo(
+            `Comando ${this.getCommandName()} cargado, registrando manejador de documentos Excel`
+        );
 
         // Handler para documentos Excel
-        this.bot.on('document', async (ctx) => {
+        this.bot.on('document', async ctx => {
             try {
                 const chatId = ctx.chat.id;
 
                 // Solo procesar si estamos esperando un Excel para registro de pólizas
                 if (!this.awaitingExcelUpload.get(chatId)) {
-                    this.logInfo(`Documento recibido pero no esperando Excel: ${ctx.message.document?.file_name || 'desconocido'}`, { chatId });
+                    this.logInfo(
+                        `Documento recibido pero no esperando Excel: ${ctx.message.document?.file_name || 'desconocido'}`,
+                        { chatId }
+                    );
                     return; // No estamos esperando Excel, ignorar
                 }
 
@@ -39,12 +48,20 @@ class ExcelUploadHandler extends BaseCommand {
                 const mimeType = documentInfo.mime_type || '';
                 const fileSize = documentInfo.file_size || 0;
 
-                this.logInfo(`Excel: Documento recibido: ${fileName} (${mimeType}, ${fileSize} bytes)`, { chatId });
+                this.logInfo(
+                    `Excel: Documento recibido: ${fileName} (${mimeType}, ${fileSize} bytes)`,
+                    { chatId }
+                );
 
                 // Verificar que sea un archivo Excel
                 if (!this.isExcelFile(mimeType, fileName)) {
-                    this.logInfo(`Excel: Archivo rechazado, no es Excel: ${fileName} (${mimeType})`, { chatId });
-                    return await ctx.reply('⚠️ El archivo debe ser Excel (.xlsx, .xls). Por favor, sube un archivo válido.');
+                    this.logInfo(
+                        `Excel: Archivo rechazado, no es Excel: ${fileName} (${mimeType})`,
+                        { chatId }
+                    );
+                    return await ctx.reply(
+                        '⚠️ El archivo debe ser Excel (.xlsx, .xls). Por favor, sube un archivo válido.'
+                    );
                 }
 
                 // Mostrar mensaje de procesamiento
@@ -60,14 +77,18 @@ class ExcelUploadHandler extends BaseCommand {
                 // Procesar el archivo Excel
                 try {
                     const result = await this.processExcelFile(fileLink.href, ctx);
-                    this.logInfo(`Excel: Procesamiento completado con éxito: ${result}`, { chatId });
+                    this.logInfo(`Excel: Procesamiento completado con éxito: ${result}`, {
+                        chatId
+                    });
                 } catch (processError) {
                     this.logError(`Excel: Error al procesar archivo: ${processError.message}`, {
                         chatId,
                         error: processError,
                         stack: processError.stack
                     });
-                    await ctx.reply(`❌ Error al procesar el archivo Excel: ${processError.message}`);
+                    await ctx.reply(
+                        `❌ Error al procesar el archivo Excel: ${processError.message}`
+                    );
                 }
 
                 // Actualizar mensaje de espera
@@ -85,7 +106,8 @@ class ExcelUploadHandler extends BaseCommand {
                 this.handler.clearChatState(chatId, threadId);
 
                 // Mostrar botón para volver al menú
-                await ctx.reply('Selecciona una opción:',
+                await ctx.reply(
+                    'Selecciona una opción:',
                     Markup.inlineKeyboard([
                         Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu'),
                         Markup.button.callback('📊 Registrar otro Excel', 'accion:registrar')
@@ -93,7 +115,9 @@ class ExcelUploadHandler extends BaseCommand {
                 );
             } catch (error) {
                 this.logError('Excel: Error general al procesar documento Excel:', error);
-                await ctx.reply('❌ Error al procesar el archivo Excel. Por favor, inténtalo nuevamente.');
+                await ctx.reply(
+                    '❌ Error al procesar el archivo Excel. Por favor, inténtalo nuevamente.'
+                );
                 // Limpiar estado en caso de error
                 const threadId = StateKeyManager.getThreadId(ctx);
                 this.awaitingExcelUpload.delete(ctx.chat.id);
@@ -120,15 +144,18 @@ class ExcelUploadHandler extends BaseCommand {
         ];
 
         // Verificar extensión del archivo (debería funcionar mejor que el mimetype)
-        const isExcelExtension = fileName.toLowerCase().endsWith('.xlsx') ||
-                              fileName.toLowerCase().endsWith('.xls') ||
-                              fileName.toLowerCase().endsWith('.xlsm');
+        const isExcelExtension =
+            fileName.toLowerCase().endsWith('.xlsx') ||
+            fileName.toLowerCase().endsWith('.xls') ||
+            fileName.toLowerCase().endsWith('.xlsm');
 
         // Verificar mimetype (menos confiable pero es un respaldo)
         const isExcelMimeType = validMimeTypes.includes(mimeType);
 
         const isExcel = isExcelExtension || isExcelMimeType;
-        this.logInfo(`Es Excel: ${isExcel} (extensión: ${isExcelExtension}, mimeType: ${isExcelMimeType})`);
+        this.logInfo(
+            `Es Excel: ${isExcel} (extensión: ${isExcelExtension}, mimeType: ${isExcelMimeType})`
+        );
 
         return isExcel;
     }
@@ -144,7 +171,10 @@ class ExcelUploadHandler extends BaseCommand {
             const response = await fetch(fileUrl);
 
             if (!response.ok) {
-                this.logError(`Error al descargar Excel: ${response.status} ${response.statusText}`, { chatId });
+                this.logError(
+                    `Error al descargar Excel: ${response.status} ${response.statusText}`,
+                    { chatId }
+                );
                 await ctx.reply(`❌ Error al descargar el archivo Excel: ${response.status}`);
                 return false;
             }
@@ -156,7 +186,9 @@ class ExcelUploadHandler extends BaseCommand {
             // Leer el Excel - ATENCIÓN: La variable 'workbook' estaba declarada dos veces
             this.logInfo('Leyendo Excel con XLSX.read', { chatId });
             const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-            this.logInfo(`Excel leído correctamente. Hojas: ${workbook.SheetNames.join(', ')}`, { chatId });
+            this.logInfo(`Excel leído correctamente. Hojas: ${workbook.SheetNames.join(', ')}`, {
+                chatId
+            });
 
             // Obtener la primera hoja
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -179,7 +211,9 @@ class ExcelUploadHandler extends BaseCommand {
 
             // Verificar que los encabezados sean los esperados
             if (!this.validateHeaders(headers)) {
-                await ctx.reply('❌ El formato del Excel no es compatible. Por favor, usa la plantilla correcta.');
+                await ctx.reply(
+                    '❌ El formato del Excel no es compatible. Por favor, usa la plantilla correcta.'
+                );
                 return false;
             }
 
@@ -244,7 +278,9 @@ class ExcelUploadHandler extends BaseCommand {
                         if (error instanceof DuplicatePolicyError) {
                             errorMessage = 'Póliza duplicada';
                         } else if (error.name === 'ValidationError') {
-                            errorMessage = 'Error de validación: ' + Object.keys(error.errors || {}).join(', ');
+                            errorMessage =
+                                'Error de validación: ' +
+                                Object.keys(error.errors || {}).join(', ');
                         } else {
                             errorMessage = error.message;
                         }
@@ -300,7 +336,9 @@ class ExcelUploadHandler extends BaseCommand {
         // Verificar que todos los campos requeridos estén presentes
         for (const field of requiredFields) {
             if (!headers.includes(field)) {
-                this.logError(`Falta el campo ${field} en los encabezados`, { headers: headers.join(', ') });
+                this.logError(`Falta el campo ${field} en los encabezados`, {
+                    headers: headers.join(', ')
+                });
                 return false;
             }
         }
@@ -312,24 +350,24 @@ class ExcelUploadHandler extends BaseCommand {
     mapRowToPolicy(headers, row) {
         // Objeto para mapear los encabezados del Excel a los campos del modelo
         const headerMapping = {
-            'TITULAR': 'titular',
+            TITULAR: 'titular',
             'CORREO ELECTRONICO': 'correo',
-            'CONTRASEÑA': 'contraseña',
-            'TELEFONO': 'telefono',
-            'CALLE': 'calle',
-            'COLONIA': 'colonia',
-            'MUNICIPIO': 'municipio',
-            'ESTADO': 'estadoRegion',
-            'CP': 'cp',
-            'RFC': 'rfc',
-            'MARCA': 'marca',
-            'SUBMARCA': 'submarca',
-            'AÑO': 'año',
-            'COLOR': 'color',
-            'SERIE': 'serie',
-            'PLACAS': 'placas',
+            CONTRASEÑA: 'contraseña',
+            TELEFONO: 'telefono',
+            CALLE: 'calle',
+            COLONIA: 'colonia',
+            MUNICIPIO: 'municipio',
+            ESTADO: 'estadoRegion',
+            CP: 'cp',
+            RFC: 'rfc',
+            MARCA: 'marca',
+            SUBMARCA: 'submarca',
+            AÑO: 'año',
+            COLOR: 'color',
+            SERIE: 'serie',
+            PLACAS: 'placas',
             'AGENTE COTIZADOR': 'agenteCotizador',
-            'ASEGURADORA': 'aseguradora',
+            ASEGURADORA: 'aseguradora',
             '# DE POLIZA': 'numeroPoliza',
             'FECHA DE EMISION': 'fechaEmision'
         };
@@ -352,7 +390,8 @@ class ExcelUploadHandler extends BaseCommand {
                     }
                 } else if (header === 'CORREO ELECTRONICO') {
                     // Manejar correo electrónico (convertir 'sin correo' a '')
-                    policyData[headerMapping[header]] = (value && value.toLowerCase() === 'sin correo') ? '' : value;
+                    policyData[headerMapping[header]] =
+                        value && value.toLowerCase() === 'sin correo' ? '' : value;
                 } else {
                     // Para campos de texto, asegurar que sean string y transformar según las reglas
                     policyData[headerMapping[header]] = this.formatFieldValue(header, value);
@@ -380,7 +419,16 @@ class ExcelUploadHandler extends BaseCommand {
         const stringValue = String(value);
 
         // Campos que deben ser en mayúsculas
-        const upperCaseFields = ['RFC', 'MARCA', 'SUBMARCA', 'COLOR', 'SERIE', 'PLACAS', 'ASEGURADORA', '# DE POLIZA'];
+        const upperCaseFields = [
+            'RFC',
+            'MARCA',
+            'SUBMARCA',
+            'COLOR',
+            'SERIE',
+            'PLACAS',
+            'ASEGURADORA',
+            '# DE POLIZA'
+        ];
         if (upperCaseFields.includes(header)) {
             return stringValue.toUpperCase().trim();
         }
@@ -444,9 +492,18 @@ class ExcelUploadHandler extends BaseCommand {
     validatePolicyData(policyData) {
         // Campos obligatorios
         const requiredFields = [
-            'titular', 'rfc', 'marca', 'submarca', 'año', 'color',
-            'serie', 'placas', 'agenteCotizador', 'aseguradora',
-            'numeroPoliza', 'fechaEmision'
+            'titular',
+            'rfc',
+            'marca',
+            'submarca',
+            'año',
+            'color',
+            'serie',
+            'placas',
+            'agenteCotizador',
+            'aseguradora',
+            'numeroPoliza',
+            'fechaEmision'
         ];
 
         for (const field of requiredFields) {
@@ -463,7 +520,9 @@ class ExcelUploadHandler extends BaseCommand {
         }
 
         if (!(policyData.fechaEmision instanceof Date)) {
-            this.logError('La fecha de emisión no es válida', { fechaEmision: policyData.fechaEmision });
+            this.logError('La fecha de emisión no es válida', {
+                fechaEmision: policyData.fechaEmision
+            });
             return false;
         }
 
@@ -475,10 +534,10 @@ class ExcelUploadHandler extends BaseCommand {
         // Mensaje principal con el resumen
         await ctx.reply(
             '📊 *Resumen del Procesamiento*\n\n' +
-            `Total de pólizas procesadas: ${results.total}\n` +
-            `✅ Registradas correctamente: ${results.successful}\n` +
-            `❌ Fallidas: ${results.failed}\n\n` +
-            '📝 Detalles a continuación...',
+                `Total de pólizas procesadas: ${results.total}\n` +
+                `✅ Registradas correctamente: ${results.successful}\n` +
+                `❌ Fallidas: ${results.failed}\n\n` +
+                '📝 Detalles a continuación...',
             { parse_mode: 'Markdown' }
         );
 
@@ -511,9 +570,9 @@ class ExcelUploadHandler extends BaseCommand {
 
             for (let i = 0; i < failed.length; i += ITEMS_PER_MESSAGE) {
                 const chunk = failed.slice(i, i + ITEMS_PER_MESSAGE);
-                const message = chunk.map(item =>
-                    `- *${item.numeroPoliza}*: ${item.message}`
-                ).join('\n');
+                const message = chunk
+                    .map(item => `- *${item.numeroPoliza}*: ${item.message}`)
+                    .join('\n');
 
                 await ctx.reply(message, { parse_mode: 'Markdown' });
 

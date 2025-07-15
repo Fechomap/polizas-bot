@@ -16,7 +16,6 @@ const ChartGenerator = require('../utils/chartGenerator');
  * 4. Análisis del ciclo de vida completo (hasta 6 meses)
  */
 class ReportsHandlerV2 {
-
     /**
      * MÉTODO MEJORADO: Obtiene datos completos considerando el ciclo de vida
      *
@@ -67,13 +66,13 @@ class ReportsHandlerV2 {
             // 2. ANÁLISIS DETALLADO POR CATEGORÍAS
             const policyAnalysis = {
                 // Pólizas nuevas del mes
-                newPoliciesInMonth: relevantPolicies.filter(p =>
-                    p.fechaEmision >= startDate && p.fechaEmision <= endDate
+                newPoliciesInMonth: relevantPolicies.filter(
+                    p => p.fechaEmision >= startDate && p.fechaEmision <= endDate
                 ).length,
 
                 // Pólizas anteriores con actividad
-                previousPoliciesWithActivity: relevantPolicies.filter(p =>
-                    p.fechaEmision < startDate
+                previousPoliciesWithActivity: relevantPolicies.filter(
+                    p => p.fechaEmision < startDate
                 ).length,
 
                 // Análisis por antigüedad
@@ -149,9 +148,11 @@ class ReportsHandlerV2 {
                         stats.totalServiceCost += serviceCost;
 
                         // Verificar si el servicio fue en el mes analizado
-                        if (servicio.fechaServicio &&
+                        if (
+                            servicio.fechaServicio &&
                             servicio.fechaServicio >= startDate &&
-                            servicio.fechaServicio <= endDate) {
+                            servicio.fechaServicio <= endDate
+                        ) {
                             stats.servicesInMonth++;
                             stats.serviceCostInMonth += serviceCost;
                         }
@@ -169,9 +170,11 @@ class ReportsHandlerV2 {
                         stats.totalPaymentAmount += paymentAmount;
 
                         // Verificar si el pago fue en el mes analizado
-                        if (pago.fechaPago &&
+                        if (
+                            pago.fechaPago &&
                             pago.fechaPago >= startDate &&
-                            pago.fechaPago <= endDate) {
+                            pago.fechaPago <= endDate
+                        ) {
                             stats.paymentsInMonth += paymentAmount;
                         }
                     });
@@ -179,57 +182,78 @@ class ReportsHandlerV2 {
             });
 
             // Calcular métricas finales para cada aseguradora
-            const aseguradoraAnalysis = Array.from(aseguradoraMap.values()).map(stats => {
-                // Tasa de uso real (considerando toda la vida de las pólizas)
-                const realServiceUsageRate = stats.totalPolicies > 0
-                    ? Math.round((stats.policiesWithServices / stats.totalPolicies) * 100 * 100) / 100
-                    : 0;
+            const aseguradoraAnalysis = Array.from(aseguradoraMap.values())
+                .map(stats => {
+                    // Tasa de uso real (considerando toda la vida de las pólizas)
+                    const realServiceUsageRate =
+                        stats.totalPolicies > 0
+                            ? Math.round(
+                                  (stats.policiesWithServices / stats.totalPolicies) * 100 * 100
+                              ) / 100
+                            : 0;
 
-                // ROI real (ingresos totales vs costos totales)
-                const realROI = stats.totalServiceCost > 0
-                    ? Math.round(((stats.totalPaymentAmount - stats.totalServiceCost) / stats.totalServiceCost) * 100 * 100) / 100
-                    : 0;
+                    // ROI real (ingresos totales vs costos totales)
+                    const realROI =
+                        stats.totalServiceCost > 0
+                            ? Math.round(
+                                  ((stats.totalPaymentAmount - stats.totalServiceCost) /
+                                      stats.totalServiceCost) *
+                                      100 *
+                                      100
+                              ) / 100
+                            : 0;
 
-                // Edad promedio de las pólizas
-                const avgPolicyAge = stats.totalPolicies > 0
-                    ? Math.round((stats.ageSum / stats.totalPolicies) * 10) / 10
-                    : 0;
+                    // Edad promedio de las pólizas
+                    const avgPolicyAge =
+                        stats.totalPolicies > 0
+                            ? Math.round((stats.ageSum / stats.totalPolicies) * 10) / 10
+                            : 0;
 
-                // Eficiencia del mes (servicios del mes / pólizas activas)
-                const monthEfficiency = stats.totalPolicies > 0
-                    ? Math.round((stats.servicesInMonth / stats.totalPolicies) * 100) / 100
-                    : 0;
+                    // Eficiencia del mes (servicios del mes / pólizas activas)
+                    const monthEfficiency =
+                        stats.totalPolicies > 0
+                            ? Math.round((stats.servicesInMonth / stats.totalPolicies) * 100) / 100
+                            : 0;
 
-                return {
-                    ...stats,
-                    serviceUsageRate: realServiceUsageRate,
-                    roi: realROI,
-                    avgPolicyAge,
-                    monthEfficiency,
-                    // Métricas adicionales para mejor análisis
-                    percentNewPolicies: Math.round((stats.newPoliciesInMonth / stats.totalPolicies) * 100),
-                    percentOldPolicies: Math.round((stats.oldPoliciesActive / stats.totalPolicies) * 100)
-                };
-            }).sort((a, b) => b.totalPolicies - a.totalPolicies);
+                    return {
+                        ...stats,
+                        serviceUsageRate: realServiceUsageRate,
+                        roi: realROI,
+                        avgPolicyAge,
+                        monthEfficiency,
+                        // Métricas adicionales para mejor análisis
+                        percentNewPolicies: Math.round(
+                            (stats.newPoliciesInMonth / stats.totalPolicies) * 100
+                        ),
+                        percentOldPolicies: Math.round(
+                            (stats.oldPoliciesActive / stats.totalPolicies) * 100
+                        )
+                    };
+                })
+                .sort((a, b) => b.totalPolicies - a.totalPolicies);
 
             // 4. ANÁLISIS TEMPORAL MEJORADO
-            const dailyAnalysis = await this.getDailyAnalysisV2(startDate, endDate, sixMonthsBeforeStart);
+            const dailyAnalysis = await this.getDailyAnalysisV2(
+                startDate,
+                endDate,
+                sixMonthsBeforeStart
+            );
 
             // 5. ESTADÍSTICAS DE SERVICIOS MEJORADAS
             const serviciosStats = {
                 // Pólizas sin servicios (en toda su vida)
-                polizasSinServicios: relevantPolicies.filter(p =>
-                    !p.servicios || p.servicios.length === 0
+                polizasSinServicios: relevantPolicies.filter(
+                    p => !p.servicios || p.servicios.length === 0
                 ).length,
 
                 // Pólizas con un servicio
-                polizasConUnServicio: relevantPolicies.filter(p =>
-                    p.servicios && p.servicios.length === 1
+                polizasConUnServicio: relevantPolicies.filter(
+                    p => p.servicios && p.servicios.length === 1
                 ).length,
 
                 // Pólizas con dos o más servicios
-                polizasConDosServicios: relevantPolicies.filter(p =>
-                    p.servicios && p.servicios.length >= 2
+                polizasConDosServicios: relevantPolicies.filter(
+                    p => p.servicios && p.servicios.length >= 2
                 ).length,
 
                 // Nuevas métricas
@@ -247,9 +271,11 @@ class ReportsHandlerV2 {
                     totalServicesHistoric += policy.servicios.length;
 
                     policy.servicios.forEach(servicio => {
-                        if (servicio.fechaServicio &&
+                        if (
+                            servicio.fechaServicio &&
                             servicio.fechaServicio >= startDate &&
-                            servicio.fechaServicio <= endDate) {
+                            servicio.fechaServicio <= endDate
+                        ) {
                             totalServicesInMonth++;
                         }
                     });
@@ -258,9 +284,10 @@ class ReportsHandlerV2 {
 
             serviciosStats.totalServicesHistoric = totalServicesHistoric;
             serviciosStats.totalServicesInMonth = totalServicesInMonth;
-            serviciosStats.avgServicesPerPolicy = totalPoliciesAnalyzed > 0
-                ? Math.round((totalServicesHistoric / totalPoliciesAnalyzed) * 100) / 100
-                : 0;
+            serviciosStats.avgServicesPerPolicy =
+                totalPoliciesAnalyzed > 0
+                    ? Math.round((totalServicesHistoric / totalPoliciesAnalyzed) * 100) / 100
+                    : 0;
 
             // 6. RESUMEN FINANCIERO COMPLETO
             const financialSummary = await this.getFinancialSummaryV2(
@@ -288,7 +315,6 @@ class ReportsHandlerV2 {
                 generatedAt: new Date(),
                 analysisType: 'CICLO_VIDA_COMPLETO'
             };
-
         } catch (error) {
             logger.error('Error en análisis V2:', error);
             throw error;
@@ -357,9 +383,11 @@ class ReportsHandlerV2 {
             // Contar servicios del día
             if (policy.servicios) {
                 policy.servicios.forEach(servicio => {
-                    if (servicio.fechaServicio &&
+                    if (
+                        servicio.fechaServicio &&
                         servicio.fechaServicio >= startDate &&
-                        servicio.fechaServicio <= endDate) {
+                        servicio.fechaServicio <= endDate
+                    ) {
                         const day = servicio.fechaServicio.getDate();
                         const dayStats = dailyMap.get(day);
                         if (dayStats) {
@@ -372,14 +400,16 @@ class ReportsHandlerV2 {
             // Contar pagos del día
             if (policy.pagos) {
                 policy.pagos.forEach(pago => {
-                    if (pago.fechaPago &&
+                    if (
+                        pago.fechaPago &&
                         pago.fechaPago >= startDate &&
-                        pago.fechaPago <= endDate) {
+                        pago.fechaPago <= endDate
+                    ) {
                         const day = pago.fechaPago.getDate();
                         const dayStats = dailyMap.get(day);
                         if (dayStats) {
                             dayStats.paymentsCount++;
-                            dayStats.totalRevenue += (pago.monto || 0);
+                            dayStats.totalRevenue += pago.monto || 0;
                         }
                     }
                 });
@@ -410,9 +440,11 @@ class ReportsHandlerV2 {
                     totalRevenue += amount;
                     totalPayments++;
 
-                    if (pago.fechaPago &&
+                    if (
+                        pago.fechaPago &&
                         pago.fechaPago >= startDate &&
-                        pago.fechaPago <= endDate) {
+                        pago.fechaPago <= endDate
+                    ) {
                         totalRevenueInMonth += amount;
                         totalPaymentsInMonth++;
                     }
@@ -426,9 +458,11 @@ class ReportsHandlerV2 {
                     totalServiceCosts += cost;
                     totalServices++;
 
-                    if (servicio.fechaServicio &&
+                    if (
+                        servicio.fechaServicio &&
                         servicio.fechaServicio >= startDate &&
-                        servicio.fechaServicio <= endDate) {
+                        servicio.fechaServicio <= endDate
+                    ) {
                         totalServiceCostsInMonth += cost;
                         totalServicesInMonth++;
                     }
@@ -440,17 +474,25 @@ class ReportsHandlerV2 {
         const netProfit = totalRevenue - totalServiceCosts;
         const netProfitInMonth = totalRevenueInMonth - totalServiceCostsInMonth;
 
-        const profitMargin = totalRevenue > 0
-            ? Math.round(((totalRevenue - totalServiceCosts) / totalRevenue) * 100 * 100) / 100
-            : 0;
+        const profitMargin =
+            totalRevenue > 0
+                ? Math.round(((totalRevenue - totalServiceCosts) / totalRevenue) * 100 * 100) / 100
+                : 0;
 
-        const profitMarginInMonth = totalRevenueInMonth > 0
-            ? Math.round(((totalRevenueInMonth - totalServiceCostsInMonth) / totalRevenueInMonth) * 100 * 100) / 100
-            : 0;
+        const profitMarginInMonth =
+            totalRevenueInMonth > 0
+                ? Math.round(
+                      ((totalRevenueInMonth - totalServiceCostsInMonth) / totalRevenueInMonth) *
+                          100 *
+                          100
+                  ) / 100
+                : 0;
 
-        const averageROI = totalServiceCosts > 0
-            ? Math.round(((totalRevenue - totalServiceCosts) / totalServiceCosts) * 100 * 100) / 100
-            : 0;
+        const averageROI =
+            totalServiceCosts > 0
+                ? Math.round(((totalRevenue - totalServiceCosts) / totalServiceCosts) * 100 * 100) /
+                  100
+                : 0;
 
         return {
             // Totales históricos (ciclo de vida completo)
@@ -471,15 +513,12 @@ class ReportsHandlerV2 {
             totalPaymentsInMonth,
 
             // Métricas adicionales
-            avgRevenuePerPolicy: policies.length > 0
-                ? Math.round(totalRevenue / policies.length)
-                : 0,
-            avgServiceCostPerPolicy: policies.length > 0
-                ? Math.round(totalServiceCosts / policies.length)
-                : 0,
-            avgServicesPerPolicy: policies.length > 0
-                ? Math.round((totalServices / policies.length) * 100) / 100
-                : 0
+            avgRevenuePerPolicy:
+                policies.length > 0 ? Math.round(totalRevenue / policies.length) : 0,
+            avgServiceCostPerPolicy:
+                policies.length > 0 ? Math.round(totalServiceCosts / policies.length) : 0,
+            avgServicesPerPolicy:
+                policies.length > 0 ? Math.round((totalServices / policies.length) * 100) / 100 : 0
         };
     }
 
@@ -554,8 +593,10 @@ class ReportsHandlerV2 {
                         // Contar servicios/registros del día
                         if (policy.servicios && policy.servicios.length > 0) {
                             policy.servicios.forEach(servicio => {
-                                if (servicio.fechaServicio &&
-                                    servicio.fechaServicio.getDate() === day) {
+                                if (
+                                    servicio.fechaServicio &&
+                                    servicio.fechaServicio.getDate() === day
+                                ) {
                                     dayStats.servicesRegistered++;
                                 }
                             });
@@ -563,8 +604,10 @@ class ReportsHandlerV2 {
 
                         if (policy.registros && policy.registros.length > 0) {
                             policy.registros.forEach(registro => {
-                                if (registro.fechaRegistro &&
-                                    registro.fechaRegistro.getDate() === day) {
+                                if (
+                                    registro.fechaRegistro &&
+                                    registro.fechaRegistro.getDate() === day
+                                ) {
                                     dayStats.servicesRegistered++;
                                 }
                             });
@@ -573,10 +616,12 @@ class ReportsHandlerV2 {
                         // Calcular inversión total (estimada por pagos)
                         if (policy.pagos && policy.pagos.length > 0) {
                             policy.pagos.forEach(pago => {
-                                if (pago.fechaPago &&
+                                if (
+                                    pago.fechaPago &&
                                     pago.fechaPago >= startDate &&
-                                    pago.fechaPago <= endDate) {
-                                    dayStats.totalInvestment += (pago.monto || 0);
+                                    pago.fechaPago <= endDate
+                                ) {
+                                    dayStats.totalInvestment += pago.monto || 0;
                                 }
                             });
                         }
@@ -584,11 +629,12 @@ class ReportsHandlerV2 {
                 }
 
                 // Pólizas eliminadas en el mes
-                if (policy.fechaEliminacion &&
+                if (
+                    policy.fechaEliminacion &&
                     policy.fechaEliminacion >= startDate &&
                     policy.fechaEliminacion <= endDate &&
-                    policy.estado === 'ELIMINADO') {
-
+                    policy.estado === 'ELIMINADO'
+                ) {
                     const day = policy.fechaEliminacion.getDate();
                     const dayStats = dailyData.get(day);
 
@@ -631,28 +677,48 @@ class ReportsHandlerV2 {
 
             // Calcular estadísticas del mes
             const monthlyStats = {
-                totalPoliciesCreated: dailyAnalysis.reduce((sum, day) => sum + day.policiesCreated, 0),
-                totalPoliciesDeleted: dailyAnalysis.reduce((sum, day) => sum + day.policiesDeleted, 0),
-                totalServicesRegistered: dailyAnalysis.reduce((sum, day) => sum + day.servicesRegistered, 0),
+                totalPoliciesCreated: dailyAnalysis.reduce(
+                    (sum, day) => sum + day.policiesCreated,
+                    0
+                ),
+                totalPoliciesDeleted: dailyAnalysis.reduce(
+                    (sum, day) => sum + day.policiesDeleted,
+                    0
+                ),
+                totalServicesRegistered: dailyAnalysis.reduce(
+                    (sum, day) => sum + day.servicesRegistered,
+                    0
+                ),
                 totalInvestment: dailyAnalysis.reduce((sum, day) => sum + day.totalInvestment, 0),
                 netPolicyChange: dailyAnalysis.reduce((sum, day) => sum + day.netPolicyChange, 0),
-                peakRegistrationDay: dailyAnalysis.reduce((peak, day) =>
-                    day.policiesCreated > peak.policiesCreated ? day : peak,
-                dailyAnalysis[0]
+                peakRegistrationDay: dailyAnalysis.reduce(
+                    (peak, day) => (day.policiesCreated > peak.policiesCreated ? day : peak),
+                    dailyAnalysis[0]
                 ),
-                peakDeletionDay: dailyAnalysis.reduce((peak, day) =>
-                    day.policiesDeleted > peak.policiesDeleted ? day : peak,
-                dailyAnalysis[0]
+                peakDeletionDay: dailyAnalysis.reduce(
+                    (peak, day) => (day.policiesDeleted > peak.policiesDeleted ? day : peak),
+                    dailyAnalysis[0]
                 )
             };
 
             // Análisis de patrones
             const patterns = {
-                avgPoliciesPerDay: Math.round(monthlyStats.totalPoliciesCreated / dailyAnalysis.length * 100) / 100,
-                avgDeletionsPerDay: Math.round(monthlyStats.totalPoliciesDeleted / dailyAnalysis.length * 100) / 100,
-                retentionRate: monthlyStats.totalPoliciesCreated > 0
-                    ? Math.round((1 - monthlyStats.totalPoliciesDeleted / monthlyStats.totalPoliciesCreated) * 100 * 100) / 100
-                    : 100,
+                avgPoliciesPerDay:
+                    Math.round((monthlyStats.totalPoliciesCreated / dailyAnalysis.length) * 100) /
+                    100,
+                avgDeletionsPerDay:
+                    Math.round((monthlyStats.totalPoliciesDeleted / dailyAnalysis.length) * 100) /
+                    100,
+                retentionRate:
+                    monthlyStats.totalPoliciesCreated > 0
+                        ? Math.round(
+                              (1 -
+                                  monthlyStats.totalPoliciesDeleted /
+                                      monthlyStats.totalPoliciesCreated) *
+                                  100 *
+                                  100
+                          ) / 100
+                        : 100,
                 mostActiveWeekdays: this.analyzeWeekdayPatterns(dailyAnalysis, startDate),
                 growthTrend: this.calculateGrowthTrend(dailyAnalysis)
             };
@@ -676,7 +742,6 @@ class ReportsHandlerV2 {
                 generatedAt: new Date(),
                 analysisType: 'EJECUTIVO_DIARIO'
             };
-
         } catch (error) {
             logger.error('Error en análisis ejecutivo diario:', error);
             throw error;
@@ -704,11 +769,15 @@ class ReportsHandlerV2 {
             weekdayStats[weekday].days++;
         });
 
-        return Object.values(weekdayStats).map(stat => ({
-            ...stat,
-            avgPolicies: stat.days > 0 ? Math.round(stat.policies / stat.days * 100) / 100 : 0,
-            avgDeletions: stat.days > 0 ? Math.round(stat.deletions / stat.days * 100) / 100 : 0
-        })).sort((a, b) => b.avgPolicies - a.avgPolicies);
+        return Object.values(weekdayStats)
+            .map(stat => ({
+                ...stat,
+                avgPolicies:
+                    stat.days > 0 ? Math.round((stat.policies / stat.days) * 100) / 100 : 0,
+                avgDeletions:
+                    stat.days > 0 ? Math.round((stat.deletions / stat.days) * 100) / 100 : 0
+            }))
+            .sort((a, b) => b.avgPolicies - a.avgPolicies);
     }
 
     /**
@@ -720,8 +789,10 @@ class ReportsHandlerV2 {
         const firstHalf = dailyAnalysis.slice(0, Math.floor(dailyAnalysis.length / 2));
         const secondHalf = dailyAnalysis.slice(Math.floor(dailyAnalysis.length / 2));
 
-        const firstHalfAvg = firstHalf.reduce((sum, day) => sum + day.policiesCreated, 0) / firstHalf.length;
-        const secondHalfAvg = secondHalf.reduce((sum, day) => sum + day.policiesCreated, 0) / secondHalf.length;
+        const firstHalfAvg =
+            firstHalf.reduce((sum, day) => sum + day.policiesCreated, 0) / firstHalf.length;
+        const secondHalfAvg =
+            secondHalf.reduce((sum, day) => sum + day.policiesCreated, 0) / secondHalf.length;
 
         const slope = secondHalfAvg - firstHalfAvg;
 
@@ -761,38 +832,51 @@ class ReportsHandlerV2 {
             }
 
             // Pólizas eliminadas
-            if (policy.fechaEliminacion &&
+            if (
+                policy.fechaEliminacion &&
                 policy.fechaEliminacion >= startDate &&
                 policy.fechaEliminacion <= endDate &&
-                policy.estado === 'ELIMINADO') {
+                policy.estado === 'ELIMINADO'
+            ) {
                 stats.policiesDeleted++;
             }
 
             // Inversión total
             if (policy.pagos) {
                 policy.pagos.forEach(pago => {
-                    stats.totalInvestment += (pago.monto || 0);
+                    stats.totalInvestment += pago.monto || 0;
                 });
             }
 
             // Costos de servicios
             if (policy.servicios) {
                 policy.servicios.forEach(servicio => {
-                    stats.totalServiceCosts += (servicio.costo || 0);
+                    stats.totalServiceCosts += servicio.costo || 0;
                 });
             }
         });
 
-        return Array.from(insurerMap.values()).map(stats => ({
-            ...stats,
-            retentionRate: stats.policiesCreated > 0
-                ? Math.round((1 - stats.policiesDeleted / stats.policiesCreated) * 100 * 100) / 100
-                : 100,
-            netPolicyChange: stats.policiesCreated - stats.policiesDeleted,
-            roi: stats.totalServiceCosts > 0
-                ? Math.round(((stats.totalInvestment - stats.totalServiceCosts) / stats.totalServiceCosts) * 100 * 100) / 100
-                : 0
-        })).sort((a, b) => b.policiesCreated - a.policiesCreated);
+        return Array.from(insurerMap.values())
+            .map(stats => ({
+                ...stats,
+                retentionRate:
+                    stats.policiesCreated > 0
+                        ? Math.round(
+                              (1 - stats.policiesDeleted / stats.policiesCreated) * 100 * 100
+                          ) / 100
+                        : 100,
+                netPolicyChange: stats.policiesCreated - stats.policiesDeleted,
+                roi:
+                    stats.totalServiceCosts > 0
+                        ? Math.round(
+                              ((stats.totalInvestment - stats.totalServiceCosts) /
+                                  stats.totalServiceCosts) *
+                                  100 *
+                                  100
+                          ) / 100
+                        : 0
+            }))
+            .sort((a, b) => b.policiesCreated - a.policiesCreated);
     }
 
     /**
@@ -818,13 +902,9 @@ class ReportsHandlerV2 {
             doc.info.Creator = 'Sistema de Gestión de Pólizas IA';
 
             // ENCABEZADO PRINCIPAL
-            doc.fontSize(24)
-                .fillColor('#00D2FF')
-                .text('REPORTE EJECUTIVO DIARIO', 50, 50);
+            doc.fontSize(24).fillColor('#00D2FF').text('REPORTE EJECUTIVO DIARIO', 50, 50);
 
-            doc.fontSize(16)
-                .fillColor('#333333')
-                .text(`Periodo: ${period}`, 50, 85);
+            doc.fontSize(16).fillColor('#333333').text(`Periodo: ${period}`, 50, 85);
 
             // GENERAR GRÁFICA DE DISTRIBUCIÓN DIARIA
             const chartBuffer = await this.generateDailyDistributionChart(executiveData);
@@ -842,30 +922,21 @@ class ReportsHandlerV2 {
             const { monthlyStats, patterns, dailyAnalysis } = executiveData;
 
             // Cuadros de métricas principales
-            doc.fontSize(14)
-                .fillColor('#FFFFFF')
-                .rect(50, yPos, 150, 60)
-                .fill('#667eea');
+            doc.fontSize(14).fillColor('#FFFFFF').rect(50, yPos, 150, 60).fill('#667eea');
 
             doc.fillColor('#FFFFFF')
                 .text('POLIZAS CREADAS', 55, yPos + 10)
                 .fontSize(20)
                 .text(monthlyStats.totalPoliciesCreated.toString(), 55, yPos + 30);
 
-            doc.fontSize(14)
-                .fillColor('#FFFFFF')
-                .rect(220, yPos, 150, 60)
-                .fill('#764ba2');
+            doc.fontSize(14).fillColor('#FFFFFF').rect(220, yPos, 150, 60).fill('#764ba2');
 
             doc.fillColor('#FFFFFF')
                 .text('POLIZAS ELIMINADAS', 225, yPos + 10)
                 .fontSize(20)
                 .text(monthlyStats.totalPoliciesDeleted.toString(), 225, yPos + 30);
 
-            doc.fontSize(14)
-                .fillColor('#FFFFFF')
-                .rect(390, yPos, 150, 60)
-                .fill('#f093fb');
+            doc.fontSize(14).fillColor('#FFFFFF').rect(390, yPos, 150, 60).fill('#f093fb');
 
             doc.fillColor('#FFFFFF')
                 .text('CAMBIO NETO', 395, yPos + 10)
@@ -874,10 +945,7 @@ class ReportsHandlerV2 {
                 .fontSize(20)
                 .text(monthlyStats.netPolicyChange.toString(), 395, yPos + 35);
 
-            doc.fontSize(14)
-                .fillColor('#FFFFFF')
-                .rect(560, yPos, 150, 60)
-                .fill('#4facfe');
+            doc.fontSize(14).fillColor('#FFFFFF').rect(560, yPos, 150, 60).fill('#4facfe');
 
             doc.fillColor('#FFFFFF')
                 .text('TASA RETENCION', 565, yPos + 10)
@@ -889,26 +957,29 @@ class ReportsHandlerV2 {
             yPos += 80;
 
             // ANÁLISIS POR DÍA (Sección principal)
-            doc.fontSize(18)
-                .fillColor('#00D2FF')
-                .text('ANALISIS DIARIO DETALLADO', 50, yPos);
+            doc.fontSize(18).fillColor('#00D2FF').text('ANALISIS DIARIO DETALLADO', 50, yPos);
 
             yPos += 35;
 
             // Encabezados de tabla
-            doc.fontSize(10)
-                .fillColor('#333333');
+            doc.fontSize(10).fillColor('#333333');
 
             const colWidths = [40, 60, 60, 60, 80, 120, 200];
-            const headers = ['DIA', 'CREADAS', 'ELIMINADAS', 'NETO', 'SERVICIOS', 'TOP ASEGURADORA', 'MOTIVOS ELIMINACION'];
+            const headers = [
+                'DIA',
+                'CREADAS',
+                'ELIMINADAS',
+                'NETO',
+                'SERVICIOS',
+                'TOP ASEGURADORA',
+                'MOTIVOS ELIMINACION'
+            ];
 
             let xPos = 50;
             headers.forEach((header, i) => {
-                doc.rect(xPos, yPos, colWidths[i], 25)
-                    .fill('#e6f3ff');
+                doc.rect(xPos, yPos, colWidths[i], 25).fill('#e6f3ff');
 
-                doc.fillColor('#333333')
-                    .text(header, xPos + 5, yPos + 8);
+                doc.fillColor('#333333').text(header, xPos + 5, yPos + 8);
 
                 xPos += colWidths[i];
             });
@@ -916,8 +987,9 @@ class ReportsHandlerV2 {
             yPos += 25;
 
             // Datos por día - Solo mostrar días con actividad para evitar páginas vacías
-            const activeDays = dailyAnalysis.filter(day =>
-                day.policiesCreated > 0 || day.policiesDeleted > 0 || day.servicesRegistered > 0
+            const activeDays = dailyAnalysis.filter(
+                day =>
+                    day.policiesCreated > 0 || day.policiesDeleted > 0 || day.servicesRegistered > 0
             );
 
             if (activeDays.length === 0) {
@@ -927,7 +999,8 @@ class ReportsHandlerV2 {
                 yPos += 60;
             } else {
                 activeDays.forEach((day, index) => {
-                    if (yPos > 480) { // Nueva página si es necesario
+                    if (yPos > 480) {
+                        // Nueva página si es necesario
                         doc.addPage();
                         yPos = 50;
 
@@ -940,8 +1013,7 @@ class ReportsHandlerV2 {
                         // Encabezados de tabla
                         xPos = 50;
                         headers.forEach((header, i) => {
-                            doc.rect(xPos, yPos, colWidths[i], 25)
-                                .fill('#e6f3ff');
+                            doc.rect(xPos, yPos, colWidths[i], 25).fill('#e6f3ff');
 
                             doc.fillColor('#333333')
                                 .fontSize(10)
@@ -957,15 +1029,13 @@ class ReportsHandlerV2 {
 
                     xPos = 50;
                     headers.forEach((_, i) => {
-                        doc.rect(xPos, yPos, colWidths[i], 18)
-                            .fill(bgColor);
+                        doc.rect(xPos, yPos, colWidths[i], 18).fill(bgColor);
                         xPos += colWidths[i];
                     });
 
                     // Datos
                     xPos = 50;
-                    doc.fillColor('#333333')
-                        .fontSize(9);
+                    doc.fillColor('#333333').fontSize(9);
 
                     // Día
                     doc.text(day.day.toString(), xPos + 5, yPos + 5);
@@ -981,25 +1051,34 @@ class ReportsHandlerV2 {
 
                     // Cambio neto
                     const netChange = day.netPolicyChange;
-                    doc.fillColor(netChange >= 0 ? '#28a745' : '#dc3545')
-                        .text(netChange > 0 ? `+${netChange}` : netChange.toString(), xPos + 5, yPos + 5);
+                    doc.fillColor(netChange >= 0 ? '#28a745' : '#dc3545').text(
+                        netChange > 0 ? `+${netChange}` : netChange.toString(),
+                        xPos + 5,
+                        yPos + 5
+                    );
                     xPos += colWidths[3];
 
                     // Servicios
-                    doc.fillColor('#333333')
-                        .text(day.servicesRegistered.toString(), xPos + 5, yPos + 5);
+                    doc.fillColor('#333333').text(
+                        day.servicesRegistered.toString(),
+                        xPos + 5,
+                        yPos + 5
+                    );
                     xPos += colWidths[4];
 
                     // Top aseguradora
                     const topInsurer = day.insurerRanking[0] || ['N/A', 0];
-                    const insurerText = topInsurer[0].length > 15 ?
-                        topInsurer[0].substring(0, 12) + '...' : topInsurer[0];
+                    const insurerText =
+                        topInsurer[0].length > 15
+                            ? topInsurer[0].substring(0, 12) + '...'
+                            : topInsurer[0];
                     doc.text(`${insurerText} (${topInsurer[1]})`, xPos + 5, yPos + 5);
                     xPos += colWidths[5];
 
                     // Motivos de eliminación
                     const reasons = day.topDeletionReasons.map(r => `${r[0]}(${r[1]})`).join(', ');
-                    const reasonsText = reasons.length > 25 ? reasons.substring(0, 22) + '...' : reasons;
+                    const reasonsText =
+                        reasons.length > 25 ? reasons.substring(0, 22) + '...' : reasons;
                     doc.text(reasonsText || 'N/A', xPos + 5, yPos + 5);
 
                     yPos += 18;
@@ -1018,41 +1097,47 @@ class ReportsHandlerV2 {
             yPos += 40;
 
             // Días de la semana más activos
-            doc.fontSize(14)
-                .fillColor('#333333')
-                .text('ACTIVIDAD POR DIA DE LA SEMANA:', 50, yPos);
+            doc.fontSize(14).fillColor('#333333').text('ACTIVIDAD POR DIA DE LA SEMANA:', 50, yPos);
 
             yPos += 25;
 
             patterns.mostActiveWeekdays.slice(0, 5).forEach((weekday, index) => {
                 doc.fontSize(11)
                     .fillColor('#666666')
-                    .text(`${index + 1}. ${weekday.name}: ${weekday.avgPolicies} polizas/dia promedio`, 70, yPos);
+                    .text(
+                        `${index + 1}. ${weekday.name}: ${weekday.avgPolicies} polizas/dia promedio`,
+                        70,
+                        yPos
+                    );
                 yPos += 18;
             });
 
             yPos += 20;
 
             // Tendencia de crecimiento
-            doc.fontSize(14)
-                .fillColor('#333333')
-                .text('TENDENCIA DE CRECIMIENTO:', 50, yPos);
+            doc.fontSize(14).fillColor('#333333').text('TENDENCIA DE CRECIMIENTO:', 50, yPos);
 
             yPos += 25;
 
-            const trendColor = patterns.growthTrend.trend === 'CRECIENTE' ? '#28a745' :
-                patterns.growthTrend.trend === 'DECRECIENTE' ? '#dc3545' : '#ffc107';
+            const trendColor =
+                patterns.growthTrend.trend === 'CRECIENTE'
+                    ? '#28a745'
+                    : patterns.growthTrend.trend === 'DECRECIENTE'
+                      ? '#dc3545'
+                      : '#ffc107';
 
             doc.fontSize(12)
                 .fillColor(trendColor)
-                .text(`${patterns.growthTrend.trend} (pendiente: ${patterns.growthTrend.slope})`, 70, yPos);
+                .text(
+                    `${patterns.growthTrend.trend} (pendiente: ${patterns.growthTrend.slope})`,
+                    70,
+                    yPos
+                );
 
             yPos += 40;
 
             // ANÁLISIS POR ASEGURADORA
-            doc.fontSize(14)
-                .fillColor('#333333')
-                .text('TOP 5 ASEGURADORAS DEL MES:', 50, yPos);
+            doc.fontSize(14).fillColor('#333333').text('TOP 5 ASEGURADORAS DEL MES:', 50, yPos);
 
             yPos += 25;
 
@@ -1060,18 +1145,29 @@ class ReportsHandlerV2 {
                 doc.fontSize(10)
                     .fillColor('#666666')
                     .text(`${index + 1}. ${insurer.name}:`, 70, yPos)
-                    .text(`Creadas: ${insurer.policiesCreated} | Eliminadas: ${insurer.policiesDeleted} | Retención: ${insurer.retentionRate}%`, 70, yPos + 12);
+                    .text(
+                        `Creadas: ${insurer.policiesCreated} | Eliminadas: ${insurer.policiesDeleted} | Retención: ${insurer.retentionRate}%`,
+                        70,
+                        yPos + 12
+                    );
                 yPos += 30;
             });
 
             // PIE DE PÁGINA
             doc.fontSize(8)
                 .fillColor('#666666')
-                .text(`Generado el ${new Date().toLocaleString('es-MX')} | Sistema de Gestion de Polizas IA`, 50, 520)
-                .text('Generated with Claude Code | Co-Authored-By: Claude <noreply@anthropic.com>', 400, 520);
+                .text(
+                    `Generado el ${new Date().toLocaleString('es-MX')} | Sistema de Gestion de Polizas IA`,
+                    50,
+                    520
+                )
+                .text(
+                    'Generated with Claude Code | Co-Authored-By: Claude <noreply@anthropic.com>',
+                    400,
+                    520
+                );
 
             return doc;
-
         } catch (error) {
             logger.error('Error generando PDF ejecutivo diario:', error);
             throw error;
@@ -1226,7 +1322,6 @@ class ReportsHandlerV2 {
             });
 
             return chartBuffer;
-
         } catch (error) {
             logger.error('Error generando gráfica de distribución diaria:', error);
             return null; // Continuar sin gráfica si hay error

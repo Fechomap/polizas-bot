@@ -48,11 +48,14 @@ class FlowContextManager {
         // Guardar contexto
         this.contexts.get(chatId).set(flowId, context);
 
-        this.logger.info(`Nuevo contexto creado: ${flowId} para chat ${chatId} - estado: ${initialState}`, {
-            chatId,
-            flowId,
-            numeroPoliza
-        });
+        this.logger.info(
+            `Nuevo contexto creado: ${flowId} para chat ${chatId} - estado: ${initialState}`,
+            {
+                chatId,
+                flowId,
+                numeroPoliza
+            }
+        );
 
         return flowId;
     }
@@ -67,7 +70,9 @@ class FlowContextManager {
      */
     updateState(chatId, flowId, newState, data = {}) {
         if (!this.contexts.has(chatId) || !this.contexts.get(chatId).has(flowId)) {
-            this.logger.warn(`Intento de actualizar contexto inexistente: ${flowId} chat ${chatId}`);
+            this.logger.warn(
+                `Intento de actualizar contexto inexistente: ${flowId} chat ${chatId}`
+            );
             return false;
         }
 
@@ -76,11 +81,14 @@ class FlowContextManager {
         context.data = { ...context.data, ...data };
         context.updatedAt = new Date();
 
-        this.logger.info(`Contexto actualizado: ${flowId} para chat ${chatId} - nuevo estado: ${newState}`, {
-            chatId,
-            flowId,
-            numeroPoliza: context.numeroPoliza
-        });
+        this.logger.info(
+            `Contexto actualizado: ${flowId} para chat ${chatId} - nuevo estado: ${newState}`,
+            {
+                chatId,
+                flowId,
+                numeroPoliza: context.numeroPoliza
+            }
+        );
 
         return true;
     }
@@ -126,8 +134,10 @@ class FlowContextManager {
     getAllContexts(chatId) {
         if (!this.contexts.has(chatId)) return [];
 
-        return Array.from(this.contexts.get(chatId).entries())
-            .map(([flowId, context]) => ({ ...context, flowId }));
+        return Array.from(this.contexts.get(chatId).entries()).map(([flowId, context]) => ({
+            ...context,
+            flowId
+        }));
     }
 
     /**

@@ -62,7 +62,6 @@ class AdminAuth {
                 logger.warn('No se pudieron verificar permisos en grupo:', groupError.message);
                 return false;
             }
-
         } catch (error) {
             logger.error('Error verificando permisos de admin:', error);
             return false;
@@ -70,8 +69,8 @@ class AdminAuth {
     }
 
     /**
-   * Middleware que permite continuar solo si el usuario es admin
-   */
+     * Middleware que permite continuar solo si el usuario es admin
+     */
     static async requireAdmin(ctx, next) {
         const isAdmin = await AdminAuth.isAdmin(ctx);
 
@@ -84,13 +83,14 @@ class AdminAuth {
     }
 
     /**
-   * Middleware general para logging de acciones admin
-   */
+     * Middleware general para logging de acciones admin
+     */
     static async middleware(ctx, next) {
-    // Solo procesar si es una acción admin
-        if (ctx.update.callback_query?.data?.startsWith('admin_') ||
-        ctx.message?.text?.startsWith('/admin')) {
-
+        // Solo procesar si es una acción admin
+        if (
+            ctx.update.callback_query?.data?.startsWith('admin_') ||
+            ctx.message?.text?.startsWith('/admin')
+        ) {
             const userId = ctx.from?.id;
             const username = ctx.from?.username || ctx.from?.first_name || 'Unknown';
             const action = ctx.update.callback_query?.data || ctx.message?.text;
@@ -102,15 +102,15 @@ class AdminAuth {
     }
 
     /**
-   * Limpiar caché de permisos
-   */
+     * Limpiar caché de permisos
+     */
     static clearCache() {
         adminCache.clear();
     }
 
     /**
-   * Limpiar caché antiguo periódicamente
-   */
+     * Limpiar caché antiguo periódicamente
+     */
     static startCacheCleanup() {
         setInterval(() => {
             const now = Date.now();

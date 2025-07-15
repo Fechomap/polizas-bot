@@ -16,7 +16,9 @@ class SimpleScriptsHandler {
 
         // Verificar si ya hay un script corriendo para este usuario
         if (this.runningScripts.has(userId)) {
-            await ctx.reply('⚠️ Ya tienes un proceso de exportación ejecutándose. Espera a que termine.');
+            await ctx.reply(
+                '⚠️ Ya tienes un proceso de exportación ejecutándose. Espera a que termine.'
+            );
             return;
         }
 
@@ -43,17 +45,19 @@ class SimpleScriptsHandler {
                 stdio: ['pipe', 'pipe', 'pipe']
             });
 
-            child.stdout.on('data', (data) => {
+            child.stdout.on('data', data => {
                 output += data.toString();
             });
 
-            child.stderr.on('data', (data) => {
+            child.stderr.on('data', data => {
                 errorOutput += data.toString();
             });
 
             // Actualizar progreso cada 5 segundos
             const progressInterval = setInterval(async () => {
-                const elapsed = Math.floor((Date.now() - this.runningScripts.get(userId).startTime) / 1000);
+                const elapsed = Math.floor(
+                    (Date.now() - this.runningScripts.get(userId).startTime) / 1000
+                );
                 try {
                     await ctx.telegram.editMessageText(
                         ctx.chat.id,
@@ -69,7 +73,7 @@ class SimpleScriptsHandler {
 
             // Esperar a que termine
             await new Promise((resolve, reject) => {
-                child.on('close', (code) => {
+                child.on('close', code => {
                     clearInterval(progressInterval);
                     if (code === 0) {
                         resolve();
@@ -78,14 +82,16 @@ class SimpleScriptsHandler {
                     }
                 });
 
-                child.on('error', (err) => {
+                child.on('error', err => {
                     clearInterval(progressInterval);
                     reject(err);
                 });
             });
 
             // Procesar resultado
-            const elapsed = Math.floor((Date.now() - this.runningScripts.get(userId).startTime) / 1000);
+            const elapsed = Math.floor(
+                (Date.now() - this.runningScripts.get(userId).startTime) / 1000
+            );
 
             let successMessage = '✅ *Exportación completada*\n\n';
             successMessage += `⏱️ Tiempo total: ${elapsed}s\n`;
@@ -110,9 +116,10 @@ class SimpleScriptsHandler {
 
             // Intentar enviar archivo generado
             await this.sendGeneratedExcelFile(ctx);
-
         } catch (error) {
-            const elapsed = Math.floor((Date.now() - this.runningScripts.get(userId).startTime) / 1000);
+            const elapsed = Math.floor(
+                (Date.now() - this.runningScripts.get(userId).startTime) / 1000
+            );
 
             let errorMessage = '❌ *Error en exportación*\n\n';
             errorMessage += `⏱️ Tiempo transcurrido: ${elapsed}s\n`;
@@ -129,7 +136,6 @@ class SimpleScriptsHandler {
                 errorMessage,
                 { parse_mode: 'Markdown' }
             );
-
         } finally {
             // Limpiar estado
             this.runningScripts.delete(userId);
@@ -167,15 +173,17 @@ class SimpleScriptsHandler {
 
             if (latestFile) {
                 const filePath = path.join(backupDir, latestFile);
-                await ctx.replyWithDocument({
-                    source: filePath,
-                    filename: latestFile
-                }, {
-                    caption: `📊 *Exportación Excel Completa*\n\n📅 Generado: ${new Date().toLocaleString('es-ES')}\n🔄 Estados actualizados: 3:00 AM`,
-                    parse_mode: 'Markdown'
-                });
+                await ctx.replyWithDocument(
+                    {
+                        source: filePath,
+                        filename: latestFile
+                    },
+                    {
+                        caption: `📊 *Exportación Excel Completa*\n\n📅 Generado: ${new Date().toLocaleString('es-ES')}\n🔄 Estados actualizados: 3:00 AM`,
+                        parse_mode: 'Markdown'
+                    }
+                );
             }
-
         } catch (error) {
             console.error('Error enviando archivo Excel:', error);
             await ctx.reply('❌ Error al enviar archivo Excel: ' + error.message);

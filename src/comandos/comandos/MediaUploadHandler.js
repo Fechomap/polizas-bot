@@ -22,10 +22,12 @@ class MediaUploadHandler extends BaseCommand {
     register() {
         // No longer registering the /upload command.
         // The flow is initiated by 'accion:upload' in CommandHandler.
-        this.logInfo(`Comando ${this.getCommandName()} cargado, registrando manejadores de 'photo' y 'document'.`);
+        this.logInfo(
+            `Comando ${this.getCommandName()} cargado, registrando manejadores de 'photo' y 'document'.`
+        );
 
         // Register photo handler
-        this.bot.on('photo', async (ctx) => {
+        this.bot.on('photo', async ctx => {
             try {
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
@@ -33,7 +35,9 @@ class MediaUploadHandler extends BaseCommand {
 
                 if (!numeroPoliza) {
                     // Guide user to the button flow if state is missing
-                    return await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
+                    return await ctx.reply(
+                        '⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.'
+                    );
                 }
 
                 // Take the photo in maximum resolution
@@ -50,7 +54,11 @@ class MediaUploadHandler extends BaseCommand {
                 // Subir foto a Cloudflare R2
                 const storage = getInstance();
                 const originalName = `foto_${Date.now()}.jpg`;
-                const uploadResult = await storage.uploadPolicyPhoto(buffer, numeroPoliza, originalName);
+                const uploadResult = await storage.uploadPolicyPhoto(
+                    buffer,
+                    numeroPoliza,
+                    originalName
+                );
 
                 // Crear objeto de archivo R2
                 const r2FileObject = {
@@ -96,16 +104,23 @@ class MediaUploadHandler extends BaseCommand {
         });
 
         // Register document handler
-        this.bot.on('document', async (ctx, next) => { // Added 'next' parameter
+        this.bot.on('document', async (ctx, next) => {
+            // Added 'next' parameter
             try {
                 const chatId = ctx.chat.id;
 
                 // NUEVO: Verificar si estamos esperando un Excel para registro
                 const excelUploadCmd = this.handler.registry.getCommand('excelUpload');
-                if (excelUploadCmd && typeof excelUploadCmd.awaitingExcelUpload?.get === 'function' &&
-                    excelUploadCmd.awaitingExcelUpload.get(chatId)) {
+                if (
+                    excelUploadCmd &&
+                    typeof excelUploadCmd.awaitingExcelUpload?.get === 'function' &&
+                    excelUploadCmd.awaitingExcelUpload.get(chatId)
+                ) {
                     // Si estamos esperando un Excel, no procesamos aquí, dejamos que lo maneje ExcelUploadHandler
-                    this.logInfo('Documento recibido, pero estamos en flujo de carga Excel. Pasando a ExcelUploadHandler', { chatId }); // Log updated
+                    this.logInfo(
+                        'Documento recibido, pero estamos en flujo de carga Excel. Pasando a ExcelUploadHandler',
+                        { chatId }
+                    ); // Log updated
                     return next(); // Call next() to pass control
                 }
 
@@ -113,7 +128,9 @@ class MediaUploadHandler extends BaseCommand {
                 const numeroPoliza = this.uploadTargets.get(chatId, threadId);
 
                 if (!numeroPoliza) {
-                    return await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
+                    return await ctx.reply(
+                        '⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.'
+                    );
                 }
 
                 const { mime_type: mimeType = '' } = ctx.message.document || {};
@@ -130,8 +147,13 @@ class MediaUploadHandler extends BaseCommand {
 
                 // Subir PDF a Cloudflare R2
                 const storage = getInstance();
-                const originalName = ctx.message.document.file_name || `documento_${Date.now()}.pdf`;
-                const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
+                const originalName =
+                    ctx.message.document.file_name || `documento_${Date.now()}.pdf`;
+                const uploadResult = await storage.uploadPolicyPDF(
+                    buffer,
+                    numeroPoliza,
+                    originalName
+                );
 
                 // Crear objeto de archivo R2
                 const r2FileObject = {

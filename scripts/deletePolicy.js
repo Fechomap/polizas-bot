@@ -15,7 +15,7 @@ const rl = readline.createInterface({
 });
 
 // Función para esperar input del usuario
-const pregunta = (query) => new Promise((resolve) => rl.question(query, resolve));
+const pregunta = query => new Promise(resolve => rl.question(query, resolve));
 
 // Función para conectar a MongoDB
 const connectDB = async () => {
@@ -36,7 +36,7 @@ const connectDB = async () => {
 };
 
 // Función para formatear fechas
-const formatDate = (fecha) => {
+const formatDate = fecha => {
     if (!fecha) return 'N/A';
     const date = new Date(fecha);
     if (isNaN(date.getTime())) return 'Fecha inválida';
@@ -44,7 +44,7 @@ const formatDate = (fecha) => {
 };
 
 // Función para mostrar detalles de la póliza encontrada
-const mostrarDetallePoliza = (policy) => {
+const mostrarDetallePoliza = policy => {
     console.log('\n📋 DETALLES DE LA PÓLIZA ENCONTRADA:');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log(`🔤 Número de Póliza: ${policy.numeroPoliza}`);
@@ -80,7 +80,9 @@ const mostrarDetallePoliza = (policy) => {
     console.log(`\n🔧 Servicios registrados: ${servicios.length}`);
     if (servicios.length > 0) {
         servicios.forEach((servicio, index) => {
-            console.log(`  - Servicio #${servicio.numeroServicio || (index + 1)}: $${servicio.costo} (${formatDate(servicio.fechaServicio)})`);
+            console.log(
+                `  - Servicio #${servicio.numeroServicio || index + 1}: $${servicio.costo} (${formatDate(servicio.fechaServicio)})`
+            );
             if (servicio.origenDestino) {
                 console.log(`    Origen/Destino: ${servicio.origenDestino}`);
             }
@@ -100,7 +102,7 @@ const mostrarDetallePoliza = (policy) => {
 // Función principal
 const deletePolicy = async () => {
     try {
-    // Conectar a MongoDB
+        // Conectar a MongoDB
         const connected = await connectDB();
         if (!connected) {
             console.error('❌ No se pudo conectar a la base de datos. Abortando operación.');
@@ -109,7 +111,9 @@ const deletePolicy = async () => {
         }
 
         console.log('\n🔄 Herramienta para eliminación PERMANENTE de pólizas');
-        console.log('⚠️  ADVERTENCIA: Esta acción es irreversible y eliminará todos los datos asociados.');
+        console.log(
+            '⚠️  ADVERTENCIA: Esta acción es irreversible y eliminará todos los datos asociados.'
+        );
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         // Pedir número de póliza
@@ -137,7 +141,9 @@ const deletePolicy = async () => {
         mostrarDetallePoliza(policy);
 
         // Primera confirmación
-        const confirmacion1 = await pregunta('\n⚠️  ¿Estás seguro de que deseas ELIMINAR PERMANENTEMENTE esta póliza? (s/n): ');
+        const confirmacion1 = await pregunta(
+            '\n⚠️  ¿Estás seguro de que deseas ELIMINAR PERMANENTEMENTE esta póliza? (s/n): '
+        );
 
         if (confirmacion1.toLowerCase() !== 's') {
             console.log('✅ Operación cancelada. La póliza NO ha sido eliminada.');
@@ -146,7 +152,9 @@ const deletePolicy = async () => {
         }
 
         // Segunda confirmación con el número de póliza
-        const confirmacion2 = await pregunta(`\n⚠️  CONFIRMACIÓN FINAL: Escribe exactamente el número de póliza (${numeroPoliza}) para confirmar la eliminación: `);
+        const confirmacion2 = await pregunta(
+            `\n⚠️  CONFIRMACIÓN FINAL: Escribe exactamente el número de póliza (${numeroPoliza}) para confirmar la eliminación: `
+        );
 
         if (confirmacion2.trim().toUpperCase() !== numeroPoliza) {
             console.log('❌ El número de póliza no coincide. Operación cancelada por seguridad.');
@@ -159,7 +167,9 @@ const deletePolicy = async () => {
         const resultado = await Policy.deleteOne({ numeroPoliza });
 
         if (resultado.deletedCount === 1) {
-            console.log(`\n✅ ÉXITO: La póliza ${numeroPoliza} ha sido ELIMINADA PERMANENTEMENTE de la base de datos.`);
+            console.log(
+                `\n✅ ÉXITO: La póliza ${numeroPoliza} ha sido ELIMINADA PERMANENTEMENTE de la base de datos.`
+            );
             console.log('📝 Resumen de la eliminación:');
             console.log(`   - Titular: ${policy.titular}`);
             console.log(`   - Vehículo: ${policy.marca} ${policy.submarca} (${policy.año})`);
@@ -171,7 +181,6 @@ const deletePolicy = async () => {
         } else {
             console.log(`❌ Error: No se pudo eliminar la póliza ${numeroPoliza}.`);
         }
-
     } catch (error) {
         console.error('❌ Error durante la operación:', error);
     } finally {

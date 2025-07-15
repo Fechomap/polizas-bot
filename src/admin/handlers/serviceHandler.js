@@ -7,20 +7,19 @@ const logger = require('../../utils/logger');
 
 class ServiceHandler {
     /**
-   * Maneja las acciones relacionadas con servicios
-   */
+     * Maneja las acciones relacionadas con servicios
+     */
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-            case 'menu':
-                return await AdminMenu.showServiceMenu(ctx);
+                case 'menu':
+                    return await AdminMenu.showServiceMenu(ctx);
 
-            case 'edit':
-                return await this.handleEditService(ctx);
+                case 'edit':
+                    return await this.handleEditService(ctx);
 
-
-            default:
-                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+                default:
+                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en ServiceHandler:', error);
@@ -34,11 +33,7 @@ class ServiceHandler {
     static async handleEditService(ctx) {
         try {
             AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            AdminStateManager.createAdminState(
-                ctx.from.id,
-                ctx.chat.id,
-                'service_search_for_edit'
-            );
+            AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'service_search_for_edit');
 
             const searchText = `
 🔍 *BUSCAR SERVICIO POR EXPEDIENTE*
@@ -68,13 +63,11 @@ _El sistema encontrará el servicio específico para editar._
             await AuditLogger.log(ctx, 'service_search_initiated', 'service', {
                 operation: 'search_for_edit'
             });
-
         } catch (error) {
             logger.error('Error al iniciar búsqueda de servicios:', error);
             await ctx.reply('❌ Error al iniciar la búsqueda. Intenta nuevamente.');
         }
     }
-
 
     /**
      * Busca servicios y registros por número de expediente EXACTO
@@ -101,16 +94,24 @@ _El sistema encontrará el servicio específico para editar._
 
         policies.forEach(policy => {
             // Buscar en servicios - COINCIDENCIA EXACTA
-            const serviciosMatched = policy.servicios?.filter(servicio => {
-                const expedienteServicio = servicio.numeroExpediente?.trim();
-                return expedienteServicio && expedienteServicio.toLowerCase() === cleanTerm.toLowerCase();
-            }) || [];
+            const serviciosMatched =
+                policy.servicios?.filter(servicio => {
+                    const expedienteServicio = servicio.numeroExpediente?.trim();
+                    return (
+                        expedienteServicio &&
+                        expedienteServicio.toLowerCase() === cleanTerm.toLowerCase()
+                    );
+                }) || [];
 
             // Buscar en registros - COINCIDENCIA EXACTA
-            const registrosMatched = policy.registros?.filter(registro => {
-                const expedienteRegistro = registro.numeroExpediente?.trim();
-                return expedienteRegistro && expedienteRegistro.toLowerCase() === cleanTerm.toLowerCase();
-            }) || [];
+            const registrosMatched =
+                policy.registros?.filter(registro => {
+                    const expedienteRegistro = registro.numeroExpediente?.trim();
+                    return (
+                        expedienteRegistro &&
+                        expedienteRegistro.toLowerCase() === cleanTerm.toLowerCase()
+                    );
+                }) || [];
 
             // Agregar resultados encontrados
             serviciosMatched.forEach((servicio, index) => {
@@ -118,7 +119,9 @@ _El sistema encontrará el servicio específico para editar._
                     policy,
                     type: 'servicio',
                     item: servicio,
-                    itemIndex: policy.servicios.findIndex(s => s._id?.toString() === servicio._id?.toString()),
+                    itemIndex: policy.servicios.findIndex(
+                        s => s._id?.toString() === servicio._id?.toString()
+                    ),
                     matchText: `Servicio #${servicio.numeroServicio || 'N/A'}`
                 });
             });
@@ -128,7 +131,9 @@ _El sistema encontrará el servicio específico para editar._
                     policy,
                     type: 'registro',
                     item: registro,
-                    itemIndex: policy.registros.findIndex(r => r._id?.toString() === registro._id?.toString()),
+                    itemIndex: policy.registros.findIndex(
+                        r => r._id?.toString() === registro._id?.toString()
+                    ),
                     matchText: `Registro #${registro.numeroRegistro || 'N/A'}`
                 });
             });
@@ -188,7 +193,6 @@ _Intenta con otro número de expediente._
                 searchTerm: expediente,
                 resultsCount: searchResults.length
             });
-
         } catch (error) {
             logger.error('Error al buscar servicios por expediente:', error);
             await ctx.reply('❌ Error en la búsqueda. Intenta nuevamente.');
@@ -214,14 +218,15 @@ Selecciona el servicio/registro a editar:
         results.forEach((result, index) => {
             const { policy, type, item, matchText } = result;
 
-            const formatDate = (date) => {
+            const formatDate = date => {
                 if (!date) return 'Sin fecha';
                 return new Date(date).toLocaleDateString('es-MX');
             };
 
-            const fechaStr = type === 'servicio'
-                ? formatDate(item.fechaServicio)
-                : formatDate(item.fechaRegistro);
+            const fechaStr =
+                type === 'servicio'
+                    ? formatDate(item.fechaServicio)
+                    : formatDate(item.fechaRegistro);
 
             const costoStr = item.costo ? `$${item.costo.toFixed(2)}` : 'Sin costo';
             const tipoIcon = type === 'servicio' ? '🚗' : '📋';
@@ -266,20 +271,21 @@ Selecciona el servicio/registro a editar:
     static async showServiceDirectEdit(ctx, result) {
         const { policy, type, item, itemIndex } = result;
 
-        const formatDate = (date) => {
+        const formatDate = date => {
             if (!date) return 'No definida';
             return new Date(date).toLocaleDateString('es-MX');
         };
 
-        const formatCurrency = (amount) => {
+        const formatCurrency = amount => {
             if (!amount) return 'No definido';
             return `$${amount.toFixed(2)}`;
         };
 
         const typeText = type === 'servicio' ? 'SERVICIO' : 'REGISTRO';
-        const itemNumber = type === 'servicio'
-            ? (item.numeroServicio || itemIndex + 1)
-            : (item.numeroRegistro || itemIndex + 1);
+        const itemNumber =
+            type === 'servicio'
+                ? item.numeroServicio || itemIndex + 1
+                : item.numeroRegistro || itemIndex + 1;
 
         const menuText = `
 ✏️ *EDITAR ${typeText}*
@@ -292,31 +298,52 @@ Selecciona el servicio/registro a editar:
 📄 **Expediente:** ${item.numeroExpediente || 'No definido'}
 💰 **Costo:** ${formatCurrency(item.costo)}
 📅 **Fecha:** ${type === 'servicio' ? formatDate(item.fechaServicio) : formatDate(item.fechaRegistro)}
-${type === 'servicio' ? `📞 **Contacto programado:** ${formatDate(item.fechaContactoProgramada)}
-🏁 **Término programado:** ${formatDate(item.fechaTerminoProgramada)}` :
-        `📊 **Estado:** ${item.estado || 'PENDIENTE'}`}
+${
+    type === 'servicio'
+        ? `📞 **Contacto programado:** ${formatDate(item.fechaContactoProgramada)}
+🏁 **Término programado:** ${formatDate(item.fechaTerminoProgramada)}`
+        : `📊 **Estado:** ${item.estado || 'PENDIENTE'}`
+}
 
 ¿Qué campo deseas editar?
         `.trim();
 
         const buttons = [
             [
-                Markup.button.callback('📄 Expediente', `admin_field:${policy._id}:${type}:${itemIndex}:expediente`),
-                Markup.button.callback('💰 Costo', `admin_field:${policy._id}:${type}:${itemIndex}:costo`)
+                Markup.button.callback(
+                    '📄 Expediente',
+                    `admin_field:${policy._id}:${type}:${itemIndex}:expediente`
+                ),
+                Markup.button.callback(
+                    '💰 Costo',
+                    `admin_field:${policy._id}:${type}:${itemIndex}:costo`
+                )
             ],
             [
-                Markup.button.callback('📅 Fecha', `admin_field:${policy._id}:${type}:${itemIndex}:fecha`)
+                Markup.button.callback(
+                    '📅 Fecha',
+                    `admin_field:${policy._id}:${type}:${itemIndex}:fecha`
+                )
             ]
         ];
 
         if (type === 'servicio') {
             buttons.push([
-                Markup.button.callback('📞 Contacto Prog.', `admin_field:${policy._id}:${type}:${itemIndex}:contacto`),
-                Markup.button.callback('🏁 Término Prog.', `admin_field:${policy._id}:${type}:${itemIndex}:termino`)
+                Markup.button.callback(
+                    '📞 Contacto Prog.',
+                    `admin_field:${policy._id}:${type}:${itemIndex}:contacto`
+                ),
+                Markup.button.callback(
+                    '🏁 Término Prog.',
+                    `admin_field:${policy._id}:${type}:${itemIndex}:termino`
+                )
             ]);
         } else {
             buttons.push([
-                Markup.button.callback('📊 Estado', `admin_field:${policy._id}:${type}:${itemIndex}:estado`)
+                Markup.button.callback(
+                    '📊 Estado',
+                    `admin_field:${policy._id}:${type}:${itemIndex}:estado`
+                )
             ]);
         }
 
@@ -359,7 +386,8 @@ ${type === 'servicio' ? `📞 **Contacto programado:** ${formatDate(item.fechaCo
                 return;
             }
 
-            const item = type === 'servicio' ? policy.servicios[itemIndex] : policy.registros[itemIndex];
+            const item =
+                type === 'servicio' ? policy.servicios[itemIndex] : policy.registros[itemIndex];
             if (!item) {
                 await ctx.answerCbQuery('Elemento no encontrado', { show_alert: true });
                 return;
@@ -379,7 +407,12 @@ ${type === 'servicio' ? `📞 **Contacto programado:** ${formatDate(item.fechaCo
                 AdminStateManager.updateAdminState(ctx.from.id, ctx.chat.id, stateData);
                 existingState.operation = 'service_field_edit';
             } else {
-                AdminStateManager.createAdminState(ctx.from.id, ctx.chat.id, 'service_field_edit', stateData);
+                AdminStateManager.createAdminState(
+                    ctx.from.id,
+                    ctx.chat.id,
+                    'service_field_edit',
+                    stateData
+                );
             }
 
             logger.info('🔍 [SERVICE-DEBUG] Estado configurado para edición:', {
@@ -398,7 +431,7 @@ ${type === 'servicio' ? `📞 **Contacto programado:** ${formatDate(item.fechaCo
 ━━━━━━━━━━━━━━━━━━━━━━
 
 **Póliza:** ${policy.numeroPoliza}
-**${type === 'servicio' ? 'Servicio' : 'Registro'}:** #${item.numeroServicio || item.numeroRegistro || (itemIndex + 1)}
+**${type === 'servicio' ? 'Servicio' : 'Registro'}:** #${item.numeroServicio || item.numeroRegistro || itemIndex + 1}
 
 **Campo a editar:** ${this.getFieldDisplayName(fieldName)}
 **Valor actual:** ${currentValue || 'Sin definir'}
@@ -416,7 +449,6 @@ _Escribe el nuevo valor o usa los botones de abajo:_
                     inline_keyboard: buttons
                 }
             });
-
         } catch (error) {
             logger.error('Error al iniciar edición de campo:', error);
             await ctx.answerCbQuery('Error al iniciar edición', { show_alert: true });
@@ -427,7 +459,7 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      * Obtiene el valor actual de un campo
      */
     static getFieldValue(item, fieldName) {
-        const formatDateTime = (date) => {
+        const formatDateTime = date => {
             if (!date) return null;
             return new Date(date).toLocaleString('es-MX', {
                 day: '2-digit',
@@ -440,20 +472,20 @@ _Escribe el nuevo valor o usa los botones de abajo:_
         };
 
         switch (fieldName) {
-        case 'expediente':
-            return item.numeroExpediente;
-        case 'costo':
-            return item.costo ? `$${item.costo.toFixed(2)}` : null;
-        case 'fecha':
-            return formatDateTime(item.fechaServicio || item.fechaRegistro);
-        case 'contacto':
-            return formatDateTime(item.fechaContactoProgramada);
-        case 'termino':
-            return formatDateTime(item.fechaTerminoProgramada);
-        case 'estado':
-            return item.estado;
-        default:
-            return null;
+            case 'expediente':
+                return item.numeroExpediente;
+            case 'costo':
+                return item.costo ? `$${item.costo.toFixed(2)}` : null;
+            case 'fecha':
+                return formatDateTime(item.fechaServicio || item.fechaRegistro);
+            case 'contacto':
+                return formatDateTime(item.fechaContactoProgramada);
+            case 'termino':
+                return formatDateTime(item.fechaTerminoProgramada);
+            case 'estado':
+                return item.estado;
+            default:
+                return null;
         }
     }
 
@@ -462,12 +494,12 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      */
     static getFieldDisplayName(fieldName) {
         const names = {
-            'expediente': 'Número de Expediente',
-            'costo': 'Costo',
-            'fecha': 'Fecha',
-            'contacto': 'Contacto Programado',
-            'termino': 'Término Programado',
-            'estado': 'Estado'
+            expediente: 'Número de Expediente',
+            costo: 'Costo',
+            fecha: 'Fecha',
+            contacto: 'Contacto Programado',
+            termino: 'Término Programado',
+            estado: 'Estado'
         };
         return names[fieldName] || fieldName;
     }
@@ -477,33 +509,42 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      */
     static getFieldInstructions(fieldName, type, currentValue) {
         switch (fieldName) {
-        case 'expediente':
-            return '📝 **Escribe el nuevo número de expediente:**\n' +
-                       '• Ejemplo: EXP-2025-001\n' +
-                       '• Mínimo 3 caracteres';
-        case 'costo':
-            return '💰 **Escribe el nuevo costo:**\n' +
-                       '• Ejemplo: 1250.00\n' +
-                       '• Solo números y punto decimal';
-        case 'fecha':
-            return '📅 **Escribe la nueva fecha:**\n' +
-                       '• Formato: DD/MM/YYYY HH:MM\n' +
-                       '• Ejemplo: 15/03/2025 14:30';
-        case 'contacto':
-            return '📞 **Escribe la nueva fecha de contacto programado:**\n' +
-                       '• Formato: DD/MM/YYYY HH:MM\n' +
-                       '• Ejemplo: 20/03/2025 15:30\n' +
-                       '• ⚠️ El término programado se ajustará automáticamente';
-        case 'termino':
-            return '🏁 **Escribe la nueva fecha de término programado:**\n' +
-                       '• Formato: DD/MM/YYYY HH:MM\n' +
-                       '• Ejemplo: 20/03/2025 18:30\n' +
-                       '• ⚠️ El contacto programado se ajustará automáticamente';
-        case 'estado':
-            return '📊 **Selecciona el nuevo estado:**\n' +
-                       '• Usa los botones de abajo';
-        default:
-            return 'Ingresa el nuevo valor:';
+            case 'expediente':
+                return (
+                    '📝 **Escribe el nuevo número de expediente:**\n' +
+                    '• Ejemplo: EXP-2025-001\n' +
+                    '• Mínimo 3 caracteres'
+                );
+            case 'costo':
+                return (
+                    '💰 **Escribe el nuevo costo:**\n' +
+                    '• Ejemplo: 1250.00\n' +
+                    '• Solo números y punto decimal'
+                );
+            case 'fecha':
+                return (
+                    '📅 **Escribe la nueva fecha:**\n' +
+                    '• Formato: DD/MM/YYYY HH:MM\n' +
+                    '• Ejemplo: 15/03/2025 14:30'
+                );
+            case 'contacto':
+                return (
+                    '📞 **Escribe la nueva fecha de contacto programado:**\n' +
+                    '• Formato: DD/MM/YYYY HH:MM\n' +
+                    '• Ejemplo: 20/03/2025 15:30\n' +
+                    '• ⚠️ El término programado se ajustará automáticamente'
+                );
+            case 'termino':
+                return (
+                    '🏁 **Escribe la nueva fecha de término programado:**\n' +
+                    '• Formato: DD/MM/YYYY HH:MM\n' +
+                    '• Ejemplo: 20/03/2025 18:30\n' +
+                    '• ⚠️ El contacto programado se ajustará automáticamente'
+                );
+            case 'estado':
+                return '📊 **Selecciona el nuevo estado:**\n' + '• Usa los botones de abajo';
+            default:
+                return 'Ingresa el nuevo valor:';
         }
     }
 
@@ -516,57 +557,77 @@ _Escribe el nuevo valor o usa los botones de abajo:_
 
         if (fieldName === 'estado') {
             buttons.push([
-                { text: '⏳ PENDIENTE', callback_data: `admin_val:${shortId}:${type}:${itemIndex}:estado:PENDIENTE` },
-                { text: '✅ ASIGNADO', callback_data: `admin_val:${shortId}:${type}:${itemIndex}:estado:ASIGNADO` }
+                {
+                    text: '⏳ PENDIENTE',
+                    callback_data: `admin_val:${shortId}:${type}:${itemIndex}:estado:PENDIENTE`
+                },
+                {
+                    text: '✅ ASIGNADO',
+                    callback_data: `admin_val:${shortId}:${type}:${itemIndex}:estado:ASIGNADO`
+                }
             ]);
             buttons.push([
-                { text: '❌ NO_ASIGNADO', callback_data: `admin_val:${shortId}:${type}:${itemIndex}:estado:NO_ASIGNADO` }
+                {
+                    text: '❌ NO_ASIGNADO',
+                    callback_data: `admin_val:${shortId}:${type}:${itemIndex}:estado:NO_ASIGNADO`
+                }
             ]);
         } else if (fieldName === 'fecha' || fieldName === 'contacto' || fieldName === 'termino') {
             buttons.push([
-                { text: '📅 Ahora', callback_data: `admin_val:${shortId}:${type}:${itemIndex}:${fieldName}:NOW` }
+                {
+                    text: '📅 Ahora',
+                    callback_data: `admin_val:${shortId}:${type}:${itemIndex}:${fieldName}:NOW`
+                }
             ]);
         }
 
         buttons.push([
-            { text: '⬅️ Volver', callback_data: `admin_service_direct_edit:${policyId}:${type}:${itemIndex}` },
+            {
+                text: '⬅️ Volver',
+                callback_data: `admin_service_direct_edit:${policyId}:${type}:${itemIndex}`
+            },
             { text: '❌ Cancelar', callback_data: 'admin_service_edit' }
         ]);
 
         return buttons;
     }
 
-
     /**
      * Procesa un valor de campo según su tipo
      */
     static processFieldValue(fieldName, value) {
         switch (fieldName) {
-        case 'expediente':
-            return value.trim().length >= 3 ? value.trim() : null;
-        case 'costo':
-            const cost = parseFloat(value.replace(',', '.'));
-            return (!isNaN(cost) && cost >= 0) ? cost : null;
-        case 'fecha':
-        case 'contacto':
-        case 'termino':
-            if (value === 'NOW') {
-                return new Date();
-            }
-            // Validar formato DD/MM/YYYY HH:MM o DD/MM/YYYY
-            const dateTimeMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
-            if (dateTimeMatch) {
-                const [, day, month, year, hour = '0', minute = '0'] = dateTimeMatch;
-                const date = new Date(year, month - 1, day, parseInt(hour), parseInt(minute));
-                if (date.getFullYear() == year && date.getMonth() == (month - 1) && date.getDate() == day) {
-                    return date;
+            case 'expediente':
+                return value.trim().length >= 3 ? value.trim() : null;
+            case 'costo':
+                const cost = parseFloat(value.replace(',', '.'));
+                return !isNaN(cost) && cost >= 0 ? cost : null;
+            case 'fecha':
+            case 'contacto':
+            case 'termino':
+                if (value === 'NOW') {
+                    return new Date();
                 }
-            }
-            return null;
-        case 'estado':
-            return ['PENDIENTE', 'ASIGNADO', 'NO_ASIGNADO'].includes(value) ? value : null;
-        default:
-            return value;
+                // Validar formato DD/MM/YYYY HH:MM o DD/MM/YYYY
+                const dateTimeMatch = value.match(
+                    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/
+                );
+                if (dateTimeMatch) {
+                    const [, day, month, year, hour = '0', minute = '0'] = dateTimeMatch;
+                    const date = new Date(year, month - 1, day, parseInt(hour), parseInt(minute));
+                    if (
+                        date.getFullYear() == year &&
+                        date.getMonth() == month - 1 &&
+                        date.getDate() == day
+                    ) {
+                        return date;
+                    }
+                }
+                return null;
+            case 'estado':
+                return ['PENDIENTE', 'ASIGNADO', 'NO_ASIGNADO'].includes(value) ? value : null;
+            default:
+                return value;
         }
     }
 
@@ -575,28 +636,28 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      */
     static updateFieldValue(item, fieldName, value) {
         switch (fieldName) {
-        case 'expediente':
-            item.numeroExpediente = value;
-            break;
-        case 'costo':
-            item.costo = value;
-            break;
-        case 'fecha':
-            if (item.fechaServicio !== undefined) {
-                item.fechaServicio = value;
-            } else {
-                item.fechaRegistro = value;
-            }
-            break;
-        case 'contacto':
-            item.fechaContactoProgramada = value;
-            break;
-        case 'termino':
-            item.fechaTerminoProgramada = value;
-            break;
-        case 'estado':
-            item.estado = value;
-            break;
+            case 'expediente':
+                item.numeroExpediente = value;
+                break;
+            case 'costo':
+                item.costo = value;
+                break;
+            case 'fecha':
+                if (item.fechaServicio !== undefined) {
+                    item.fechaServicio = value;
+                } else {
+                    item.fechaRegistro = value;
+                }
+                break;
+            case 'contacto':
+                item.fechaContactoProgramada = value;
+                break;
+            case 'termino':
+                item.fechaTerminoProgramada = value;
+                break;
+            case 'estado':
+                item.estado = value;
+                break;
         }
     }
 
@@ -678,7 +739,6 @@ _Escribe el nuevo valor o usa los botones de abajo:_
             }
 
             await this.showPolicyServicesMenu(ctx, policy);
-
         } catch (error) {
             logger.error('Error al seleccionar póliza para servicios:', error);
             await ctx.reply('❌ Error al cargar la póliza.');
@@ -708,40 +768,53 @@ _Escribe el nuevo valor o usa los botones de abajo:_
 
         // Manejar diferentes operaciones de servicios
         switch (adminState.operation) {
-        case 'service_search_for_edit':
-            logger.info('🔍 [SERVICE-DEBUG] Procesando búsqueda de servicio');
-            if (messageText.length < 2) {
-                await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+            case 'service_search_for_edit':
+                logger.info('🔍 [SERVICE-DEBUG] Procesando búsqueda de servicio');
+                if (messageText.length < 2) {
+                    await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+                    return true;
+                }
+                await this.handleServiceSearch(ctx, messageText);
                 return true;
-            }
-            await this.handleServiceSearch(ctx, messageText);
-            return true;
 
-        case 'service_field_edit':
-            logger.info('🔍 [SERVICE-DEBUG] Procesando edición de campo');
-            // Manejar edición de campos
-            const { selectedPolicy, selectedItemType, selectedItemIndex, selectedField } = adminState.data || adminState;
-            logger.info('🔍 [SERVICE-DEBUG] Datos del estado:', {
-                selectedPolicy,
-                selectedItemType,
-                selectedItemIndex,
-                selectedField,
-                adminStateKeys: Object.keys(adminState),
-                adminDataKeys: adminState.data ? Object.keys(adminState.data) : 'no data'
-            });
+            case 'service_field_edit':
+                logger.info('🔍 [SERVICE-DEBUG] Procesando edición de campo');
+                // Manejar edición de campos
+                const { selectedPolicy, selectedItemType, selectedItemIndex, selectedField } =
+                    adminState.data || adminState;
+                logger.info('🔍 [SERVICE-DEBUG] Datos del estado:', {
+                    selectedPolicy,
+                    selectedItemType,
+                    selectedItemIndex,
+                    selectedField,
+                    adminStateKeys: Object.keys(adminState),
+                    adminDataKeys: adminState.data ? Object.keys(adminState.data) : 'no data'
+                });
 
-            if (selectedPolicy && selectedItemType !== undefined && selectedItemIndex !== undefined && selectedField) {
-                logger.info('🔍 [SERVICE-DEBUG] Llamando handleFieldValue');
-                await this.handleFieldValue(ctx, selectedPolicy, selectedItemType, selectedItemIndex, selectedField, messageText);
-                return true;
-            } else {
-                logger.warn('🔍 [SERVICE-DEBUG] Datos insuficientes para edición de campo');
+                if (
+                    selectedPolicy &&
+                    selectedItemType !== undefined &&
+                    selectedItemIndex !== undefined &&
+                    selectedField
+                ) {
+                    logger.info('🔍 [SERVICE-DEBUG] Llamando handleFieldValue');
+                    await this.handleFieldValue(
+                        ctx,
+                        selectedPolicy,
+                        selectedItemType,
+                        selectedItemIndex,
+                        selectedField,
+                        messageText
+                    );
+                    return true;
+                } else {
+                    logger.warn('🔍 [SERVICE-DEBUG] Datos insuficientes para edición de campo');
+                    return false;
+                }
+
+            default:
+                logger.info('🔍 [SERVICE-DEBUG] Operación no reconocida:', adminState.operation);
                 return false;
-            }
-
-        default:
-            logger.info('🔍 [SERVICE-DEBUG] Operación no reconocida:', adminState.operation);
-            return false;
         }
     }
 
@@ -760,16 +833,18 @@ _Escribe el nuevo valor o usa los botones de abajo:_
             const servicios = policy.servicios || [];
 
             if (servicios.length === 0) {
-                await ctx.editMessageText(
-                    '❌ Esta póliza no tiene servicios para editar.',
-                    {
-                        reply_markup: {
-                            inline_keyboard: [[
-                                { text: '⬅️ Volver', callback_data: `admin_service_select:${policyId}` }
-                            ]]
-                        }
+                await ctx.editMessageText('❌ Esta póliza no tiene servicios para editar.', {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '⬅️ Volver',
+                                    callback_data: `admin_service_select:${policyId}`
+                                }
+                            ]
+                        ]
                     }
-                );
+                });
                 return;
             }
 
@@ -786,7 +861,7 @@ Selecciona un servicio para editar:
 
             const buttons = [];
             servicios.forEach((servicio, index) => {
-                const formatDate = (date) => {
+                const formatDate = date => {
                     if (!date) return 'Sin fecha';
                     return new Date(date).toLocaleDateString('es-MX');
                 };
@@ -795,22 +870,20 @@ Selecciona un servicio para editar:
                 const costoStr = servicio.costo ? `$${servicio.costo.toFixed(2)}` : 'Sin costo';
                 const expediente = servicio.numeroExpediente || 'Sin expediente';
 
-                listText += `${index + 1}. **Servicio #${servicio.numeroServicio || (index + 1)}**\n`;
+                listText += `${index + 1}. **Servicio #${servicio.numeroServicio || index + 1}**\n`;
                 listText += `   📅 ${fechaStr} | 💰 ${costoStr}\n`;
                 listText += `   📄 ${expediente}\n`;
                 listText += `   📍 ${servicio.origenDestino || 'Sin ruta'}\n\n`;
 
                 buttons.push([
                     Markup.button.callback(
-                        `${index + 1}. Servicio #${servicio.numeroServicio || (index + 1)} (${costoStr})`,
+                        `${index + 1}. Servicio #${servicio.numeroServicio || index + 1} (${costoStr})`,
                         `admin_service_edit_item:${policyId}:${index}`
                     )
                 ]);
             });
 
-            buttons.push([
-                Markup.button.callback('⬅️ Volver', `admin_service_select:${policyId}`)
-            ]);
+            buttons.push([Markup.button.callback('⬅️ Volver', `admin_service_select:${policyId}`)]);
 
             const keyboard = Markup.inlineKeyboard(buttons);
 
@@ -831,7 +904,6 @@ Selecciona un servicio para editar:
                 selectedPolicy: policyId,
                 operation: 'service_list_shown'
             });
-
         } catch (error) {
             logger.error('Error al mostrar lista de servicios:', error);
             await ctx.reply('❌ Error al cargar los servicios.');
@@ -858,12 +930,12 @@ Selecciona un servicio para editar:
                 return;
             }
 
-            const formatDate = (date) => {
+            const formatDate = date => {
                 if (!date) return 'No definida';
                 return new Date(date).toLocaleDateString('es-MX');
             };
 
-            const formatCurrency = (amount) => {
+            const formatCurrency = amount => {
                 if (!amount) return 'No definido';
                 return `$${amount.toFixed(2)}`;
             };
@@ -873,7 +945,7 @@ Selecciona un servicio para editar:
 ━━━━━━━━━━━━━━━━━━━━━━
 
 **Póliza:** ${policy.numeroPoliza}
-**Servicio:** #${servicio.numeroServicio || (serviceIndex + 1)}
+**Servicio:** #${servicio.numeroServicio || serviceIndex + 1}
 
 **Datos actuales:**
 📄 **Expediente:** ${servicio.numeroExpediente || 'No definido'}
@@ -890,19 +962,32 @@ Selecciona un servicio para editar:
 
             const buttons = [
                 [
-                    Markup.button.callback('📄 Editar Expediente', `admin_service_field:${policyId}:${serviceIndex}:expediente`),
-                    Markup.button.callback('💰 Editar Costo', `admin_service_field:${policyId}:${serviceIndex}:costo`)
+                    Markup.button.callback(
+                        '📄 Editar Expediente',
+                        `admin_service_field:${policyId}:${serviceIndex}:expediente`
+                    ),
+                    Markup.button.callback(
+                        '💰 Editar Costo',
+                        `admin_service_field:${policyId}:${serviceIndex}:costo`
+                    )
                 ],
                 [
-                    Markup.button.callback('📅 Editar Fecha', `admin_service_field:${policyId}:${serviceIndex}:fecha`),
-                    Markup.button.callback('📍 Editar Ruta', `admin_service_field:${policyId}:${serviceIndex}:ruta`)
+                    Markup.button.callback(
+                        '📅 Editar Fecha',
+                        `admin_service_field:${policyId}:${serviceIndex}:fecha`
+                    ),
+                    Markup.button.callback(
+                        '📍 Editar Ruta',
+                        `admin_service_field:${policyId}:${serviceIndex}:ruta`
+                    )
                 ],
                 [
-                    Markup.button.callback('📞 Fechas Contacto', `admin_service_field:${policyId}:${serviceIndex}:contacto`)
+                    Markup.button.callback(
+                        '📞 Fechas Contacto',
+                        `admin_service_field:${policyId}:${serviceIndex}:contacto`
+                    )
                 ],
-                [
-                    Markup.button.callback('⬅️ Volver a Lista', `admin_service_list:${policyId}`)
-                ]
+                [Markup.button.callback('⬅️ Volver a Lista', `admin_service_list:${policyId}`)]
             ];
 
             const keyboard = Markup.inlineKeyboard(buttons);
@@ -925,7 +1010,6 @@ Selecciona un servicio para editar:
                 selectedServiceIndex: parseInt(serviceIndex),
                 operation: 'service_edit_menu_shown'
             });
-
         } catch (error) {
             logger.error('Error al mostrar menú de edición de servicio:', error);
             await ctx.reply('❌ Error al cargar el servicio.');
@@ -939,8 +1023,8 @@ Selecciona un servicio para editar:
         try {
             // Buscar todas las pólizas y filtrar por los últimos 8 caracteres
             const policies = await Policy.find({});
-            const matchingPolicy = policies.find(policy =>
-                policy._id.toString().slice(-8) === shortId
+            const matchingPolicy = policies.find(
+                policy => policy._id.toString().slice(-8) === shortId
             );
 
             if (!matchingPolicy) {
@@ -948,7 +1032,14 @@ Selecciona un servicio para editar:
                 return;
             }
 
-            await this.handleFieldValue(ctx, matchingPolicy._id.toString(), type, itemIndex, fieldName, value);
+            await this.handleFieldValue(
+                ctx,
+                matchingPolicy._id.toString(),
+                type,
+                itemIndex,
+                fieldName,
+                value
+            );
         } catch (error) {
             logger.error('Error al procesar valor con ID corto:', error);
             await ctx.answerCbQuery('Error al procesar valor', { show_alert: true });
@@ -962,8 +1053,8 @@ Selecciona un servicio para editar:
         try {
             // Buscar póliza por shortId usando método correcto
             const policies = await Policy.find({});
-            const matchingPolicy = policies.find(policy =>
-                policy._id.toString().slice(-8) === shortId
+            const matchingPolicy = policies.find(
+                policy => policy._id.toString().slice(-8) === shortId
             );
 
             if (!matchingPolicy) {
@@ -971,7 +1062,10 @@ Selecciona un servicio para editar:
                 return;
             }
 
-            const item = type === 'servicio' ? matchingPolicy.servicios[itemIndex] : matchingPolicy.registros[itemIndex];
+            const item =
+                type === 'servicio'
+                    ? matchingPolicy.servicios[itemIndex]
+                    : matchingPolicy.registros[itemIndex];
             if (!item) {
                 await ctx.answerCbQuery('Elemento no encontrado', { show_alert: true });
                 return;
@@ -996,7 +1090,8 @@ Selecciona un servicio para editar:
                 return;
             }
 
-            const item = type === 'servicio' ? policy.servicios[itemIndex] : policy.registros[itemIndex];
+            const item =
+                type === 'servicio' ? policy.servicios[itemIndex] : policy.registros[itemIndex];
             if (!item) {
                 await ctx.answerCbQuery('Elemento no encontrado', { show_alert: true });
                 return;
@@ -1015,7 +1110,14 @@ Selecciona un servicio para editar:
 
             // Lógica especial para fechas de notificación
             if (type === 'servicio' && (fieldName === 'contacto' || fieldName === 'termino')) {
-                await this.updateNotificationDates(item, fieldName, processedValue, oldContacto, oldTermino, policy.numeroPoliza);
+                await this.updateNotificationDates(
+                    item,
+                    fieldName,
+                    processedValue,
+                    oldContacto,
+                    oldTermino,
+                    policy.numeroPoliza
+                );
             } else {
                 // Actualizar campo normal
                 this.updateFieldValue(item, fieldName, processedValue);
@@ -1052,7 +1154,6 @@ Selecciona un servicio para editar:
             // Volver a mostrar el menú de edición
             const result = { policy, type, item, itemIndex };
             await this.showServiceDirectEdit(ctx, result);
-
         } catch (error) {
             logger.error('Error al actualizar campo:', error);
             if (ctx.callbackQuery) {
@@ -1066,7 +1167,14 @@ Selecciona un servicio para editar:
     /**
      * Actualiza fechas de notificación con sincronización automática
      */
-    static async updateNotificationDates(item, fieldName, newValue, oldContacto, oldTermino, numeroPoliza) {
+    static async updateNotificationDates(
+        item,
+        fieldName,
+        newValue,
+        oldContacto,
+        oldTermino,
+        numeroPoliza
+    ) {
         const notificationManager = require('../../notifications/NotificationManager');
 
         if (fieldName === 'contacto') {
@@ -1080,7 +1188,12 @@ Selecciona un servicio para editar:
                 item.fechaTerminoProgramada = newTermino;
 
                 // Actualizar notificaciones
-                await this.updateNotifications(numeroPoliza, item.numeroExpediente, newValue, newTermino);
+                await this.updateNotifications(
+                    numeroPoliza,
+                    item.numeroExpediente,
+                    newValue,
+                    newTermino
+                );
             } else {
                 // Solo actualizar contacto si no hay término
                 item.fechaContactoProgramada = newValue;
@@ -1097,7 +1210,12 @@ Selecciona un servicio para editar:
                 item.fechaTerminoProgramada = newValue;
 
                 // Actualizar notificaciones
-                await this.updateNotifications(numeroPoliza, item.numeroExpediente, newContacto, newValue);
+                await this.updateNotifications(
+                    numeroPoliza,
+                    item.numeroExpediente,
+                    newContacto,
+                    newValue
+                );
             } else {
                 // Solo actualizar término si no hay contacto
                 item.fechaTerminoProgramada = newValue;
@@ -1118,11 +1236,19 @@ Selecciona un servicio para editar:
 
             // Crear nuevas notificaciones si las fechas están definidas
             if (fechaContacto) {
-                await notificationManager.scheduleContactoNotification(numeroPoliza, numeroExpediente, fechaContacto);
+                await notificationManager.scheduleContactoNotification(
+                    numeroPoliza,
+                    numeroExpediente,
+                    fechaContacto
+                );
             }
 
             if (fechaTermino) {
-                await notificationManager.scheduleTerminoNotification(numeroPoliza, numeroExpediente, fechaTermino);
+                await notificationManager.scheduleTerminoNotification(
+                    numeroPoliza,
+                    numeroExpediente,
+                    fechaTermino
+                );
             }
 
             logger.info(`Notificaciones actualizadas para expediente ${numeroExpediente}`);

@@ -7,7 +7,7 @@ const flowStateManager = require('../utils/FlowStateManager');
  * Middleware para validar y controlar flujos en hilos
  * Garantiza que un mensaje de un hilo no interfiera con el flujo de otro hilo
  */
-const threadValidatorMiddleware = (commandHandler) => async (ctx, next) => {
+const threadValidatorMiddleware = commandHandler => async (ctx, next) => {
     try {
         const chatId = ctx.chat?.id;
         if (!chatId) return next(); // Si no hay chat, seguir
@@ -73,11 +73,14 @@ const threadValidatorMiddleware = (commandHandler) => async (ctx, next) => {
                     if (stateMap && stateMap.has && stateMap.has(chatId)) {
                         // Encontramos un estado activo sin hilo, pero hay hilos activos
                         isInWrongThread = true;
-                        logger.warn(`Estado ${mapName} activo sin threadId pero hay hilos activos`, {
-                            chatId,
-                            messageThreadId: threadId,
-                            conflictingThreads: conflictingFlows.map(f => f.threadId).join(',')
-                        });
+                        logger.warn(
+                            `Estado ${mapName} activo sin threadId pero hay hilos activos`,
+                            {
+                                chatId,
+                                messageThreadId: threadId,
+                                conflictingThreads: conflictingFlows.map(f => f.threadId).join(',')
+                            }
+                        );
                         break;
                     }
                 }
@@ -92,8 +95,8 @@ const threadValidatorMiddleware = (commandHandler) => async (ctx, next) => {
                     // Solo enviar advertencia, no bloquear (opcional)
                     await ctx.reply(
                         '⚠️ Hay una operación activa en otro hilo. ' +
-                        'Por favor, continúa en el hilo correcto o finaliza ' +
-                        'la operación actual antes de iniciar una nueva.'
+                            'Por favor, continúa en el hilo correcto o finaliza ' +
+                            'la operación actual antes de iniciar una nueva.'
                     );
                     return; // No llama a next(), bloqueando el procesamiento
                 }

@@ -22,14 +22,15 @@ const connectDB = async () => {
 };
 
 // Convertir fechas desde Excel o strings
-const convertirFecha = (fecha) => {
+const convertirFecha = fecha => {
     if (!fecha) return null;
     try {
         if (typeof fecha === 'string') {
             const date = new Date(fecha);
             return isNaN(date) ? null : date;
         }
-        if (typeof fecha === 'number') { // Fechas como número de serie de Excel
+        if (typeof fecha === 'number') {
+            // Fechas como número de serie de Excel
             const date = new Date(Math.round((fecha - 25569) * 86400 * 1000));
             return isNaN(date) ? null : date;
         }
@@ -41,12 +42,12 @@ const convertirFecha = (fecha) => {
 };
 
 // Normalizar texto a mayúsculas
-const toUpperIfExists = (value) => {
+const toUpperIfExists = value => {
     return value == null ? '' : String(value).toUpperCase().trim();
 };
 
 // Importar datos desde Excel
-const importExcel = async (excelPath) => {
+const importExcel = async excelPath => {
     try {
         console.log(`📄 Leyendo Excel: ${excelPath}`);
         const workbook = XLSX.readFile(excelPath);
@@ -86,7 +87,7 @@ const importExcel = async (excelPath) => {
                 if (monto || fecha) {
                     pagos.push({
                         monto: Number(monto) || 0,
-                        fechaPago: convertirFecha(fecha),
+                        fechaPago: convertirFecha(fecha)
                     });
                 }
             }
@@ -104,7 +105,7 @@ const importExcel = async (excelPath) => {
                         costo: Number(costo) || 0,
                         fechaServicio: convertirFecha(fecha),
                         numeroExpediente: toUpperIfExists(expediente),
-                        origenDestino: toUpperIfExists(origenDestino),
+                        origenDestino: toUpperIfExists(origenDestino)
                     });
                 }
             }
@@ -133,7 +134,7 @@ const importExcel = async (excelPath) => {
                 fechaEmision: convertirFecha(item['FECHA DE EMISION']),
                 estado: finalState,
                 pagos,
-                servicios,
+                servicios
             };
 
             // Actualizar o insertar usando $set para no sobrescribir campos adicionales que no vienen en el Excel

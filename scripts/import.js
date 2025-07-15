@@ -8,7 +8,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const Policy = require('../src/models/policy');
 
 // Función para esperar
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 const connectDB = async () => {
     try {
@@ -25,7 +25,7 @@ const connectDB = async () => {
     }
 };
 
-const findLatestExport = async (backupDir) => {
+const findLatestExport = async backupDir => {
     try {
         const entries = await fs.readdir(backupDir, { withFileTypes: true });
         const exportDirs = entries
@@ -47,14 +47,16 @@ const findLatestExport = async (backupDir) => {
                 exportDirName: latestExportDir
             };
         } catch (err) {
-            throw new Error(`No se encontró el archivo Excel en el directorio de exportación más reciente: ${latestExportDir}`);
+            throw new Error(
+                `No se encontró el archivo Excel en el directorio de exportación más reciente: ${latestExportDir}`
+            );
         }
     } catch (error) {
         throw error;
     }
 };
 
-const convertirFecha = (fecha) => {
+const convertirFecha = fecha => {
     if (!fecha) return null;
     try {
         if (typeof fecha === 'string' && fecha.includes('-')) {
@@ -81,9 +83,12 @@ const convertirFecha = (fecha) => {
     return null;
 };
 
-const toUpperIfExists = (value) => {
+const toUpperIfExists = value => {
     if (value == null || value === '') return '';
-    return String(value).toUpperCase().trim().replace(/[\r\n\t]/g, '');
+    return String(value)
+        .toUpperCase()
+        .trim()
+        .replace(/[\r\n\t]/g, '');
 };
 
 const importData = async () => {
@@ -228,7 +233,9 @@ const importData = async () => {
 
             // Limpieza del número de póliza si tiene problemas
             if (policyData.numeroPoliza.length > 20 || /[\r\n\t]/.test(policyData.numeroPoliza)) {
-                console.log(`⚠️ Detectado problema en número de póliza: "${policyData.numeroPoliza}"`);
+                console.log(
+                    `⚠️ Detectado problema en número de póliza: "${policyData.numeroPoliza}"`
+                );
                 policyData.numeroPoliza = policyData.numeroPoliza.trim().replace(/[\r\n\t]/g, '');
                 console.log(`   Corregido a: "${policyData.numeroPoliza}"`);
             }
@@ -248,10 +255,14 @@ const importData = async () => {
 
                 if (result.isNew) {
                     insertedCount++;
-                    console.log(`✅ Póliza ${numeroPoliza} insertada con ${archivos.fotos.length} fotos y ${archivos.pdfs.length} PDFs`);
+                    console.log(
+                        `✅ Póliza ${numeroPoliza} insertada con ${archivos.fotos.length} fotos y ${archivos.pdfs.length} PDFs`
+                    );
                 } else {
                     updatedCount++;
-                    console.log(`✅ Póliza ${numeroPoliza} actualizada con ${archivos.fotos.length} fotos y ${archivos.pdfs.length} PDFs`);
+                    console.log(
+                        `✅ Póliza ${numeroPoliza} actualizada con ${archivos.fotos.length} fotos y ${archivos.pdfs.length} PDFs`
+                    );
                 }
                 if (processedCount % 2 === 0) {
                     console.log('⏳ Pausando para evitar sobrecarga...');

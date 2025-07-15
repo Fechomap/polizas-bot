@@ -22,7 +22,6 @@ class AddServiceCommand extends BaseCommand {
         // which sets the awaitingServicePolicyNumber state.
         this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
 
-
         // Note: The actual handling of the text inputs (policy number, service data)
         // is done within TextMessageHandler.js by checking the state flags
         // (awaitingServicePolicyNumber, awaitingServiceData) set by this command

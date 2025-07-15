@@ -57,8 +57,8 @@ const AuditLog = mongoose.model('AuditLog', auditLogSchema);
 
 class AuditLogger {
     /**
-   * Registra una acción administrativa
-   */
+     * Registra una acción administrativa
+     */
     static async log(ctx, action, details = {}) {
         try {
             const user = ctx.from;
@@ -84,11 +84,14 @@ class AuditLogger {
             await logEntry.save();
 
             // También registrar en log de archivo
-            logger.info(`Auditoría: ${action} por @${user.username || user.first_name} (${user.id})`, {
-                module: details.module,
-                entityId: details.entityId,
-                result: details.result
-            });
+            logger.info(
+                `Auditoría: ${action} por @${user.username || user.first_name} (${user.id})`,
+                {
+                    module: details.module,
+                    entityId: details.entityId,
+                    result: details.result
+                }
+            );
 
             return logEntry;
         } catch (error) {
@@ -99,8 +102,8 @@ class AuditLogger {
     }
 
     /**
-   * Registra un cambio con comparación antes/después
-   */
+     * Registra un cambio con comparación antes/después
+     */
     static async logChange(ctx, action, entity, beforeData, afterData, module) {
         const changes = {
             before: beforeData,
@@ -127,8 +130,8 @@ class AuditLogger {
     }
 
     /**
-   * Registra un error en una operación administrativa
-   */
+     * Registra un error en una operación administrativa
+     */
     static async logError(ctx, action, error, details = {}) {
         return await this.log(ctx, action, {
             ...details,
@@ -138,18 +141,10 @@ class AuditLogger {
     }
 
     /**
-   * Obtiene logs de auditoría con filtros
-   */
+     * Obtiene logs de auditoría con filtros
+     */
     static async getLogs(filters = {}, options = {}) {
-        const {
-            userId,
-            action,
-            module,
-            startDate,
-            endDate,
-            page = 1,
-            limit = 20
-        } = filters;
+        const { userId, action, module, startDate, endDate, page = 1, limit = 20 } = filters;
 
         const query = {};
 
@@ -166,11 +161,7 @@ class AuditLogger {
         const skip = (page - 1) * limit;
 
         const [logs, total] = await Promise.all([
-            AuditLog.find(query)
-                .sort({ timestamp: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean(),
+            AuditLog.find(query).sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
             AuditLog.countDocuments(query)
         ]);
 
@@ -183,8 +174,8 @@ class AuditLogger {
     }
 
     /**
-   * Obtiene estadísticas de auditoría
-   */
+     * Obtiene estadísticas de auditoría
+     */
     static async getStats(days = 30) {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
@@ -229,8 +220,8 @@ class AuditLogger {
     }
 
     /**
-   * Limpia logs antiguos
-   */
+     * Limpia logs antiguos
+     */
     static async cleanup(daysToKeep = 90) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);

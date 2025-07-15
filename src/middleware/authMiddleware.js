@@ -16,7 +16,9 @@ const authMiddleware = () => async (ctx, next) => {
         const ADMIN_USER_ID = parseInt(process.env.ADMIN_USER_ID) || 7143094298;
 
         // ID del grupo autorizado del .env (opcional)
-        const AUTHORIZED_GROUP_ID = process.env.AUTHORIZED_GROUP_ID ? parseInt(process.env.AUTHORIZED_GROUP_ID) : null;
+        const AUTHORIZED_GROUP_ID = process.env.AUTHORIZED_GROUP_ID
+            ? parseInt(process.env.AUTHORIZED_GROUP_ID)
+            : null;
 
         logger.debug('Verificando autorización', {
             chatId,
@@ -42,8 +44,8 @@ const authMiddleware = () => async (ctx, next) => {
 
             await ctx.reply(
                 '🔒 *ACCESO RESTRINGIDO*\n\n' +
-                'Este bot es de uso exclusivo para gestión interna.\n\n' +
-                'Si necesitas asistencia, contacta al administrador.',
+                    'Este bot es de uso exclusivo para gestión interna.\n\n' +
+                    'Si necesitas asistencia, contacta al administrador.',
                 { parse_mode: 'Markdown' }
             );
             return; // No continuar
@@ -60,7 +62,7 @@ const authMiddleware = () => async (ctx, next) => {
 
                 await ctx.reply(
                     '⛔ Este grupo no está autorizado para usar este bot.\n\n' +
-                    'Contacta al administrador para más información.'
+                        'Contacta al administrador para más información.'
                 );
                 return; // No continuar
             }
@@ -78,7 +80,6 @@ const authMiddleware = () => async (ctx, next) => {
 
         await ctx.reply('❌ Tipo de chat no soportado.');
         return; // No continuar
-
     } catch (error) {
         logger.error('Error en middleware de autorización:', error);
 

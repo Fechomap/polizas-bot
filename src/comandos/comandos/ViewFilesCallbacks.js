@@ -19,7 +19,7 @@ class ViewFilesCallbacks extends BaseCommand {
 
     register() {
         // Register callback for viewing photos
-        this.handler.registry.registerCallback(/verFotos:(.+)/, async (ctx) => {
+        this.handler.registry.registerCallback(/verFotos:(.+)/, async ctx => {
             try {
                 const numeroPoliza = ctx.match[1];
                 this.logInfo(`Intentando mostrar fotos de póliza: ${numeroPoliza}`);
@@ -71,14 +71,18 @@ class ViewFilesCallbacks extends BaseCommand {
                             continue;
                         }
 
-                        const fotoBuffer = foto.data instanceof Buffer ?
-                            foto.data :
-                            Buffer.from(foto.data.buffer || foto.data);
-                        await ctx.replyWithPhoto({
-                            source: fotoBuffer
-                        }, {
-                            caption: '📸 Foto (formato anterior)'
-                        });
+                        const fotoBuffer =
+                            foto.data instanceof Buffer
+                                ? foto.data
+                                : Buffer.from(foto.data.buffer || foto.data);
+                        await ctx.replyWithPhoto(
+                            {
+                                source: fotoBuffer
+                            },
+                            {
+                                caption: '📸 Foto (formato anterior)'
+                            }
+                        );
                     } catch (error) {
                         this.logError('Error al enviar foto legacy:', error);
                     }
@@ -91,7 +95,7 @@ class ViewFilesCallbacks extends BaseCommand {
         });
 
         // Register callback for viewing PDFs
-        this.handler.registry.registerCallback(/verPDFs:(.+)/, async (ctx) => {
+        this.handler.registry.registerCallback(/verPDFs:(.+)/, async ctx => {
             try {
                 const numeroPoliza = ctx.match[1];
                 const policy = await getPolicyByNumber(numeroPoliza);
@@ -127,12 +131,15 @@ class ViewFilesCallbacks extends BaseCommand {
                             }
                             const buffer = await response.buffer();
 
-                            await ctx.replyWithDocument({
-                                source: buffer,
-                                filename: pdf.originalName || `Documento_${numeroPoliza}.pdf`
-                            }, {
-                                caption: `📄 PDF subido: ${pdf.uploadedAt ? new Date(pdf.uploadedAt).toLocaleString('es-MX') : 'Fecha no disponible'}\n📏 Tamaño: ${(pdf.size / 1024).toFixed(1)} KB`
-                            });
+                            await ctx.replyWithDocument(
+                                {
+                                    source: buffer,
+                                    filename: pdf.originalName || `Documento_${numeroPoliza}.pdf`
+                                },
+                                {
+                                    caption: `📄 PDF subido: ${pdf.uploadedAt ? new Date(pdf.uploadedAt).toLocaleString('es-MX') : 'Fecha no disponible'}\n📏 Tamaño: ${(pdf.size / 1024).toFixed(1)} KB`
+                                }
+                            );
                         } catch (error) {
                             this.logError('Error al enviar PDF desde R2:', error);
                             await ctx.reply('❌ Error al mostrar un PDF.');
@@ -149,16 +156,20 @@ class ViewFilesCallbacks extends BaseCommand {
                         }
 
                         // Correct handling of Buffer
-                        const fileBuffer = pdf.data instanceof Buffer ?
-                            pdf.data :
-                            Buffer.from(pdf.data.buffer || pdf.data);
+                        const fileBuffer =
+                            pdf.data instanceof Buffer
+                                ? pdf.data
+                                : Buffer.from(pdf.data.buffer || pdf.data);
 
-                        await ctx.replyWithDocument({
-                            source: fileBuffer,
-                            filename: `Documento_${numeroPoliza}_legacy.pdf`
-                        }, {
-                            caption: '📄 PDF (formato anterior)'
-                        });
+                        await ctx.replyWithDocument(
+                            {
+                                source: fileBuffer,
+                                filename: `Documento_${numeroPoliza}_legacy.pdf`
+                            },
+                            {
+                                caption: '📄 PDF (formato anterior)'
+                            }
+                        );
                     } catch (error) {
                         this.logError('Error al enviar PDF legacy:', error);
                         await ctx.reply('❌ Error al enviar un PDF');

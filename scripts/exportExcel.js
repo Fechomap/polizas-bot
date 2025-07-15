@@ -55,7 +55,7 @@ async function exportExcelStream() {
         // Configuramos el workbook para modo streaming
         const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
             filename: excelPath,
-            useStyles: true,     // Opcional: si quieres usar estilos
+            useStyles: true, // Opcional: si quieres usar estilos
             useSharedStrings: true // Opcional: reduce duplicados de strings
         });
 
@@ -99,16 +99,24 @@ async function exportExcelStream() {
             // Si quieres manejar los pagos en columnas (12 pagos), agrégalos también:
             ...Array.from({ length: 12 }).flatMap((_, i) => [
                 { header: `PAGO${i + 1}_MONTO`, key: `pago${i + 1}Monto`, width: 12 },
-                { header: `PAGO${i + 1}_FECHA`, key: `pago${i + 1}Fecha`, width: 12 },
+                { header: `PAGO${i + 1}_FECHA`, key: `pago${i + 1}Fecha`, width: 12 }
             ]),
 
             // Si quieres manejar los servicios en columnas (12 servicios):
             ...Array.from({ length: 12 }).flatMap((_, i) => [
                 { header: `SERVICIO${i + 1}_COSTO`, key: `servicio${i + 1}Costo`, width: 12 },
                 { header: `SERVICIO${i + 1}_FECHA`, key: `servicio${i + 1}Fecha`, width: 12 },
-                { header: `SERVICIO${i + 1}_EXPEDIENTE`, key: `servicio${i + 1}Expediente`, width: 15 },
-                { header: `SERVICIO${i + 1}_ORIGEN_DESTINO`, key: `servicio${i + 1}OrigenDestino`, width: 20 },
-            ]),
+                {
+                    header: `SERVICIO${i + 1}_EXPEDIENTE`,
+                    key: `servicio${i + 1}Expediente`,
+                    width: 15
+                },
+                {
+                    header: `SERVICIO${i + 1}_ORIGEN_DESTINO`,
+                    key: `servicio${i + 1}OrigenDestino`,
+                    width: 20
+                }
+            ])
         ];
 
         // Aplicar formato de fecha a las columnas de fecha
@@ -131,7 +139,6 @@ async function exportExcelStream() {
 
         // Recorremos los documentos usando el cursor
         for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
-
             // Prepara las propiedades directas
             const rowData = {
                 titular: doc.titular || '',
@@ -154,25 +161,26 @@ async function exportExcelStream() {
                 aseguradora: doc.aseguradora || '',
                 numeroPoliza: doc.numeroPoliza || '',
                 // CAMBIO: Exportar fechas como objetos Date, no como strings
-                fechaEmision: doc.fechaEmision
-                    ? new Date(doc.fechaEmision)
-                    : null,
+                fechaEmision: doc.fechaEmision ? new Date(doc.fechaEmision) : null,
                 estadoPoliza: doc.estadoPoliza || '',
                 // CAMBIO: Exportar fechas como objetos Date, no como strings
-                fechaFinCobertura: doc.fechaFinCobertura
-                    ? new Date(doc.fechaFinCobertura)
-                    : null,
+                fechaFinCobertura: doc.fechaFinCobertura ? new Date(doc.fechaFinCobertura) : null,
                 // CAMBIO: Exportar fechas como objetos Date, no como strings
-                fechaFinGracia: doc.fechaFinGracia
-                    ? new Date(doc.fechaFinGracia)
-                    : null,
-                diasRestantesCobertura: doc.diasRestantesCobertura !== undefined ? doc.diasRestantesCobertura : 0,
-                diasRestantesGracia: doc.diasRestantesGracia !== undefined ? doc.diasRestantesGracia : 0,
+                fechaFinGracia: doc.fechaFinGracia ? new Date(doc.fechaFinGracia) : null,
+                diasRestantesCobertura:
+                    doc.diasRestantesCobertura !== undefined ? doc.diasRestantesCobertura : 0,
+                diasRestantesGracia:
+                    doc.diasRestantesGracia !== undefined ? doc.diasRestantesGracia : 0,
                 numFotos: doc.archivos?.fotos ? doc.archivos.fotos.length : 0,
                 numPdfs: doc.archivos?.pdfs ? doc.archivos.pdfs.length : 0,
                 estadoDB: doc.estado,
                 // Campos nuevos
-                totalServicios: doc.totalServicios !== undefined ? doc.totalServicios : (doc.servicios ? doc.servicios.length : 0),
+                totalServicios:
+                    doc.totalServicios !== undefined
+                        ? doc.totalServicios
+                        : doc.servicios
+                          ? doc.servicios.length
+                          : 0,
                 calificacion: doc.calificacion !== undefined ? doc.calificacion : 0
             };
 
@@ -182,9 +190,8 @@ async function exportExcelStream() {
                 const pago = pagos[i];
                 rowData[`pago${i + 1}Monto`] = pago ? pago.monto : '';
                 // CAMBIO: Exportar fechas como objetos Date, no como strings
-                rowData[`pago${i + 1}Fecha`] = (pago && pago.fechaPago)
-                    ? new Date(pago.fechaPago)
-                    : null;
+                rowData[`pago${i + 1}Fecha`] =
+                    pago && pago.fechaPago ? new Date(pago.fechaPago) : null;
             }
 
             // Manejo de servicios (hasta 12)
@@ -193,9 +200,8 @@ async function exportExcelStream() {
                 const servicio = servicios[i];
                 rowData[`servicio${i + 1}Costo`] = servicio ? servicio.costo : '';
                 // CAMBIO: Exportar fechas como objetos Date, no como strings
-                rowData[`servicio${i + 1}Fecha`] = (servicio && servicio.fechaServicio)
-                    ? new Date(servicio.fechaServicio)
-                    : null;
+                rowData[`servicio${i + 1}Fecha`] =
+                    servicio && servicio.fechaServicio ? new Date(servicio.fechaServicio) : null;
                 rowData[`servicio${i + 1}Expediente`] = servicio ? servicio.numeroExpediente : '';
                 rowData[`servicio${i + 1}OrigenDestino`] = servicio ? servicio.origenDestino : '';
             }

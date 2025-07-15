@@ -5,10 +5,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const config = {
     telegram: {
         token: process.env.TELEGRAM_TOKEN,
-        allowedGroups: [
-            -1002291817096,
-            process.env.TELEGRAM_GROUP_ID
-        ].filter(Boolean)
+        allowedGroups: [-1002291817096, process.env.TELEGRAM_GROUP_ID].filter(Boolean)
     },
     mongodb: {
         uri: process.env.MONGO_URI

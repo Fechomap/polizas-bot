@@ -25,7 +25,7 @@ class DocumentHandler {
 
     register() {
         // Un único manejador de documentos que decide qué hacer basado en el contexto
-        this.bot.on('document', async (ctx) => {
+        this.bot.on('document', async ctx => {
             try {
                 const chatId = ctx.chat.id;
                 const documentInfo = ctx.message.document || {};
@@ -33,19 +33,28 @@ class DocumentHandler {
                 const mimeType = documentInfo.mime_type || '';
                 const fileSize = documentInfo.file_size || 0;
 
-                logger.info(`Documento recibido: ${fileName} (${mimeType}, ${fileSize} bytes)`, { chatId });
+                logger.info(`Documento recibido: ${fileName} (${mimeType}, ${fileSize} bytes)`, {
+                    chatId
+                });
 
                 // PASO 1: Verificar si estamos esperando un Excel para registro de pólizas
-                if (this.excelUploadHandler &&
+                if (
+                    this.excelUploadHandler &&
                     this.excelUploadHandler.awaitingExcelUpload &&
-                    this.excelUploadHandler.awaitingExcelUpload.get(chatId)) {
-
-                    logger.info('Decidiendo procesar como Excel para registro de pólizas', { chatId });
+                    this.excelUploadHandler.awaitingExcelUpload.get(chatId)
+                ) {
+                    logger.info('Decidiendo procesar como Excel para registro de pólizas', {
+                        chatId
+                    });
 
                     // Verificar que sea un archivo Excel
                     if (!this.isExcelFile(mimeType, fileName)) {
-                        logger.info(`Archivo rechazado, no es Excel: ${fileName} (${mimeType})`, { chatId });
-                        return await ctx.reply('⚠️ El archivo debe ser Excel (.xlsx, .xls). Por favor, sube un archivo válido.');
+                        logger.info(`Archivo rechazado, no es Excel: ${fileName} (${mimeType})`, {
+                            chatId
+                        });
+                        return await ctx.reply(
+                            '⚠️ El archivo debe ser Excel (.xlsx, .xls). Por favor, sube un archivo válido.'
+                        );
                     }
 
                     await this.processExcelUpload(ctx);
@@ -56,7 +65,9 @@ class DocumentHandler {
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const numeroPoliza = this.handler.uploadTargets.get(chatId, threadId);
                 if (numeroPoliza) {
-                    logger.info(`Decidiendo procesar como PDF para póliza ${numeroPoliza}`, { chatId });
+                    logger.info(`Decidiendo procesar como PDF para póliza ${numeroPoliza}`, {
+                        chatId
+                    });
 
                     if (!mimeType.includes('pdf')) {
                         return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
@@ -68,8 +79,9 @@ class DocumentHandler {
 
                 // PASO 3: No estamos esperando ningún documento
                 logger.info('No se esperaba ningún documento', { chatId });
-                await ctx.reply('⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.');
-
+                await ctx.reply(
+                    '⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.'
+                );
             } catch (error) {
                 logger.error('Error al procesar documento:', error);
                 await ctx.reply('❌ Error al procesar el documento.');
@@ -117,13 +129,13 @@ class DocumentHandler {
             this.handler.clearChatState(chatId, threadId);
 
             // Mostrar botón para volver al menú
-            await ctx.reply('Selecciona una opción:',
+            await ctx.reply(
+                'Selecciona una opción:',
                 Markup.inlineKeyboard([
                     Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu'),
                     Markup.button.callback('📊 Registrar otro Excel', 'accion:registrar')
                 ])
             );
-
         } catch (error) {
             logger.error('Error al procesar Excel:', error);
             await ctx.reply('❌ Error al procesar el archivo Excel. Detalles: ' + error.message);
@@ -170,7 +182,6 @@ class DocumentHandler {
 
             await ctx.reply('✅ PDF guardado correctamente.');
             logger.info('PDF guardado', { numeroPoliza });
-
         } catch (error) {
             logger.error('Error al procesar PDF:', error);
             await ctx.reply('❌ Error al procesar el documento PDF.');
@@ -196,9 +207,10 @@ class DocumentHandler {
             'application/xls'
         ];
 
-        const isExcelExtension = fileName.toLowerCase().endsWith('.xlsx') ||
-                                fileName.toLowerCase().endsWith('.xls') ||
-                                fileName.toLowerCase().endsWith('.xlsm');
+        const isExcelExtension =
+            fileName.toLowerCase().endsWith('.xlsx') ||
+            fileName.toLowerCase().endsWith('.xls') ||
+            fileName.toLowerCase().endsWith('.xlsm');
 
         const isExcelMimeType = validMimeTypes.includes(mimeType);
 
