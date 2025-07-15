@@ -399,7 +399,7 @@ class NotificationManager {
                 message = '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
                 message += '✅ SERVICIO EN TÉRMINO ✅\n';
                 message += '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
-                message += `🔸 **${notification.expedienteNum}**\n`;
+                message += `🔸 <b><u>${notification.expedienteNum}</u></b>\n`;
 
                 // Añadir vehículo y color en una línea
                 if (notification.marcaModelo && notification.colorVehiculo) {
@@ -424,7 +424,7 @@ class NotificationManager {
                 message = '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
                 message += '⚠️ SERVICIO EN CONTACTO ⚠️\n';
                 message += '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
-                message += `🔸 **${notification.expedienteNum}**\n`;
+                message += `🔸 <b><u>${notification.expedienteNum}</u></b>\n`;
 
                 // Añadir vehículo y color en una línea
                 if (notification.marcaModelo && notification.colorVehiculo) {
@@ -450,7 +450,7 @@ class NotificationManager {
             await this.sendMessageWithTimeout(
                 notification.targetGroupId,
                 message,
-                { parse_mode: 'Markdown' },
+                { parse_mode: 'HTML' },
                 30000 // 30 segundos timeout
             );
 
