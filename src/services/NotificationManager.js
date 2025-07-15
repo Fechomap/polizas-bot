@@ -32,13 +32,17 @@ class NotificationManager {
 
             // Cargar notificaciones pendientes al iniciar
             await this.loadPendingNotifications();
+            
+            // Recuperar notificaciones SCHEDULED que perdieron su timer
+            await this.recoverScheduledNotifications();
 
             // Configurar job para recuperar periódicamente
             this.recoveryInterval = setInterval(
                 () => {
                     Promise.all([
                         this.loadPendingNotifications(),
-                        this.recoverFailedNotifications()
+                        this.recoverFailedNotifications(),
+                        this.recoverScheduledNotifications()
                     ]).catch(err => {
                         logger.error('Error en job de recuperación de notificaciones:', err);
                     });
@@ -388,24 +392,61 @@ class NotificationManager {
                 return;
             }
 
-            // Construir mensaje según tipo
+            // Construir el mensaje según el tipo de notificación
             let message = '';
-            const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : '🟩';
-            const tipoTexto = notification.tipoNotificacion === 'CONTACTO' ? 'CONTACTO' : 'TÉRMINO';
+            if (notification.tipoNotificacion === 'TERMINO') {
+                // Mensaje de TÉRMINO en verde
+                message = '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
+                message += '✅ SERVICIO EN TÉRMINO ✅\n';
+                message += '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
+                message += `🔸 **${notification.expedienteNum}**\n`;
 
-            message =
-                `${tipoEmoji} *ALERTA DE ${tipoTexto}*\n\n` +
-                `📋 *Expediente:* ${notification.expedienteNum}\n` +
-                `📄 *Póliza:* ${notification.numeroPoliza}\n` +
-                `🚗 *Vehículo:* ${notification.marcaModelo}\n` +
-                `🎨 *Color:* ${notification.colorVehiculo || 'No especificado'}\n` +
-                `🔢 *Placas:* ${notification.placas || 'No especificadas'}\n` +
-                `📞 *Teléfono:* ${notification.telefono || 'No especificado'}\n` +
-                `📍 *Ruta:* ${notification.origenDestino}\n` +
-                `⏰ *Hora programada:* ${notification.contactTime}\n\n` +
-                '⚠️ *Favor de dar seguimiento en chat* ⚠️';
+                // Añadir vehículo y color en una línea
+                if (notification.marcaModelo && notification.colorVehiculo) {
+                    message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo}\n`;
+                } else if (notification.marcaModelo) {
+                    message += `🔸 ${notification.marcaModelo}\n`;
+                }
 
-            // Enviar mensaje con timeout
+                if (notification.placas) {
+                    message += `🔸 ${notification.placas}\n`;
+                }
+
+                // Extraer solo el destino final
+                if (notification.origenDestino) {
+                    const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                    message += `🔸 ➡️ ${destino}\n`;
+                }
+
+                message += '✅ Confirmar cierre ✅';
+            } else {
+                // Mensaje de CONTACTO en amarillo
+                message = '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
+                message += '⚠️ SERVICIO EN CONTACTO ⚠️\n';
+                message += '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
+                message += `🔸 **${notification.expedienteNum}**\n`;
+
+                // Añadir vehículo y color en una línea
+                if (notification.marcaModelo && notification.colorVehiculo) {
+                    message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo}\n`;
+                } else if (notification.marcaModelo) {
+                    message += `🔸 ${notification.marcaModelo}\n`;
+                }
+
+                if (notification.placas) {
+                    message += `🔸 ${notification.placas}\n`;
+                }
+
+                // Extraer solo el destino final
+                if (notification.origenDestino) {
+                    const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                    message += `🔸 ➡️ ${destino}\n`;
+                }
+
+                message += '⚠️ Seguimiento en chat ⚠️';
+            }
+
+            // Enviar el mensaje al grupo con timeout específico
             await this.sendMessageWithTimeout(
                 notification.targetGroupId,
                 message,
@@ -504,6 +545,87 @@ class NotificationManager {
             }
         } catch (error) {
             logger.error('Error en recuperación de notificaciones:', error);
+        }
+    }
+
+    /**
+     * Recupera notificaciones SCHEDULED que perdieron su timer al reiniciar
+     */
+    async recoverScheduledNotifications() {
+        try {
+            const nowCDMX = moment().tz('America/Mexico_City').toDate();
+            
+            // Buscar notificaciones SCHEDULED sin timer activo
+            const scheduledNotifications = await ScheduledNotification.find({
+                status: 'SCHEDULED'
+            });
+
+            if (scheduledNotifications.length === 0) {
+                logger.debug('[SCHEDULED_RECOVERY] No hay notificaciones SCHEDULED para revisar');
+                return;
+            }
+
+            let recoveredCount = 0;
+            let expiredCount = 0;
+
+            for (const notification of scheduledNotifications) {
+                const notificationId = notification._id.toString();
+                
+                // Verificar si ya tiene timer activo (no debería, pero por seguridad)
+                if (this.activeTimers.has(notificationId)) {
+                    logger.debug(`[SCHEDULED_RECOVERY] ${notificationId} ya tiene timer activo`);
+                    continue;
+                }
+
+                const scheduledTime = new Date(notification.scheduledDate);
+                
+                // Si ya pasó el tiempo programado
+                if (scheduledTime <= nowCDMX) {
+                    const minutesLate = Math.round((nowCDMX.getTime() - scheduledTime.getTime()) / (1000 * 60));
+                    
+                    if (minutesLate <= 30) {
+                        // Enviar inmediatamente si no han pasado más de 30 minutos
+                        logger.warn(`[SCHEDULED_RECOVERY] Enviando notificación tardía ${notificationId} (${minutesLate} min tarde)`);
+                        
+                        try {
+                            await this.sendNotificationWithRetry(notificationId);
+                            recoveredCount++;
+                        } catch (sendError) {
+                            logger.error(`Error enviando notificación tardía ${notificationId}:`, sendError);
+                        }
+                    } else {
+                        // Marcar como fallida si ya pasaron más de 30 minutos
+                        logger.warn(`[SCHEDULED_RECOVERY] Marcando como fallida ${notificationId} (${minutesLate} min tarde)`);
+                        await notification.markAsFailed(`Perdida al reiniciar bot, ${minutesLate} minutos tarde`);
+                        expiredCount++;
+                    }
+                } else {
+                    // Reprogramar para el futuro
+                    logger.info(`[SCHEDULED_RECOVERY] Reprogramando ${notificationId} para futuro`);
+                    
+                    // Resetear estado para que se pueda reprogramar
+                    await ScheduledNotification.findByIdAndUpdate(notificationId, {
+                        $set: {
+                            status: 'PENDING',
+                            lastScheduledAt: null,
+                            processingStartedAt: null
+                        }
+                    });
+                    
+                    // Recargar la notificación actualizada
+                    const updatedNotification = await ScheduledNotification.findById(notificationId);
+                    if (updatedNotification) {
+                        await this.scheduleExistingNotification(updatedNotification);
+                        recoveredCount++;
+                    }
+                }
+            }
+
+            if (recoveredCount > 0 || expiredCount > 0) {
+                logger.info(`[SCHEDULED_RECOVERY] Procesadas: ${recoveredCount} recuperadas, ${expiredCount} expiradas`);
+            }
+        } catch (error) {
+            logger.error('Error en recuperación de notificaciones SCHEDULED:', error);
         }
     }
 
