@@ -48,6 +48,9 @@ const {
     NotificationCommand
 } = require('./comandos');
 
+// Import DocumentHandler
+const DocumentHandler = require('./comandos/documentHandler');
+
 class CommandHandler {
     constructor(bot) {
         if (!bot) {
@@ -154,6 +157,11 @@ class CommandHandler {
         const excelUploadCmd = new ExcelUploadHandler(this);
         this.registry.registerCommand(excelUploadCmd);
         excelUploadCmd.register();
+
+        // Register DocumentHandler to handle all document conflicts
+        const documentHandler = new DocumentHandler(this.bot, this);
+        documentHandler.setHandlers(excelUploadCmd, mediaCmd);
+        documentHandler.register();
 
         // Register callback handlers (estos ya lo hacen bien)
         const viewFilesCallbacks = new ViewFilesCallbacks(this);

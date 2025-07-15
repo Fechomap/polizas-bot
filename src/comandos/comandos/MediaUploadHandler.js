@@ -34,10 +34,8 @@ class MediaUploadHandler extends BaseCommand {
                 const numeroPoliza = this.uploadTargets.get(chatId, threadId);
 
                 if (!numeroPoliza) {
-                    // Guide user to the button flow if state is missing
-                    return await ctx.reply(
-                        '⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.'
-                    );
+                    // No hay contexto de subida activo - IGNORAR SILENCIOSAMENTE
+                    return; // No responder nada, ni logs
                 }
 
                 // Take the photo in maximum resolution
@@ -95,108 +93,21 @@ class MediaUploadHandler extends BaseCommand {
                 // No limpiar uploadTargets aquí, permitir subir múltiples archivos
                 // this.uploadTargets.delete(ctx.chat.id, threadId);
             } catch (error) {
-                this.logError('Error al procesar foto:', error);
-                await ctx.reply('❌ Error al procesar la foto.');
-                // Considerar limpiar estado en error
-                const threadId = StateKeyManager.getThreadId(ctx);
-                this.uploadTargets.delete(ctx.chat.id, threadId);
-            }
-        });
-
-        // Register document handler
-        this.bot.on('document', async (ctx, next) => {
-            // Added 'next' parameter
-            try {
                 const chatId = ctx.chat.id;
-
-                // NUEVO: Verificar si estamos esperando un Excel para registro
-                const excelUploadCmd = this.handler.registry.getCommand('excelUpload');
-                if (
-                    excelUploadCmd &&
-                    typeof excelUploadCmd.awaitingExcelUpload?.get === 'function' &&
-                    excelUploadCmd.awaitingExcelUpload.get(chatId)
-                ) {
-                    // Si estamos esperando un Excel, no procesamos aquí, dejamos que lo maneje ExcelUploadHandler
-                    this.logInfo(
-                        'Documento recibido, pero estamos en flujo de carga Excel. Pasando a ExcelUploadHandler',
-                        { chatId }
-                    ); // Log updated
-                    return next(); // Call next() to pass control
-                }
-
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const numeroPoliza = this.uploadTargets.get(chatId, threadId);
-
-                if (!numeroPoliza) {
-                    return await ctx.reply(
-                        '⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.'
-                    );
+                
+                // Solo responder si estamos en contexto de subida válido
+                if (numeroPoliza) {
+                    this.logError('Error al procesar foto:', error);
+                    await ctx.reply('❌ Error al procesar la foto.');
+                    this.uploadTargets.delete(chatId, threadId);
                 }
-
-                const { mime_type: mimeType = '' } = ctx.message.document || {};
-                if (!mimeType.includes('pdf')) {
-                    return await ctx.reply('⚠️ Solo se permiten documentos PDF.');
-                }
-
-                // Download file
-                const fileId = ctx.message.document.file_id;
-                const fileLink = await ctx.telegram.getFileLink(fileId);
-                const response = await fetch(fileLink.href);
-                if (!response.ok) throw new Error('Falló la descarga del documento');
-                const buffer = await response.buffer();
-
-                // Subir PDF a Cloudflare R2
-                const storage = getInstance();
-                const originalName =
-                    ctx.message.document.file_name || `documento_${Date.now()}.pdf`;
-                const uploadResult = await storage.uploadPolicyPDF(
-                    buffer,
-                    numeroPoliza,
-                    originalName
-                );
-
-                // Crear objeto de archivo R2
-                const r2FileObject = {
-                    url: uploadResult.url,
-                    key: uploadResult.key,
-                    size: uploadResult.size,
-                    contentType: uploadResult.contentType,
-                    uploadedAt: new Date(),
-                    originalName: originalName
-                };
-
-                // Find the policy and update
-                const policy = await getPolicyByNumber(numeroPoliza);
-                if (!policy) {
-                    return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
-                }
-
-                // Initialize files if it doesn't exist
-                if (!policy.archivos) {
-                    policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
-                }
-                if (!policy.archivos.r2Files) {
-                    policy.archivos.r2Files = { fotos: [], pdfs: [] };
-                }
-
-                // Add the PDF to R2 files
-                policy.archivos.r2Files.pdfs.push(r2FileObject);
-
-                // Save
-                await policy.save();
-
-                await ctx.reply('✅ PDF guardado correctamente en almacenamiento seguro.');
-                this.logInfo('PDF guardado', { numeroPoliza });
-                // No limpiar uploadTargets aquí, permitir subir múltiples archivos
-                // this.uploadTargets.delete(ctx.chat.id, threadId);
-            } catch (error) {
-                this.logError('Error al procesar documento:', error);
-                await ctx.reply('❌ Error al procesar el documento.');
-                // Considerar limpiar estado en error
-                const threadId = StateKeyManager.getThreadId(ctx);
-                this.uploadTargets.delete(ctx.chat.id, threadId);
+                // Si no hay contexto válido, no responder nada (silencioso)
             }
         });
+
+        // Document handling is now done by DocumentHandler to avoid conflicts
     }
 
     // Removed handleUploadFlow method as it's now handled in CommandHandler.js

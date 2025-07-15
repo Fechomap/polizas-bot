@@ -1,10 +1,11 @@
 // src/comandos/documentHandler.js
-const logger = require('../utils/logger');
+const logger = require('../../utils/logger');
 const fetch = require('node-fetch');
-const { getPolicyByNumber } = require('../controllers/policyController');
+const { getPolicyByNumber } = require('../../controllers/policyController');
 const XLSX = require('xlsx');
 const { Markup } = require('telegraf');
-const StateKeyManager = require('../utils/StateKeyManager');
+const StateKeyManager = require('../../utils/StateKeyManager');
+const { getInstance } = require('../../services/CloudflareStorage');
 
 /**
  * Clase para manejar todos los documentos (PDFs y Excel) en un solo lugar
@@ -77,14 +78,19 @@ class DocumentHandler {
                     return;
                 }
 
-                // PASO 3: No estamos esperando ningún documento
-                logger.info('No se esperaba ningún documento', { chatId });
-                await ctx.reply(
-                    '⚠️ Para subir archivos, primero selecciona la opción "Subir Archivos" en el menú principal e indica el número de póliza.'
-                );
+                // PASO 3: No estamos esperando ningún documento - IGNORAR SILENCIOSAMENTE
+                // No responder nada - el bot simplemente ignora el archivo
             } catch (error) {
-                logger.error('Error al procesar documento:', error);
-                await ctx.reply('❌ Error al procesar el documento.');
+                // Solo mostrar error si estamos en un contexto válido
+                const threadId = StateKeyManager.getThreadId(ctx);
+                const numeroPoliza = this.handler.uploadTargets.get(chatId, threadId);
+                const esperandoExcel = this.excelUploadHandler?.awaitingExcelUpload?.get(chatId);
+                
+                if (numeroPoliza || esperandoExcel) {
+                    logger.error('Error al procesar documento:', error);
+                    await ctx.reply('❌ Error al procesar el documento.');
+                }
+                // Si no hay contexto válido, no responder nada (silencioso)
             }
         });
 
@@ -157,10 +163,19 @@ class DocumentHandler {
             if (!response.ok) throw new Error('Falló la descarga del documento');
             const buffer = await response.buffer();
 
-            // Create file object directly
-            const fileObject = {
-                data: buffer,
-                contentType: 'application/pdf'
+            // Subir PDF a Cloudflare R2
+            const storage = getInstance();
+            const originalName = ctx.message.document.file_name || `documento_${Date.now()}.pdf`;
+            const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
+
+            // Crear objeto de archivo R2
+            const r2FileObject = {
+                url: uploadResult.url,
+                key: uploadResult.key,
+                size: uploadResult.size,
+                contentType: uploadResult.contentType,
+                uploadedAt: new Date(),
+                originalName: originalName
             };
 
             // Find the policy and update
@@ -171,16 +186,19 @@ class DocumentHandler {
 
             // Initialize files if it doesn't exist
             if (!policy.archivos) {
-                policy.archivos = { fotos: [], pdfs: [] };
+                policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
+            }
+            if (!policy.archivos.r2Files) {
+                policy.archivos.r2Files = { fotos: [], pdfs: [] };
             }
 
-            // Add the PDF
-            policy.archivos.pdfs.push(fileObject);
+            // Add the PDF to R2 files
+            policy.archivos.r2Files.pdfs.push(r2FileObject);
 
             // Save
             await policy.save();
 
-            await ctx.reply('✅ PDF guardado correctamente.');
+            await ctx.reply('✅ PDF guardado correctamente en almacenamiento seguro.');
             logger.info('PDF guardado', { numeroPoliza });
         } catch (error) {
             logger.error('Error al procesar PDF:', error);
