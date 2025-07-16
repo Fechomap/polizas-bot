@@ -270,7 +270,7 @@ class VehicleRegistrationHandler {
 
         // Generar datos temporales sin guardar en BD aún
         const mexicanDataGenerator = require('../../utils/mexicanDataGenerator');
-        const datosGenerados = mexicanDataGenerator.generarDatosMexicanosCompletos();
+        const datosGenerados = await mexicanDataGenerator.generarDatosMexicanosCompletos();
 
         // Guardar los datos generados para usar al finalizar
         registro.datosGenerados = datosGenerados;
@@ -477,7 +477,12 @@ class VehicleRegistrationHandler {
             }
 
             // AHORA SÍ crear el vehículo en la base de datos
-            const resultado = await VehicleController.registrarVehiculo(registro.datos, userId);
+            // Combinar datos del vehículo con datos del titular generados
+            const datosCompletos = {
+                ...registro.datos,
+                ...registro.datosGenerados
+            };
+            const resultado = await VehicleController.registrarVehiculo(datosCompletos, userId);
 
             if (!resultado.success) {
                 await bot.telegram.sendMessage(

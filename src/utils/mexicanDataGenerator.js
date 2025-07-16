@@ -157,37 +157,175 @@ const APELLIDOS = [
     'Cárdenas'
 ];
 
-// Estados y ciudades de México
+// Distribución por zonas con porcentajes realistas para aseguradoras
+const ZONAS_DISTRIBUCION = [
+    {
+        nombre: 'Zona Metropolitana CDMX',
+        porcentaje: 35,
+        estado: 'Ciudad de México',
+        municipios: [
+            'Benito Juárez', 'Miguel Hidalgo', 'Cuauhtémoc', 'Coyoacán', 
+            'Iztacalco', 'Venustiano Carranza', 'Gustavo A. Madero', 'Álvaro Obregón',
+            'Azcapotzalco', 'Xochimilco', 'Tlalpan', 'Iztapalapa'
+        ],
+        coordenadas: {
+            // Área aproximada de CDMX
+            norte: 19.6,
+            sur: 19.1,
+            este: -98.9,
+            oeste: -99.4
+        }
+    },
+    {
+        nombre: 'Zona Metropolitana Estado de México',
+        porcentaje: 20,
+        estado: 'Estado de México',
+        municipios: [
+            'Ecatepec', 'Naucalpan', 'Tlalnepantla', 'Toluca', 'Metepec', 
+            'Zinacantepec', 'Nezahualcóyotl', 'Atizapán', 'Cuautitlán Izcalli',
+            'Tultitlán', 'Coacalco', 'Huixquilucan'
+        ],
+        coordenadas: {
+            // Área de zona metropolitana Edomex
+            norte: 19.8,
+            sur: 18.8,
+            este: -98.7,
+            oeste: -99.8
+        }
+    },
+    {
+        nombre: 'Morelos',
+        porcentaje: 20,
+        estado: 'Morelos',
+        municipios: [
+            'Cuernavaca', 'Jiutepec', 'Temixco', 'Cuautla', 'Yautepec',
+            'Emiliano Zapata', 'Xochitepec', 'Tepoztlán'
+        ],
+        coordenadas: {
+            // Área de Morelos
+            norte: 19.1,
+            sur: 18.3,
+            este: -98.6,
+            oeste: -99.6
+        }
+    },
+    {
+        nombre: 'Hidalgo',
+        porcentaje: 15,
+        estado: 'Hidalgo',
+        municipios: [
+            'Pachuca', 'Tulancingo', 'Tizayuca', 'Mineral de la Reforma',
+            'Tepeji del Río', 'Tula', 'Huejutla'
+        ],
+        coordenadas: {
+            // Área de Hidalgo
+            norte: 21.4,
+            sur: 19.8,
+            este: -97.9,
+            oeste: -99.9
+        }
+    },
+    {
+        nombre: 'Puebla',
+        porcentaje: 15,
+        estado: 'Puebla',
+        municipios: [
+            'Puebla', 'Cholula', 'Atlixco', 'Tehuacán', 'San Martín Texmelucan',
+            'Cuautlancingo', 'Amozoc', 'Coronango'
+        ],
+        coordenadas: {
+            // Área de Puebla
+            norte: 20.2,
+            sur: 18.0,
+            este: -97.0,
+            oeste: -98.9
+        }
+    },
+    {
+        nombre: 'Querétaro',
+        porcentaje: 10,
+        estado: 'Querétaro',
+        municipios: [
+            'Querétaro', 'San Juan del Río', 'Corregidora', 'El Marqués',
+            'Tequisquiapan', 'Pedro Escobedo'
+        ],
+        coordenadas: {
+            // Área de Querétaro
+            norte: 21.0,
+            sur: 20.2,
+            este: -99.7,
+            oeste: -100.5
+        }
+    }
+];
+
+// Estados y ciudades de México (mantenido para compatibilidad)
 const ESTADOS_CIUDADES = {
-    'Ciudad de México': ['Ciudad de México', 'Coyoacán', 'Benito Juárez', 'Miguel Hidalgo'],
+    'Ciudad de México': ['Benito Juárez', 'Miguel Hidalgo', 'Cuauhtémoc', 'Coyoacán'],
     'Estado de México': ['Toluca', 'Ecatepec', 'Naucalpan', 'Tlalnepantla'],
+    Morelos: ['Cuernavaca', 'Jiutepec', 'Temixco', 'Cuautla'],
+    Hidalgo: ['Pachuca', 'Tulancingo', 'Tizayuca', 'Mineral de la Reforma'],
+    Puebla: ['Puebla', 'Cholula', 'Atlixco', 'Tehuacán'],
+    Querétaro: ['Querétaro', 'San Juan del Río', 'Corregidora', 'El Marqués'],
     Jalisco: ['Guadalajara', 'Zapopan', 'Tlaquepaque', 'Tonalá'],
     'Nuevo León': ['Monterrey', 'Guadalupe', 'San Nicolás', 'Apodaca'],
-    Puebla: ['Puebla', 'Tehuacán', 'San Martín Texmelucan', 'Atlixco'],
     Veracruz: ['Veracruz', 'Xalapa', 'Coatzacoalcos', 'Córdoba'],
-    Guanajuato: ['León', 'Irapuato', 'Celaya', 'Salamanca'],
-    Chihuahua: ['Chihuahua', 'Ciudad Juárez', 'Delicias', 'Parral'],
-    Sonora: ['Hermosillo', 'Ciudad Obregón', 'Nogales', 'Navojoa'],
-    Michoacán: ['Morelia', 'Uruapan', 'Zamora', 'Lázaro Cárdenas']
+    Guanajuato: ['León', 'Irapuato', 'Celaya', 'Salamanca']
 };
 
+// Colonias específicas por zona
+const COLONIAS_POR_ZONA = {
+    'Ciudad de México': [
+        'Roma Norte', 'Condesa', 'Polanco', 'Del Valle', 'Narvarte',
+        'Doctores', 'Obrera', 'Juárez', 'Santa María la Ribera',
+        'Escandón', 'San Rafael', 'Portales', 'Álamos', 'Centro',
+        'Colonia del Carmen', 'Napoles', 'Anzures', 'San Miguel Chapultepec',
+        'Lindavista', 'Vertiz Narvarte', 'Nápoles', 'Hipódromo'
+    ],
+    'Estado de México': [
+        'Las Américas', 'La Providencia', 'Jardines de Guadalupe',
+        'Valle Verde', 'Ciudad Azteca', 'Jardines de Morelos',
+        'Las Arboledas', 'Satélite', 'Condado de Sayavedra',
+        'Lomas Verdes', 'Bosques de Ecatepec', 'Fraccionamiento Las Torres',
+        'Infonavit Norte', 'Villas de la Hacienda', 'Nuevo Horizonte'
+    ],
+    'Morelos': [
+        'Centro', 'Chapultepec', 'Carolina', 'Flores Magón',
+        'Rancho Cortés', 'Delicias', 'Chamilpa', 'Burgos',
+        'Tlaltenango', 'Acapatzingo', 'Lomas de Trujillo',
+        'Reforma', 'Palmira', 'Buenavista', 'Las Palmas'
+    ],
+    'Hidalgo': [
+        'Centro', 'Periodistas', 'Morelos', 'Ampliación Morelos',
+        'Rojo Gómez', 'Álamos', 'Aquiles Serdán', 'Revolución',
+        'Buenos Aires', 'Constitución', 'Jardines de Pachuca',
+        'Lomas de Pachuca', 'Villas de Pachuca', 'San Antonio'
+    ],
+    'Puebla': [
+        'Centro Histórico', 'Angelópolis', 'La Paz', 'Amor',
+        'Jardines de San Manuel', 'Bosques de Manzanilla',
+        'Concepción La Cruz', 'Ladrillera de Benitez',
+        'Bosques de Chapultepec', 'Maravillas', 'Humboldt',
+        'Amalucan', 'Flor del Bosque', 'Las Hadas'
+    ],
+    'Querétaro': [
+        'Centro Histórico', 'Juriquilla', 'Milenio III', 'Zibatá',
+        'El Refugio', 'Cimatario', 'Casa Blanca', 'Constituyentes',
+        'Jardines de Querétaro', 'Loma Dorada', 'Tejeda',
+        'Álamos', 'Carretas', 'Vista Alegre', 'San José el Alto'
+    ],
+    'Otros': [
+        'Centro', 'Providencia', 'Americana', 'Chapultepec',
+        'Del Valle', 'Polanco', 'Satelite', 'Insurgentes',
+        'Colinas', 'Jardines', 'Lomas', 'Bosques', 'Villas'
+    ]
+};
+
+// Colonias genéricas (mantenido para compatibilidad)
 const COLONIAS = [
-    'Centro',
-    'Roma Norte',
-    'Condesa',
-    'Polanco',
-    'Del Valle',
-    'Narvarte',
-    'Doctores',
-    'Obrera',
-    'Juárez',
-    'Santa María la Ribera',
-    'Escandón',
-    'San Rafael',
-    'Ampliación Granada',
-    'Portales',
-    'Álamos',
-    'Vértiz Narvarte'
+    'Centro', 'Roma Norte', 'Condesa', 'Polanco', 'Del Valle',
+    'Narvarte', 'Doctores', 'Obrera', 'Juárez', 'Santa María la Ribera',
+    'Escandón', 'San Rafael', 'Portales', 'Álamos', 'Vértiz Narvarte'
 ];
 
 /**
@@ -262,52 +400,162 @@ function generarTelefonoMexicano() {
 }
 
 /**
- * Genera una dirección mexicana aleatoria
+ * Selecciona una zona basada en la distribución de porcentajes
+ * @returns {object} Zona seleccionada
+ */
+function seleccionarZonaPorPorcentaje() {
+    const random = Math.random() * 100;
+    let acumulado = 0;
+    
+    for (const zona of ZONAS_DISTRIBUCION) {
+        acumulado += zona.porcentaje;
+        if (random <= acumulado) {
+            return zona;
+        }
+    }
+    
+    // Fallback a la primera zona si hay algún error
+    return ZONAS_DISTRIBUCION[0];
+}
+
+/**
+ * Genera coordenadas aleatorias dentro de una zona geográfica
+ * @param {object} zona - Zona con coordenadas norte, sur, este, oeste
+ * @returns {object} Coordenadas {lat, lng}
+ */
+function generarCoordenadasEnZona(zona) {
+    const { norte, sur, este, oeste } = zona.coordenadas;
+    
+    // Generar coordenadas aleatorias dentro del área
+    const lat = sur + (Math.random() * (norte - sur));
+    const lng = oeste + (Math.random() * (este - oeste));
+    
+    return { lat, lng };
+}
+
+/**
+ * Genera una dirección mexicana usando HereMaps reverse geocoding
+ * @returns {Promise<object>} Objeto con dirección completa
+ */
+async function generarDireccionMexicanaReal() {
+    // Seleccionar zona según distribución de porcentajes
+    const zona = seleccionarZonaPorPorcentaje();
+    
+    // Generar coordenadas aleatorias dentro de la zona
+    const coordenadas = generarCoordenadasEnZona(zona);
+    
+    try {
+        // Usar HereMaps para obtener dirección real
+        const HereMapsService = require('../services/HereMapsService');
+        const hereMapsService = new HereMapsService();
+        
+        const ubicacion = await hereMapsService.reverseGeocode(coordenadas.lat, coordenadas.lng);
+        
+        if (ubicacion && ubicacion.items && ubicacion.items.length > 0) {
+            const direccion = ubicacion.items[0].address;
+            
+            return {
+                calle: direccion.street || `${direccion.houseNumber || ''} ${direccion.streetName || 'Sin nombre'}`.trim(),
+                colonia: direccion.district || direccion.subdistrict || 'Centro',
+                municipio: direccion.city || direccion.county || 'Sin municipio',
+                estadoRegion: direccion.state || zona.estado,
+                cp: direccion.postalCode || generarCodigoPostalPorZona(zona.estado),
+                coordenadas: coordenadas
+            };
+        }
+    } catch (error) {
+        console.log('Error con HereMaps, usando datos sintéticos:', error.message);
+    }
+    
+    // Fallback a método sintético si HereMaps falla
+    return generarDireccionMexicanaSintetica(zona);
+}
+
+/**
+ * Genera una dirección mexicana sintética (fallback)
+ * @param {object} zona - Zona seleccionada
  * @returns {object} Objeto con dirección completa
  */
-function generarDireccionMexicana() {
-    const estados = Object.keys(ESTADOS_CIUDADES);
-    const estado = estados[Math.floor(Math.random() * estados.length)];
-    const ciudades = ESTADOS_CIUDADES[estado];
-    const municipio = ciudades[Math.floor(Math.random() * ciudades.length)];
-
-    const colonia = COLONIAS[Math.floor(Math.random() * COLONIAS.length)];
+function generarDireccionMexicanaSintetica(zona) {
+    // Seleccionar municipio de la zona
+    const municipio = zona.municipios[Math.floor(Math.random() * zona.municipios.length)];
+    
+    // Seleccionar colonia específica de la zona
+    const coloniasPorZona = COLONIAS_POR_ZONA[zona.estado] || COLONIAS;
+    const colonia = coloniasPorZona[Math.floor(Math.random() * coloniasPorZona.length)];
 
     // Generar calle y número
-    const tiposCalle = ['Calle', 'Avenida', 'Boulevard', 'Privada'];
+    const tiposCalle = ['Calle', 'Avenida', 'Boulevard', 'Privada', 'Cerrada'];
     const tipoCalle = tiposCalle[Math.floor(Math.random() * tiposCalle.length)];
     const nombreCalle = APELLIDOS[Math.floor(Math.random() * APELLIDOS.length)];
     const numero = Math.floor(Math.random() * 999) + 1;
 
     const calle = `${tipoCalle} ${nombreCalle} ${numero}`;
 
-    // Código postal (5 dígitos)
-    const cp = String(Math.floor(Math.random() * 90000) + 10000);
+    // Código postal más realista por zona
+    const cp = generarCodigoPostalPorZona(zona.estado);
 
     return {
         calle,
         colonia,
         municipio,
-        estadoRegion: estado,
+        estadoRegion: zona.estado === 'Otros' ? 'Otros Estados' : zona.estado,
         cp
     };
 }
 
 /**
+ * Genera una dirección mexicana con distribución realista por zonas
+ * @returns {Promise<object>} Objeto con dirección completa
+ */
+async function generarDireccionMexicana() {
+    // Intentar generar dirección real con HereMaps
+    return await generarDireccionMexicanaReal();
+}
+
+/**
+ * Genera código postal más realista por zona
+ * @param {string} estado - Estado de la zona
+ * @returns {string} Código postal
+ */
+function generarCodigoPostalPorZona(estado) {
+    const rangosCP = {
+        'Ciudad de México': [3000, 16999],
+        'Estado de México': [50000, 56999],
+        'Morelos': [62000, 62999],
+        'Hidalgo': [42000, 43999],
+        'Puebla': [72000, 75999],
+        'Querétaro': [76000, 76999],
+        'Otros': [10000, 99999]
+    };
+    
+    const rango = rangosCP[estado] || rangosCP['Otros'];
+    const cp = Math.floor(Math.random() * (rango[1] - rango[0] + 1)) + rango[0];
+    
+    return String(cp).padStart(5, '0');
+}
+
+/**
  * Genera un conjunto completo de datos mexicanos aleatorios
  * @param {string} genero - 'M', 'F' o null para aleatorio
- * @returns {object} Datos completos de una persona mexicana
+ * @returns {Promise<object>} Datos completos de una persona mexicana
  */
-function generarDatosMexicanosCompletos(genero = null) {
+async function generarDatosMexicanosCompletos(genero = null) {
     const persona = generarNombreMexicano(genero);
     const rfc = generarRFC(persona);
     const telefono = generarTelefonoMexicano();
-    const direccion = generarDireccionMexicana();
+    const direccion = await generarDireccionMexicana();
 
-    // Generar correo electrónico
-    const dominios = ['gmail.com', 'hotmail.com', 'yahoo.com', 'outlook.com'];
-    const dominio = dominios[Math.floor(Math.random() * dominios.length)];
-    const correo = `${persona.nombre.toLowerCase()}.${persona.apellido1.toLowerCase()}${Math.floor(Math.random() * 999)}@${dominio}`;
+    // Generar correo electrónico con formato @prueba.com.mx
+    const nombreLimpio = persona.nombre.toLowerCase()
+        .replace(/\s+/g, '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, ''); // Remover acentos
+    const apellidoLimpio = persona.apellido1.toLowerCase()
+        .replace(/\s+/g, '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, ''); // Remover acentos
+    const correo = `${nombreLimpio}.${apellidoLimpio}@prueba.com.mx`;
 
     return {
         titular: persona.nombreCompleto,
