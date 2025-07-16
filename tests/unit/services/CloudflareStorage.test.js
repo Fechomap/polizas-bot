@@ -41,7 +41,7 @@ describe('CloudflareStorage', () => {
     describe('Configuración y inicialización', () => {
         test('debe crear instancia correctamente con configuración válida', () => {
             const storage = new CloudflareStorage();
-            
+
             expect(storage.bucket).toBe('test-bucket');
             expect(storage.publicUrl).toBe('https://test-domain.com');
             expect(mockS3Client).toHaveBeenCalledWith({
@@ -61,7 +61,7 @@ describe('CloudflareStorage', () => {
 
         test('debe detectar configuración incompleta', () => {
             delete process.env.CLOUDFLARE_R2_ACCESS_KEY;
-            
+
             const storage = new CloudflareStorage();
             expect(storage.isConfigured()).toBe(false);
         });
@@ -69,7 +69,7 @@ describe('CloudflareStorage', () => {
         test('getInstance debe retornar singleton', () => {
             const instance1 = getInstance();
             const instance2 = getInstance();
-            
+
             expect(instance1).toBe(instance2);
             expect(instance1).toBeInstanceOf(CloudflareStorage);
         });
@@ -84,19 +84,23 @@ describe('CloudflareStorage', () => {
 
         test('debe generar nombre único para foto', () => {
             const fileName = storage.generateFileName('POL-001', 'imagen.jpg', 'fotos');
-            
+
             expect(fileName).toMatch(/^fotos\/POL-001\/\d+_[a-f0-9]{16}_imagen\.jpg$/);
         });
 
         test('debe sanitizar caracteres especiales', () => {
-            const fileName = storage.generateFileName('POL@#$001', 'archivo con espacios.pdf', 'pdfs');
-            
+            const fileName = storage.generateFileName(
+                'POL@#$001',
+                'archivo con espacios.pdf',
+                'pdfs'
+            );
+
             expect(fileName).toMatch(/^pdfs\/POL001\/\d+_[a-f0-9]{16}_archivoconespacios\.pdf$/);
         });
 
         test('debe manejar archivos sin extensión', () => {
             const fileName = storage.generateFileName('POL-001', 'archivo', 'docs');
-            
+
             expect(fileName).toMatch(/^docs\/POL-001\/\d+_[a-f0-9]{16}_archivo$/);
         });
     });
@@ -131,8 +135,9 @@ describe('CloudflareStorage', () => {
             const fileBuffer = Buffer.from('test content');
             mockSend.mockRejectedValue(new Error('Network error'));
 
-            await expect(storage.uploadFile(fileBuffer, 'test.jpg', 'image/jpeg'))
-                .rejects.toThrow('Error al subir archivo: Network error');
+            await expect(storage.uploadFile(fileBuffer, 'test.jpg', 'image/jpeg')).rejects.toThrow(
+                'Error al subir archivo: Network error'
+            );
         });
 
         test('debe eliminar archivo exitosamente', async () => {
@@ -145,8 +150,9 @@ describe('CloudflareStorage', () => {
         test('debe manejar errores en delete', async () => {
             mockSend.mockRejectedValue(new Error('File not found'));
 
-            await expect(storage.deleteFile('test.jpg'))
-                .rejects.toThrow('Error al eliminar archivo: File not found');
+            await expect(storage.deleteFile('test.jpg')).rejects.toThrow(
+                'Error al eliminar archivo: File not found'
+            );
         });
     });
 
@@ -165,7 +171,7 @@ describe('CloudflareStorage', () => {
         test('debe usar fallback sin dominio personalizado', () => {
             delete process.env.CLOUDFLARE_R2_PUBLIC_URL;
             const storage = new CloudflareStorage();
-            
+
             const url = storage.getPublicUrl('test.jpg');
             expect(url).toBe('https://test-bucket.r2.cloudflarestorage.com/test.jpg');
         });
@@ -190,9 +196,9 @@ describe('CloudflareStorage', () => {
 
         test('debe subir foto de póliza correctamente', async () => {
             const photoBuffer = Buffer.from('photo content');
-            
+
             const result = await storage.uploadPolicyPhoto(photoBuffer, 'POL-001', 'foto.jpg');
-            
+
             expect(result.key).toMatch(/^fotos\/POL-001\/\d+_[a-f0-9]{16}_foto\.jpg$/);
             expect(result.contentType).toBe('image/jpeg');
             expect(result.size).toBe(photoBuffer.length);
@@ -200,9 +206,9 @@ describe('CloudflareStorage', () => {
 
         test('debe subir PDF de póliza correctamente', async () => {
             const pdfBuffer = Buffer.from('pdf content');
-            
+
             const result = await storage.uploadPolicyPDF(pdfBuffer, 'POL-001', 'documento.pdf');
-            
+
             expect(result.key).toMatch(/^pdfs\/POL-001\/\d+_[a-f0-9]{16}_documento\.pdf$/);
             expect(result.contentType).toBe('application/pdf');
             expect(result.size).toBe(pdfBuffer.length);

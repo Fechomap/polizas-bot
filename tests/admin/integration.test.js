@@ -18,7 +18,7 @@ describe('Admin Module Integration', () => {
     test('Los archivos del módulo admin existen', () => {
         const fs = require('fs');
         const path = require('path');
-        
+
         const adminFiles = [
             'index.js',
             'middleware/adminAuth.js',
@@ -30,7 +30,7 @@ describe('Admin Module Integration', () => {
             'utils/adminStates.js',
             'utils/auditLogger.js'
         ];
-        
+
         adminFiles.forEach(file => {
             const filePath = path.resolve(__dirname, '../../src/admin', file);
             expect(() => {
@@ -51,7 +51,7 @@ describe('Admin Module Integration', () => {
                 database: {}
             }
         };
-        
+
         expect(mockAdminModule.initialize).toBeDefined();
         expect(mockAdminModule.registerCallbackHandlers).toBeDefined();
         expect(mockAdminModule.registerCommands).toBeDefined();
@@ -76,9 +76,9 @@ describe('Admin Module Integration', () => {
             clearAdminState: jest.fn(),
             cleanupOldAdminStates: jest.fn()
         };
-        
+
         const state = mockAdminStateManager.createAdminState(123, -1000, 'test_operation');
-        
+
         expect(state).toBeDefined();
         expect(state.operation).toBe('test');
         expect(state.data).toEqual({});
@@ -101,12 +101,12 @@ describe('Admin Module Integration', () => {
             getStats: jest.fn(),
             cleanup: jest.fn()
         };
-        
+
         const mockCtx = {
             from: { id: 123, username: 'testuser' },
             chat: { id: -1000 }
         };
-        
+
         expect(mockAuditLogger.log).toBeDefined();
         expect(async () => {
             await mockAuditLogger.log(mockCtx, 'test_action');
@@ -124,7 +124,7 @@ describe('Admin Module Callbacks', () => {
             'admin_service_menu',
             'admin_database_menu'
         ];
-        
+
         validCallbacks.forEach(callback => {
             expect(callback).toMatch(/^admin_/);
         });
@@ -132,10 +132,10 @@ describe('Admin Module Callbacks', () => {
 
     test('El patrón de regex para callbacks funciona', () => {
         const callbackRegex = /^admin_(.+)$/;
-        
+
         expect('admin_policy_edit'.match(callbackRegex)).toBeTruthy();
         expect('admin_policy_edit'.match(callbackRegex)[1]).toBe('policy_edit');
-        
+
         expect('not_admin_callback'.match(callbackRegex)).toBeFalsy();
     });
 });

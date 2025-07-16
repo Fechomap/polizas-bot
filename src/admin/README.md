@@ -5,25 +5,25 @@
 ### ✅ Funcionalidades Implementadas
 
 1. **Sistema de Autenticación**
-   - Middleware `adminAuth.js` que valida permisos de administrador
-   - Caché de permisos para optimización
-   - Solo administradores del grupo pueden acceder
+    - Middleware `adminAuth.js` que valida permisos de administrador
+    - Caché de permisos para optimización
+    - Solo administradores del grupo pueden acceder
 
 2. **Estructura de Menús**
-   - Menú principal de administración
-   - Submenús para Pólizas, Servicios y Base de Datos
-   - Sistema de navegación con breadcrumbs
-   - Constructor dinámico de menús
+    - Menú principal de administración
+    - Submenús para Pólizas, Servicios y Base de Datos
+    - Sistema de navegación con breadcrumbs
+    - Constructor dinámico de menús
 
 3. **Sistema de Estados**
-   - `AdminStateManager` extiende FlowStateManager
-   - Timeout de 5 minutos para operaciones admin
-   - Limpieza automática de estados antiguos
+    - `AdminStateManager` extiende FlowStateManager
+    - Timeout de 5 minutos para operaciones admin
+    - Limpieza automática de estados antiguos
 
 4. **Sistema de Auditoría**
-   - Modelo MongoDB para logs de auditoría
-   - Registro de todas las acciones administrativas
-   - Información completa: usuario, acción, cambios, timestamp
+    - Modelo MongoDB para logs de auditoría
+    - Registro de todas las acciones administrativas
+    - Información completa: usuario, acción, cambios, timestamp
 
 ### 📂 Estructura de Archivos
 
@@ -47,13 +47,13 @@ src/admin/
 ### 🔧 Uso
 
 1. **Acceder al panel admin:**
-   - Desde el menú principal: ADMINISTRACIÓN → Panel Administración Completo
-   - Comando directo: `/admin` (solo administradores)
+    - Desde el menú principal: ADMINISTRACIÓN → Panel Administración Completo
+    - Comando directo: `/admin` (solo administradores)
 
 2. **Navegación:**
-   - Usa los botones inline para navegar
-   - Siempre hay opción de "Volver"
-   - Los breadcrumbs muestran tu ubicación
+    - Usa los botones inline para navegar
+    - Siempre hay opción de "Volver"
+    - Los breadcrumbs muestran tu ubicación
 
 ### 🔒 Seguridad
 

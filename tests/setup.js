@@ -11,7 +11,7 @@ console.warn = jest.fn();
 
 // Mock de fetch global si no está disponible
 if (!global.fetch) {
-  global.fetch = jest.fn();
+    global.fetch = jest.fn();
 }
 
 // Configuración para MongoDB Memory Server

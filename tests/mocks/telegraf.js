@@ -15,7 +15,7 @@ const createMockBot = () => ({
 
 const createMockContext = (overrides = {}) => ({
     chat: { id: -123456789, type: 'group' },
-    message: { 
+    message: {
         message_id: 1,
         date: Math.floor(Date.now() / 1000),
         text: '/test',
@@ -47,7 +47,9 @@ const createMockCallbackContext = (data = 'test_callback', overrides = {}) => ({
 module.exports = {
     Telegraf: jest.fn().mockImplementation(() => createMockBot()),
     Markup: {
-        inlineKeyboard: jest.fn().mockImplementation((buttons) => ({ reply_markup: { inline_keyboard: buttons } })),
+        inlineKeyboard: jest
+            .fn()
+            .mockImplementation(buttons => ({ reply_markup: { inline_keyboard: buttons } })),
         button: {
             callback: jest.fn().mockImplementation((text, data) => ({ text, callback_data: data }))
         }

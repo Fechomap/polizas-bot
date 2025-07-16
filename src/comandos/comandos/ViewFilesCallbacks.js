@@ -50,15 +50,63 @@ class ViewFilesCallbacks extends BaseCommand {
 
                     for (const foto of r2Fotos) {
                         try {
-                            // Generar URL firmada para acceso temporal
+                            // Usar la URL pública directa guardada en la base de datos
+                            if (!foto.key) {
+                                this.logError('Foto sin key:', foto);
+                                continue;
+                            }
+
+                            // Generar URL firmada para la foto
                             const signedUrl = await storage.getSignedUrl(foto.key, 3600); // 1 hora
 
-                            await ctx.replyWithPhoto(signedUrl, {
-                                caption: `📸 Foto subida: ${foto.uploadedAt ? new Date(foto.uploadedAt).toLocaleString('es-MX') : 'Fecha no disponible'}\n📏 Tamaño: ${(foto.size / 1024).toFixed(1)} KB`
-                            });
+                            // Descargar la imagen usando la URL firmada
+                            const response = await fetch(signedUrl);
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+
+                            const buffer = await response.buffer();
+
+                            // Determinar el origen de la foto
+                            let origen = 'Foto de póliza';
+                            if (foto.fuenteOriginal === 'vehiculo_bd_autos') {
+                                origen = '🚗 Foto transferida del vehículo';
+                            } else if (foto.fuenteOriginal === 'vehiculo_bd_autos_reparacion') {
+                                origen = '🔧 Foto del vehículo (reparación)';
+                            }
+
+                            await ctx.replyWithPhoto(
+                                { source: buffer },
+                                {
+                                    caption: `📸 ${origen}\n📅 Subida: ${foto.uploadedAt ? new Date(foto.uploadedAt).toLocaleString('es-MX') : 'Fecha no disponible'}\n📏 Tamaño: ${(foto.size / 1024).toFixed(1)} KB`
+                                }
+                            );
                         } catch (error) {
                             this.logError('Error al enviar foto desde R2:', error);
-                            await ctx.reply('❌ Error al mostrar una foto.');
+
+                            // Si falla con URL firmada, intentar con URL pública como fallback
+                            if (foto.url) {
+                                try {
+                                    const response = await fetch(foto.url);
+                                    if (response.ok) {
+                                        const buffer = await response.buffer();
+                                        await ctx.replyWithPhoto(
+                                            { source: buffer },
+                                            { caption: '📸 Foto (recuperada con URL pública)' }
+                                        );
+                                        continue;
+                                    }
+                                } catch (fallbackError) {
+                                    this.logError(
+                                        'Fallback con URL pública también falló:',
+                                        fallbackError
+                                    );
+                                }
+                            }
+
+                            await ctx.reply(
+                                `❌ Error al mostrar foto: ${foto.originalName || 'sin nombre'}`
+                            );
                         }
                     }
                 }

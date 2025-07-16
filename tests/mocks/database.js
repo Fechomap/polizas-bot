@@ -1,5 +1,5 @@
 // Mock de MongoDB/Mongoose más realista
-const createMockDocument = (data) => ({
+const createMockDocument = data => ({
     ...data,
     _id: 'mock_id_' + Math.random().toString(36).substr(2, 9),
     save: jest.fn().mockResolvedValue({ ...data, _id: 'saved_id' }),
@@ -7,9 +7,9 @@ const createMockDocument = (data) => ({
     toJSON: jest.fn().mockReturnValue(data)
 });
 
-const createMockModel = (name) => {
-    const MockModel = jest.fn().mockImplementation((data) => createMockDocument(data));
-    
+const createMockModel = name => {
+    const MockModel = jest.fn().mockImplementation(data => createMockDocument(data));
+
     // Métodos estáticos
     MockModel.findOne = jest.fn();
     MockModel.findById = jest.fn();
@@ -21,7 +21,7 @@ const createMockModel = (name) => {
     MockModel.countDocuments = jest.fn();
     MockModel.create = jest.fn();
     MockModel.insertMany = jest.fn();
-    
+
     return MockModel;
 };
 
@@ -37,7 +37,7 @@ const mockPolicyData = {
         servicios: []
     },
     vencida: {
-        numeroPoliza: 'POL-002', 
+        numeroPoliza: 'POL-002',
         nombreAsegurado: 'María García',
         tipoSeguro: 'VIDA',
         estado: 'VENCIDO',

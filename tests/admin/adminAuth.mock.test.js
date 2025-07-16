@@ -4,7 +4,7 @@
 
 describe('AdminAuth Mock Tests', () => {
     let AdminAuth;
-    
+
     beforeEach(() => {
         // Mock de los módulos necesarios
         jest.mock('../../src/utils/logger', () => ({
@@ -12,7 +12,7 @@ describe('AdminAuth Mock Tests', () => {
             error: jest.fn(),
             warn: jest.fn()
         }));
-        
+
         jest.mock('../../src/config', () => ({
             admin: {
                 sessionTimeout: 300000,
@@ -32,30 +32,30 @@ describe('AdminAuth Mock Tests', () => {
             clearCache: jest.fn(),
             startCacheCleanup: jest.fn()
         };
-        
+
         expect(mockAdminAuth).toBeDefined();
         expect(mockAdminAuth.isAdmin).toBeDefined();
         expect(mockAdminAuth.requireAdmin).toBeDefined();
     });
 
     test('Mock de isAdmin funciona correctamente', () => {
-        const mockIsAdmin = jest.fn().mockImplementation((ctx) => {
+        const mockIsAdmin = jest.fn().mockImplementation(ctx => {
             const member = ctx.getChatMember();
             return ['creator', 'administrator'].includes(member.status);
         });
-        
+
         const ctxAdmin = {
             from: { id: 123 },
             chat: { id: -1000 },
             getChatMember: () => ({ status: 'administrator' })
         };
-        
+
         const ctxUser = {
             from: { id: 456 },
             chat: { id: -1000 },
             getChatMember: () => ({ status: 'member' })
         };
-        
+
         expect(mockIsAdmin(ctxAdmin)).toBe(true);
         expect(mockIsAdmin(ctxUser)).toBe(false);
     });
@@ -64,21 +64,25 @@ describe('AdminAuth Mock Tests', () => {
         const mockRequireAdmin = jest.fn().mockImplementation(async (ctx, next) => {
             const isAdmin = ctx.isAdmin || false;
             if (!isAdmin) {
-                await ctx.reply('⛔ No tienes permisos para usar esta función. Solo administradores.');
+                await ctx.reply(
+                    '⛔ No tienes permisos para usar esta función. Solo administradores.'
+                );
                 return;
             }
             return next();
         });
-        
+
         const ctx = {
             isAdmin: false,
             reply: jest.fn()
         };
         const next = jest.fn();
-        
+
         await mockRequireAdmin(ctx, next);
-        
-        expect(ctx.reply).toHaveBeenCalledWith('⛔ No tienes permisos para usar esta función. Solo administradores.');
+
+        expect(ctx.reply).toHaveBeenCalledWith(
+            '⛔ No tienes permisos para usar esta función. Solo administradores.'
+        );
         expect(next).not.toHaveBeenCalled();
     });
 
@@ -86,20 +90,22 @@ describe('AdminAuth Mock Tests', () => {
         const mockRequireAdmin = jest.fn().mockImplementation(async (ctx, next) => {
             const isAdmin = ctx.isAdmin || false;
             if (!isAdmin) {
-                await ctx.reply('⛔ No tienes permisos para usar esta función. Solo administradores.');
+                await ctx.reply(
+                    '⛔ No tienes permisos para usar esta función. Solo administradores.'
+                );
                 return;
             }
             return next();
         });
-        
+
         const ctx = {
             isAdmin: true,
             reply: jest.fn()
         };
         const next = jest.fn();
-        
+
         await mockRequireAdmin(ctx, next);
-        
+
         expect(ctx.reply).not.toHaveBeenCalled();
         expect(next).toHaveBeenCalled();
     });
@@ -113,7 +119,7 @@ describe('AdminMenu Structure Tests', () => {
             showServiceMenu: jest.fn(),
             showDatabaseMenu: jest.fn()
         };
-        
+
         expect(mockAdminMenu.showMainMenu).toBeDefined();
         expect(mockAdminMenu.showPolicyMenu).toBeDefined();
         expect(mockAdminMenu.showServiceMenu).toBeDefined();
@@ -132,23 +138,23 @@ describe('Handlers Structure Tests', () => {
                 return true;
             })
         };
-        
+
         expect(mockPolicyHandler.handleAction).toBeDefined();
     });
-    
+
     test('ServiceHandler maneja acciones correctamente', () => {
         const mockServiceHandler = {
             handleAction: jest.fn()
         };
-        
+
         expect(mockServiceHandler.handleAction).toBeDefined();
     });
-    
+
     test('DatabaseHandler existe y funciona', () => {
         const mockDatabaseHandler = {
             handleAction: jest.fn()
         };
-        
+
         expect(mockDatabaseHandler.handleAction).toBeDefined();
     });
 });

@@ -14,7 +14,8 @@ const r2FileSchema = new mongoose.Schema({
     originalName: String,
     contentType: String,
     size: Number,
-    uploadDate: { type: Date, default: Date.now }
+    uploadDate: { type: Date, default: Date.now },
+    fuenteOriginal: String // Para identificar origen del archivo
 });
 
 const vehicleSchema = new mongoose.Schema({
@@ -92,7 +93,7 @@ const vehicleSchema = new mongoose.Schema({
 
     // Archivos del vehículo (solo fotos)
     archivos: {
-    // Sistema legacy (MongoDB)
+        // Sistema legacy (MongoDB)
         fotos: [fileSchema],
 
         // Sistema nuevo (Cloudflare R2)
@@ -125,6 +126,13 @@ const vehicleSchema = new mongoose.Schema({
         maxlength: 500
     },
 
+    // Referencia a la póliza asignada (para BD AUTOS)
+    policyId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Policy',
+        default: null
+    },
+
     // Timestamps
     createdAt: {
         type: Date,
@@ -137,7 +145,7 @@ const vehicleSchema = new mongoose.Schema({
 });
 
 // Middleware para actualizar updatedAt
-vehicleSchema.pre('save', function(next) {
+vehicleSchema.pre('save', function (next) {
     if (this.isModified() && !this.isNew) {
         this.updatedAt = new Date();
     }
@@ -152,18 +160,21 @@ vehicleSchema.index({ creadoPor: 1 });
 vehicleSchema.index({ createdAt: -1 });
 
 // Métodos del modelo
-vehicleSchema.methods.marcarConPoliza = function() {
+vehicleSchema.methods.marcarConPoliza = function (policyId) {
     this.estado = 'CON_POLIZA';
+    if (policyId) {
+        this.policyId = policyId;
+    }
     return this.save();
 };
 
-vehicleSchema.methods.eliminar = function() {
+vehicleSchema.methods.eliminar = function () {
     this.estado = 'ELIMINADO';
     return this.save();
 };
 
 // Método para obtener datos del titular completos
-vehicleSchema.methods.getDatosTitular = function() {
+vehicleSchema.methods.getDatosTitular = function () {
     return {
         titular: this.titular,
         rfc: this.rfc,
@@ -178,18 +189,18 @@ vehicleSchema.methods.getDatosTitular = function() {
 };
 
 // Statics para consultas comunes
-vehicleSchema.statics.findSinPoliza = function() {
+vehicleSchema.statics.findSinPoliza = function () {
     return this.find({ estado: 'SIN_POLIZA' });
 };
 
-vehicleSchema.statics.findByPlacas = function(placas) {
+vehicleSchema.statics.findByPlacas = function (placas) {
     return this.findOne({
         placas: placas.toUpperCase(),
         estado: { $ne: 'ELIMINADO' }
     });
 };
 
-vehicleSchema.statics.findBySerie = function(serie) {
+vehicleSchema.statics.findBySerie = function (serie) {
     return this.findOne({
         serie: serie.toUpperCase(),
         estado: { $ne: 'ELIMINADO' }

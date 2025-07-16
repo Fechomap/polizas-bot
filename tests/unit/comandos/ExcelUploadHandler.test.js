@@ -62,7 +62,12 @@ describe('ExcelUploadHandler', () => {
         });
 
         test('should return true for valid Excel MIME types', () => {
-            expect(handler.isExcelFile('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'file')).toBe(true);
+            expect(
+                handler.isExcelFile(
+                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'file'
+                )
+            ).toBe(true);
             expect(handler.isExcelFile('application/vnd.ms-excel', 'file')).toBe(true);
         });
 
@@ -386,4 +391,3 @@ describe('ExcelUploadHandler', () => {
     // NOTE: Integration tests removed due to complex mocking requirements
     // The complete workflow is tested manually and works correctly in production
 });
-

@@ -7,10 +7,12 @@ const { getInstance } = require('../../src/services/CloudflareStorage');
 
 // Solo ejecutar si las variables de entorno están configuradas
 const isConfigured = () => {
-    return process.env.CLOUDFLARE_R2_ENDPOINT &&
-           process.env.CLOUDFLARE_R2_ACCESS_KEY &&
-           process.env.CLOUDFLARE_R2_SECRET_KEY &&
-           process.env.CLOUDFLARE_R2_BUCKET;
+    return (
+        process.env.CLOUDFLARE_R2_ENDPOINT &&
+        process.env.CLOUDFLARE_R2_ACCESS_KEY &&
+        process.env.CLOUDFLARE_R2_SECRET_KEY &&
+        process.env.CLOUDFLARE_R2_BUCKET
+    );
 };
 
 describe('Cloudflare R2 - Conexión real', () => {
@@ -18,7 +20,9 @@ describe('Cloudflare R2 - Conexión real', () => {
 
     beforeAll(() => {
         if (!isConfigured()) {
-            console.log('⚠️  Variables de entorno de R2 no configuradas, saltando tests de integración');
+            console.log(
+                '⚠️  Variables de entorno de R2 no configuradas, saltando tests de integración'
+            );
             return;
         }
         storage = getInstance();
@@ -68,7 +72,6 @@ describe('Cloudflare R2 - Conexión real', () => {
             console.log('🗑️  Eliminando archivo de prueba...');
             await storage.deleteFile(testFileName);
             console.log('✅ Archivo eliminado exitosamente');
-
         } catch (error) {
             console.error('❌ Error en test de conexión:', error);
             throw error;
@@ -88,10 +91,16 @@ describe('Cloudflare R2 - Conexión real', () => {
 
         try {
             console.log('📸 Subiendo foto de póliza de prueba...');
-            const uploadResult = await storage.uploadPolicyPhoto(imageBuffer, policyNumber, originalName);
+            const uploadResult = await storage.uploadPolicyPhoto(
+                imageBuffer,
+                policyNumber,
+                originalName
+            );
 
             expect(uploadResult).toBeDefined();
-            expect(uploadResult.key).toMatch(/^fotos\/TEST-001\/\d+_[a-f0-9]{16}_foto-prueba\.jpg$/);
+            expect(uploadResult.key).toMatch(
+                /^fotos\/TEST-001\/\d+_[a-f0-9]{16}_foto-prueba\.jpg$/
+            );
             expect(uploadResult.contentType).toBe('image/jpeg');
             expect(uploadResult.size).toBe(imageBuffer.length);
 
@@ -100,7 +109,6 @@ describe('Cloudflare R2 - Conexión real', () => {
             // Limpiar
             await storage.deleteFile(uploadResult.key);
             console.log('✅ Foto eliminada exitosamente');
-
         } catch (error) {
             console.error('❌ Error en test de foto:', error);
             throw error;
@@ -120,10 +128,16 @@ describe('Cloudflare R2 - Conexión real', () => {
 
         try {
             console.log('📄 Subiendo PDF de póliza de prueba...');
-            const uploadResult = await storage.uploadPolicyPDF(pdfBuffer, policyNumber, originalName);
+            const uploadResult = await storage.uploadPolicyPDF(
+                pdfBuffer,
+                policyNumber,
+                originalName
+            );
 
             expect(uploadResult).toBeDefined();
-            expect(uploadResult.key).toMatch(/^pdfs\/TEST-002\/\d+_[a-f0-9]{16}_documento-prueba\.pdf$/);
+            expect(uploadResult.key).toMatch(
+                /^pdfs\/TEST-002\/\d+_[a-f0-9]{16}_documento-prueba\.pdf$/
+            );
             expect(uploadResult.contentType).toBe('application/pdf');
             expect(uploadResult.size).toBe(pdfBuffer.length);
 
@@ -132,7 +146,6 @@ describe('Cloudflare R2 - Conexión real', () => {
             // Limpiar
             await storage.deleteFile(uploadResult.key);
             console.log('✅ PDF eliminado exitosamente');
-
         } catch (error) {
             console.error('❌ Error en test de PDF:', error);
             throw error;
@@ -146,15 +159,19 @@ describe('Cloudflare R2 - Conexión real', () => {
         }
 
         const testFileName = 'fotos/TEST-001/test-image.jpg';
-        
+
         // URL pública (sin dominio personalizado configurado)
         const publicUrl = storage.getPublicUrl(testFileName);
-        expect(publicUrl).toBe(`https://polizas-bot-storage.r2.cloudflarestorage.com/${testFileName}`);
+        expect(publicUrl).toBe(
+            `https://polizas-bot-storage.r2.cloudflarestorage.com/${testFileName}`
+        );
 
         // URL firmada
         try {
             const signedUrl = await storage.getSignedUrl(testFileName, 3600);
-            expect(signedUrl).toContain('dafdefcfcce9a82b8c56c095bf7176fb.r2.cloudflarestorage.com');
+            expect(signedUrl).toContain(
+                'dafdefcfcce9a82b8c56c095bf7176fb.r2.cloudflarestorage.com'
+            );
             expect(signedUrl).toContain(testFileName);
             expect(signedUrl).toContain('X-Amz-Signature');
             console.log('✅ URL firmada generada correctamente');

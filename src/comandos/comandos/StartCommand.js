@@ -28,9 +28,7 @@ class StartCommand extends BaseCommand {
                         Markup.button.callback('📊 REPORTES', 'accion:reportes'),
                         Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
                     ],
-                    [
-                        Markup.button.callback('❓ AYUDA', 'accion:help')
-                    ]
+                    [Markup.button.callback('❓ AYUDA', 'accion:help')]
                 ]);
 
                 await ctx.reply(
@@ -57,9 +55,7 @@ class StartCommand extends BaseCommand {
                     Markup.button.callback('📊 REPORTES', 'accion:reportes'),
                     Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
                 ],
-                [
-                    Markup.button.callback('❓ AYUDA', 'accion:help')
-                ]
+                [Markup.button.callback('❓ AYUDA', 'accion:help')]
             ]);
 
             // Podríamos editar el mensaje anterior si existe ctx.callbackQuery

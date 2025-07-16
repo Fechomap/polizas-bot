@@ -7,23 +7,26 @@ const { saveFileToMongoDB } = require('../utils/fileHandler');
  * Controlador para gestión de vehículos OBD
  */
 class VehicleController {
-
     /**
-   * Registra un nuevo vehículo con datos temporales generados automáticamente
-   */
+     * Registra un nuevo vehículo con datos temporales generados automáticamente
+     */
     static async registrarVehiculo(vehicleData, userId, via = 'TELEGRAM_BOT') {
         try {
             // Validar que el número de serie no exista
             const existeVehiculo = await Vehicle.findBySerie(vehicleData.serie);
             if (existeVehiculo) {
-                throw new Error(`Ya existe un vehículo registrado con la serie: ${vehicleData.serie}`);
+                throw new Error(
+                    `Ya existe un vehículo registrado con la serie: ${vehicleData.serie}`
+                );
             }
 
             // Validar placas duplicadas
             if (vehicleData.placas) {
                 const existePlacas = await Vehicle.findByPlacas(vehicleData.placas);
                 if (existePlacas) {
-                    throw new Error(`Ya existe un vehículo registrado con las placas: ${vehicleData.placas}`);
+                    throw new Error(
+                        `Ya existe un vehículo registrado con las placas: ${vehicleData.placas}`
+                    );
                 }
             }
 
@@ -67,7 +70,6 @@ class VehicleController {
                 vehicle: vehiculoGuardado,
                 datosGenerados: datosTemporal
             };
-
         } catch (error) {
             console.error('Error al registrar vehículo:', error);
             return {
@@ -78,8 +80,8 @@ class VehicleController {
     }
 
     /**
-   * Agrega fotos a un vehículo existente
-   */
+     * Agrega fotos a un vehículo existente
+     */
     static async agregarFotos(vehicleId, files, useCloudflare = true) {
         try {
             const vehiculo = await Vehicle.findById(vehicleId);
@@ -120,7 +122,6 @@ class VehicleController {
                 fotosGuardadas,
                 totalFotos: vehiculo.archivos.fotos.length + vehiculo.archivos.r2Files.fotos.length
             };
-
         } catch (error) {
             console.error('Error al agregar fotos:', error);
             return {
@@ -131,9 +132,9 @@ class VehicleController {
     }
 
     /**
-   * Vincula fotos ya subidas a Cloudflare con un vehículo
-   * Las fotos ya están en Cloudflare, solo guardamos las referencias
-   */
+     * Vincula fotos ya subidas a Cloudflare con un vehículo
+     * Las fotos ya están en Cloudflare, solo guardamos las referencias
+     */
     static async vincularFotosCloudflare(vehicleId, fotosCloudflare) {
         try {
             const vehiculo = await Vehicle.findById(vehicleId);
@@ -162,7 +163,6 @@ class VehicleController {
                 fotosVinculadas: fotosCloudflare.length,
                 totalFotos: vehiculo.archivos.fotos.length + vehiculo.archivos.r2Files.fotos.length
             };
-
         } catch (error) {
             console.error('Error al vincular fotos de Cloudflare:', error);
             return {
@@ -173,8 +173,8 @@ class VehicleController {
     }
 
     /**
-   * Obtiene vehículos disponibles para asegurar (sin póliza)
-   */
+     * Obtiene vehículos disponibles para asegurar (sin póliza)
+     */
     static async getVehiculosSinPoliza(limite = 50, pagina = 1) {
         try {
             const skip = (pagina - 1) * limite;
@@ -197,7 +197,6 @@ class VehicleController {
                     totalPaginas: Math.ceil(total / limite)
                 }
             };
-
         } catch (error) {
             console.error('Error al obtener vehículos sin póliza:', error);
             return {
@@ -208,8 +207,8 @@ class VehicleController {
     }
 
     /**
-   * Busca vehículos por serie o placas
-   */
+     * Busca vehículos por serie o placas
+     */
     static async buscarVehiculo(termino) {
         try {
             let vehiculo = null;
@@ -240,7 +239,6 @@ class VehicleController {
                 success: true,
                 vehiculo
             };
-
         } catch (error) {
             console.error('Error al buscar vehículo:', error);
             return {
@@ -251,8 +249,8 @@ class VehicleController {
     }
 
     /**
-   * Marca un vehículo como que ya tiene póliza asignada
-   */
+     * Marca un vehículo como que ya tiene póliza asignada
+     */
     static async marcarConPoliza(vehicleId, policyId) {
         try {
             const vehiculo = await Vehicle.findById(vehicleId);
@@ -260,13 +258,12 @@ class VehicleController {
                 throw new Error('Vehículo no encontrado');
             }
 
-            await vehiculo.marcarConPoliza();
+            await vehiculo.marcarConPoliza(policyId);
 
             return {
                 success: true,
                 message: 'Vehículo marcado como asegurado'
             };
-
         } catch (error) {
             console.error('Error al marcar vehículo con póliza:', error);
             return {
@@ -277,8 +274,8 @@ class VehicleController {
     }
 
     /**
-   * Obtiene estadísticas de vehículos OBD
-   */
+     * Obtiene estadísticas de vehículos OBD
+     */
     static async getEstadisticas() {
         try {
             const stats = await Vehicle.aggregate([
@@ -298,7 +295,7 @@ class VehicleController {
             };
 
             stats.forEach(stat => {
-                switch(stat._id) {
+                switch (stat._id) {
                 case 'SIN_POLIZA':
                     estadisticas.sinPoliza = stat.count;
                     break;
@@ -331,7 +328,6 @@ class VehicleController {
                     porMarca
                 }
             };
-
         } catch (error) {
             console.error('Error al obtener estadísticas:', error);
             return {
@@ -342,8 +338,8 @@ class VehicleController {
     }
 
     /**
-   * Actualiza los datos de un vehículo
-   */
+     * Actualiza los datos de un vehículo
+     */
     static async actualizarVehiculo(vehicleId, updateData) {
         try {
             const vehiculo = await Vehicle.findById(vehicleId);
@@ -353,9 +349,21 @@ class VehicleController {
 
             // Campos permitidos para actualizar
             const camposPermitidos = [
-                'marca', 'submarca', 'año', 'color', 'placas', 'notas',
-                'titular', 'rfc', 'telefono', 'correo',
-                'calle', 'colonia', 'municipio', 'estadoRegion', 'cp'
+                'marca',
+                'submarca',
+                'año',
+                'color',
+                'placas',
+                'notas',
+                'titular',
+                'rfc',
+                'telefono',
+                'correo',
+                'calle',
+                'colonia',
+                'municipio',
+                'estadoRegion',
+                'cp'
             ];
 
             camposPermitidos.forEach(campo => {
@@ -370,7 +378,6 @@ class VehicleController {
                 success: true,
                 vehiculo
             };
-
         } catch (error) {
             console.error('Error al actualizar vehículo:', error);
             return {

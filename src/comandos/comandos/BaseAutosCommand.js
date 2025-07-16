@@ -26,8 +26,7 @@ class BaseAutosCommand extends BaseCommand {
             try {
                 await ctx.answerCbQuery();
 
-                const mensaje = '🚗 *BASE DE AUTOS*\n\n' +
-                    'Selecciona tu rol:';
+                const mensaje = '🚗 *BASE DE AUTOS*\n\n' + 'Selecciona tu rol:';
 
                 await ctx.editMessageText(mensaje, {
                     parse_mode: 'Markdown',
@@ -38,7 +37,6 @@ class BaseAutosCommand extends BaseCommand {
                     chatId: ctx.chat.id,
                     userId: ctx.from.id
                 });
-
             } catch (error) {
                 this.logError('Error en accion:base_autos:', error);
                 await ctx.reply('❌ Error al mostrar el menú de Base de Autos.');
@@ -59,7 +57,9 @@ class BaseAutosCommand extends BaseCommand {
 
                 // Verificar si ya tiene un registro en proceso
                 if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId)) {
-                    await ctx.reply('⚠️ Ya tienes un registro en proceso. Completalo o cancelalo primero.');
+                    await ctx.reply(
+                        '⚠️ Ya tienes un registro en proceso. Completalo o cancelalo primero.'
+                    );
                     return;
                 }
 
@@ -70,7 +70,6 @@ class BaseAutosCommand extends BaseCommand {
                     chatId,
                     userId
                 });
-
             } catch (error) {
                 this.logError('Error iniciando registro de vehículo:', error);
                 await ctx.reply('❌ Error al iniciar el registro.');
@@ -88,7 +87,9 @@ class BaseAutosCommand extends BaseCommand {
 
                 // Verificar si ya tiene una asignación en proceso
                 if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
-                    await ctx.reply('⚠️ Ya tienes una asignación en proceso. Completala o cancelala primero.');
+                    await ctx.reply(
+                        '⚠️ Ya tienes una asignación en proceso. Completala o cancelala primero.'
+                    );
                     return;
                 }
 
@@ -99,7 +100,6 @@ class BaseAutosCommand extends BaseCommand {
                     chatId,
                     userId
                 });
-
             } catch (error) {
                 this.logError('Error mostrando vehículos para asegurar:', error);
                 await ctx.reply('❌ Error al mostrar vehículos disponibles.');
@@ -111,13 +111,13 @@ class BaseAutosCommand extends BaseCommand {
             try {
                 await ctx.answerCbQuery();
 
-                const mensaje = '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:';
+                const mensaje =
+                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:';
 
                 await ctx.editMessageText(mensaje, {
                     parse_mode: 'Markdown',
                     ...getMainKeyboard()
                 });
-
             } catch (error) {
                 this.logError('Error volviendo al menú principal:', error);
                 await ctx.reply('❌ Error al volver al menú.');
@@ -139,14 +139,18 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.deleteMessage();
 
                 // Iniciar asignación de póliza
-                await PolicyAssignmentHandler.iniciarAsignacion(this.bot, chatId, userId, vehicleId);
+                await PolicyAssignmentHandler.iniciarAsignacion(
+                    this.bot,
+                    chatId,
+                    userId,
+                    vehicleId
+                );
 
                 this.logInfo('Asignación de póliza iniciada', {
                     chatId,
                     userId,
                     vehicleId
                 });
-
             } catch (error) {
                 this.logError('Error iniciando asignación de póliza:', error);
                 await ctx.reply('❌ Error al iniciar la asignación de póliza.');
@@ -165,8 +169,12 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.deleteMessage();
 
                 // Mostrar página específica
-                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(this.bot, chatId, userId, pagina);
-
+                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
+                    this.bot,
+                    chatId,
+                    userId,
+                    pagina
+                );
             } catch (error) {
                 this.logError('Error en paginación de vehículos:', error);
                 await ctx.reply('❌ Error al cargar la página.');
@@ -178,13 +186,13 @@ class BaseAutosCommand extends BaseCommand {
             try {
                 await ctx.answerCbQuery();
                 const userId = ctx.from.id.toString();
-                
+
                 VehicleRegistrationHandler.cancelarRegistro(userId);
-                
+
                 await ctx.editMessageText('❌ Registro de vehículo cancelado.', {
                     reply_markup: getMainKeyboard()
                 });
-                
+
                 this.logInfo('Registro de vehículo cancelado', { userId });
             } catch (error) {
                 this.logError('Error cancelando registro de vehículo:', error);
@@ -197,23 +205,28 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
                 const userId = ctx.from.id.toString();
                 const chatId = ctx.chat.id;
-                
+
                 // Obtener el registro en proceso
                 const { vehiculosEnProceso } = require('./VehicleRegistrationHandler');
                 const registro = vehiculosEnProceso?.get(userId);
-                
+
                 if (!registro) {
                     await ctx.reply('❌ No hay registro en proceso.');
                     return;
                 }
-                
+
                 // Finalizar el registro
-                const resultado = await VehicleRegistrationHandler.finalizarRegistro(this.bot, chatId, userId, registro);
-                
+                const resultado = await VehicleRegistrationHandler.finalizarRegistro(
+                    this.bot,
+                    chatId,
+                    userId,
+                    registro
+                );
+
                 if (resultado) {
                     await ctx.deleteMessage();
                 }
-                
+
                 this.logInfo('Registro de vehículo finalizado', { userId });
             } catch (error) {
                 this.logError('Error finalizando registro de vehículo:', error);
@@ -225,21 +238,60 @@ class BaseAutosCommand extends BaseCommand {
             try {
                 await ctx.answerCbQuery();
                 const userId = ctx.from.id.toString();
-                
+
                 // Limpiar asignación en proceso
                 const { asignacionesEnProceso } = require('./PolicyAssignmentHandler');
                 if (asignacionesEnProceso) {
                     asignacionesEnProceso.delete(userId);
                 }
-                
+
                 await ctx.editMessageText('❌ Asignación de póliza cancelada.', {
                     reply_markup: getMainKeyboard()
                 });
-                
+
                 this.logInfo('Asignación de póliza cancelada', { userId });
             } catch (error) {
                 this.logError('Error cancelando asignación de póliza:', error);
                 await ctx.reply('❌ Error al cancelar.');
+            }
+        });
+
+        // Handler para selección de fecha de emisión
+        this.bot.action(/^fecha_emision_(.+)$/, async ctx => {
+            try {
+                await ctx.answerCbQuery();
+
+                const fechaISO = ctx.match[1];
+                const userId = ctx.from.id.toString();
+                const chatId = ctx.chat.id;
+
+                // Verificar que hay asignación en proceso
+                const { asignacionesEnProceso } = require('./PolicyAssignmentHandler');
+                const asignacion = asignacionesEnProceso.get(userId);
+
+                if (!asignacion) {
+                    await ctx.reply('❌ No hay asignación de póliza en proceso.');
+                    return;
+                }
+
+                await ctx.deleteMessage();
+
+                // Procesar la fecha seleccionada
+                await PolicyAssignmentHandler.confirmarFechaEmision(
+                    this.bot,
+                    chatId,
+                    fechaISO,
+                    asignacion
+                );
+
+                this.logInfo('Fecha de emisión seleccionada', {
+                    userId,
+                    chatId,
+                    fechaISO
+                });
+            } catch (error) {
+                this.logError('Error procesando selección de fecha:', error);
+                await ctx.reply('❌ Error al procesar la fecha.');
             }
         });
 
@@ -259,20 +311,60 @@ class BaseAutosCommand extends BaseCommand {
         try {
             // Verificar si hay registro de vehículo en proceso
             if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId)) {
-                const procesado = await VehicleRegistrationHandler.procesarMensaje(this.bot, message, userId);
+                const procesado = await VehicleRegistrationHandler.procesarMensaje(
+                    this.bot,
+                    message,
+                    userId
+                );
                 if (procesado) return true;
             }
 
             // Verificar si hay asignación de póliza en proceso
             if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
-                const procesado = await PolicyAssignmentHandler.procesarMensaje(this.bot, message, userId);
+                const procesado = await PolicyAssignmentHandler.procesarMensaje(
+                    this.bot,
+                    message,
+                    userId
+                );
+
+                // Si el proceso terminó, limpiar el estado BD AUTOS
+                if (procesado && !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
+                    if (this.handler?.registry?.stateManager) {
+                        await this.handler.registry.stateManager.clearUserState(userId, 'bd_autos_flow');
+                    }
+                }
+
                 if (procesado) return true;
             }
 
             return false; // No se procesó ningún flujo
-
         } catch (error) {
             this.logError('Error procesando mensaje en BaseAutosCommand:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Procesa documentos para flujos activos de Base de Autos
+     * @param {Object} message - Mensaje de Telegram con documento
+     * @param {string} userId - ID del usuario
+     * @returns {boolean} true si el documento fue procesado, false si no
+     */
+    async procesarDocumentoBaseAutos(message, userId) {
+        try {
+            // Solo procesar si hay asignación de póliza en proceso
+            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
+                const procesado = await PolicyAssignmentHandler.procesarMensaje(
+                    this.bot,
+                    message,
+                    userId
+                );
+                if (procesado) return true;
+            }
+
+            return false; // No se procesó ningún flujo
+        } catch (error) {
+            this.logError('Error procesando documento en BaseAutosCommand:', error);
             return false;
         }
     }

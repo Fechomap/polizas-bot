@@ -12,7 +12,9 @@ async function migrarCamposTitular() {
         console.log('🔌 Conectando a MongoDB...');
         const mongoURI = process.env.MONGO_URI;
         if (!mongoURI) {
-            throw new Error('La variable de entorno MONGO_URI no está definida. Verifica tu archivo .env');
+            throw new Error(
+                'La variable de entorno MONGO_URI no está definida. Verifica tu archivo .env'
+            );
         }
         await mongoose.connect(mongoURI);
         console.log('✅ Conectado a MongoDB');
@@ -23,20 +25,22 @@ async function migrarCamposTitular() {
 
         // Buscar documentos que tengan campos temporales
         console.log('\n🔍 Buscando vehículos con campos temporales...');
-        
-        const vehiculosConCamposTemporales = await vehiclesCollection.find({
-            $or: [
-                { titularTemporal: { $exists: true } },
-                { rfcTemporal: { $exists: true } },
-                { telefonoTemporal: { $exists: true } },
-                { correoTemporal: { $exists: true } },
-                { calleTemporal: { $exists: true } },
-                { coloniaTemporal: { $exists: true } },
-                { municipioTemporal: { $exists: true } },
-                { estadoRegionTemporal: { $exists: true } },
-                { cpTemporal: { $exists: true } }
-            ]
-        }).toArray();
+
+        const vehiculosConCamposTemporales = await vehiclesCollection
+            .find({
+                $or: [
+                    { titularTemporal: { $exists: true } },
+                    { rfcTemporal: { $exists: true } },
+                    { telefonoTemporal: { $exists: true } },
+                    { correoTemporal: { $exists: true } },
+                    { calleTemporal: { $exists: true } },
+                    { coloniaTemporal: { $exists: true } },
+                    { municipioTemporal: { $exists: true } },
+                    { estadoRegionTemporal: { $exists: true } },
+                    { cpTemporal: { $exists: true } }
+                ]
+            })
+            .toArray();
 
         console.log(`📊 Encontrados ${vehiculosConCamposTemporales.length} vehículos para migrar`);
 
@@ -48,7 +52,9 @@ async function migrarCamposTitular() {
         // Mostrar información de los vehículos a migrar
         console.log('\n📋 Vehículos que serán migrados:');
         vehiculosConCamposTemporales.forEach((vehiculo, index) => {
-            console.log(`   ${index + 1}. Serie: ${vehiculo.serie} - Titular: ${vehiculo.titularTemporal || 'N/A'}`);
+            console.log(
+                `   ${index + 1}. Serie: ${vehiculo.serie} - Titular: ${vehiculo.titularTemporal || 'N/A'}`
+            );
         });
 
         console.log('\n🔄 Iniciando migración...');
@@ -64,39 +70,39 @@ async function migrarCamposTitular() {
                 // Mapear campos temporales a definitivos
                 if (vehiculo.titularTemporal) {
                     updateFields.titular = vehiculo.titularTemporal;
-                    unsetFields.titularTemporal = "";
+                    unsetFields.titularTemporal = '';
                 }
                 if (vehiculo.rfcTemporal) {
                     updateFields.rfc = vehiculo.rfcTemporal;
-                    unsetFields.rfcTemporal = "";
+                    unsetFields.rfcTemporal = '';
                 }
                 if (vehiculo.telefonoTemporal) {
                     updateFields.telefono = vehiculo.telefonoTemporal;
-                    unsetFields.telefonoTemporal = "";
+                    unsetFields.telefonoTemporal = '';
                 }
                 if (vehiculo.correoTemporal) {
                     updateFields.correo = vehiculo.correoTemporal;
-                    unsetFields.correoTemporal = "";
+                    unsetFields.correoTemporal = '';
                 }
                 if (vehiculo.calleTemporal) {
                     updateFields.calle = vehiculo.calleTemporal;
-                    unsetFields.calleTemporal = "";
+                    unsetFields.calleTemporal = '';
                 }
                 if (vehiculo.coloniaTemporal) {
                     updateFields.colonia = vehiculo.coloniaTemporal;
-                    unsetFields.coloniaTemporal = "";
+                    unsetFields.coloniaTemporal = '';
                 }
                 if (vehiculo.municipioTemporal) {
                     updateFields.municipio = vehiculo.municipioTemporal;
-                    unsetFields.municipioTemporal = "";
+                    unsetFields.municipioTemporal = '';
                 }
                 if (vehiculo.estadoRegionTemporal) {
                     updateFields.estadoRegion = vehiculo.estadoRegionTemporal;
-                    unsetFields.estadoRegionTemporal = "";
+                    unsetFields.estadoRegionTemporal = '';
                 }
                 if (vehiculo.cpTemporal) {
                     updateFields.cp = vehiculo.cpTemporal;
-                    unsetFields.cpTemporal = "";
+                    unsetFields.cpTemporal = '';
                 }
 
                 // Actualizar fecha de modificación
@@ -119,11 +125,14 @@ async function migrarCamposTitular() {
 
                 if (resultado.modifiedCount === 1) {
                     migrados++;
-                    console.log(`   ✅ Migrado: ${vehiculo.serie} - ${vehiculo.titularTemporal || 'N/A'}`);
+                    console.log(
+                        `   ✅ Migrado: ${vehiculo.serie} - ${vehiculo.titularTemporal || 'N/A'}`
+                    );
                 } else {
-                    console.log(`   ⚠️  No se modificó: ${vehiculo.serie} - ${vehiculo.titularTemporal || 'N/A'}`);
+                    console.log(
+                        `   ⚠️  No se modificó: ${vehiculo.serie} - ${vehiculo.titularTemporal || 'N/A'}`
+                    );
                 }
-
             } catch (error) {
                 errores++;
                 console.error(`   ❌ Error migrando ${vehiculo.serie}: ${error.message}`);
@@ -145,26 +154,29 @@ async function migrarCamposTitular() {
 
         // Verificar que la migración fue exitosa
         console.log('\n🔍 Verificación final...');
-        const vehiculosConCamposTemporalesRestantes = await vehiclesCollection.find({
-            $or: [
-                { titularTemporal: { $exists: true } },
-                { rfcTemporal: { $exists: true } },
-                { telefonoTemporal: { $exists: true } },
-                { correoTemporal: { $exists: true } },
-                { calleTemporal: { $exists: true } },
-                { coloniaTemporal: { $exists: true } },
-                { municipioTemporal: { $exists: true } },
-                { estadoRegionTemporal: { $exists: true } },
-                { cpTemporal: { $exists: true } }
-            ]
-        }).toArray();
+        const vehiculosConCamposTemporalesRestantes = await vehiclesCollection
+            .find({
+                $or: [
+                    { titularTemporal: { $exists: true } },
+                    { rfcTemporal: { $exists: true } },
+                    { telefonoTemporal: { $exists: true } },
+                    { correoTemporal: { $exists: true } },
+                    { calleTemporal: { $exists: true } },
+                    { coloniaTemporal: { $exists: true } },
+                    { municipioTemporal: { $exists: true } },
+                    { estadoRegionTemporal: { $exists: true } },
+                    { cpTemporal: { $exists: true } }
+                ]
+            })
+            .toArray();
 
         if (vehiculosConCamposTemporalesRestantes.length === 0) {
             console.log('✅ Verificación exitosa: No quedan campos temporales en la base de datos');
         } else {
-            console.log(`⚠️  Quedan ${vehiculosConCamposTemporalesRestantes.length} vehículos con campos temporales`);
+            console.log(
+                `⚠️  Quedan ${vehiculosConCamposTemporalesRestantes.length} vehículos con campos temporales`
+            );
         }
-
     } catch (error) {
         console.error('❌ Error durante la migración:', error);
         process.exit(1);
@@ -181,7 +193,7 @@ if (require.main === module) {
     console.log('🚀 Iniciando migración de campos temporales a definitivos...');
     console.log('🎯 Target: titularTemporal -> titular, rfcTemporal -> rfc, etc.');
     console.log('📅 Fecha:', new Date().toLocaleString('es-MX'));
-    
+
     migrarCamposTitular();
 }
 

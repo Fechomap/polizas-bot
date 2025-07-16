@@ -78,7 +78,30 @@ class DocumentHandler {
                     return;
                 }
 
-                // PASO 3: No estamos esperando ningún documento - IGNORAR SILENCIOSAMENTE
+                // PASO 3: Verificar si estamos en flujo de Base de Autos
+                const baseAutosCommand = this.handler.registry
+                    .getAllCommands()
+                    .find(cmd => cmd.getCommandName() === 'base_autos');
+
+                if (
+                    baseAutosCommand &&
+                    typeof baseAutosCommand.procesarDocumentoBaseAutos === 'function'
+                ) {
+                    const procesadoPorBaseAutos = await baseAutosCommand.procesarDocumentoBaseAutos(
+                        ctx.message,
+                        ctx.from.id.toString()
+                    );
+
+                    if (procesadoPorBaseAutos) {
+                        logger.info('Documento procesado por Base de Autos', {
+                            chatId,
+                            fileName: ctx.message.document?.file_name
+                        });
+                        return;
+                    }
+                }
+
+                // PASO 4: No estamos esperando ningún documento - IGNORAR SILENCIOSAMENTE
                 // No responder nada - el bot simplemente ignora el archivo
             } catch (error) {
                 // Solo mostrar error si estamos en un contexto válido
@@ -137,7 +160,9 @@ class DocumentHandler {
                     const messageIdToDelete = this.handler.excelUploadMessages.get(chatId);
                     await ctx.telegram.deleteMessage(chatId, messageIdToDelete);
                     this.handler.excelUploadMessages.delete(chatId);
-                    logger.info(`Mensaje con botón "Cancelar Registro" eliminado para chat ${chatId}`);
+                    logger.info(
+                        `Mensaje con botón "Cancelar Registro" eliminado para chat ${chatId}`
+                    );
                 } catch (err) {
                     logger.error('Error al eliminar mensaje con botón "Cancelar Registro":', err);
                 }
@@ -175,11 +200,22 @@ class DocumentHandler {
     async processPdfUpload(ctx, numeroPoliza) {
         try {
             // Download file
+            console.log('FLUJO NORMAL - Documento recibido:', {
+                file_id: ctx.message.document.file_id,
+                file_name: ctx.message.document.file_name,
+                file_size: ctx.message.document.file_size,
+                mime_type: ctx.message.document.mime_type,
+                file_unique_id: ctx.message.document.file_unique_id
+            });
             const fileId = ctx.message.document.file_id;
             const fileLink = await ctx.telegram.getFileLink(fileId);
             const response = await fetch(fileLink.href);
+            console.log('FLUJO NORMAL - Response status:', response.status);
+            console.log('FLUJO NORMAL - Response headers:', response.headers.raw());
             if (!response.ok) throw new Error('Falló la descarga del documento');
             const buffer = await response.buffer();
+            console.log('FLUJO NORMAL - Buffer length:', buffer.length);
+            console.log('FLUJO NORMAL - Buffer primeros 100 bytes:', buffer.slice(0, 100).toString('hex'));
 
             // Subir PDF a Cloudflare R2
             const storage = getInstance();

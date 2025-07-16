@@ -139,7 +139,9 @@ class ExcelUploadHandler extends BaseCommand {
             const batches = Math.ceil(rows.length / BATCH_SIZE);
 
             // Mensaje de inicio del procesamiento
-            const progressMessage = await ctx.reply(`📊 Procesando ${rows.length} pólizas en ${batches} lotes...`);
+            const progressMessage = await ctx.reply(
+                `📊 Procesando ${rows.length} pólizas en ${batches} lotes...`
+            );
 
             for (let batchIndex = 0; batchIndex < batches; batchIndex++) {
                 const batchStart = batchIndex * BATCH_SIZE;
@@ -418,18 +420,18 @@ class ExcelUploadHandler extends BaseCommand {
 
         // Mapeo de campos técnicos a nombres amigables
         const fieldNames = {
-            'titular': 'TITULAR',
-            'rfc': 'RFC',
-            'marca': 'MARCA',
-            'submarca': 'SUBMARCA',
-            'año': 'AÑO',
-            'color': 'COLOR',
-            'serie': 'SERIE',
-            'placas': 'PLACAS',
-            'agenteCotizador': 'AGENTE COTIZADOR',
-            'aseguradora': 'ASEGURADORA',
-            'numeroPoliza': '# DE POLIZA',
-            'fechaEmision': 'FECHA DE EMISION'
+            titular: 'TITULAR',
+            rfc: 'RFC',
+            marca: 'MARCA',
+            submarca: 'SUBMARCA',
+            año: 'AÑO',
+            color: 'COLOR',
+            serie: 'SERIE',
+            placas: 'PLACAS',
+            agenteCotizador: 'AGENTE COTIZADOR',
+            aseguradora: 'ASEGURADORA',
+            numeroPoliza: '# DE POLIZA',
+            fechaEmision: 'FECHA DE EMISION'
         };
 
         // Campos obligatorios

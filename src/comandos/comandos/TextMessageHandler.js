@@ -92,11 +92,14 @@ class TextMessageHandler extends BaseCommand {
                 });
 
                 // Check for Base de Autos active flows
-                const baseAutosCommand = this.handler.registry.getAllCommands().find(
-                    cmd => cmd.getCommandName() === 'base_autos'
-                );
+                const baseAutosCommand = this.handler.registry
+                    .getAllCommands()
+                    .find(cmd => cmd.getCommandName() === 'base_autos');
 
-                if (baseAutosCommand && typeof baseAutosCommand.procesarMensajeBaseAutos === 'function') {
+                if (
+                    baseAutosCommand &&
+                    typeof baseAutosCommand.procesarMensajeBaseAutos === 'function'
+                ) {
                     const procesadoPorBaseAutos = await baseAutosCommand.procesarMensajeBaseAutos(
                         ctx.message,
                         userId
@@ -110,11 +113,57 @@ class TextMessageHandler extends BaseCommand {
 
                 // If not processed by Base de Autos, inform user
                 this.logInfo('[TextMsgHandler] Foto recibida pero no hay flujo activo');
-                await ctx.reply('📸 Foto recibida, pero no hay un registro de vehículo activo. Usa /base_autos para iniciar el registro.');
-
+                await ctx.reply(
+                    '📸 Foto recibida, pero no hay un registro de vehículo activo. Usa /base_autos para iniciar el registro.'
+                );
             } catch (error) {
                 this.logError('Error al procesar foto:', error);
                 await ctx.reply('❌ Error al procesar la foto. Intenta nuevamente.');
+            }
+        });
+
+        // Register document handler for Base de Autos policy assignment
+        this.bot.on('document', async ctx => {
+            try {
+                const chatId = ctx.chat.id;
+                const userId = ctx.from.id.toString();
+
+                this.logInfo('Documento recibido', {
+                    chatId,
+                    userId,
+                    fileName: ctx.message.document?.file_name,
+                    mimeType: ctx.message.document?.mime_type,
+                    size: ctx.message.document?.file_size
+                });
+
+                // Check for Base de Autos active flows
+                const baseAutosCommand = this.handler.registry
+                    .getAllCommands()
+                    .find(cmd => cmd.getCommandName() === 'base_autos');
+
+                if (
+                    baseAutosCommand &&
+                    typeof baseAutosCommand.procesarDocumentoBaseAutos === 'function'
+                ) {
+                    const procesadoPorBaseAutos = await baseAutosCommand.procesarDocumentoBaseAutos(
+                        ctx.message,
+                        userId
+                    );
+
+                    if (procesadoPorBaseAutos) {
+                        this.logInfo('[TextMsgHandler] Documento procesado por Base de Autos');
+                        return; // Documento procesado por Base de Autos
+                    }
+                }
+
+                // If not processed by Base de Autos, inform user
+                this.logInfo('[TextMsgHandler] Documento recibido pero no hay flujo activo');
+                await ctx.reply(
+                    '📎 Documento recibido, pero no hay un proceso activo que lo requiera.'
+                );
+            } catch (error) {
+                this.logError('Error al procesar documento:', error);
+                await ctx.reply('❌ Error al procesar el documento. Intenta nuevamente.');
             }
         });
 
@@ -147,11 +196,14 @@ class TextMessageHandler extends BaseCommand {
                 }
 
                 // Check for Base de Autos active flows
-                const baseAutosCommand = this.handler.registry.getAllCommands().find(
-                    cmd => cmd.getCommandName() === 'base_autos'
-                );
+                const baseAutosCommand = this.handler.registry
+                    .getAllCommands()
+                    .find(cmd => cmd.getCommandName() === 'base_autos');
 
-                if (baseAutosCommand && typeof baseAutosCommand.procesarMensajeBaseAutos === 'function') {
+                if (
+                    baseAutosCommand &&
+                    typeof baseAutosCommand.procesarMensajeBaseAutos === 'function'
+                ) {
                     const procesadoPorBaseAutos = await baseAutosCommand.procesarMensajeBaseAutos(
                         ctx.message,
                         ctx.from.id.toString()

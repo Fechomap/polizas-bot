@@ -30,7 +30,7 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
         test('debe manejar valores edge cases', () => {
             // threadId=0 es falsy, por lo que no se incluye
             expect(StateKeyManager.getContextKey(0, 0)).toBe('0');
-            // threadId='' es falsy, por lo que no se incluye  
+            // threadId='' es falsy, por lo que no se incluye
             expect(StateKeyManager.getContextKey('', '')).toBe('');
             // Solo threadId con valor truthy se incluye
             expect(StateKeyManager.getContextKey(0, 1)).toBe('0:1');
@@ -112,7 +112,7 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
             // Ahora que arreglamos el bug, debe manejar null/undefined correctamente
             expect(StateKeyManager.getThreadId(null)).toBeNull();
             expect(StateKeyManager.getThreadId(undefined)).toBeNull();
-            
+
             // También debe manejar otros tipos no válidos
             expect(StateKeyManager.getThreadId('string')).toBeNull();
             expect(StateKeyManager.getThreadId(123)).toBeNull();
@@ -139,10 +139,10 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
         test('debe almacenar y recuperar datos sin threadId', () => {
             const chatId = 12345;
             const data = { test: 'data' };
-            
+
             mapa.set(chatId, data);
             const resultado = mapa.get(chatId);
-            
+
             expect(resultado).toEqual(data);
         });
 
@@ -150,10 +150,10 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
             const chatId = 12345;
             const threadId = 67890;
             const data = { test: 'data con thread' };
-            
+
             mapa.set(chatId, data, threadId);
             const resultado = mapa.get(chatId, threadId);
-            
+
             expect(resultado).toEqual(data);
         });
 
@@ -161,10 +161,10 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
             const chatId = 12345;
             const data1 = { tipo: 'hilo1' };
             const data2 = { tipo: 'hilo2' };
-            
+
             mapa.set(chatId, data1, 111);
             mapa.set(chatId, data2, 222);
-            
+
             expect(mapa.get(chatId, 111)).toEqual(data1);
             expect(mapa.get(chatId, 222)).toEqual(data2);
             expect(mapa.get(chatId)).toBeUndefined(); // Sin threadId
@@ -173,19 +173,19 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
         test('debe sobrescribir datos existentes', () => {
             const chatId = 12345;
             const threadId = 67890;
-            
+
             mapa.set(chatId, 'primer dato', threadId);
             mapa.set(chatId, 'segundo dato', threadId);
-            
+
             expect(mapa.get(chatId, threadId)).toBe('segundo dato');
         });
 
         test('debe verificar existencia con has()', () => {
             const chatId = 12345;
             const threadId = 67890;
-            
+
             expect(mapa.has(chatId, threadId)).toBe(false);
-            
+
             mapa.set(chatId, 'data', threadId);
             expect(mapa.has(chatId, threadId)).toBe(true);
         });
@@ -193,10 +193,10 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
         test('debe eliminar entradas específicas', () => {
             const chatId = 12345;
             const threadId = 67890;
-            
+
             mapa.set(chatId, 'data', threadId);
             expect(mapa.has(chatId, threadId)).toBe(true);
-            
+
             mapa.delete(chatId, threadId);
             expect(mapa.has(chatId, threadId)).toBe(false);
             expect(mapa.get(chatId, threadId)).toBeUndefined();
@@ -205,12 +205,12 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
         test('debe limpiar todo el mapa', () => {
             mapa.set(123, 'data1');
             mapa.set(456, 'data2', 789);
-            
+
             expect(mapa.has(123)).toBe(true);
             expect(mapa.has(456, 789)).toBe(true);
-            
+
             mapa.clear();
-            
+
             expect(mapa.has(123)).toBe(false);
             expect(mapa.has(456, 789)).toBe(false);
         });
@@ -225,10 +225,10 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
                 undefined: undefined,
                 null: null
             };
-            
+
             mapa.set(chatId, datosComplejos);
             const resultado = mapa.get(chatId);
-            
+
             expect(resultado).toEqual(datosComplejos);
             expect(resultado.array).toEqual([1, 2, 3]);
             expect(resultado.objeto.nested).toBe(true);
@@ -239,30 +239,30 @@ describe('StateKeyManager - Gestión de estados thread-safe', () => {
     describe('Integración - Casos de uso reales', () => {
         test('debe simular flujo completo de callback', () => {
             const mapa = StateKeyManager.createThreadSafeStateMap();
-            
+
             // Simular contexto de Telegram
             const ctx = {
                 chat: { id: -123456789 },
                 message: { message_thread_id: 999 },
                 callbackQuery: { data: 'ocupar_POL-001' }
             };
-            
+
             const chatId = ctx.chat.id;
             const threadId = StateKeyManager.getThreadId(ctx);
-            
+
             // Almacenar estado pendiente
             const estadoPendiente = {
                 numeroPoliza: 'POL-001',
                 usuario: 'test_user',
                 timestamp: Date.now()
             };
-            
+
             mapa.set(chatId, estadoPendiente, threadId);
-            
+
             // Verificar que se puede recuperar
             const estadoRecuperado = mapa.get(chatId, threadId);
             expect(estadoRecuperado).toEqual(estadoPendiente);
-            
+
             // Simular cleanup al finalizar
             mapa.delete(chatId, threadId);
             expect(mapa.has(chatId, threadId)).toBe(false);

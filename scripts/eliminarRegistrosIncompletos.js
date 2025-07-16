@@ -13,7 +13,9 @@ async function eliminarRegistrosIncompletos() {
         console.log('🔌 Conectando a MongoDB...');
         const mongoURI = process.env.MONGO_URI;
         if (!mongoURI) {
-            throw new Error('La variable de entorno MONGO_URI no está definida. Verifica tu archivo .env');
+            throw new Error(
+                'La variable de entorno MONGO_URI no está definida. Verifica tu archivo .env'
+            );
         }
         await mongoose.connect(mongoURI);
         console.log('✅ Conectado a MongoDB');
@@ -21,7 +23,7 @@ async function eliminarRegistrosIncompletos() {
         // Los números de serie específicos que queremos eliminar
         const seriesAEliminar = [
             '12345678901234567', // Ford Focus 2020 Negro PERMISO
-            '12345678901234568'  // OK UHYG 2020 GFD GFD
+            '12345678901234568' // OK UHYG 2020 GFD GFD
         ];
 
         console.log('\n📋 Series a verificar y eliminar:');
@@ -31,23 +33,29 @@ async function eliminarRegistrosIncompletos() {
 
         // Primero verificar que los vehículos existen y mostrar información
         console.log('\n🔍 Verificando vehículos a eliminar...');
-        
+
         for (const serie of seriesAEliminar) {
             const vehiculo = await Vehicle.findOne({ serie: serie });
-            
+
             if (vehiculo) {
                 console.log(`\n✅ ENCONTRADO - Serie: ${serie}`);
-                console.log(`   🚗 Vehículo: ${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}`);
+                console.log(
+                    `   🚗 Vehículo: ${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}`
+                );
                 console.log(`   🎨 Color: ${vehiculo.color}`);
                 console.log(`   🚙 Placas: ${vehiculo.placas || 'Sin placas'}`);
                 console.log(`   👤 Titular: ${vehiculo.titularTemporal}`);
                 console.log(`   📊 Estado: ${vehiculo.estado}`);
-                console.log(`   📅 Creado: ${vehiculo.createdAt?.toLocaleDateString('es-MX') || 'N/A'}`);
+                console.log(
+                    `   📅 Creado: ${vehiculo.createdAt?.toLocaleDateString('es-MX') || 'N/A'}`
+                );
                 console.log(`   🆔 ID: ${vehiculo._id}`);
-                
+
                 // Verificar que no tenga póliza asignada
                 if (vehiculo.estado === 'CON_POLIZA') {
-                    console.log('   ⚠️  ADVERTENCIA: Este vehículo YA TIENE PÓLIZA - NO se eliminará');
+                    console.log(
+                        '   ⚠️  ADVERTENCIA: Este vehículo YA TIENE PÓLIZA - NO se eliminará'
+                    );
                 }
             } else {
                 console.log(`\n❌ NO ENCONTRADO - Serie: ${serie}`);
@@ -70,10 +78,10 @@ async function eliminarRegistrosIncompletos() {
         console.log('Este script eliminará PERMANENTEMENTE los vehículos listados arriba.');
         console.log('Para continuar, descomenta la línea "SAFETY_CONFIRMED" en el código.');
         console.log('Para cancelar, presiona Ctrl+C ahora.');
-        
+
         // SAFETY CHECK - Descomenta esta línea solo después de verificar manualmente
         const SAFETY_CONFIRMED = true;
-        
+
         if (typeof SAFETY_CONFIRMED === 'undefined') {
             console.log('\n🛑 OPERACIÓN CANCELADA POR SEGURIDAD');
             console.log('Para ejecutar la eliminación:');
@@ -106,44 +114,49 @@ async function eliminarRegistrosIncompletos() {
 
         // Proceder con la eliminación solo si hay confirmación
         console.log('\n🗑️  Procediendo con la eliminación...');
-        
+
         let eliminados = 0;
         let noEliminados = 0;
 
         for (const serie of seriesAEliminar) {
             // TRIPLE VERIFICACIÓN ANTES DE ELIMINAR
-            const vehiculo = await Vehicle.findOne({ 
+            const vehiculo = await Vehicle.findOne({
                 serie: serie,
                 estado: 'SIN_POLIZA' // Solo eliminar si NO tiene póliza
             });
-            
+
             if (vehiculo) {
                 // VERIFICACIÓN FINAL: Confirmar que es exactamente el vehículo que queremos eliminar
-                const esVehiculoCorrecto = (
+                const esVehiculoCorrecto =
                     vehiculo.serie === serie &&
                     vehiculo.estado === 'SIN_POLIZA' &&
-                    !vehiculo.polizaId // Asegurar que no tiene póliza vinculada
-                );
+                    !vehiculo.polizaId; // Asegurar que no tiene póliza vinculada
 
                 if (esVehiculoCorrecto) {
                     // Eliminar el vehículo
-                    await Vehicle.deleteOne({ 
+                    await Vehicle.deleteOne({
                         _id: vehiculo._id,
                         serie: serie, // Doble verificación en la query de eliminación
                         estado: 'SIN_POLIZA'
                     });
                     eliminados++;
-                    console.log(`   ✅ ELIMINADO: ${vehiculo.marca} ${vehiculo.submarca} (${serie})`);
+                    console.log(
+                        `   ✅ ELIMINADO: ${vehiculo.marca} ${vehiculo.submarca} (${serie})`
+                    );
                 } else {
                     noEliminados++;
-                    console.log(`   ⚠️  NO ELIMINADO: ${vehiculo.marca} ${vehiculo.submarca} (${serie}) - Falló verificación de seguridad`);
+                    console.log(
+                        `   ⚠️  NO ELIMINADO: ${vehiculo.marca} ${vehiculo.submarca} (${serie}) - Falló verificación de seguridad`
+                    );
                 }
             } else {
                 // Verificar si existe pero con póliza
                 const vehiculoConPoliza = await Vehicle.findOne({ serie: serie });
                 if (vehiculoConPoliza) {
                     noEliminados++;
-                    console.log(`   ⚠️  NO ELIMINADO: ${vehiculoConPoliza.marca} ${vehiculoConPoliza.submarca} (${serie}) - Tiene póliza asignada`);
+                    console.log(
+                        `   ⚠️  NO ELIMINADO: ${vehiculoConPoliza.marca} ${vehiculoConPoliza.submarca} (${serie}) - Tiene póliza asignada`
+                    );
                 } else {
                     console.log(`   ℹ️  NO ENCONTRADO: Serie ${serie} - Ya no existe`);
                 }
@@ -183,7 +196,6 @@ async function eliminarRegistrosIncompletos() {
         } else {
             console.log('✅ No quedan vehículos con las series especificadas');
         }
-
     } catch (error) {
         console.error('❌ Error durante la eliminación:', error);
         process.exit(1);
@@ -200,7 +212,7 @@ if (require.main === module) {
     console.log('🚀 Iniciando script de eliminación de registros incompletos...');
     console.log('🎯 Target: Vehículos con series específicas SIN póliza');
     console.log('📅 Fecha:', new Date().toLocaleString('es-MX'));
-    
+
     eliminarRegistrosIncompletos();
 }
 

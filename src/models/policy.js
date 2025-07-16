@@ -18,7 +18,8 @@ const r2FileSchema = new mongoose.Schema(
         size: { type: Number, required: true },
         contentType: { type: String, required: true },
         uploadedAt: { type: Date, default: Date.now },
-        originalName: { type: String, required: false }
+        originalName: { type: String, required: false },
+        fuenteOriginal: { type: String, required: false } // Para BD AUTOS: 'vehiculo_bd_autos'
     },
     { _id: false }
 );
@@ -287,6 +288,21 @@ const policySchema = new mongoose.Schema(
         motivoEliminacion: {
             type: String,
             default: ''
+        },
+
+        // Campos para BD AUTOS
+        vehicleId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Vehicle',
+            default: null
+        },
+        creadoViaOBD: {
+            type: Boolean,
+            default: false
+        },
+        asignadoPor: {
+            type: String,
+            default: null
         }
     },
     {

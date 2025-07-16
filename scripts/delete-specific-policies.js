@@ -21,7 +21,7 @@ async function connectToDatabase() {
     try {
         await mongoose.connect(process.env.MONGO_URI, {
             useNewUrlParser: true,
-            useUnifiedTopology: true,
+            useUnifiedTopology: true
         });
         console.log('✅ Conectado a MongoDB');
     } catch (error) {
@@ -129,7 +129,9 @@ async function main() {
         }
 
         // Paso 2: Confirmar eliminación
-        console.log('\n⚠️  ADVERTENCIA: Esta acción eliminará FÍSICAMENTE las pólizas de la base de datos.');
+        console.log(
+            '\n⚠️  ADVERTENCIA: Esta acción eliminará FÍSICAMENTE las pólizas de la base de datos.'
+        );
         console.log('⚠️  Esta acción NO se puede deshacer.');
         console.log('\n🔄 Procediendo con la eliminación en 3 segundos...');
 
@@ -144,7 +146,6 @@ async function main() {
         if (result.deletedPolicies.length > 0) {
             console.log('✅ Las pólizas han sido eliminadas físicamente de la base de datos.');
         }
-
     } catch (error) {
         console.error('❌ Error en el proceso principal:', error);
     } finally {

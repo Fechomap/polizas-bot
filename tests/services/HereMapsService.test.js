@@ -13,7 +13,7 @@ jest.mock('../../src/utils/logger', () => ({
 
 describe('HereMapsService', () => {
     let hereMapsService;
-    
+
     beforeEach(() => {
         hereMapsService = new HereMapsService();
         // Mock API key for testing
@@ -62,7 +62,8 @@ describe('HereMapsService', () => {
         });
 
         test('should parse Google Maps URLs with !3d!4d format', () => {
-            const url = 'https://www.google.com/maps/place/@19.4326,-99.1332,15z/data=!3d19.4326!4d-99.1332';
+            const url =
+                'https://www.google.com/maps/place/@19.4326,-99.1332,15z/data=!3d19.4326!4d-99.1332';
             const result = hereMapsService.parseCoordinates(url);
             expect(result).toEqual({ lat: 19.4326, lng: -99.1332 });
         });
@@ -76,18 +77,22 @@ describe('HereMapsService', () => {
 
     describe('calculateRoute', () => {
         const origen = { lat: 19.4326, lng: -99.1332 };
-        const destino = { lat: 19.5000, lng: -99.2000 };
+        const destino = { lat: 19.5, lng: -99.2 };
 
         test('should calculate route successfully', async () => {
             const mockResponse = {
-                routes: [{
-                    sections: [{
-                        summary: {
-                            length: 15000, // 15 km in meters
-                            duration: 1800 // 30 minutes in seconds
-                        }
-                    }]
-                }]
+                routes: [
+                    {
+                        sections: [
+                            {
+                                summary: {
+                                    length: 15000, // 15 km in meters
+                                    duration: 1800 // 30 minutes in seconds
+                                }
+                            }
+                        ]
+                    }
+                ]
             };
 
             fetch.mockResolvedValueOnce({
@@ -96,7 +101,7 @@ describe('HereMapsService', () => {
             });
 
             const result = await hereMapsService.calculateRoute(origen, destino);
-            
+
             expect(result).toMatchObject({
                 distanciaKm: 15,
                 tiempoMinutos: 30,
@@ -109,7 +114,7 @@ describe('HereMapsService', () => {
             fetch.mockRejectedValueOnce(new Error('Network error'));
 
             const result = await hereMapsService.calculateRoute(origen, destino);
-            
+
             expect(result).toHaveProperty('distanciaKm');
             expect(result).toHaveProperty('tiempoMinutos');
             expect(result).toHaveProperty('googleMapsUrl');
@@ -125,36 +130,40 @@ describe('HereMapsService', () => {
             });
 
             const result = await hereMapsService.calculateRoute(origen, destino);
-            
+
             expect(result).toHaveProperty('aproximado', true);
         });
 
         test('should throw error for invalid coordinates', async () => {
-            await expect(hereMapsService.calculateRoute(null, destino))
-                .rejects.toThrow('Invalid coordinates provided');
-            
-            await expect(hereMapsService.calculateRoute(origen, null))
-                .rejects.toThrow('Invalid coordinates provided');
-            
-            await expect(hereMapsService.calculateRoute({ lat: 'invalid' }, destino))
-                .rejects.toThrow('Invalid coordinates provided');
+            await expect(hereMapsService.calculateRoute(null, destino)).rejects.toThrow(
+                'Invalid coordinates provided'
+            );
+
+            await expect(hereMapsService.calculateRoute(origen, null)).rejects.toThrow(
+                'Invalid coordinates provided'
+            );
+
+            await expect(
+                hereMapsService.calculateRoute({ lat: 'invalid' }, destino)
+            ).rejects.toThrow('Invalid coordinates provided');
         });
 
         test('should throw error when API key is not configured', async () => {
             hereMapsService.apiKey = null;
-            
-            await expect(hereMapsService.calculateRoute(origen, destino))
-                .rejects.toThrow('HERE Maps API key not configured');
+
+            await expect(hereMapsService.calculateRoute(origen, destino)).rejects.toThrow(
+                'HERE Maps API key not configured'
+            );
         });
     });
 
     describe('calculateHaversineDistance', () => {
         test('should calculate distance between two points', () => {
             const origen = { lat: 19.4326, lng: -99.1332 };
-            const destino = { lat: 19.5000, lng: -99.2000 };
-            
+            const destino = { lat: 19.5, lng: -99.2 };
+
             const distance = hereMapsService.calculateHaversineDistance(origen, destino);
-            
+
             expect(distance).toBeGreaterThan(0);
             expect(distance).toBeLessThan(100); // Should be reasonable distance
         });
@@ -162,7 +171,7 @@ describe('HereMapsService', () => {
         test('should return 0 for same coordinates', () => {
             const coords = { lat: 19.4326, lng: -99.1332 };
             const distance = hereMapsService.calculateHaversineDistance(coords, coords);
-            
+
             expect(distance).toBe(0);
         });
     });
@@ -170,10 +179,10 @@ describe('HereMapsService', () => {
     describe('generateGoogleMapsUrl', () => {
         test('should generate correct Google Maps URL', () => {
             const origen = { lat: 19.4326, lng: -99.1332 };
-            const destino = { lat: 19.5000, lng: -99.2000 };
-            
+            const destino = { lat: 19.5, lng: -99.2 };
+
             const url = hereMapsService.generateGoogleMapsUrl(origen, destino);
-            
+
             expect(url).toBe('https://www.google.com/maps/dir/19.4326,-99.1332/19.5,-99.2');
         });
     });
@@ -181,14 +190,18 @@ describe('HereMapsService', () => {
     describe('processUserInput', () => {
         test('should process coordinate input successfully', async () => {
             const mockResponse = {
-                routes: [{
-                    sections: [{
-                        summary: {
-                            length: 10000,
-                            duration: 1200
-                        }
-                    }]
-                }]
+                routes: [
+                    {
+                        sections: [
+                            {
+                                summary: {
+                                    length: 10000,
+                                    duration: 1200
+                                }
+                            }
+                        ]
+                    }
+                ]
             };
 
             fetch.mockResolvedValueOnce({
@@ -197,7 +210,7 @@ describe('HereMapsService', () => {
             });
 
             const result = await hereMapsService.processUserInput(
-                '19.1234,-99.5678', 
+                '19.1234,-99.5678',
                 '19.5678,-99.1234'
             );
 
@@ -209,7 +222,7 @@ describe('HereMapsService', () => {
 
         test('should handle invalid origin coordinates', async () => {
             const result = await hereMapsService.processUserInput(
-                'invalid-origin', 
+                'invalid-origin',
                 '19.5678,-99.1234'
             );
 
@@ -221,7 +234,7 @@ describe('HereMapsService', () => {
 
         test('should handle invalid destination coordinates', async () => {
             const result = await hereMapsService.processUserInput(
-                '19.1234,-99.5678', 
+                '19.1234,-99.5678',
                 'invalid-destination'
             );
 
@@ -235,7 +248,7 @@ describe('HereMapsService', () => {
             fetch.mockRejectedValueOnce(new Error('API Error'));
 
             const result = await hereMapsService.processUserInput(
-                '19.1234,-99.5678', 
+                '19.1234,-99.5678',
                 '19.5678,-99.1234'
             );
 

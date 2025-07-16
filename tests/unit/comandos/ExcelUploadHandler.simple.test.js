@@ -50,9 +50,18 @@ describe('ExcelUploadHandler - Simple Tests', () => {
 
         test('should validate headers correctly', () => {
             const validHeaders = [
-                'TITULAR', 'RFC', 'MARCA', 'SUBMARCA', 'AÑO', 'COLOR',
-                'SERIE', 'PLACAS', 'AGENTE COTIZADOR', 'ASEGURADORA',
-                '# DE POLIZA', 'FECHA DE EMISION'
+                'TITULAR',
+                'RFC',
+                'MARCA',
+                'SUBMARCA',
+                'AÑO',
+                'COLOR',
+                'SERIE',
+                'PLACAS',
+                'AGENTE COTIZADOR',
+                'ASEGURADORA',
+                '# DE POLIZA',
+                'FECHA DE EMISION'
             ];
             expect(handler.validateHeaders(validHeaders)).toBe(true);
             expect(handler.validateHeaders(['INVALID', 'HEADERS'])).toBe(false);
@@ -97,12 +106,12 @@ describe('ExcelUploadHandler - Simple Tests', () => {
     describe('State Management', () => {
         test('should manage awaiting Excel upload state', () => {
             const chatId = 12345;
-            
+
             expect(handler.awaitingExcelUpload.has(chatId)).toBe(false);
-            
+
             handler.setAwaitingExcelUpload(chatId, true);
             expect(handler.awaitingExcelUpload.get(chatId)).toBe(true);
-            
+
             handler.setAwaitingExcelUpload(chatId, false);
             expect(handler.awaitingExcelUpload.has(chatId)).toBe(false);
         });

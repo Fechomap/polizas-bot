@@ -17,9 +17,7 @@ function getMainKeyboard() {
             Markup.button.callback('📊 REPORTES', 'accion:reportes'),
             Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
         ],
-        [
-            Markup.button.callback('❓ AYUDA', 'accion:help')
-        ]
+        [Markup.button.callback('❓ AYUDA', 'accion:help')]
     ]);
 }
 
@@ -28,15 +26,9 @@ function getMainKeyboard() {
  */
 function getBaseAutosKeyboard() {
     return Markup.inlineKeyboard([
-        [
-            Markup.button.callback('🚗 Registrar Auto', 'base_autos:registrar')
-        ],
-        [
-            Markup.button.callback('📄 Asegurar Auto', 'base_autos:asegurar')
-        ],
-        [
-            Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')
-        ]
+        [Markup.button.callback('🚗 Registrar Auto', 'base_autos:registrar')],
+        [Markup.button.callback('📄 Asegurar Auto', 'base_autos:asegurar')],
+        [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
     ]);
 }
 
@@ -56,10 +48,7 @@ function getCancelKeyboard() {
  */
 function getFinalizarKeyboard() {
     return {
-        keyboard: [
-            ['✅ Finalizar'],
-            ['❌ Cancelar']
-        ],
+        keyboard: [['✅ Finalizar'], ['❌ Cancelar']],
         resize_keyboard: true,
         one_time_keyboard: false
     };
