@@ -179,8 +179,8 @@ async function exportExcelStream() {
                     doc.totalServicios !== undefined
                         ? doc.totalServicios
                         : doc.servicios
-                          ? doc.servicios.length
-                          : 0,
+                            ? doc.servicios.length
+                            : 0,
                 calificacion: doc.calificacion !== undefined ? doc.calificacion : 0
             };
 

@@ -96,7 +96,7 @@ class MediaUploadHandler extends BaseCommand {
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const numeroPoliza = this.uploadTargets.get(chatId, threadId);
-                
+
                 // Solo responder si estamos en contexto de subida válido
                 if (numeroPoliza) {
                     this.logError('Error al procesar foto:', error);

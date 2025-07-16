@@ -229,7 +229,8 @@ class SimpleScriptsHandler {
                 if (preview.preview.examplePolicies.length > 0) {
                     previewMessage += '📝 **Ejemplos de pólizas a eliminar:**\n';
                     preview.preview.examplePolicies.forEach((pol, index) => {
-                        if (index < 3) { // Mostrar máximo 3 ejemplos
+                        if (index < 3) {
+                            // Mostrar máximo 3 ejemplos
                             previewMessage += `   • ${pol.numeroPoliza} (${pol.titular}) - ${pol.servicios} servicios\n`;
                         }
                     });
@@ -245,7 +246,10 @@ class SimpleScriptsHandler {
                 const { Markup } = require('telegraf');
                 const keyboard = Markup.inlineKeyboard([
                     [
-                        Markup.button.callback('✅ Confirmar y Ejecutar', 'admin_autocleanup_confirm'),
+                        Markup.button.callback(
+                            '✅ Confirmar y Ejecutar',
+                            'admin_autocleanup_confirm'
+                        ),
                         Markup.button.callback('❌ Cancelar', 'admin_autocleanup_cancel')
                     ]
                 ]);
@@ -268,7 +272,6 @@ class SimpleScriptsHandler {
                     messageId: startMsg.message_id,
                     preview: preview.preview
                 });
-
             } else {
                 // Error al generar resumen
                 await ctx.telegram.editMessageText(
@@ -315,9 +318,7 @@ class SimpleScriptsHandler {
             // Ejecutar limpieza automática
             const result = await this.autoCleanupService.executeAutoCleanup();
 
-            const elapsed = Math.floor(
-                (Date.now() - sessionData.startTime) / 1000
-            );
+            const elapsed = Math.floor((Date.now() - sessionData.startTime) / 1000);
 
             if (result.success) {
                 // Mensaje de éxito
@@ -345,9 +346,7 @@ class SimpleScriptsHandler {
                 await ctx.editMessageText(errorMessage, { parse_mode: 'Markdown' });
             }
         } catch (error) {
-            const elapsed = Math.floor(
-                (Date.now() - sessionData.startTime) / 1000
-            );
+            const elapsed = Math.floor((Date.now() - sessionData.startTime) / 1000);
 
             let errorMessage = '❌ *Error Crítico en Limpieza*\n\n';
             errorMessage += `⏱️ Tiempo transcurrido: ${elapsed}s\n`;
