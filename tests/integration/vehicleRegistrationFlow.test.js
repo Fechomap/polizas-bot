@@ -109,7 +109,7 @@ describe('Flujo Completo de Registro de Vehículos - Test de Fotos', () => {
         color: 'Blanco',
         serie: '1HGBH41JXMN109186',
         placas: 'ABC-123-D',
-        titularTemporal: 'Juan Pérez García'
+        titular: 'Juan Pérez García'
       }
     });
     VehicleController.vincularFotosCloudflare.mockResolvedValue({ success: true });

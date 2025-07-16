@@ -144,7 +144,7 @@ describe('Base de Autos - Flujo de Integración Completo', () => {
       expect(vehiculo.color).toBe('Blanco');
       expect(vehiculo.placas).toBe('ABC-123-D');
       expect(vehiculo.estado).toBe('SIN_POLIZA');
-      expect(vehiculo.titularTemporal).toBe('Juan Pérez García');
+      expect(vehiculo.titular).toBe('Juan Pérez García');
 
       console.log('✅ FASE 1 COMPLETADA - Auto registrado exitosamente');
 
@@ -254,10 +254,10 @@ describe('Base de Autos - Flujo de Integración Completo', () => {
         año: 2022,
         color: 'Negro',
         placas: 'XYZ-456-E',
-        titularTemporal: 'María García',
-        rfcTemporal: 'GARM900215M2A',
-        telefonoTemporal: '+52 55 9876 5432',
-        correoTemporal: 'maria@test.com',
+        titular: 'María García',
+        rfc: 'GARM900215M2A',
+        telefono: '+52 55 9876 5432',
+        correo: 'maria@test.com',
         creadoPor: 'user999',
         estado: 'SIN_POLIZA'
       });
@@ -286,10 +286,10 @@ describe('Base de Autos - Flujo de Integración Completo', () => {
         año: 2023,
         color: 'Blanco',
         placas: 'ABC-123-D',
-        titularTemporal: 'Juan Pérez García',
-        rfcTemporal: 'PEGJ850312H7A',
-        telefonoTemporal: '+52 55 1234 5678',
-        correoTemporal: 'juan@test.com',
+        titular: 'Juan Pérez García',
+        rfc: 'PEGJ850312H7A',
+        telefono: '+52 55 1234 5678',
+        correo: 'juan@test.com',
         creadoPor: 'user123',
         estado: 'SIN_POLIZA'
       });
@@ -341,10 +341,10 @@ describe('Base de Autos - Flujo de Integración Completo', () => {
         año: 2023,
         color: 'Blanco',
         placas: 'ABC-123-D',
-        titularTemporal: 'Juan Pérez García',
-        rfcTemporal: 'PEGJ850312H7A',
-        telefonoTemporal: '+52 55 1234 5678',
-        correoTemporal: 'juan@test.com',
+        titular: 'Juan Pérez García',
+        rfc: 'PEGJ850312H7A',
+        telefono: '+52 55 1234 5678',
+        correo: 'juan@test.com',
         creadoPor: 'user123',
         estado: 'SIN_POLIZA'
       });

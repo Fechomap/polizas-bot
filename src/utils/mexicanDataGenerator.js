@@ -23,7 +23,12 @@ const APELLIDOS = [
     'Ramírez', 'Cruz', 'Flores', 'Gómez', 'Díaz', 'Reyes', 'Morales', 'Jiménez',
     'Gutiérrez', 'Ruiz', 'Muñoz', 'Álvarez', 'Castillo', 'Torres', 'Vargas', 'Ramos',
     'Castro', 'Ortega', 'Silva', 'Mendoza', 'Moreno', 'Guerrero', 'Medina', 'Romero',
-    'Vázquez', 'Contreras', 'Aguilar', 'Herrera', 'Luna', 'Delgado', 'Vega', 'Campos'
+    'Vázquez', 'Contreras', 'Aguilar', 'Herrera', 'Luna', 'Delgado', 'Vega', 'Campos',
+    'Navarro', 'Blanco', 'Salinas', 'Estrada', 'Espinoza', 'Acosta', 'Cervantes', 'Fuentes',
+    'Domínguez', 'Cabrera', 'Valdez', 'Villa', 'Franco', 'Sandoval', 'Velasco', 'Pacheco',
+    'Núñez', 'Ibarra', 'Montoya', 'Paredes', 'Carrasco', 'Maldonado', 'Zavala', 'Quiroz',
+    'Cordero', 'Figueroa', 'Bermúdez', 'Ríos', 'Valencia', 'Camacho', 'Vega', 'Trejo',
+    'Galván', 'Cortés', 'Marín', 'Solís', 'Peña', 'Lara', 'Ávila', 'Cárdenas'
 ];
 
 // Estados y ciudades de México
@@ -89,9 +94,9 @@ function generarRFC(persona) {
     const segundoApellido = apellido2.charAt(0).toUpperCase();
     const primerNombre = nombre.charAt(0).toUpperCase();
 
-    // Generar fecha de nacimiento aleatoria (18-80 años)
+    // Generar fecha de nacimiento para personas de 35-45 años
     const añoActual = new Date().getFullYear();
-    const añoNacimiento = añoActual - Math.floor(Math.random() * 62) - 18; // 18-80 años
+    const añoNacimiento = añoActual - Math.floor(Math.random() * 11) - 35; // 35-45 años
     const mes = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
     const dia = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
 
@@ -110,26 +115,11 @@ function generarRFC(persona) {
 
 /**
  * Genera un teléfono mexicano válido
- * @returns {string} Teléfono en formato +52 XX XXXX XXXX
+ * @returns {string} 'Sin teléfono' como valor por defecto
  */
 function generarTelefonoMexicano() {
-    // Códigos de área comunes en México
-    const codigosArea = ['55', '33', '81', '222', '229', '477', '614', '662', '443', '771'];
-    const codigoArea = codigosArea[Math.floor(Math.random() * codigosArea.length)];
-
-    // Generar número de 7 u 8 dígitos según el código de área
-    const longitudNumero = codigoArea.length === 2 ? 8 : 7;
-    let numero = '';
-
-    for (let i = 0; i < longitudNumero; i++) {
-        numero += Math.floor(Math.random() * 10);
-    }
-
-    // Formatear como +52 XX XXXX XXXX
-    const parte1 = numero.substring(0, 4);
-    const parte2 = numero.substring(4);
-
-    return `+52 ${codigoArea} ${parte1} ${parte2}`;
+    // Por ahora retornamos 'Sin teléfono' para evitar problemas con validación
+    return 'Sin teléfono';
 }
 
 /**
@@ -191,8 +181,26 @@ function generarDatosMexicanosCompletos(genero = null) {
         correo,
         ...direccion,
         // Contraseña temporal aleatoria
-        contraseña: Math.random().toString(36).slice(-8)
+        contraseña: Math.random().toString(36).slice(-8),
+        // Datos adicionales para coherencia del RFC
+        fechaNacimiento: calcularFechaNacimientoDesdeRFC(rfc)
     };
+}
+
+/**
+ * Calcula la fecha de nacimiento a partir del RFC
+ * @param {string} rfc - RFC de 13 caracteres
+ * @returns {Date} Fecha de nacimiento
+ */
+function calcularFechaNacimientoDesdeRFC(rfc) {
+    const añoRFC = parseInt(rfc.substr(4, 2));
+    const mesRFC = parseInt(rfc.substr(6, 2));
+    const diaRFC = parseInt(rfc.substr(8, 2));
+    
+    // Determinar si es siglo XX o XXI
+    const añoCompleto = añoRFC > 30 ? 1900 + añoRFC : 2000 + añoRFC;
+    
+    return new Date(añoCompleto, mesRFC - 1, diaRFC);
 }
 
 module.exports = {
@@ -200,5 +208,6 @@ module.exports = {
     generarRFC,
     generarTelefonoMexicano,
     generarDireccionMexicana,
-    generarDatosMexicanosCompletos
+    generarDatosMexicanosCompletos,
+    calcularFechaNacimientoDesdeRFC
 };

@@ -41,15 +41,15 @@ class VehicleController {
                 placas: vehicleData.placas ? vehicleData.placas.toUpperCase() : '',
 
                 // Datos temporales generados
-                titularTemporal: datosTemporal.titular,
-                rfcTemporal: datosTemporal.rfc,
-                telefonoTemporal: datosTemporal.telefono,
-                correoTemporal: datosTemporal.correo,
-                calleTemporal: datosTemporal.calle,
-                coloniaTemporal: datosTemporal.colonia,
-                municipioTemporal: datosTemporal.municipio,
-                estadoRegionTemporal: datosTemporal.estadoRegion,
-                cpTemporal: datosTemporal.cp,
+                titular: datosTemporal.titular,
+                rfc: datosTemporal.rfc,
+                telefono: datosTemporal.telefono,
+                correo: datosTemporal.correo,
+                calle: datosTemporal.calle,
+                colonia: datosTemporal.colonia,
+                municipio: datosTemporal.municipio,
+                estadoRegion: datosTemporal.estadoRegion,
+                cp: datosTemporal.cp,
 
                 // Metadatos
                 creadoPor: userId,
@@ -230,7 +230,7 @@ class VehicleController {
                     $or: [
                         { serie: new RegExp(termino, 'i') },
                         { placas: new RegExp(termino, 'i') },
-                        { titularTemporal: new RegExp(termino, 'i') }
+                        { titular: new RegExp(termino, 'i') }
                     ],
                     estado: { $ne: 'ELIMINADO' }
                 });
@@ -354,8 +354,8 @@ class VehicleController {
             // Campos permitidos para actualizar
             const camposPermitidos = [
                 'marca', 'submarca', 'año', 'color', 'placas', 'notas',
-                'titularTemporal', 'rfcTemporal', 'telefonoTemporal', 'correoTemporal',
-                'calleTemporal', 'coloniaTemporal', 'municipioTemporal', 'estadoRegionTemporal', 'cpTemporal'
+                'titular', 'rfc', 'telefono', 'correo',
+                'calle', 'colonia', 'municipio', 'estadoRegion', 'cp'
             ];
 
             camposPermitidos.forEach(campo => {

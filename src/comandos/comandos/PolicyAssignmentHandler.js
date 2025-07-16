@@ -9,10 +9,10 @@ const ESTADOS_ASIGNACION = {
     SELECCIONANDO_VEHICULO: 'seleccionando_vehiculo',
     ESPERANDO_NUMERO_POLIZA: 'esperando_numero_poliza',
     ESPERANDO_ASEGURADORA: 'esperando_aseguradora',
-    ESPERANDO_AGENTE: 'esperando_agente',
-    ESPERANDO_FECHA_EMISION: 'esperando_fecha_emision',
-    ESPERANDO_FECHA_FIN: 'esperando_fecha_fin',
-    ESPERANDO_PAGOS: 'esperando_pagos',
+    ESPERANDO_NOMBRE_PERSONA: 'esperando_nombre_persona',
+    SELECCIONANDO_FECHA_EMISION: 'seleccionando_fecha_emision',
+    ESPERANDO_PRIMER_PAGO: 'esperando_primer_pago',
+    ESPERANDO_SEGUNDO_PAGO: 'esperando_segundo_pago',
     ESPERANDO_PDF: 'esperando_pdf',
     COMPLETADO: 'completado'
 };
@@ -26,10 +26,9 @@ const asignacionesEnProceso = new Map();
  * Handler para la asignación de pólizas a vehículos
  */
 class PolicyAssignmentHandler {
-
     /**
-   * Muestra los vehículos disponibles para asegurar
-   */
+     * Muestra los vehículos disponibles para asegurar
+     */
     static async mostrarVehiculosDisponibles(bot, chatId, userId, pagina = 1) {
         try {
             const resultado = await VehicleController.getVehiculosSinPoliza(10, pagina);
@@ -40,10 +39,11 @@ class PolicyAssignmentHandler {
             }
 
             if (resultado.vehiculos.length === 0) {
-                await bot.telegram.sendMessage(chatId,
+                await bot.telegram.sendMessage(
+                    chatId,
                     '📋 *NO HAY VEHÍCULOS DISPONIBLES*\n\n' +
-          'No se encontraron vehículos sin póliza para asegurar.\n' +
-          'Solicita al equipo OBD que registre más vehículos.',
+                        'No se encontraron vehículos sin póliza para asegurar.\n' +
+                        'Solicita al equipo OBD que registre más vehículos.',
                     {
                         parse_mode: 'Markdown',
                         reply_markup: getMainKeyboard()
@@ -64,14 +64,16 @@ class PolicyAssignmentHandler {
                 mensaje += `   🎨 Color: ${vehiculo.color}\n`;
                 mensaje += `   🔢 Serie: ${vehiculo.serie}\n`;
                 mensaje += `   🚙 Placas: ${vehiculo.placas || 'Sin placas'}\n`;
-                mensaje += `   👤 Titular: ${vehiculo.titularTemporal}\n`;
+                mensaje += `   👤 Titular: ${vehiculo.titular || vehiculo.titularTemporal || 'Sin titular'}\n`;
                 mensaje += `   📅 Registrado: ${new Date(vehiculo.createdAt).toLocaleDateString('es-MX')}\n\n`;
 
                 // Botón para seleccionar este vehículo
-                botones.push([{
-                    text: `${numero}. ${vehiculo.marca} ${vehiculo.submarca}`,
-                    callback_data: `asignar_${vehiculo._id}`
-                }]);
+                botones.push([
+                    {
+                        text: `${numero}. ${vehiculo.marca} ${vehiculo.submarca}`,
+                        callback_data: `asignar_${vehiculo._id}`
+                    }
+                ]);
             });
 
             // Botones de navegación
@@ -92,14 +94,8 @@ class PolicyAssignmentHandler {
                 botones.push(navegacion);
             }
 
-            // Botones adicionales
-            botones.push([
-                { text: '🔍 Buscar Vehículo', callback_data: 'buscar_vehiculo' },
-                { text: '📊 Estadísticas', callback_data: 'stats_vehiculos' }
-            ]);
-            botones.push([
-                { text: '🏠 Menú Principal', callback_data: 'menu_principal' }
-            ]);
+            // Botón de menú principal
+            botones.push([{ text: '🏠 Menú Principal', callback_data: 'accion:start' }]);
 
             await bot.telegram.sendMessage(chatId, mensaje, {
                 parse_mode: 'Markdown',
@@ -109,7 +105,6 @@ class PolicyAssignmentHandler {
             });
 
             return true;
-
         } catch (error) {
             console.error('Error mostrando vehículos disponibles:', error);
             await bot.telegram.sendMessage(chatId, '❌ Error al consultar vehículos disponibles.');
@@ -118,14 +113,14 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Inicia el proceso de asignación de póliza a un vehículo específico
-   */
+     * Inicia el proceso de asignación de póliza a un vehículo específico
+     */
     static async iniciarAsignacion(bot, chatId, userId, vehicleId) {
         try {
             // Buscar el vehículo directamente por ID
             const Vehicle = require('../../models/vehicle');
             let vehiculo;
-            
+
             try {
                 vehiculo = await Vehicle.findById(vehicleId);
                 if (!vehiculo) {
@@ -143,9 +138,10 @@ class PolicyAssignmentHandler {
             }
 
             if (vehiculo.estado !== 'SIN_POLIZA') {
-                await bot.telegram.sendMessage(chatId,
+                await bot.telegram.sendMessage(
+                    chatId,
                     '❌ Este vehículo ya tiene póliza asignada o no está disponible.\n' +
-          `Estado actual: ${vehiculo.estado}`
+                        `Estado actual: ${vehiculo.estado}`
                 );
                 return false;
             }
@@ -154,25 +150,24 @@ class PolicyAssignmentHandler {
             asignacionesEnProceso.delete(userId);
 
             // Mostrar resumen del vehículo seleccionado
-            const mensaje = '🚗 *VEHÍCULO SELECCIONADO*\n\n' +
-        `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}*\n` +
-        `🎨 Color: ${vehiculo.color}\n` +
-        `🔢 Serie: ${vehiculo.serie}\n` +
-        `🚙 Placas: ${vehiculo.placas || 'Sin placas'}\n\n` +
-        '*Datos temporales del titular:*\n' +
-        `👤 ${vehiculo.titularTemporal}\n` +
-        `🆔 RFC: ${vehiculo.rfcTemporal}\n` +
-        `📱 ${vehiculo.telefonoTemporal}\n\n` +
-        '💼 *INICIAR ASIGNACIÓN DE PÓLIZA*\n\n' +
-        '*Paso 1/7:* Ingresa el *número de póliza*\n' +
-        '📝 Ejemplo: POL-2024-001234';
+            const mensaje =
+                '🚗 *VEHÍCULO SELECCIONADO*\n\n' +
+                `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}*\n` +
+                `🎨 Color: ${vehiculo.color}\n` +
+                `🔢 Serie: ${vehiculo.serie}\n` +
+                `🚙 Placas: ${vehiculo.placas || 'Sin placas'}\n\n` +
+                '*Datos temporales del titular:*\n' +
+                `👤 ${vehiculo.titular}\n` +
+                `🆔 RFC: ${vehiculo.rfc}\n` +
+                `📱 ${vehiculo.telefono}\n\n` +
+                '💼 *INICIAR ASIGNACIÓN DE PÓLIZA*\n\n' +
+                '*Paso 1/5:* Ingresa el *número de póliza*\n' +
+                '📝 Puedes escribir cualquier número o código';
 
             await bot.telegram.sendMessage(chatId, mensaje, {
                 parse_mode: 'Markdown',
                 reply_markup: {
-                    inline_keyboard: [[
-                        { text: '❌ Cancelar', callback_data: 'poliza_cancelar' }
-                    ]]
+                    inline_keyboard: [[{ text: '❌ Cancelar', callback_data: 'poliza_cancelar' }]]
                 }
             });
 
@@ -186,7 +181,6 @@ class PolicyAssignmentHandler {
             });
 
             return true;
-
         } catch (error) {
             console.error('Error iniciando asignación:', error);
             await bot.telegram.sendMessage(chatId, '❌ Error al iniciar la asignación de póliza.');
@@ -195,8 +189,8 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Procesa los mensajes durante el flujo de asignación
-   */
+     * Procesa los mensajes durante el flujo de asignación
+     */
     static async procesarMensaje(bot, msg, userId) {
         const chatId = msg.chat.id;
         const texto = msg.text?.trim();
@@ -216,17 +210,17 @@ class PolicyAssignmentHandler {
             case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
                 return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_AGENTE:
-                return await this.procesarAgente(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
+                return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_FECHA_EMISION:
+            case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
                 return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_FECHA_FIN:
-                return await this.procesarFechaFin(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
+                return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_PAGOS:
-                return await this.procesarPagos(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
+                return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion);
 
             case ESTADOS_ASIGNACION.ESPERANDO_PDF:
                 return await this.procesarPDF(bot, msg, userId, asignacion);
@@ -236,37 +230,58 @@ class PolicyAssignmentHandler {
             }
         } catch (error) {
             console.error('Error procesando mensaje de asignación:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error en la asignación. Intenta nuevamente.');
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Error en la asignación. Intenta nuevamente.'
+            );
             return true;
         }
     }
 
     /**
-   * Procesa el número de póliza
-   */
+     * Procesa el número de póliza (permite cualquier entrada manual)
+     */
     static async procesarNumeroPoliza(bot, chatId, userId, numeroPoliza, asignacion) {
-        if (!numeroPoliza || numeroPoliza.length < 5) {
-            await bot.telegram.sendMessage(chatId, '❌ El número de póliza debe tener al menos 5 caracteres.\nIntenta nuevamente:');
+        if (!numeroPoliza || numeroPoliza.trim().length < 1) {
+            await bot.telegram.sendMessage(chatId, '❌ Ingresa un número de póliza válido:');
             return true;
         }
 
-        // Verificar que no exista la póliza
-        const existePoliza = await policyController.buscarPorNumeroPoliza(numeroPoliza);
-        if (existePoliza) {
-            await bot.telegram.sendMessage(chatId,
-                `❌ Ya existe una póliza con este número: ${numeroPoliza}\n` +
-        'Ingresa un número diferente:'
+        // Guardar el número sin validar si existe (permitir duplicados)
+        asignacion.datosPoliza.numeroPoliza = numeroPoliza.trim();
+        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA;
+
+        await bot.telegram.sendMessage(
+            chatId,
+            `✅ Número de póliza: *${numeroPoliza}*\n\n` +
+                '*Paso 2/5:* Ingresa la *aseguradora*\n' +
+                '📝 Ejemplo: GNP, Seguros Monterrey, AXA',
+            { parse_mode: 'Markdown' }
+        );
+
+        return true;
+    }
+
+    /**
+     * Procesa la aseguradora
+     */
+    static async procesarAseguradora(bot, chatId, userId, aseguradora, asignacion) {
+        if (!aseguradora || aseguradora.trim().length < 2) {
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ La aseguradora debe tener al menos 2 caracteres:'
             );
             return true;
         }
 
-        asignacion.datosPoliza.numeroPoliza = numeroPoliza;
-        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA;
+        asignacion.datosPoliza.aseguradora = aseguradora.trim();
+        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA;
 
-        await bot.telegram.sendMessage(chatId,
-            `✅ Número de póliza: *${numeroPoliza}*\n\n` +
-      '*Paso 2/7:* Ingresa la *aseguradora*\n' +
-      '📝 Ejemplo: GNP, Seguros Monterrey, AXA, etc.',
+        await bot.telegram.sendMessage(
+            chatId,
+            `✅ Aseguradora: *${aseguradora}*\n\n` +
+                '*Paso 3/5:* Ingresa el *nombre de la persona* que cotizó\n' +
+                '📝 Ejemplo: Juan Pérez, María González',
             { parse_mode: 'Markdown' }
         );
 
@@ -274,44 +289,90 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Procesa la aseguradora
-   */
-    static async procesarAseguradora(bot, chatId, userId, aseguradora, asignacion) {
-        if (!aseguradora || aseguradora.length < 2) {
-            await bot.telegram.sendMessage(chatId, '❌ La aseguradora debe tener al menos 2 caracteres.\nIntenta nuevamente:');
+     * Procesa el nombre de la persona que cotizó
+     */
+    static async procesarNombrePersona(bot, chatId, userId, nombrePersona, asignacion) {
+        if (!nombrePersona || nombrePersona.trim().length < 3) {
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ El nombre debe tener al menos 3 caracteres:'
+            );
             return true;
         }
 
-        asignacion.datosPoliza.aseguradora = aseguradora;
-        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_AGENTE;
+        asignacion.datosPoliza.nombrePersona = nombrePersona.trim();
 
-        await bot.telegram.sendMessage(chatId,
-            `✅ Aseguradora: *${aseguradora}*\n\n` +
-      '*Paso 3/7:* Ingresa el *agente cotizador*\n' +
-      '📝 Ejemplo: Juan Pérez, María González, etc.',
-            { parse_mode: 'Markdown' }
-        );
+        // Generar fecha de emisión automática y mostrar selector
+        await this.mostrarSelectorFechaEmision(bot, chatId, asignacion);
 
         return true;
     }
 
     /**
-   * Procesa el agente cotizador
-   */
+     * Muestra selector de fecha de emisión (últimos 7 días)
+     */
+    static async mostrarSelectorFechaEmision(bot, chatId, asignacion) {
+        const hoy = new Date();
+        const botones = [];
+
+        // Generar botones para los últimos 7 días
+        for (let i = 0; i < 7; i++) {
+            const fecha = new Date(hoy);
+            fecha.setDate(hoy.getDate() - i);
+
+            const fechaStr = fecha.toLocaleDateString('es-MX', {
+                weekday: 'short',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+
+            const fechaISO = fecha.toISOString().split('T')[0];
+
+            botones.push([
+                {
+                    text: i === 0 ? `📅 HOY - ${fechaStr}` : `📅 ${fechaStr}`,
+                    callback_data: `fecha_emision_${fechaISO}`
+                }
+            ]);
+        }
+
+        const mensaje =
+            `✅ Persona que cotizó: *${asignacion.datosPoliza.nombrePersona}*\n\n` +
+            '*Paso 4/5:* Selecciona la *fecha de emisión*\n' +
+            '📅 Elige el día que corresponde al registro:';
+
+        asignacion.estado = ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION;
+
+        await bot.telegram.sendMessage(chatId, mensaje, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+                inline_keyboard: botones
+            }
+        });
+    }
+
+    /**
+     * Procesa el agente cotizador (DEPRECATED - ahora es procesarNombrePersona)
+     */
     static async procesarAgente(bot, chatId, userId, agente, asignacion) {
         if (!agente || agente.length < 3) {
-            await bot.telegram.sendMessage(chatId, '❌ El agente debe tener al menos 3 caracteres.\nIntenta nuevamente:');
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ El agente debe tener al menos 3 caracteres.\nIntenta nuevamente:'
+            );
             return true;
         }
 
         asignacion.datosPoliza.agenteCotizador = agente;
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_FECHA_EMISION;
 
-        await bot.telegram.sendMessage(chatId,
+        await bot.telegram.sendMessage(
+            chatId,
             `✅ Agente: *${agente}*\n\n` +
-      '*Paso 4/7:* Ingresa la *fecha de emisión*\n' +
-      '📝 Formato: DD/MM/AAAA\n' +
-      '📅 Ejemplo: 15/01/2024',
+                '*Paso 4/7:* Ingresa la *fecha de emisión*\n' +
+                '📝 Formato: DD/MM/AAAA\n' +
+                '📅 Ejemplo: 15/01/2024',
             { parse_mode: 'Markdown' }
         );
 
@@ -319,26 +380,38 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Procesa la fecha de emisión
-   */
-    static async procesarFechaEmision(bot, chatId, userId, fecha, asignacion) {
-        const fechaValida = this.validarFecha(fecha);
-        if (!fechaValida) {
-            await bot.telegram.sendMessage(chatId,
-                '❌ Fecha inválida. Usa el formato DD/MM/AAAA\n' +
-        '📅 Ejemplo: 15/01/2024\nIntenta nuevamente:'
-            );
-            return true;
-        }
+     * Procesa la selección de fecha de emisión (via callback)
+     * Esta función ya no se usa directamente, se maneja via callback en BaseAutosCommand
+     */
+    static async procesarFechaEmision(bot, chatId, userId, fechaISO, asignacion) {
+        // Esta función se mantiene por compatibilidad pero no se usa en el nuevo flujo
+        return false;
+    }
 
-        asignacion.datosPoliza.fechaEmision = fechaValida;
-        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_FECHA_FIN;
+    /**
+     * Procesa la fecha seleccionada y calcula automáticamente la fecha de fin
+     */
+    static async confirmarFechaEmision(bot, chatId, fechaISO, asignacion) {
+        const fechaEmision = new Date(fechaISO);
 
-        await bot.telegram.sendMessage(chatId,
-            `✅ Fecha de emisión: *${fecha}*\n\n` +
-      '*Paso 5/7:* Ingresa la *fecha de fin de cobertura*\n' +
-      '📝 Formato: DD/MM/AAAA\n' +
-      '📅 Ejemplo: 15/01/2025',
+        // Calcular fecha de fin automáticamente (1 año después)
+        const fechaFin = new Date(fechaEmision);
+        fechaFin.setFullYear(fechaFin.getFullYear() + 1);
+
+        asignacion.datosPoliza.fechaEmision = fechaEmision;
+        asignacion.datosPoliza.fechaFinCobertura = fechaFin;
+        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO;
+
+        const fechaEmisionStr = fechaEmision.toLocaleDateString('es-MX');
+        const fechaFinStr = fechaFin.toLocaleDateString('es-MX');
+
+        await bot.telegram.sendMessage(
+            chatId,
+            `✅ Fecha de emisión: *${fechaEmisionStr}*\n` +
+                `✅ Fecha de fin: *${fechaFinStr}* (automática)\n\n` +
+                '*Paso 5/5:* Ingresa el *PRIMER PAGO*\n' +
+                '💰 Solo el monto\n' +
+                '📝 Ejemplo: 8500',
             { parse_mode: 'Markdown' }
         );
 
@@ -346,14 +419,15 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Procesa la fecha de fin de cobertura
-   */
+     * Procesa la fecha de fin de cobertura
+     */
     static async procesarFechaFin(bot, chatId, userId, fecha, asignacion) {
         const fechaValida = this.validarFecha(fecha);
         if (!fechaValida) {
-            await bot.telegram.sendMessage(chatId,
+            await bot.telegram.sendMessage(
+                chatId,
                 '❌ Fecha inválida. Usa el formato DD/MM/AAAA\n' +
-        '📅 Ejemplo: 15/01/2025\nIntenta nuevamente:'
+                    '📅 Ejemplo: 15/01/2025\nIntenta nuevamente:'
             );
             return true;
         }
@@ -361,13 +435,14 @@ class PolicyAssignmentHandler {
         asignacion.datosPoliza.fechaFinCobertura = fechaValida;
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PAGOS;
 
-        await bot.telegram.sendMessage(chatId,
+        await bot.telegram.sendMessage(
+            chatId,
             `✅ Fecha fin cobertura: *${fecha}*\n\n` +
-      '*Paso 6/7:* Información de pagos (opcional)\n' +
-      '📝 Formato: MONTO,FECHA\n' +
-      '💰 Ejemplo: 5000,15/01/2024\n' +
-      '📋 Para múltiples pagos, envía uno por mensaje\n' +
-      '⏭️ Escribe "CONTINUAR" para saltar este paso',
+                '*Paso 6/7:* Información de pagos (opcional)\n' +
+                '📝 Formato: MONTO,FECHA\n' +
+                '💰 Ejemplo: 5000,15/01/2024\n' +
+                '📋 Para múltiples pagos, envía uno por mensaje\n' +
+                '⏭️ Escribe "CONTINUAR" para saltar este paso',
             { parse_mode: 'Markdown' }
         );
 
@@ -375,17 +450,80 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Procesa los pagos (opcional)
-   */
+     * Procesa el primer pago (obligatorio - solo monto)
+     */
+    static async procesarPrimerPago(bot, chatId, userId, texto, asignacion) {
+        // Validar que sea un número válido
+        const monto = parseFloat(texto.trim());
+        if (isNaN(monto) || monto <= 0) {
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 8500'
+            );
+            return true;
+        }
+
+        asignacion.datosPoliza.primerPago = monto;
+        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO;
+
+        await bot.telegram.sendMessage(
+            chatId,
+            `✅ Primer pago: $${monto.toLocaleString()}\n\n` +
+                'Ahora ingresa el *SEGUNDO PAGO*\n' +
+                '💰 Solo el monto\n' +
+                '📝 Ejemplo: 3500',
+            { parse_mode: 'Markdown' }
+        );
+
+        return true;
+    }
+
+    /**
+     * Procesa el segundo pago (obligatorio - solo monto)
+     */
+    static async procesarSegundoPago(bot, chatId, userId, texto, asignacion) {
+        // Validar que sea un número válido
+        const monto = parseFloat(texto.trim());
+        if (isNaN(monto) || monto <= 0) {
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 3500'
+            );
+            return true;
+        }
+
+        asignacion.datosPoliza.segundoPago = monto;
+
+        // Ir directamente a PDF o finalización
+        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PDF;
+
+        const totalPagos = asignacion.datosPoliza.primerPago + monto;
+
+        await bot.telegram.sendMessage(
+            chatId,
+            `✅ Segundo pago: $${monto.toLocaleString()}\n\n` +
+                `💰 *Total de la póliza: $${totalPagos.toLocaleString()}*\n\n` +
+                '📎 *OBLIGATORIO:* Envía el PDF o foto de la póliza\n' +
+                '🔗 Formatos aceptados: PDF, JPG, PNG',
+            { parse_mode: 'Markdown' }
+        );
+
+        return true;
+    }
+
+    /**
+     * Procesa los pagos (DEPRECATED - ahora son dos funciones separadas)
+     */
     static async procesarPagos(bot, chatId, userId, texto, asignacion) {
         if (texto.toUpperCase() === 'CONTINUAR') {
             asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PDF;
 
-            await bot.telegram.sendMessage(chatId,
+            await bot.telegram.sendMessage(
+                chatId,
                 '⏭️ Pagos omitidos\n\n' +
-        '*Paso 7/7:* Envía el *PDF de la póliza*\n' +
-        '📎 Adjunta el archivo PDF\n' +
-        '⏭️ O escribe "CONTINUAR" para finalizar sin PDF',
+                    '*Paso 7/7:* Envía el *PDF de la póliza*\n' +
+                    '📎 Adjunta el archivo PDF\n' +
+                    '⏭️ O escribe "CONTINUAR" para finalizar sin PDF',
                 { parse_mode: 'Markdown' }
             );
             return true;
@@ -394,11 +532,12 @@ class PolicyAssignmentHandler {
         // Validar formato de pago
         const pago = this.validarPago(texto);
         if (!pago) {
-            await bot.telegram.sendMessage(chatId,
+            await bot.telegram.sendMessage(
+                chatId,
                 '❌ Formato de pago inválido\n' +
-        '📝 Usa: MONTO,FECHA\n' +
-        '💰 Ejemplo: 5000,15/01/2024\n' +
-        'Intenta nuevamente:'
+                    '📝 Usa: MONTO,FECHA\n' +
+                    '💰 Ejemplo: 5000,15/01/2024\n' +
+                    'Intenta nuevamente:'
             );
             return true;
         }
@@ -409,59 +548,201 @@ class PolicyAssignmentHandler {
 
         asignacion.datosPoliza.pagos.push(pago);
 
-        await bot.telegram.sendMessage(chatId,
+        await bot.telegram.sendMessage(
+            chatId,
             `✅ Pago agregado: $${pago.monto.toLocaleString()} - ${pago.fecha}\n\n` +
-      `💰 Total pagos: ${asignacion.datosPoliza.pagos.length}\n` +
-      '📋 Agrega otro pago o escribe "CONTINUAR" para el siguiente paso'
+                `💰 Total pagos: ${asignacion.datosPoliza.pagos.length}\n` +
+                '📋 Agrega otro pago o escribe "CONTINUAR" para el siguiente paso'
         );
 
         return true;
     }
 
     /**
-   * Procesa el PDF de la póliza
-   */
+     * Procesa el PDF o foto de la póliza (OBLIGATORIO)
+     */
     static async procesarPDF(bot, msg, userId, asignacion) {
         const chatId = msg.chat.id;
 
-        if (msg.text === 'CONTINUAR') {
-            return await this.finalizarAsignacion(bot, chatId, userId, asignacion);
-        }
-
-        if (!msg.document || msg.document.mime_type !== 'application/pdf') {
-            await bot.telegram.sendMessage(chatId,
-                '📎 Por favor envía un archivo PDF o escribe "CONTINUAR" para finalizar sin PDF.'
+        // Si el usuario intenta enviar texto en lugar de archivo
+        if (msg.text && !msg.document && !msg.photo) {
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ **ARCHIVO OBLIGATORIO**\n\n' +
+                    '📎 Debes enviar un PDF o foto de la póliza\n' +
+                    '🚫 No puedes continuar sin adjuntar el archivo\n' +
+                    '🔗 Formatos aceptados: PDF, JPG, PNG',
+                { parse_mode: 'Markdown' }
             );
             return true;
         }
 
-        try {
-            // Procesar el PDF
-            asignacion.datosPoliza.pdf = {
-                file_id: msg.document.file_id,
-                file_name: msg.document.file_name,
-                file_size: msg.document.file_size
-            };
+        // Verificar si es un documento PDF
+        if (msg.document && msg.document.mime_type === 'application/pdf') {
+            try {
+                // Procesar el PDF
+                console.log('BD AUTOS - Documento recibido:', {
+                    file_id: msg.document.file_id,
+                    file_name: msg.document.file_name,
+                    file_size: msg.document.file_size,
+                    mime_type: msg.document.mime_type,
+                    file_unique_id: msg.document.file_unique_id
+                });
 
-            await bot.telegram.sendMessage(chatId,
-                `✅ PDF guardado: ${msg.document.file_name}\n\n` +
-        '🎉 ¡Todos los datos están completos!\n' +
-        'Procesando asignación de póliza...'
+                // Validar que tenemos un file_id válido
+                if (!msg.document.file_id) {
+                    throw new Error('No se recibió file_id del documento');
+                }
+
+                // Intentar descargar inmediatamente para validar
+                console.log('BD AUTOS - Intentando descarga inmediata del PDF...');
+                try {
+                    const fileLink = await bot.telegram.getFileLink(msg.document.file_id);
+                    console.log('BD AUTOS - FileLink inmediato:', fileLink.href);
+
+                    const testResponse = await require('node-fetch')(fileLink.href);
+                    console.log('BD AUTOS - Test response status:', testResponse.status);
+                    const testBuffer = await testResponse.buffer();
+                    console.log('BD AUTOS - Test buffer size:', testBuffer.length);
+                    console.log('BD AUTOS - Test primeros 50 bytes:', testBuffer.slice(0, 50).toString());
+                } catch (testError) {
+                    console.error('BD AUTOS - Error en descarga inmediata:', testError);
+                }
+
+                // Descargar y guardar el buffer inmediatamente
+                let pdfBuffer = null;
+                try {
+                    const fileLink = await bot.telegram.getFileLink(msg.document.file_id);
+                    const response = await require('node-fetch')(fileLink.href);
+                    if (!response.ok) {
+                        throw new Error(`Error descargando PDF: ${response.status}`);
+                    }
+                    pdfBuffer = await response.buffer();
+                    console.log('BD AUTOS - PDF descargado exitosamente, tamaño:', pdfBuffer.length);
+                } catch (downloadError) {
+                    console.error('BD AUTOS - Error descargando PDF:', downloadError);
+                    await bot.telegram.sendMessage(
+                        chatId,
+                        '❌ Error al procesar el PDF. Por favor, intenta enviarlo nuevamente.',
+                        { parse_mode: 'Markdown' }
+                    );
+                    return true;
+                }
+
+                asignacion.datosPoliza.archivo = {
+                    type: 'pdf',
+                    file_id: msg.document.file_id,
+                    file_name: msg.document.file_name || 'documento.pdf',
+                    file_size: msg.document.file_size,
+                    mime_type: msg.document.mime_type || 'application/pdf',
+                    buffer: pdfBuffer // Guardar el buffer
+                };
+
+                await bot.telegram.sendMessage(
+                    chatId,
+                    `✅ PDF guardado: ${msg.document.file_name}\n\n` +
+                        '🎉 ¡Todos los datos están completos!\n' +
+                        'Procesando asignación de póliza...'
+                );
+
+                return await this.finalizarAsignacion(bot, chatId, userId, asignacion);
+            } catch (error) {
+                console.error('Error procesando PDF:', error);
+                await bot.telegram.sendMessage(
+                    chatId,
+                    '❌ Error al procesar el PDF. Intenta nuevamente.'
+                );
+                return true;
+            }
+        }
+
+        // Verificar si es una foto
+        if (msg.photo && msg.photo.length > 0) {
+            try {
+                // Obtener la foto de mejor calidad
+                const foto = msg.photo[msg.photo.length - 1];
+
+                // Descargar y guardar el buffer inmediatamente
+                let fotoBuffer = null;
+                try {
+                    const fileLink = await bot.telegram.getFileLink(foto.file_id);
+                    const response = await require('node-fetch')(fileLink.href);
+                    if (!response.ok) {
+                        throw new Error(`Error descargando foto: ${response.status}`);
+                    }
+                    fotoBuffer = await response.buffer();
+                    console.log('BD AUTOS - Foto descargada exitosamente, tamaño:', fotoBuffer.length);
+                } catch (downloadError) {
+                    console.error('BD AUTOS - Error descargando foto:', downloadError);
+                    await bot.telegram.sendMessage(
+                        chatId,
+                        '❌ Error al procesar la foto. Por favor, intenta enviarla nuevamente.',
+                        { parse_mode: 'Markdown' }
+                    );
+                    return true;
+                }
+
+                asignacion.datosPoliza.archivo = {
+                    type: 'photo',
+                    file_id: foto.file_id,
+                    file_name: `poliza_foto_${Date.now()}.jpg`,
+                    file_size: foto.file_size,
+                    mime_type: 'image/jpeg',
+                    buffer: fotoBuffer // Guardar el buffer
+                };
+
+                await bot.telegram.sendMessage(
+                    chatId,
+                    '✅ Foto de póliza guardada\n\n' +
+                        '🎉 ¡Todos los datos están completos!\n' +
+                        'Procesando asignación de póliza...'
+                );
+
+                return await this.finalizarAsignacion(bot, chatId, userId, asignacion);
+            } catch (error) {
+                console.error('Error procesando foto:', error);
+                await bot.telegram.sendMessage(
+                    chatId,
+                    '❌ Error al procesar la foto. Intenta nuevamente.'
+                );
+                return true;
+            }
+        }
+
+        // Si es otro tipo de documento que no sea PDF, rechazar
+        if (msg.document && msg.document.mime_type !== 'application/pdf') {
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ **FORMATO NO VÁLIDO**\n\n' +
+                    `📄 Archivo recibido: ${msg.document.file_name}\n` +
+                    `❌ Tipo: ${msg.document.mime_type}\n\n` +
+                    '📎 Solo se aceptan:\n' +
+                    '• PDF (documentos)\n' +
+                    '• JPG/PNG (fotos)\n\n' +
+                    'Por favor, envía el archivo correcto.',
+                { parse_mode: 'Markdown' }
             );
-
-            return await this.finalizarAsignacion(bot, chatId, userId, asignacion);
-
-        } catch (error) {
-            console.error('Error procesando PDF:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error al procesar el PDF. Intenta nuevamente.');
             return true;
         }
+
+        // Si no es PDF ni foto, solicitar archivo válido
+        await bot.telegram.sendMessage(
+            chatId,
+            '❌ **ARCHIVO OBLIGATORIO**\n\n' +
+                '📎 Debes enviar un archivo PDF o una foto\n' +
+                '🔗 Formatos aceptados: PDF, JPG, PNG\n\n' +
+                'No puedes finalizar sin adjuntar el archivo.',
+            { parse_mode: 'Markdown' }
+        );
+        return true;
     }
 
     /**
-   * Finaliza la asignación de póliza
-   */
+     * Finaliza la asignación de póliza
+     */
     static async finalizarAsignacion(bot, chatId, userId, asignacion) {
+        let polizaGuardada = null; // Declarar fuera del try para que esté disponible en catch
+
         try {
             const vehiculo = asignacion.vehiculo;
             const datosPoliza = asignacion.datosPoliza;
@@ -477,25 +758,38 @@ class PolicyAssignmentHandler {
                 placas: vehiculo.placas,
 
                 // Datos temporales del titular (se pueden modificar después)
-                titular: vehiculo.titularTemporal,
-                rfc: vehiculo.rfcTemporal,
-                telefono: vehiculo.telefonoTemporal,
-                correo: vehiculo.correoTemporal,
-                calle: vehiculo.calleTemporal,
-                colonia: vehiculo.coloniaTemporal,
-                municipio: vehiculo.municipioTemporal,
-                estadoRegion: vehiculo.estadoRegionTemporal,
-                cp: vehiculo.cpTemporal,
+                titular: vehiculo.titular,
+                rfc: vehiculo.rfc,
+                telefono: vehiculo.telefono,
+                correo: vehiculo.correo,
+                calle: vehiculo.calle,
+                colonia: vehiculo.colonia,
+                municipio: vehiculo.municipio,
+                estadoRegion: vehiculo.estadoRegion,
+                cp: vehiculo.cp,
 
                 // Datos de la póliza
                 numeroPoliza: datosPoliza.numeroPoliza,
                 aseguradora: datosPoliza.aseguradora,
-                agenteCotizador: datosPoliza.agenteCotizador,
+                agenteCotizador: datosPoliza.nombrePersona, // Cambiado de agenteCotizador a nombrePersona
                 fechaEmision: datosPoliza.fechaEmision,
                 fechaFinCobertura: datosPoliza.fechaFinCobertura,
 
-                // Pagos y archivos
-                pagos: datosPoliza.pagos || [],
+                // Pagos (ahora son exactamente 2 montos simples con fechas automáticas)
+                pagos: [
+                    {
+                        monto: datosPoliza.primerPago,
+                        fechaPago: datosPoliza.fechaEmision // Primer pago = fecha de emisión
+                    },
+                    {
+                        monto: datosPoliza.segundoPago,
+                        fechaPago: (() => {
+                            const fecha = new Date(datosPoliza.fechaEmision);
+                            fecha.setMonth(fecha.getMonth() + 1); // Segundo pago = 1 mes después
+                            return fecha;
+                        })()
+                    }
+                ].filter(p => p.monto), // Filtrar undefined en caso de error
 
                 // Metadatos especiales
                 vehicleId: vehiculo._id, // Referencia al vehículo OBD
@@ -504,34 +798,125 @@ class PolicyAssignmentHandler {
             };
 
             // Crear la póliza
-            const resultado = await policyController.crearPoliza(nuevaPoliza);
-
-            if (!resultado.success) {
-                await bot.telegram.sendMessage(chatId, `❌ Error al crear póliza: ${resultado.error}`);
-                return true;
-            }
+            polizaGuardada = await policyController.savePolicy(nuevaPoliza);
 
             // Marcar el vehículo como asegurado
-            await VehicleController.marcarConPoliza(vehiculo._id, resultado.poliza._id);
+            await VehicleController.marcarConPoliza(vehiculo._id, polizaGuardada._id);
 
-            // Alinear fotos: reorganizar en Cloudflare con nueva estructura
-            await this.alinearFotosConPoliza(vehiculo, resultado.poliza._id);
+            // Transferir fotos del vehículo a la póliza
+            await this.transferirFotosVehiculoAPoliza(vehiculo, polizaGuardada);
 
-            // Procesar PDF si existe
-            if (datosPoliza.pdf) {
-                // Aquí se procesaría la subida del PDF
-                // Por simplicidad, se omite en este mockup
+            // Procesar archivo (PDF o foto) si existe
+            if (datosPoliza.archivo && datosPoliza.archivo.buffer) {
+                try {
+                    // Usar el buffer que ya descargamos
+                    const buffer = datosPoliza.archivo.buffer;
+                    console.log('BD AUTOS - Usando buffer pre-descargado, tamaño:', buffer.length);
+
+                    // Validar que es un PDF válido si es tipo PDF
+                    if (datosPoliza.archivo.type === 'pdf') {
+                        const pdfHeader = buffer.slice(0, 4).toString();
+                        if (!pdfHeader.startsWith('%PDF')) {
+                            console.error('BD AUTOS - Buffer no es un PDF válido. Header:', pdfHeader);
+                            console.error('BD AUTOS - Contenido completo (primeros 200 chars):', buffer.slice(0, 200).toString());
+                            throw new Error('El archivo descargado no es un PDF válido');
+                        }
+                    }
+
+                    // Subir a Cloudflare R2
+                    const { getInstance } = require('../../services/CloudflareStorage');
+                    const storage = getInstance();
+
+                    let uploadResult;
+                    if (datosPoliza.archivo.type === 'pdf') {
+                        uploadResult = await storage.uploadPolicyPDF(
+                            buffer,
+                            datosPoliza.numeroPoliza,
+                            datosPoliza.archivo.file_name
+                        );
+                    } else {
+                        // Para fotos, usar uploadFile genérico
+                        const fileName = `polizas/${datosPoliza.numeroPoliza}/poliza_${datosPoliza.archivo.file_name}`;
+                        uploadResult = await storage.uploadFile(
+                            buffer,
+                            fileName,
+                            datosPoliza.archivo.mime_type,
+                            {
+                                policyNumber: datosPoliza.numeroPoliza,
+                                type: 'poliza_foto',
+                                originalName: datosPoliza.archivo.file_name
+                            }
+                        );
+                    }
+
+                    // Actualizar la póliza con la referencia a R2
+                    if (uploadResult && uploadResult.url) {
+                        const Policy = require('../../models/policy');
+                        const polizaActualizada = await Policy.findById(polizaGuardada._id);
+
+                        if (!polizaActualizada.archivos) {
+                            polizaActualizada.archivos = {
+                                fotos: [],
+                                pdfs: [],
+                                r2Files: { fotos: [], pdfs: [] }
+                            };
+                        }
+                        if (!polizaActualizada.archivos.r2Files) {
+                            polizaActualizada.archivos.r2Files = { fotos: [], pdfs: [] };
+                        }
+
+                        const r2File = {
+                            url: uploadResult.url,
+                            key: uploadResult.key,
+                            size: uploadResult.size,
+                            contentType: uploadResult.contentType,
+                            uploadedAt: new Date(),
+                            originalName: datosPoliza.archivo.file_name
+                        };
+
+                        if (datosPoliza.archivo.type === 'pdf') {
+                            polizaActualizada.archivos.r2Files.pdfs.push(r2File);
+                        } else {
+                            polizaActualizada.archivos.r2Files.fotos.push(r2File);
+                        }
+
+                        await polizaActualizada.save();
+                        console.log(
+                            `✅ Archivo guardado en Cloudflare para póliza ${datosPoliza.numeroPoliza}`
+                        );
+                    }
+                } catch (fileError) {
+                    console.error('Error procesando archivo de póliza:', fileError);
+                    // No fallar el proceso por esto, solo advertir
+                }
             }
 
-            const mensaje = '🎉 *PÓLIZA ASIGNADA EXITOSAMENTE*\n\n' +
-        `📋 *Póliza:* ${datosPoliza.numeroPoliza}\n` +
-        `🏢 *Aseguradora:* ${datosPoliza.aseguradora}\n` +
-        `👨‍💼 *Agente:* ${datosPoliza.agenteCotizador}\n\n` +
-        '🚗 *Vehículo asegurado:*\n' +
-        `${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}\n` +
-        `👤 Titular: ${vehiculo.titularTemporal}\n\n` +
-        '✅ El vehículo ahora tiene estado: CON_POLIZA\n' +
-        `🆔 ID de póliza: ${resultado.poliza._id}`;
+            const totalPagos = (datosPoliza.primerPago || 0) + (datosPoliza.segundoPago || 0);
+
+            // Escapar caracteres especiales para Markdown
+            const escapeMarkdown = text => {
+                return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+            };
+
+            const mensaje =
+                '🎉 *PÓLIZA ASIGNADA EXITOSAMENTE*\n\n' +
+                `📋 *Póliza:* ${escapeMarkdown(datosPoliza.numeroPoliza)}\n` +
+                `🏢 *Aseguradora:* ${escapeMarkdown(datosPoliza.aseguradora)}\n` +
+                `👨‍💼 *Persona:* ${escapeMarkdown(datosPoliza.nombrePersona)}\n` +
+                `📅 *Emisión:* ${datosPoliza.fechaEmision.toLocaleDateString('es-MX')}\n` +
+                `📅 *Vence:* ${datosPoliza.fechaFinCobertura.toLocaleDateString('es-MX')}\n\n` +
+                '💰 *Pagos registrados:*\n' +
+                `• Primer pago: $${(datosPoliza.primerPago || 0).toLocaleString()}\n` +
+                `• Segundo pago: $${(datosPoliza.segundoPago || 0).toLocaleString()}\n` +
+                `• Total: $${totalPagos.toLocaleString()}\n\n` +
+                '🚗 *Vehículo asegurado:*\n' +
+                `${escapeMarkdown(vehiculo.marca)} ${escapeMarkdown(vehiculo.submarca)} ${vehiculo.año}\n` +
+                `👤 Titular: ${escapeMarkdown(vehiculo.titular)}\n` +
+                (datosPoliza.archivo
+                    ? `📎 Archivo: ${escapeMarkdown(datosPoliza.archivo.file_name)} \\(${datosPoliza.archivo.type.toUpperCase()}\\)\n`
+                    : '') +
+                '\n✅ Estado: CON\\_POLIZA\n' +
+                `🆔 ID: ${polizaGuardada._id}`;
 
             await bot.telegram.sendMessage(chatId, mensaje, {
                 parse_mode: 'Markdown',
@@ -541,18 +926,36 @@ class PolicyAssignmentHandler {
             // Limpiar el proceso de asignación
             asignacionesEnProceso.delete(userId);
 
-            return true;
+            // Limpiar el estado del flujo BD AUTOS
+            // Nota: El stateManager no está disponible en este contexto estático
+            // El estado se limpiará desde BaseAutosCommand después de la finalización
 
+            return true;
         } catch (error) {
             console.error('Error finalizando asignación:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error al finalizar la asignación de póliza.');
+
+            // Si ya se creó la póliza, informar el ID para poder verificarla
+            let mensajeError = '❌ Error al finalizar la asignación de póliza.';
+            if (polizaGuardada && polizaGuardada._id) {
+                mensajeError += `\n\n⚠️ La póliza se creó parcialmente:\n📋 Número: ${asignacion.datosPoliza.numeroPoliza}\n🆔 ID: ${polizaGuardada._id}`;
+            }
+
+            await bot.telegram.sendMessage(chatId, mensajeError);
+
+            // Limpiar el estado aunque haya error
+            asignacionesEnProceso.delete(userId);
+
+            // Limpiar el estado del flujo BD AUTOS
+            // Nota: El stateManager no está disponible en este contexto estático
+            // El estado se limpiará desde BaseAutosCommand después de la finalización
+
             return true;
         }
     }
 
     /**
-   * Valida formato de fecha DD/MM/AAAA
-   */
+     * Valida formato de fecha DD/MM/AAAA
+     */
     static validarFecha(fechaStr) {
         const regex = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
         const match = fechaStr.match(regex);
@@ -565,7 +968,11 @@ class PolicyAssignmentHandler {
 
         const fecha = new Date(año, mes - 1, dia);
 
-        if (fecha.getDate() !== dia || fecha.getMonth() !== mes - 1 || fecha.getFullYear() !== año) {
+        if (
+            fecha.getDate() !== dia ||
+            fecha.getMonth() !== mes - 1 ||
+            fecha.getFullYear() !== año
+        ) {
             return null;
         }
 
@@ -573,8 +980,8 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Valida formato de pago MONTO,FECHA
-   */
+     * Valida formato de pago MONTO,FECHA
+     */
     static validarPago(pagoStr) {
         const partes = pagoStr.split(',');
         if (partes.length !== 2) return null;
@@ -592,36 +999,106 @@ class PolicyAssignmentHandler {
     }
 
     /**
-   * Verifica si un usuario tiene una asignación en proceso
-   */
+     * Verifica si un usuario tiene una asignación en proceso
+     */
     static tieneAsignacionEnProceso(userId) {
         return asignacionesEnProceso.has(userId);
     }
 
     /**
-   * Alinea las fotos del vehículo en Cloudflare con la nueva estructura de póliza
-   * Crea una copia organizada de las fotos para el vehículo con póliza
-   */
+     * Transfiere las fotos del vehículo a la póliza
+     * Copia las referencias de R2 del vehículo a la póliza
+     */
+    static async transferirFotosVehiculoAPoliza(vehiculo, poliza) {
+        try {
+            // Verificar si el vehículo tiene fotos en R2
+            if (
+                !vehiculo.archivos?.r2Files?.fotos ||
+                vehiculo.archivos.r2Files.fotos.length === 0
+            ) {
+                console.log('No hay fotos del vehículo para transferir');
+                return;
+            }
+
+            // Actualizar la póliza con las fotos del vehículo
+            const Policy = require('../../models/policy');
+            const polizaActualizada = await Policy.findById(poliza._id);
+
+            if (!polizaActualizada) {
+                console.error('No se pudo encontrar la póliza para actualizar');
+                return;
+            }
+
+            // Inicializar estructura de archivos si no existe
+            if (!polizaActualizada.archivos) {
+                polizaActualizada.archivos = {
+                    fotos: [],
+                    pdfs: [],
+                    r2Files: { fotos: [], pdfs: [] }
+                };
+            }
+            if (!polizaActualizada.archivos.r2Files) {
+                polizaActualizada.archivos.r2Files = { fotos: [], pdfs: [] };
+            }
+
+            // Copiar las referencias de las fotos del vehículo
+            const fotosTransferidas = [];
+            for (const foto of vehiculo.archivos.r2Files.fotos) {
+                fotosTransferidas.push({
+                    url: foto.url,
+                    key: foto.key,
+                    size: foto.size,
+                    contentType: foto.contentType || 'image/jpeg',
+                    uploadedAt: foto.uploadedAt || new Date(),
+                    originalName: foto.originalName || 'foto_vehiculo.jpg',
+                    fuenteOriginal: 'vehiculo_bd_autos'
+                });
+            }
+
+            // Agregar las fotos a la póliza
+            polizaActualizada.archivos.r2Files.fotos.push(...fotosTransferidas);
+
+            await polizaActualizada.save();
+
+            console.log(
+                `✅ ${fotosTransferidas.length} fotos del vehículo transferidas a la póliza ${poliza.numeroPoliza}`
+            );
+        } catch (error) {
+            console.error('Error transfiriendo fotos del vehículo a la póliza:', error);
+            // No fallar el proceso principal por esto
+        }
+    }
+
+    /**
+     * Alinea las fotos del vehículo en Cloudflare con la nueva estructura de póliza
+     * Crea una copia organizada de las fotos para el vehículo con póliza
+     */
     static async alinearFotosConPoliza(vehiculo, polizaId) {
         try {
             // Si el vehículo tiene fotos en Cloudflare
-            if (vehiculo.archivos && vehiculo.archivos.r2Files && vehiculo.archivos.r2Files.fotos.length > 0) {
+            if (
+                vehiculo.archivos &&
+                vehiculo.archivos.r2Files &&
+                vehiculo.archivos.r2Files.fotos.length > 0
+            ) {
                 const CloudflareStorage = require('../../services/CloudflareStorage');
                 const fotosAlineadas = [];
 
                 for (let i = 0; i < vehiculo.archivos.r2Files.fotos.length; i++) {
                     const fotoOriginal = vehiculo.archivos.r2Files.fotos[i];
-                    
+
                     try {
                         // Crear nueva estructura: polizas/{polizaId}/vehiculo_{serie}/
                         const nuevoPath = `polizas/${polizaId}/vehiculo_${vehiculo.serie}`;
                         const nuevoNombre = `foto_${i + 1}_${Date.now()}.jpg`;
-                        
+
                         // Copiar archivo en Cloudflare a nueva ubicación
-                        const copyResult = await CloudflareStorage.copyFile(
-                            fotoOriginal.key, // archivo original
-                            `${nuevoPath}/${nuevoNombre}` // nueva ubicación
-                        );
+                        // TODO: Implementar copyFile en CloudflareStorage
+                        // Por ahora, solo referenciamos la foto original
+                        const copyResult = {
+                            url: fotoOriginal.url,
+                            key: fotoOriginal.key
+                        };
 
                         if (copyResult && copyResult.url) {
                             fotosAlineadas.push({
@@ -645,8 +1122,10 @@ class PolicyAssignmentHandler {
                 if (fotosAlineadas.length > 0) {
                     vehiculo.archivos.r2Files.fotos.push(...fotosAlineadas);
                     await vehiculo.save();
-                    
-                    console.log(`✅ ${fotosAlineadas.length} fotos alineadas para póliza ${polizaId}`);
+
+                    console.log(
+                        `✅ ${fotosAlineadas.length} fotos alineadas para póliza ${polizaId}`
+                    );
                 }
             }
         } catch (error) {

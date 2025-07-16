@@ -57,13 +57,13 @@ const vehicleSchema = new mongoose.Schema({
         uppercase: true
     },
 
-    // Datos temporales del titular (generados automáticamente)
-    titularTemporal: {
+    // Datos del titular (generados automáticamente)
+    titular: {
         type: String,
         required: true,
         trim: true
     },
-    rfcTemporal: {
+    rfc: {
         type: String,
         required: true,
         trim: true,
@@ -71,24 +71,24 @@ const vehicleSchema = new mongoose.Schema({
         minlength: 13,
         maxlength: 13
     },
-    telefonoTemporal: {
+    telefono: {
         type: String,
         required: true,
         trim: true
     },
-    correoTemporal: {
+    correo: {
         type: String,
         required: true,
         trim: true,
         lowercase: true
     },
 
-    // Dirección temporal
-    calleTemporal: String,
-    coloniaTemporal: String,
-    municipioTemporal: String,
-    estadoRegionTemporal: String,
-    cpTemporal: String,
+    // Dirección del titular
+    calle: String,
+    colonia: String,
+    municipio: String,
+    estadoRegion: String,
+    cp: String,
 
     // Archivos del vehículo (solo fotos)
     archivos: {
@@ -162,18 +162,18 @@ vehicleSchema.methods.eliminar = function() {
     return this.save();
 };
 
-// Método para obtener datos temporales completos
-vehicleSchema.methods.getDatosTitularTemporal = function() {
+// Método para obtener datos del titular completos
+vehicleSchema.methods.getDatosTitular = function() {
     return {
-        titular: this.titularTemporal,
-        rfc: this.rfcTemporal,
-        telefono: this.telefonoTemporal,
-        correo: this.correoTemporal,
-        calle: this.calleTemporal,
-        colonia: this.coloniaTemporal,
-        municipio: this.municipioTemporal,
-        estadoRegion: this.estadoRegionTemporal,
-        cp: this.cpTemporal
+        titular: this.titular,
+        rfc: this.rfc,
+        telefono: this.telefono,
+        correo: this.correo,
+        calle: this.calle,
+        colonia: this.colonia,
+        municipio: this.municipio,
+        estadoRegion: this.estadoRegion,
+        cp: this.cp
     };
 };
 

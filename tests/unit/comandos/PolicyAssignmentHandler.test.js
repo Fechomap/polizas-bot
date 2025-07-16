@@ -68,7 +68,7 @@ describe('PolicyAssignmentHandler', () => {
           color: 'Blanco',
           serie: '1HGBH41JXMN109186',
           placas: 'ABC-123-D',
-          titularTemporal: 'Juan Pérez',
+          titular: 'Juan Pérez',
           createdAt: new Date()
         },
         {
@@ -79,7 +79,7 @@ describe('PolicyAssignmentHandler', () => {
           color: 'Negro',
           serie: '2HGBH41JXMN109187',
           placas: '',
-          titularTemporal: 'María García',
+          titular: 'María García',
           createdAt: new Date()
         }
       ];
@@ -154,7 +154,7 @@ describe('PolicyAssignmentHandler', () => {
         color: 'Blanco',
         serie: `SERIE${i + 11}`,
         placas: `ABC-${i + 11}-D`,
-        titularTemporal: `Usuario ${i + 11}`,
+        titular: `Usuario ${i + 11}`,
         createdAt: new Date()
       }));
 
@@ -203,9 +203,9 @@ describe('PolicyAssignmentHandler', () => {
         color: 'Blanco',
         serie: '1HGBH41JXMN109186',
         placas: 'ABC-123-D',
-        titularTemporal: 'Juan Pérez',
-        rfcTemporal: 'PEGJ850312H7A',
-        telefonoTemporal: '+52 55 1234 5678',
+        titular: 'Juan Pérez',
+        rfc: 'PEGJ850312H7A',
+        telefono: '+52 55 1234 5678',
         estado: 'SIN_POLIZA'
       };
     });

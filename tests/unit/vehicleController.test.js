@@ -78,8 +78,8 @@ describe('VehicleController', () => {
       expect(resultado.vehicle.creadoPor).toBe('user123');
       
       // Verificar datos temporales generados
-      expect(resultado.vehicle.titularTemporal).toBe('Juan Pérez García');
-      expect(resultado.vehicle.rfcTemporal).toBe('PEGJ850312H7A');
+      expect(resultado.vehicle.titular).toBe('Juan Pérez García');
+      expect(resultado.vehicle.rfc).toBe('PEGJ850312H7A');
     });
 
     test('debe fallar con serie duplicada', async () => {
@@ -206,10 +206,10 @@ describe('VehicleController', () => {
           año: 2023,
           color: 'Blanco',
           placas: 'ABC-123-D',
-          titularTemporal: 'Juan Pérez',
-          rfcTemporal: 'PEGJ850312H7A',
-          telefonoTemporal: '+52 55 1234 5678',
-          correoTemporal: 'juan@test.com',
+          titular: 'Juan Pérez',
+          rfc: 'PEGJ850312H7A',
+          telefono: '+52 55 1234 5678',
+          correo: 'juan@test.com',
           creadoPor: 'user123',
           estado: 'SIN_POLIZA'
         },
@@ -220,10 +220,10 @@ describe('VehicleController', () => {
           año: 2022,
           color: 'Negro',
           placas: 'XYZ-456-E',
-          titularTemporal: 'María García',
-          rfcTemporal: 'GARM900215M2A',
-          telefonoTemporal: '+52 55 9876 5432',
-          correoTemporal: 'maria@test.com',
+          titular: 'María García',
+          rfc: 'GARM900215M2A',
+          telefono: '+52 55 9876 5432',
+          correo: 'maria@test.com',
           creadoPor: 'user456',
           estado: 'CON_POLIZA'
         }
@@ -261,10 +261,10 @@ describe('VehicleController', () => {
         año: 2023,
         color: 'Blanco',
         placas: 'ABC-123-D',
-        titularTemporal: 'Juan Pérez García',
-        rfcTemporal: 'PEGJ850312H7A',
-        telefonoTemporal: '+52 55 1234 5678',
-        correoTemporal: 'juan@test.com',
+        titular: 'Juan Pérez García',
+        rfc: 'PEGJ850312H7A',
+        telefono: '+52 55 1234 5678',
+        correo: 'juan@test.com',
         creadoPor: 'user123',
         estado: 'SIN_POLIZA'
       };
@@ -307,10 +307,10 @@ describe('VehicleController', () => {
         año: 2023,
         color: 'Blanco',
         placas: 'ABC-123-D',
-        titularTemporal: 'Juan Pérez García',
-        rfcTemporal: 'PEGJ850312H7A',
-        telefonoTemporal: '+52 55 1234 5678',
-        correoTemporal: 'juan@test.com',
+        titular: 'Juan Pérez García',
+        rfc: 'PEGJ850312H7A',
+        telefono: '+52 55 1234 5678',
+        correo: 'juan@test.com',
         creadoPor: 'user123',
         estado: 'SIN_POLIZA'
       };
@@ -348,10 +348,10 @@ describe('VehicleController', () => {
           año: 2023,
           color: 'Blanco',
           placas: 'ABC-123-D',
-          titularTemporal: 'Juan Pérez',
-          rfcTemporal: 'PEGJ850312H7A',
-          telefonoTemporal: '+52 55 1234 5678',
-          correoTemporal: 'juan@test.com',
+          titular: 'Juan Pérez',
+          rfc: 'PEGJ850312H7A',
+          telefono: '+52 55 1234 5678',
+          correo: 'juan@test.com',
           creadoPor: 'user123',
           estado: 'SIN_POLIZA'
         },
@@ -362,10 +362,10 @@ describe('VehicleController', () => {
           año: 2022,
           color: 'Negro',
           placas: 'XYZ-456-E',
-          titularTemporal: 'María García',
-          rfcTemporal: 'GARM900215M2A',
-          telefonoTemporal: '+52 55 9876 5432',
-          correoTemporal: 'maria@test.com',
+          titular: 'María García',
+          rfc: 'GARM900215M2A',
+          telefono: '+52 55 9876 5432',
+          correo: 'maria@test.com',
           creadoPor: 'user456',
           estado: 'CON_POLIZA'
         },
@@ -376,10 +376,10 @@ describe('VehicleController', () => {
           año: 2021,
           color: 'Rojo',
           placas: 'QWE-789-F',
-          titularTemporal: 'Carlos López',
-          rfcTemporal: 'LOPC800101H1B',
-          telefonoTemporal: '+52 55 5555 5555',
-          correoTemporal: 'carlos@test.com',
+          titular: 'Carlos López',
+          rfc: 'LOPC800101H1B',
+          telefono: '+52 55 5555 5555',
+          correo: 'carlos@test.com',
           creadoPor: 'user789',
           estado: 'ELIMINADO'
         }

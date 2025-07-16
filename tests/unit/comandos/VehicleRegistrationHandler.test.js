@@ -163,7 +163,7 @@ describe('VehicleRegistrationHandler', () => {
             submarca: 'Corolla',
             año: 2022,
             color: 'Negro',
-            titularTemporal: 'Juan Test'
+            titular: 'Juan Test'
           }
         });
         
