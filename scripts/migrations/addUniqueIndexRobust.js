@@ -5,10 +5,13 @@
 const mongoose = require('mongoose');
 const logger = require('../../src/utils/logger');
 
-// Configuración de conexión (ajustar según tu configuración)
-const MONGO_URI =
-    process.env.MONGO_URI ||
-    'mongodb+srv://polizasUser:polizasUser1184@polizas.avt4g.mongodb.net/polizas?retryWrites=true&w=majority&appName=polizas';
+// Configuración de conexión desde variables de entorno
+const MONGO_URI = process.env.MONGO_URI;
+
+if (!MONGO_URI) {
+    console.error('❌ MONGO_URI no está definida en las variables de entorno');
+    process.exit(1);
+}
 
 async function addUniqueIndexRobust() {
     try {
