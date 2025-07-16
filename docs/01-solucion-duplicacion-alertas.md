@@ -358,4 +358,4 @@ La **Fase 2** implementada es una solución robusta que debería eliminar el 98-
 - ✅ **Migración segura** de datos existentes
 - ✅ **Índices optimizados** para rendimiento
 
-**RECOMENDACIÓN:** Ejecutar la migración con `node scripts/migrations/addScheduledAtFields.js` y monitorear por 24-48 horas.
+**RECOMENDACIÓN:** Ejecutar la migración con `node scripts/migrations/addScheduledAtFields.js` y monitorear por 24-48 horas
