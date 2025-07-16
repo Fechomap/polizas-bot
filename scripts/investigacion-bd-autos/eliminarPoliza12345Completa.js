@@ -2,9 +2,9 @@
 // Este script es específico para limpiar el entorno de pruebas BD AUTOS
 require('dotenv').config();
 const mongoose = require('mongoose');
-const connectDB = require('../src/database');
-const Policy = require('../src/models/policy');
-const Vehicle = require('../src/models/vehicle');
+const connectDB = require('../../src/database');
+const Policy = require('../../src/models/policy');
+const Vehicle = require('../../src/models/vehicle');
 
 async function eliminarPoliza12345Completa() {
     try {
