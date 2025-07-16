@@ -45,7 +45,8 @@ const {
     DeleteCommand,
     ReportPaymentCommand,
     ReportUsedCommand,
-    NotificationCommand
+    NotificationCommand,
+    BaseAutosCommand
 } = require('./comandos');
 
 // Import DocumentHandler
@@ -160,6 +161,11 @@ class CommandHandler {
         const excelUploadCmd = new ExcelUploadHandler(this);
         this.registry.registerCommand(excelUploadCmd);
         excelUploadCmd.register();
+
+        // Register Base de Autos Command
+        const baseAutosCmd = new BaseAutosCommand(this);
+        this.registry.registerCommand(baseAutosCmd);
+        baseAutosCmd.register();
 
         // Register DocumentHandler to handle all document conflicts
         const documentHandler = new DocumentHandler(this.bot, this);

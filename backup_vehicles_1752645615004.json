@@ -1,0 +1,96 @@
+{
+  "timestamp": "2025-07-16T06:00:15.002Z",
+  "action": "delete_incomplete_vehicles",
+  "vehicles": [
+    {
+      "archivos": {
+        "r2Files": {
+          "fotos": []
+        },
+        "fotos": []
+      },
+      "_id": "687738ea28cdcbf230544dfb",
+      "serie": "12345678901234567",
+      "marca": "NISSAN",
+      "submarca": "VERSA",
+      "año": 2020,
+      "color": "GRIS",
+      "placas": "PERMISO",
+      "titularTemporal": "Leticia Sánchez Gómez",
+      "rfcTemporal": "SÁGL841208MQF",
+      "telefonoTemporal": "+52 662 3913 692",
+      "correoTemporal": "leticia.sánchez236@hotmail.com",
+      "calleTemporal": "Calle López 800",
+      "coloniaTemporal": "Del Valle",
+      "municipioTemporal": "Toluca",
+      "estadoRegionTemporal": "Estado de México",
+      "cpTemporal": "96981",
+      "estado": "SIN_POLIZA",
+      "creadoPor": "7143094298",
+      "creadoVia": "TELEGRAM_BOT",
+      "notas": "",
+      "createdAt": "2025-07-16T05:30:18.708Z",
+      "updatedAt": "2025-07-16T05:30:18.708Z",
+      "__v": 0
+    },
+    {
+      "archivos": {
+        "r2Files": {
+          "fotos": [
+            {
+              "url": "https://polizas-bot-storage.r2.cloudflarestorage.com/vehiculos/12345678901234568/1752645145815_vehiculo_12345678901234568_foto_1752645145815.jpg",
+              "key": "vehiculos/12345678901234568/1752645145815_vehiculo_12345678901234568_foto_1752645145815.jpg",
+              "originalName": "vehiculo_12345678901234568_foto_1752645145815.jpg",
+              "contentType": "image/jpeg",
+              "size": 0,
+              "uploadDate": "2025-07-16T05:52:26.570Z",
+              "_id": "68773e283b2d230e908e155f"
+            },
+            {
+              "url": "https://polizas-bot-storage.r2.cloudflarestorage.com/vehiculos/12345678901234568/1752645147391_vehiculo_12345678901234568_foto_1752645147391.jpg",
+              "key": "vehiculos/12345678901234568/1752645147391_vehiculo_12345678901234568_foto_1752645147391.jpg",
+              "originalName": "vehiculo_12345678901234568_foto_1752645147391.jpg",
+              "contentType": "image/jpeg",
+              "size": 0,
+              "uploadDate": "2025-07-16T05:52:28.002Z",
+              "_id": "68773e283b2d230e908e1560"
+            },
+            {
+              "url": "https://polizas-bot-storage.r2.cloudflarestorage.com/vehiculos/12345678901234568/1752645149248_vehiculo_12345678901234568_foto_1752645149248.jpg",
+              "key": "vehiculos/12345678901234568/1752645149248_vehiculo_12345678901234568_foto_1752645149248.jpg",
+              "originalName": "vehiculo_12345678901234568_foto_1752645149248.jpg",
+              "contentType": "image/jpeg",
+              "size": 0,
+              "uploadDate": "2025-07-16T05:52:29.753Z",
+              "_id": "68773e283b2d230e908e1561"
+            }
+          ]
+        },
+        "fotos": []
+      },
+      "_id": "68773e283b2d230e908e155c",
+      "serie": "12345678901234568",
+      "marca": "qwert",
+      "submarca": "wert",
+      "año": 2020,
+      "color": "wsdf",
+      "placas": "WERGH",
+      "titularTemporal": "Teresa Gómez Contreras",
+      "rfcTemporal": "GÓCT531223MAD",
+      "telefonoTemporal": "+52 33 5169 4657",
+      "correoTemporal": "teresa.gómez856@yahoo.com",
+      "calleTemporal": "Privada Contreras 998",
+      "coloniaTemporal": "San Rafael",
+      "municipioTemporal": "Guadalajara",
+      "estadoRegionTemporal": "Jalisco",
+      "cpTemporal": "57969",
+      "estado": "SIN_POLIZA",
+      "creadoPor": "7143094298",
+      "creadoVia": "TELEGRAM_BOT",
+      "notas": "",
+      "createdAt": "2025-07-16T05:52:40.565Z",
+      "updatedAt": "2025-07-16T05:52:40.715Z",
+      "__v": 1
+    }
+  ]
+}

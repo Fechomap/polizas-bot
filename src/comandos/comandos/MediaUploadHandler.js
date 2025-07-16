@@ -27,15 +27,15 @@ class MediaUploadHandler extends BaseCommand {
         );
 
         // Register photo handler
-        this.bot.on('photo', async ctx => {
+        this.bot.on('photo', async (ctx, next) => {
             try {
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const numeroPoliza = this.uploadTargets.get(chatId, threadId);
 
                 if (!numeroPoliza) {
-                    // No hay contexto de subida activo - IGNORAR SILENCIOSAMENTE
-                    return; // No responder nada, ni logs
+                    // No hay contexto de subida activo - PASAR AL SIGUIENTE HANDLER
+                    return next();
                 }
 
                 // Take the photo in maximum resolution
@@ -102,8 +102,10 @@ class MediaUploadHandler extends BaseCommand {
                     this.logError('Error al procesar foto:', error);
                     await ctx.reply('❌ Error al procesar la foto.');
                     this.uploadTargets.delete(chatId, threadId);
+                } else {
+                    // Si no hay contexto válido, pasar al siguiente handler
+                    return next();
                 }
-                // Si no hay contexto válido, no responder nada (silencioso)
             }
         });
 

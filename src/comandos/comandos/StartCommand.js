@@ -26,6 +26,9 @@ class StartCommand extends BaseCommand {
                     ],
                     [
                         Markup.button.callback('📊 REPORTES', 'accion:reportes'),
+                        Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
+                    ],
+                    [
                         Markup.button.callback('❓ AYUDA', 'accion:help')
                     ]
                 ]);
@@ -52,6 +55,9 @@ class StartCommand extends BaseCommand {
                 ],
                 [
                     Markup.button.callback('📊 REPORTES', 'accion:reportes'),
+                    Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
+                ],
+                [
                     Markup.button.callback('❓ AYUDA', 'accion:help')
                 ]
             ]);

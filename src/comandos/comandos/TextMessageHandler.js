@@ -79,6 +79,45 @@ class TextMessageHandler extends BaseCommand {
             }
         });
 
+        // Register photo handler for Base de Autos vehicle registration
+        this.bot.on('photo', async ctx => {
+            try {
+                const chatId = ctx.chat.id;
+                const userId = ctx.from.id.toString();
+
+                this.logInfo('Procesando foto recibida', {
+                    chatId,
+                    userId,
+                    photoCount: ctx.message.photo ? ctx.message.photo.length : 0
+                });
+
+                // Check for Base de Autos active flows
+                const baseAutosCommand = this.handler.registry.getAllCommands().find(
+                    cmd => cmd.getCommandName() === 'base_autos'
+                );
+
+                if (baseAutosCommand && typeof baseAutosCommand.procesarMensajeBaseAutos === 'function') {
+                    const procesadoPorBaseAutos = await baseAutosCommand.procesarMensajeBaseAutos(
+                        ctx.message,
+                        userId
+                    );
+
+                    if (procesadoPorBaseAutos) {
+                        this.logInfo('[TextMsgHandler] Foto procesada por Base de Autos');
+                        return; // Foto procesada por Base de Autos
+                    }
+                }
+
+                // If not processed by Base de Autos, inform user
+                this.logInfo('[TextMsgHandler] Foto recibida pero no hay flujo activo');
+                await ctx.reply('📸 Foto recibida, pero no hay un registro de vehículo activo. Usa /base_autos para iniciar el registro.');
+
+            } catch (error) {
+                this.logError('Error al procesar foto:', error);
+                await ctx.reply('❌ Error al procesar la foto. Intenta nuevamente.');
+            }
+        });
+
         // Get the OcuparPolizaCallback instance if it's registered later
         this.bot.on('text', async (ctx, next) => {
             // Lazy load the ocuparPolizaCallback if needed
@@ -105,6 +144,23 @@ class TextMessageHandler extends BaseCommand {
                         '[TextMsgHandler] Ignorando comando, pasando a siguiente middleware.'
                     );
                     return next();
+                }
+
+                // Check for Base de Autos active flows
+                const baseAutosCommand = this.handler.registry.getAllCommands().find(
+                    cmd => cmd.getCommandName() === 'base_autos'
+                );
+
+                if (baseAutosCommand && typeof baseAutosCommand.procesarMensajeBaseAutos === 'function') {
+                    const procesadoPorBaseAutos = await baseAutosCommand.procesarMensajeBaseAutos(
+                        ctx.message,
+                        ctx.from.id.toString()
+                    );
+
+                    if (procesadoPorBaseAutos) {
+                        this.logInfo('[TextMsgHandler] Mensaje procesado por Base de Autos');
+                        return; // Mensaje procesado por Base de Autos
+                    }
                 }
 
                 // --- LOGGING AÑADIDO ---
