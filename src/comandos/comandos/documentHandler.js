@@ -131,6 +131,18 @@ class DocumentHandler {
             // Ya no estamos esperando Excel
             this.excelUploadHandler.awaitingExcelUpload.delete(chatId);
 
+            // Eliminar el mensaje con el botón "Cancelar Registro"
+            if (this.handler.excelUploadMessages && this.handler.excelUploadMessages.has(chatId)) {
+                try {
+                    const messageIdToDelete = this.handler.excelUploadMessages.get(chatId);
+                    await ctx.telegram.deleteMessage(chatId, messageIdToDelete);
+                    this.handler.excelUploadMessages.delete(chatId);
+                    logger.info(`Mensaje con botón "Cancelar Registro" eliminado para chat ${chatId}`);
+                } catch (err) {
+                    logger.error('Error al eliminar mensaje con botón "Cancelar Registro":', err);
+                }
+            }
+
             // Limpiar otros estados posibles
             const threadId = StateKeyManager.getThreadId(ctx);
             this.handler.clearChatState(chatId, threadId);
@@ -151,6 +163,11 @@ class DocumentHandler {
             const threadId = StateKeyManager.getThreadId(ctx);
             this.excelUploadHandler.awaitingExcelUpload.delete(chatId);
             this.handler.clearChatState(chatId, threadId);
+
+            // Limpiar también el message_id almacenado en caso de error
+            if (this.handler.excelUploadMessages) {
+                this.handler.excelUploadMessages.delete(chatId);
+            }
         }
     }
 

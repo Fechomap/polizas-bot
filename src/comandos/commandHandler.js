@@ -79,6 +79,9 @@ class CommandHandler {
         this.awaitingOrigen = StateKeyManager.createThreadSafeStateMap();
         this.awaitingDestino = StateKeyManager.createThreadSafeStateMap();
 
+        // Map para almacenar message_id del botón "Cancelar Registro"
+        this.excelUploadMessages = new Map();
+
         // Store instances of commands needed for actions
         this.startCommandInstance = null;
         this.helpCommandInstance = null;
@@ -412,18 +415,9 @@ class CommandHandler {
                 excelUploadCmd.setAwaitingExcelUpload(ctx.chat.id, true);
 
                 // Solicitar el archivo Excel
-                await ctx.reply(
+                const excelMessage = await ctx.reply(
                     '📊 *Registro de Pólizas por Excel*\n\n' +
-                        'Por favor, sube un archivo Excel (.xlsx) con las pólizas a registrar.\n\n' +
-                        'El archivo debe contener todos los campos necesarios con los siguientes encabezados:\n' +
-                        '- TITULAR\n' +
-                        '- RFC\n' +
-                        '- MARCA, SUBMARCA, AÑO, COLOR, SERIE, PLACAS\n' +
-                        '- AGENTE COTIZADOR\n' +
-                        '- ASEGURADORA\n' +
-                        '- # DE POLIZA\n' +
-                        '- FECHA DE EMISION\n\n' +
-                        'Se procesarán todas las filas del archivo y se registrarán como pólizas activas.',
+                        'Por favor, sube un archivo Excel (.xlsx) con las pólizas a registrar.',
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
@@ -431,6 +425,9 @@ class CommandHandler {
                         ])
                     }
                 );
+
+                // Almacenar el message_id para eliminarlo después
+                this.excelUploadMessages.set(ctx.chat.id, excelMessage.message_id);
 
                 logger.info(`Flujo de subida de Excel iniciado para chatId: ${ctx.chat.id}`);
             } catch (error) {
@@ -455,6 +452,9 @@ class CommandHandler {
                 // Limpiar otros estados
                 const threadId = StateKeyManager.getThreadId(ctx);
                 this.clearChatState(ctx.chat.id, threadId);
+
+                // Limpiar también el message_id almacenado
+                this.excelUploadMessages.delete(ctx.chat.id);
 
                 await ctx.editMessageText('Registro cancelado.'); // Editar mensaje original
             } catch (error) {

@@ -44,5 +44,19 @@ module.exports = [
             'no-console': 'off', // Scripts pueden usar console
             'no-process-exit': 'off' // Scripts pueden usar process.exit
         }
+    },
+    {
+        files: ['tests/**/*.js', '**/*.test.js', '**/*.spec.js'],
+        languageOptions: {
+            globals: {
+                ...globals.node,
+                ...globals.es2021,
+                ...globals.jest
+            }
+        },
+        rules: {
+            'no-console': 'off', // Tests pueden usar console
+            'no-unused-expressions': 'off' // Jest usa expect().toBe() que parece unused expression
+        }
     }
 ];

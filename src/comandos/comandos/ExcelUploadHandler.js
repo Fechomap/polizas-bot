@@ -139,16 +139,26 @@ class ExcelUploadHandler extends BaseCommand {
             const batches = Math.ceil(rows.length / BATCH_SIZE);
 
             // Mensaje de inicio del procesamiento
-            await ctx.reply(`📊 Procesando ${rows.length} pólizas en ${batches} lotes...`);
+            const progressMessage = await ctx.reply(`📊 Procesando ${rows.length} pólizas en ${batches} lotes...`);
 
             for (let batchIndex = 0; batchIndex < batches; batchIndex++) {
                 const batchStart = batchIndex * BATCH_SIZE;
                 const batchEnd = Math.min(batchStart + BATCH_SIZE, rows.length);
                 const batch = rows.slice(batchStart, batchEnd);
 
-                // Actualizar progreso
+                // Actualizar progreso en el mismo mensaje
                 if (batches > 1) {
-                    await ctx.reply(`🔄 Procesando lote ${batchIndex + 1}/${batches}...`);
+                    try {
+                        await ctx.telegram.editMessageText(
+                            ctx.chat.id,
+                            progressMessage.message_id,
+                            undefined,
+                            `📊 Procesando ${rows.length} pólizas en ${batches} lotes...\n\n🔄 Procesando lote ${batchIndex + 1}/${batches}...`
+                        );
+                    } catch (err) {
+                        // Si falla la edición, continuar sin mostrar error
+                        this.logError('Error al actualizar mensaje de progreso:', err);
+                    }
                 }
 
                 // Procesar cada fila en el lote
@@ -158,12 +168,13 @@ class ExcelUploadHandler extends BaseCommand {
                         const policyData = this.mapRowToPolicy(headers, row);
 
                         // Validar datos mínimos
-                        if (!this.validatePolicyData(policyData)) {
+                        const validation = this.validatePolicyData(policyData);
+                        if (!validation.isValid) {
                             results.failed++;
                             results.details.push({
                                 numeroPoliza: policyData.numeroPoliza || 'Desconocido',
                                 status: 'ERROR',
-                                message: 'Datos incompletos o inválidos'
+                                message: validation.errors.join(', ')
                             });
                             continue;
                         }
@@ -203,6 +214,13 @@ class ExcelUploadHandler extends BaseCommand {
                 if (batchIndex < batches - 1) {
                     await new Promise(resolve => setTimeout(resolve, 1000));
                 }
+            }
+
+            // Eliminar el mensaje de progreso antes de mostrar resultados
+            try {
+                await ctx.telegram.deleteMessage(ctx.chat.id, progressMessage.message_id);
+            } catch (err) {
+                this.logError('Error al eliminar mensaje de progreso:', err);
             }
 
             // Mostrar resumen
@@ -396,6 +414,24 @@ class ExcelUploadHandler extends BaseCommand {
 
     // Validar datos mínimos de una póliza
     validatePolicyData(policyData) {
+        const errors = [];
+
+        // Mapeo de campos técnicos a nombres amigables
+        const fieldNames = {
+            'titular': 'TITULAR',
+            'rfc': 'RFC',
+            'marca': 'MARCA',
+            'submarca': 'SUBMARCA',
+            'año': 'AÑO',
+            'color': 'COLOR',
+            'serie': 'SERIE',
+            'placas': 'PLACAS',
+            'agenteCotizador': 'AGENTE COTIZADOR',
+            'aseguradora': 'ASEGURADORA',
+            'numeroPoliza': '# DE POLIZA',
+            'fechaEmision': 'FECHA DE EMISION'
+        };
+
         // Campos obligatorios
         const requiredFields = [
             'titular',
@@ -412,27 +448,28 @@ class ExcelUploadHandler extends BaseCommand {
             'fechaEmision'
         ];
 
+        // Verificar campos faltantes
         for (const field of requiredFields) {
             if (!policyData[field]) {
-                this.logError(`Campo obligatorio faltante: ${field}`, { policyData });
-                return false;
+                errors.push(`Falta ${fieldNames[field]}`);
             }
         }
 
         // Validaciones adicionales
-        if (isNaN(policyData.año)) {
-            this.logError('El año no es un número válido', { año: policyData.año });
-            return false;
+        if (policyData.año && isNaN(policyData.año)) {
+            errors.push('AÑO debe ser un número válido');
         }
 
-        if (!(policyData.fechaEmision instanceof Date)) {
-            this.logError('La fecha de emisión no es válida', {
-                fechaEmision: policyData.fechaEmision
-            });
-            return false;
+        if (policyData.fechaEmision && !(policyData.fechaEmision instanceof Date)) {
+            errors.push('FECHA DE EMISION no es válida');
         }
 
-        return true;
+        // Retornar el resultado de validación
+        if (errors.length > 0) {
+            return { isValid: false, errors: errors };
+        }
+
+        return { isValid: true, errors: [] };
     }
 
     // Mostrar resultados del procesamiento
@@ -460,7 +497,7 @@ class ExcelUploadHandler extends BaseCommand {
 
             for (let i = 0; i < successful.length; i += ITEMS_PER_MESSAGE) {
                 const chunk = successful.slice(i, i + ITEMS_PER_MESSAGE);
-                const message = chunk.map(item => `- ${item.numeroPoliza}`).join('\n');
+                const message = chunk.map(item => `${item.numeroPoliza}`).join('\n');
                 await ctx.reply(message);
 
                 // Pequeña pausa para evitar flood
@@ -477,7 +514,7 @@ class ExcelUploadHandler extends BaseCommand {
             for (let i = 0; i < failed.length; i += ITEMS_PER_MESSAGE) {
                 const chunk = failed.slice(i, i + ITEMS_PER_MESSAGE);
                 const message = chunk
-                    .map(item => `- *${item.numeroPoliza}*: ${item.message}`)
+                    .map(item => `*${item.numeroPoliza}*: ${item.message}`)
                     .join('\n');
 
                 await ctx.reply(message, { parse_mode: 'Markdown' });
