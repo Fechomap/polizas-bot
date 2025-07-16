@@ -144,8 +144,9 @@ const actualizarEstados = async () => {
                     continue;
                 }
 
-                // Contabilizar pagos
-                const numPagos = policy.pagos ? policy.pagos.length : 0;
+                // Contabilizar solo pagos REALIZADOS (dinero real recibido)
+                const pagosRealizados = policy.pagos ? policy.pagos.filter(pago => pago.estado === 'REALIZADO') : [];
+                const numPagos = pagosRealizados.length;
 
                 // Calcular fechas de cobertura y período de gracia
                 let fechaFinCobertura, fechaFinGracia, diasCobertura, diasGracia, estado;

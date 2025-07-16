@@ -193,7 +193,16 @@ const policySchema = new mongoose.Schema(
         pagos: [
             {
                 monto: { type: Number, required: true },
-                fechaPago: { type: Date, required: true }
+                fechaPago: { type: Date, required: true },
+                estado: { 
+                    type: String, 
+                    enum: ['PLANIFICADO', 'REALIZADO', 'VENCIDO', 'CANCELADO'], 
+                    default: 'PLANIFICADO' 
+                },
+                metodoPago: { type: String, required: false },
+                referencia: { type: String, required: false },
+                fechaRegistro: { type: Date, default: Date.now },
+                notas: { type: String, required: false }
             }
         ],
 

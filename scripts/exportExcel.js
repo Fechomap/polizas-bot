@@ -184,10 +184,10 @@ async function exportExcelStream() {
                 calificacion: doc.calificacion !== undefined ? doc.calificacion : 0
             };
 
-            // Manejo de pagos (hasta 12)
-            const pagos = doc.pagos || [];
+            // Manejo de pagos REALIZADOS (hasta 12) - SOLO dinero real recibido
+            const pagosRealizados = (doc.pagos || []).filter(pago => pago.estado === 'REALIZADO');
             for (let i = 0; i < 12; i++) {
-                const pago = pagos[i];
+                const pago = pagosRealizados[i];
                 rowData[`pago${i + 1}Monto`] = pago ? pago.monto : '';
                 // CAMBIO: Exportar fechas como objetos Date, no como strings
                 rowData[`pago${i + 1}Fecha`] =

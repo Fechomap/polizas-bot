@@ -196,8 +196,13 @@ const addPaymentToPolicy = async (numeroPoliza, monto, fechaPago) => {
             return null; // Si no existe, retornamos null
         }
 
-        // Añadir el pago al arreglo
-        policy.pagos.push({ monto, fechaPago });
+        // Añadir el pago al arreglo (marcado como REALIZADO ya que es un pago manual)
+        policy.pagos.push({ 
+            monto, 
+            fechaPago,
+            estado: 'REALIZADO',
+            notas: 'Pago registrado manualmente - dinero real recibido'
+        });
 
         const updatedPolicy = await policy.save();
         logger.info(`Pago agregado correctamente a la póliza: ${numeroPoliza}`);
@@ -352,8 +357,9 @@ const getSusceptiblePolicies = async () => {
             }
             const diasTranscurridos = Math.floor(msTranscurridos / (1000 * 60 * 60 * 24));
 
-            // 3. Ordenar pagos por fecha ascendente y acumular 30 días por cada pago
-            const pagosOrdenados = pagos.sort(
+            // 3. Filtrar SOLO pagos REALIZADOS y ordenar por fecha ascendente
+            const pagosRealizados = pagos.filter(pago => pago.estado === 'REALIZADO');
+            const pagosOrdenados = pagosRealizados.sort(
                 (a, b) => new Date(a.fechaPago) - new Date(b.fechaPago)
             );
             let diasCubiertos = 0;
@@ -389,6 +395,55 @@ const getSusceptiblePolicies = async () => {
         return susceptibles;
     } catch (error) {
         logger.error('Error en getSusceptiblePolicies:', { error: error.message });
+        throw error;
+    }
+};
+
+/**
+ * Obtiene información detallada de pagos para una póliza específica
+ * Incluye montos planificados (para referencia) y realizados (para cálculos reales)
+ * @param {string} numeroPoliza - Número de la póliza a consultar
+ * @returns {Promise<Object|null>} - Información detallada de pagos o null si no existe
+ */
+const getDetailedPaymentInfo = async (numeroPoliza) => {
+    try {
+        const policy = await Policy.findOne({ numeroPoliza }).exec();
+        if (!policy) {
+            return null;
+        }
+
+        const pagosRealizados = policy.pagos.filter(pago => pago.estado === 'REALIZADO');
+        const pagosPlanificados = policy.pagos.filter(pago => pago.estado === 'PLANIFICADO');
+        
+        // Calcular días transcurridos desde emisión
+        const fechaEmision = new Date(policy.fechaEmision);
+        const ahora = new Date();
+        const msTranscurridos = ahora - fechaEmision;
+        const diasTranscurridos = Math.floor(msTranscurridos / (1000 * 60 * 60 * 24));
+        
+        // Calcular días cubiertos por pagos realizados
+        let diasCubiertos = pagosRealizados.length * 30;
+        let diasDeImpago = Math.max(0, diasTranscurridos - diasCubiertos);
+
+        return {
+            numeroPoliza: policy.numeroPoliza,
+            fechaEmision: policy.fechaEmision,
+            diasTranscurridos,
+            diasDeImpago,
+            pagosRealizados: {
+                cantidad: pagosRealizados.length,
+                montoTotal: pagosRealizados.reduce((sum, pago) => sum + pago.monto, 0),
+                detalles: pagosRealizados
+            },
+            pagosPlanificados: {
+                cantidad: pagosPlanificados.length,
+                montoTotal: pagosPlanificados.reduce((sum, pago) => sum + pago.monto, 0),
+                detalles: pagosPlanificados
+            },
+            proximoPagoPlanificado: pagosPlanificados.length > 0 ? pagosPlanificados[0] : null
+        };
+    } catch (error) {
+        logger.error('Error al obtener información detallada de pagos:', error);
         throw error;
     }
 };
@@ -865,6 +920,7 @@ module.exports = {
     addServiceToPolicy,
     DuplicatePolicyError,
     getSusceptiblePolicies,
+    getDetailedPaymentInfo, // Nueva función para información detallada de pagos
     getOldUnusedPolicies,
     deletePolicyByNumber,
     markPolicyAsDeleted,

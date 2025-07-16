@@ -775,11 +775,13 @@ class PolicyAssignmentHandler {
                 fechaEmision: datosPoliza.fechaEmision,
                 fechaFinCobertura: datosPoliza.fechaFinCobertura,
 
-                // Pagos (ahora son exactamente 2 montos simples con fechas automáticas)
+                // Pagos planificados (NO realizados - solo para referencia en reportes)
                 pagos: [
                     {
                         monto: datosPoliza.primerPago,
-                        fechaPago: datosPoliza.fechaEmision // Primer pago = fecha de emisión
+                        fechaPago: datosPoliza.fechaEmision, // Primer pago = fecha de emisión
+                        estado: 'PLANIFICADO',
+                        notas: 'Pago inicial planificado al registrar póliza'
                     },
                     {
                         monto: datosPoliza.segundoPago,
@@ -787,7 +789,9 @@ class PolicyAssignmentHandler {
                             const fecha = new Date(datosPoliza.fechaEmision);
                             fecha.setMonth(fecha.getMonth() + 1); // Segundo pago = 1 mes después
                             return fecha;
-                        })()
+                        })(),
+                        estado: 'PLANIFICADO',
+                        notas: 'Pago mensual planificado'
                     }
                 ].filter(p => p.monto), // Filtrar undefined en caso de error
 

@@ -163,19 +163,22 @@ class ReportsHandlerV2 {
                     stats.policiesWithServices++;
                 }
 
-                // Analizar TODOS los pagos (histórico completo)
+                // Analizar SOLO pagos REALIZADOS (dinero real recibido)
                 if (policy.pagos && policy.pagos.length > 0) {
                     policy.pagos.forEach(pago => {
-                        const paymentAmount = pago.monto || 0;
-                        stats.totalPaymentAmount += paymentAmount;
+                        // Solo contar pagos efectivamente realizados
+                        if (pago.estado === 'REALIZADO') {
+                            const paymentAmount = pago.monto || 0;
+                            stats.totalPaymentAmount += paymentAmount;
 
-                        // Verificar si el pago fue en el mes analizado
-                        if (
-                            pago.fechaPago &&
-                            pago.fechaPago >= startDate &&
-                            pago.fechaPago <= endDate
-                        ) {
-                            stats.paymentsInMonth += paymentAmount;
+                            // Verificar si el pago fue en el mes analizado
+                            if (
+                                pago.fechaPago &&
+                                pago.fechaPago >= startDate &&
+                                pago.fechaPago <= endDate
+                            ) {
+                                stats.paymentsInMonth += paymentAmount;
+                            }
                         }
                     });
                 }
@@ -397,10 +400,11 @@ class ReportsHandlerV2 {
                 });
             }
 
-            // Contar pagos del día
+            // Contar SOLO pagos REALIZADOS del día
             if (policy.pagos) {
                 policy.pagos.forEach(pago => {
                     if (
+                        pago.estado === 'REALIZADO' &&
                         pago.fechaPago &&
                         pago.fechaPago >= startDate &&
                         pago.fechaPago <= endDate
@@ -433,20 +437,22 @@ class ReportsHandlerV2 {
         let totalPaymentsInMonth = 0;
 
         policies.forEach(policy => {
-            // Analizar pagos
+            // Analizar SOLO pagos REALIZADOS
             if (policy.pagos) {
                 policy.pagos.forEach(pago => {
-                    const amount = pago.monto || 0;
-                    totalRevenue += amount;
-                    totalPayments++;
+                    if (pago.estado === 'REALIZADO') {
+                        const amount = pago.monto || 0;
+                        totalRevenue += amount;
+                        totalPayments++;
 
-                    if (
-                        pago.fechaPago &&
-                        pago.fechaPago >= startDate &&
-                        pago.fechaPago <= endDate
-                    ) {
-                        totalRevenueInMonth += amount;
-                        totalPaymentsInMonth++;
+                        if (
+                            pago.fechaPago &&
+                            pago.fechaPago >= startDate &&
+                            pago.fechaPago <= endDate
+                        ) {
+                            totalRevenueInMonth += amount;
+                            totalPaymentsInMonth++;
+                        }
                     }
                 });
             }
@@ -613,10 +619,11 @@ class ReportsHandlerV2 {
                             });
                         }
 
-                        // Calcular inversión total (estimada por pagos)
+                        // Calcular inversión total REAL (solo pagos realizados)
                         if (policy.pagos && policy.pagos.length > 0) {
                             policy.pagos.forEach(pago => {
                                 if (
+                                    pago.estado === 'REALIZADO' &&
                                     pago.fechaPago &&
                                     pago.fechaPago >= startDate &&
                                     pago.fechaPago <= endDate
@@ -841,10 +848,12 @@ class ReportsHandlerV2 {
                 stats.policiesDeleted++;
             }
 
-            // Inversión total
+            // Inversión total REAL (solo pagos efectivamente realizados)
             if (policy.pagos) {
                 policy.pagos.forEach(pago => {
-                    stats.totalInvestment += pago.monto || 0;
+                    if (pago.estado === 'REALIZADO') {
+                        stats.totalInvestment += pago.monto || 0;
+                    }
                 });
             }
 
