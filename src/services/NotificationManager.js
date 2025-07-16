@@ -32,7 +32,7 @@ class NotificationManager {
 
             // Cargar notificaciones pendientes al iniciar
             await this.loadPendingNotifications();
-            
+
             // Recuperar notificaciones SCHEDULED que perdieron su timer
             await this.recoverScheduledNotifications();
 
@@ -233,96 +233,135 @@ class NotificationManager {
     }
 
     /**
-     * Crea y programa una nueva notificación con verificación de duplicados
+     * Crea y programa una nueva notificación con verificación ATÓMICA de duplicados
+     * IMPLEMENTACIÓN ANTI-DUPLICADOS DEFINITIVA
      */
     async scheduleNotification(data) {
-        try {
-            // Validaciones básicas
-            if (!data.numeroPoliza || !data.contactTime || !data.expedienteNum) {
-                throw new Error('Datos incompletos para programar notificación');
-            }
+        const MAX_RETRIES = 3;
+        const RETRY_DELAY = 100; // 100ms entre reintentos
 
-            // VERIFICAR DUPLICADOS ANTES DE CREAR
-            const existingNotification = await ScheduledNotification.findDuplicate(
-                data.numeroPoliza,
-                data.expedienteNum,
-                data.tipoNotificacion
-            );
-
-            if (existingNotification) {
-                logger.warn('[DUPLICATE_CREATION_PREVENTED] Ya existe notificación activa', {
-                    numeroPoliza: data.numeroPoliza,
-                    expediente: data.expedienteNum,
-                    tipo: data.tipoNotificacion,
-                    existingId: existingNotification._id
-                });
-                return existingNotification;
-            }
-
-            if (!data.targetGroupId) {
-                data.targetGroupId = -1002212807945;
-            }
-
-            // Obtener datos adicionales de la póliza
-            let policyData = {};
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                const policy = await getPolicyByNumber(data.numeroPoliza);
-                if (policy) {
-                    policyData = {
-                        marcaModelo: `${policy.marca} ${policy.submarca} (${policy.año})`,
-                        colorVehiculo: policy.color || '',
-                        placas: policy.placas || '',
-                        telefono: policy.telefono || ''
-                    };
+                // Validaciones básicas
+                if (!data.numeroPoliza || !data.contactTime || !data.expedienteNum) {
+                    throw new Error('Datos incompletos para programar notificación');
                 }
-            } catch (err) {
-                logger.warn(`No se pudo obtener datos de póliza ${data.numeroPoliza}:`, err);
-            }
 
-            // Determinar fecha programada
-            let scheduledDate;
-            if (data.scheduledDate) {
-                scheduledDate = moment(data.scheduledDate).tz('America/Mexico_City').toDate();
-            } else {
-                scheduledDate = this.parseContactTime(data.contactTime);
-            }
+                if (!data.targetGroupId) {
+                    data.targetGroupId = -1002212807945;
+                }
 
-            if (!scheduledDate || isNaN(scheduledDate.getTime())) {
-                throw new Error(
-                    `Formato de fecha/hora inválido: ${data.scheduledDate || data.contactTime}`
+                // Obtener datos adicionales de la póliza
+                let policyData = {};
+                try {
+                    const policy = await getPolicyByNumber(data.numeroPoliza);
+                    if (policy) {
+                        policyData = {
+                            marcaModelo: `${policy.marca} ${policy.submarca} (${policy.año})`,
+                            colorVehiculo: policy.color || '',
+                            placas: policy.placas || '',
+                            telefono: policy.telefono || ''
+                        };
+                    }
+                } catch (err) {
+                    logger.warn(`No se pudo obtener datos de póliza ${data.numeroPoliza}:`, err);
+                }
+
+                // Determinar fecha programada
+                let scheduledDate;
+                if (data.scheduledDate) {
+                    scheduledDate = moment(data.scheduledDate).tz('America/Mexico_City').toDate();
+                } else {
+                    scheduledDate = this.parseContactTime(data.contactTime);
+                }
+
+                if (!scheduledDate || isNaN(scheduledDate.getTime())) {
+                    throw new Error(
+                        `Formato de fecha/hora inválido: ${data.scheduledDate || data.contactTime}`
+                    );
+                }
+
+                // VERIFICACIÓN ATÓMICA DE DUPLICADOS + CREACIÓN USANDO FINDONEANDUPDATE
+                // Esto garantiza que solo se cree una notificación por combinación única
+                const existingNotification = await ScheduledNotification.findOneAndUpdate(
+                    {
+                        numeroPoliza: data.numeroPoliza,
+                        expedienteNum: data.expedienteNum,
+                        tipoNotificacion: data.tipoNotificacion,
+                        status: { $in: ['PENDING', 'SCHEDULED', 'PROCESSING'] }
+                    },
+                    {
+                        $setOnInsert: {
+                            ...data,
+                            ...policyData,
+                            scheduledDate,
+                            status: 'PENDING',
+                            retryCount: 0
+                        }
+                    },
+                    {
+                        upsert: true,
+                        new: true,
+                        setDefaultsOnInsert: true
+                    }
                 );
+
+                // Verificar si la notificación ya existía
+                const isNewNotification =
+                    !existingNotification.createdAt ||
+                    new Date().getTime() - new Date(existingNotification.createdAt).getTime() <
+                        1000;
+
+                if (!isNewNotification) {
+                    logger.warn('[DUPLICATE_CREATION_PREVENTED] Ya existe notificación activa', {
+                        numeroPoliza: data.numeroPoliza,
+                        expediente: data.expedienteNum,
+                        tipo: data.tipoNotificacion,
+                        existingId: existingNotification._id,
+                        attempt: attempt
+                    });
+                    return existingNotification;
+                }
+
+                logger.info(
+                    `[CREATED] Notificación ${existingNotification._id} creada atómicamente`,
+                    {
+                        tipo: data.tipoNotificacion,
+                        poliza: data.numeroPoliza,
+                        expediente: data.expedienteNum,
+                        attempt: attempt
+                    }
+                );
+
+                // Programar inmediatamente si es para el futuro cercano
+                const nowCDMX = moment().tz('America/Mexico_City').toDate();
+                const timeToWait = scheduledDate.getTime() - nowCDMX.getTime();
+
+                if (timeToWait > 0 && timeToWait < 24 * 60 * 60 * 1000) {
+                    // Menos de 24 horas
+                    await this.scheduleExistingNotification(existingNotification);
+                }
+
+                return existingNotification;
+            } catch (error) {
+                // Si es error de duplicado (E11000), intentar nuevamente
+                if (error.code === 11000 && attempt < MAX_RETRIES) {
+                    logger.warn(
+                        `[RETRY] Intento ${attempt}/${MAX_RETRIES} falló por duplicado, reintentando en ${RETRY_DELAY}ms`
+                    );
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * attempt));
+                    continue;
+                }
+
+                logger.error(
+                    `Error al crear notificación (intento ${attempt}/${MAX_RETRIES}):`,
+                    error
+                );
+                throw error;
             }
-
-            // Crear la notificación
-            const notification = new ScheduledNotification({
-                ...data,
-                ...policyData,
-                scheduledDate,
-                status: 'PENDING',
-                retryCount: 0
-            });
-
-            await notification.save();
-            logger.info(`[CREATED] Notificación ${notification._id} creada`, {
-                tipo: data.tipoNotificacion,
-                poliza: data.numeroPoliza,
-                expediente: data.expedienteNum
-            });
-
-            // Programar inmediatamente si es para el futuro cercano
-            const nowCDMX = moment().tz('America/Mexico_City').toDate();
-            const timeToWait = scheduledDate.getTime() - nowCDMX.getTime();
-
-            if (timeToWait > 0 && timeToWait < 24 * 60 * 60 * 1000) {
-                // Menos de 24 horas
-                await this.scheduleExistingNotification(notification);
-            }
-
-            return notification;
-        } catch (error) {
-            logger.error('Error al crear notificación:', error);
-            throw error;
         }
+
+        throw new Error(`Falló crear notificación después de ${MAX_RETRIES} intentos`);
     }
 
     /**
@@ -414,7 +453,8 @@ class NotificationManager {
 
                 // Extraer solo el destino final
                 if (notification.origenDestino) {
-                    const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                    const destino =
+                        notification.origenDestino.split(' - ').pop() || notification.origenDestino;
                     message += `🔸 ➡️ ${destino}\n`;
                 }
 
@@ -439,7 +479,8 @@ class NotificationManager {
 
                 // Extraer solo el destino final
                 if (notification.origenDestino) {
-                    const destino = notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                    const destino =
+                        notification.origenDestino.split(' - ').pop() || notification.origenDestino;
                     message += `🔸 ➡️ ${destino}\n`;
                 }
 
@@ -554,7 +595,7 @@ class NotificationManager {
     async recoverScheduledNotifications() {
         try {
             const nowCDMX = moment().tz('America/Mexico_City').toDate();
-            
+
             // Buscar notificaciones SCHEDULED sin timer activo
             const scheduledNotifications = await ScheduledNotification.find({
                 status: 'SCHEDULED'
@@ -570,7 +611,7 @@ class NotificationManager {
 
             for (const notification of scheduledNotifications) {
                 const notificationId = notification._id.toString();
-                
+
                 // Verificar si ya tiene timer activo (no debería, pero por seguridad)
                 if (this.activeTimers.has(notificationId)) {
                     logger.debug(`[SCHEDULED_RECOVERY] ${notificationId} ya tiene timer activo`);
@@ -578,31 +619,42 @@ class NotificationManager {
                 }
 
                 const scheduledTime = new Date(notification.scheduledDate);
-                
+
                 // Si ya pasó el tiempo programado
                 if (scheduledTime <= nowCDMX) {
-                    const minutesLate = Math.round((nowCDMX.getTime() - scheduledTime.getTime()) / (1000 * 60));
-                    
+                    const minutesLate = Math.round(
+                        (nowCDMX.getTime() - scheduledTime.getTime()) / (1000 * 60)
+                    );
+
                     if (minutesLate <= 30) {
                         // Enviar inmediatamente si no han pasado más de 30 minutos
-                        logger.warn(`[SCHEDULED_RECOVERY] Enviando notificación tardía ${notificationId} (${minutesLate} min tarde)`);
-                        
+                        logger.warn(
+                            `[SCHEDULED_RECOVERY] Enviando notificación tardía ${notificationId} (${minutesLate} min tarde)`
+                        );
+
                         try {
                             await this.sendNotificationWithRetry(notificationId);
                             recoveredCount++;
                         } catch (sendError) {
-                            logger.error(`Error enviando notificación tardía ${notificationId}:`, sendError);
+                            logger.error(
+                                `Error enviando notificación tardía ${notificationId}:`,
+                                sendError
+                            );
                         }
                     } else {
                         // Marcar como fallida si ya pasaron más de 30 minutos
-                        logger.warn(`[SCHEDULED_RECOVERY] Marcando como fallida ${notificationId} (${minutesLate} min tarde)`);
-                        await notification.markAsFailed(`Perdida al reiniciar bot, ${minutesLate} minutos tarde`);
+                        logger.warn(
+                            `[SCHEDULED_RECOVERY] Marcando como fallida ${notificationId} (${minutesLate} min tarde)`
+                        );
+                        await notification.markAsFailed(
+                            `Perdida al reiniciar bot, ${minutesLate} minutos tarde`
+                        );
                         expiredCount++;
                     }
                 } else {
                     // Reprogramar para el futuro
                     logger.info(`[SCHEDULED_RECOVERY] Reprogramando ${notificationId} para futuro`);
-                    
+
                     // Resetear estado para que se pueda reprogramar
                     await ScheduledNotification.findByIdAndUpdate(notificationId, {
                         $set: {
@@ -611,9 +663,10 @@ class NotificationManager {
                             processingStartedAt: null
                         }
                     });
-                    
+
                     // Recargar la notificación actualizada
-                    const updatedNotification = await ScheduledNotification.findById(notificationId);
+                    const updatedNotification =
+                        await ScheduledNotification.findById(notificationId);
                     if (updatedNotification) {
                         await this.scheduleExistingNotification(updatedNotification);
                         recoveredCount++;
@@ -622,7 +675,9 @@ class NotificationManager {
             }
 
             if (recoveredCount > 0 || expiredCount > 0) {
-                logger.info(`[SCHEDULED_RECOVERY] Procesadas: ${recoveredCount} recuperadas, ${expiredCount} expiradas`);
+                logger.info(
+                    `[SCHEDULED_RECOVERY] Procesadas: ${recoveredCount} recuperadas, ${expiredCount} expiradas`
+                );
             }
         } catch (error) {
             logger.error('Error en recuperación de notificaciones SCHEDULED:', error);

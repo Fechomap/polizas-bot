@@ -82,10 +82,11 @@ class DocumentHandler {
                 // No responder nada - el bot simplemente ignora el archivo
             } catch (error) {
                 // Solo mostrar error si estamos en un contexto válido
+                const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const numeroPoliza = this.handler.uploadTargets.get(chatId, threadId);
                 const esperandoExcel = this.excelUploadHandler?.awaitingExcelUpload?.get(chatId);
-                
+
                 if (numeroPoliza || esperandoExcel) {
                     logger.error('Error al procesar documento:', error);
                     await ctx.reply('❌ Error al procesar el documento.');

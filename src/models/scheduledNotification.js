@@ -125,8 +125,28 @@ const scheduledNotificationSchema = new mongoose.Schema(
 
 // Índices compuestos para búsquedas eficientes
 scheduledNotificationSchema.index({ status: 1, scheduledDate: 1 });
-scheduledNotificationSchema.index({ numeroPoliza: 1, expedienteNum: 1, tipoNotificacion: 1 });
 scheduledNotificationSchema.index({ status: 1, lastScheduledAt: 1 });
+
+// ÍNDICE ÚNICO ROBUSTO ANTI-DUPLICADOS
+// Previene físicamente cualquier duplicado para la misma combinación
+scheduledNotificationSchema.index(
+    {
+        numeroPoliza: 1,
+        expedienteNum: 1,
+        tipoNotificacion: 1,
+        status: 1
+    },
+    {
+        unique: true,
+        partialFilterExpression: {
+            status: { $in: ['PENDING', 'SCHEDULED', 'PROCESSING'] }
+        },
+        name: 'unique_active_notification'
+    }
+);
+
+// Índice adicional para búsquedas rápidas
+scheduledNotificationSchema.index({ numeroPoliza: 1, expedienteNum: 1, tipoNotificacion: 1 });
 
 // Método para marcar como programada
 scheduledNotificationSchema.methods.markAsScheduled = async function () {

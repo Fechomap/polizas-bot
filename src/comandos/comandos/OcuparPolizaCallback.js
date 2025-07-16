@@ -629,9 +629,12 @@ class OcuparPolizaCallback extends BaseCommand {
                             fechaTermino: horasCalculadas.fechaTerminoProgramada.toISOString()
                         });
 
-                        // 1. Programar notificación de CONTACTO
-                        const notificationContacto = await notificationManager.scheduleNotification(
-                            {
+                        // PROGRAMACIÓN ATÓMICA DE NOTIFICACIONES (ANTI-DUPLICADOS)
+                        // Usar Promise.allSettled para programar ambas notificaciones simultáneamente
+                        // pero permitir que una falle sin afectar la otra
+                        const notificationPromises = [
+                            // 1. Notificación de CONTACTO
+                            notificationManager.scheduleNotification({
                                 numeroPoliza: numeroPoliza,
                                 targetGroupId: -1002212807945,
                                 contactTime: contactTimeStr,
@@ -643,31 +646,57 @@ class OcuparPolizaCallback extends BaseCommand {
                                 telefono: policy.telefono,
                                 scheduledDate: horasCalculadas.fechaContactoProgramada,
                                 tipoNotificacion: 'CONTACTO'
-                            }
-                        );
+                            }),
+                            // 2. Notificación de TÉRMINO
+                            notificationManager.scheduleNotification({
+                                numeroPoliza: numeroPoliza,
+                                targetGroupId: -1002212807945,
+                                contactTime: terminoTimeStr,
+                                expedienteNum: registro.numeroExpediente,
+                                origenDestino: origenDestino,
+                                marcaModelo: marcaModelo,
+                                colorVehiculo: policy.color,
+                                placas: policy.placas,
+                                telefono: policy.telefono,
+                                scheduledDate: horasCalculadas.fechaTerminoProgramada,
+                                tipoNotificacion: 'TERMINO'
+                            })
+                        ];
 
-                        this.logInfo(
-                            `✅ Notificación de CONTACTO programada ID: ${notificationContacto._id} para ${contactTimeStr}`
-                        );
+                        const results = await Promise.allSettled(notificationPromises);
 
-                        // 2. Programar notificación de TÉRMINO
-                        const notificationTermino = await notificationManager.scheduleNotification({
-                            numeroPoliza: numeroPoliza,
-                            targetGroupId: -1002212807945,
-                            contactTime: terminoTimeStr,
-                            expedienteNum: registro.numeroExpediente,
-                            origenDestino: origenDestino,
-                            marcaModelo: marcaModelo,
-                            colorVehiculo: policy.color,
-                            placas: policy.placas,
-                            telefono: policy.telefono,
-                            scheduledDate: horasCalculadas.fechaTerminoProgramada,
-                            tipoNotificacion: 'TERMINO'
-                        });
+                        // Procesar resultados
+                        const notificationContacto =
+                            results[0].status === 'fulfilled' ? results[0].value : null;
+                        const notificationTermino =
+                            results[1].status === 'fulfilled' ? results[1].value : null;
 
-                        this.logInfo(
-                            `✅ Notificación de TÉRMINO programada ID: ${notificationTermino._id} para ${terminoTimeStr}`
-                        );
+                        if (notificationContacto) {
+                            this.logInfo(
+                                `✅ Notificación de CONTACTO programada ID: ${notificationContacto._id} para ${contactTimeStr}`
+                            );
+                        } else {
+                            this.logError(
+                                'Error programando notificación de CONTACTO:',
+                                results[0].reason
+                            );
+                        }
+
+                        if (notificationTermino) {
+                            this.logInfo(
+                                `✅ Notificación de TÉRMINO programada ID: ${notificationTermino._id} para ${terminoTimeStr}`
+                            );
+                        } else {
+                            this.logError(
+                                'Error programando notificación de TÉRMINO:',
+                                results[1].reason
+                            );
+                        }
+
+                        // Validar que al menos una notificación se haya programado exitosamente
+                        if (!notificationContacto && !notificationTermino) {
+                            throw new Error('No se pudo programar ninguna notificación automática');
+                        }
                     }
                 } catch (notifyError) {
                     this.logError('Error al programar notificaciones automáticas:', notifyError);
@@ -944,21 +973,36 @@ class OcuparPolizaCallback extends BaseCommand {
                             `Usando número de expediente: ${expedienteNum} para notificación`
                         );
 
-                        // Programar la notificación en el sistema
-                        const notification = await notificationManager.scheduleNotification({
-                            numeroPoliza: numeroPoliza,
-                            targetGroupId: -1002212807945,
-                            contactTime: serviceInfo.contactTime,
-                            expedienteNum: expedienteNum,
-                            origenDestino:
-                                serviceInfo.origenDestino ||
-                                `${serviceInfo.origen} - ${serviceInfo.destino}`,
-                            marcaModelo: `${serviceInfo.policy.marca} ${serviceInfo.policy.submarca} (${serviceInfo.policy.año})`,
-                            colorVehiculo: serviceInfo.policy.color,
-                            placas: serviceInfo.policy.placas,
-                            telefono: serviceInfo.policy.telefono,
-                            scheduledDate: scheduledDateJS // Usar el objeto Date directamente
-                        });
+                        // Programar la notificación en el sistema CON PROTECCIÓN ANTI-DUPLICADOS
+                        let notification = null;
+                        try {
+                            notification = await notificationManager.scheduleNotification({
+                                numeroPoliza: numeroPoliza,
+                                targetGroupId: -1002212807945,
+                                contactTime: serviceInfo.contactTime,
+                                expedienteNum: expedienteNum,
+                                origenDestino:
+                                    serviceInfo.origenDestino ||
+                                    `${serviceInfo.origen} - ${serviceInfo.destino}`,
+                                marcaModelo: `${serviceInfo.policy.marca} ${serviceInfo.policy.submarca} (${serviceInfo.policy.año})`,
+                                colorVehiculo: serviceInfo.policy.color,
+                                placas: serviceInfo.policy.placas,
+                                telefono: serviceInfo.policy.telefono,
+                                scheduledDate: scheduledDateJS, // Usar el objeto Date directamente
+                                tipoNotificacion: 'MANUAL' // Especificar tipo para evitar undefined
+                            });
+                        } catch (scheduleError) {
+                            this.logError('Error al programar notificación manual:', scheduleError);
+                            // Si falla por duplicado, no es crítico, continuar
+                            if (
+                                scheduleError.message &&
+                                scheduleError.message.includes('Ya existe notificación activa')
+                            ) {
+                                this.logInfo('Notificación ya existía, continuando...');
+                            } else {
+                                throw scheduleError;
+                            }
+                        }
 
                         this.logInfo(
                             `Notificación programada ID: ${notification._id}, para: ${scheduledMoment.format('YYYY-MM-DD HH:mm:ss z')}`

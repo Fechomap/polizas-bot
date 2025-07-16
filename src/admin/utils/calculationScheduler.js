@@ -10,6 +10,7 @@ class CalculationScheduler {
         this.bot = bot;
         this.scriptsPath = path.join(__dirname, '../../../scripts');
         this.adminChatId = process.env.ADMIN_CHAT_ID; // ID del chat admin para notificaciones
+        this.adminThreadId = process.env.ADMIN_THREAD_ID; // Thread ID específico para pólizas vencidas
         this.jobs = new Map();
         this.autoCleanupService = new AutoCleanupService();
     }
@@ -267,9 +268,9 @@ class CalculationScheduler {
 
         try {
             // Mensaje de cabecera
-            let reportMessage = '📋 *REPORTE PÓLIZAS VENCIDAS*\\n';
-            reportMessage += '*Para Revisión Manual*\\n\\n';
-            reportMessage += `Total encontradas: ${expiredPolicies.length}\\n\\n`;
+            let reportMessage = '📋 *REPORTE PÓLIZAS VENCIDAS*\n';
+            reportMessage += '*Para Revisión Manual*\n\n';
+            reportMessage += `Total encontradas: ${expiredPolicies.length}\n\n`;
 
             // Dividir en grupos de 10 para evitar mensajes muy largos
             const POLICIES_PER_MESSAGE = 10;
@@ -284,16 +285,31 @@ class CalculationScheduler {
 
                 chunk.forEach((poliza, index) => {
                     const num = i + index + 1;
-                    chunkMessage += `${num}\\. *${poliza.numeroPoliza}*\\n`;
-                    chunkMessage += `   Titular: ${poliza.titular}\\n`;
-                    chunkMessage += `   Aseguradora: ${poliza.aseguradora}\\n`;
-                    chunkMessage += `   Servicios: ${poliza.servicios}\\n`;
-                    chunkMessage += `   Días transcurridos: ${poliza.diasVencida}\\n\\n`;
+                    // Escapar caracteres especiales para MarkdownV2
+                    const numeroPoliza = poliza.numeroPoliza.replace(
+                        /[-_.*+?^${}()|[\]\\]/g,
+                        '\\$&'
+                    );
+                    const titular = poliza.titular.replace(/[-_.*+?^${}()|[\]\\]/g, '\\$&');
+                    const aseguradora = poliza.aseguradora.replace(/[-_.*+?^${}()|[\]\\]/g, '\\$&');
+
+                    chunkMessage += `${num}\\. *${numeroPoliza}*\n`;
+                    chunkMessage += `   Titular: ${titular}\n`;
+                    chunkMessage += `   Aseguradora: ${aseguradora}\n`;
+                    chunkMessage += `   Servicios: ${poliza.servicios}\n`;
+                    chunkMessage += `   Días transcurridos: ${poliza.diasVencida}\n\n`;
                 });
 
-                await this.bot.telegram.sendMessage(this.adminChatId, chunkMessage, {
+                const messageOptions = {
                     parse_mode: 'MarkdownV2'
-                });
+                };
+
+                // Si hay thread ID, enviar al thread específico
+                if (this.adminThreadId) {
+                    messageOptions.message_thread_id = parseInt(this.adminThreadId);
+                }
+
+                await this.bot.telegram.sendMessage(this.adminChatId, chunkMessage, messageOptions);
 
                 // Pausa entre mensajes para evitar flood
                 if (i + POLICIES_PER_MESSAGE < expiredPolicies.length) {
@@ -303,13 +319,24 @@ class CalculationScheduler {
 
             // Mensaje final con instrucciones
             const instructionsMessage =
-                '💡 *Instrucciones:*\\n\\n' +
+                '💡 *Instrucciones:*\n\n' +
                 'Estas pólizas tienen estado VENCIDA y requieren revisión manual\\. ' +
                 'Usa el panel de administración para eliminarlas una por una o en lotes si corresponde\\.';
 
-            await this.bot.telegram.sendMessage(this.adminChatId, instructionsMessage, {
+            const instructionsOptions = {
                 parse_mode: 'MarkdownV2'
-            });
+            };
+
+            // Si hay thread ID, enviar al thread específico
+            if (this.adminThreadId) {
+                instructionsOptions.message_thread_id = parseInt(this.adminThreadId);
+            }
+
+            await this.bot.telegram.sendMessage(
+                this.adminChatId,
+                instructionsMessage,
+                instructionsOptions
+            );
         } catch (error) {
             logger.error('❌ Error enviando reporte de pólizas vencidas:', error);
         }
