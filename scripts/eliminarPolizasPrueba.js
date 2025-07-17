@@ -22,7 +22,7 @@ async function eliminarPolizasPrueba() {
         // 1. Buscar todas las pólizas de prueba
         for (const numeroPoliza of POLIZAS_PRUEBA) {
             console.log(`\n📋 Analizando póliza: ${numeroPoliza}`);
-            
+
             const policy = await Policy.findOne({ numeroPoliza });
             if (!policy) {
                 console.log(`❌ No se encontró la póliza ${numeroPoliza}`);
@@ -116,7 +116,7 @@ async function eliminarPolizasPrueba() {
         // 4. Resumen antes de eliminar
         console.log('\n⚠️  RESUMEN DE ELIMINACIÓN:');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
+
         let totalPolicies = 0;
         let totalVehicles = 0;
         let totalArchivos = 0;
@@ -125,10 +125,12 @@ async function eliminarPolizasPrueba() {
             totalPolicies++;
             totalVehicles += r.vehiculosEncontrados.length;
             totalArchivos += r.archivosCloudflare.length;
-            console.log(`📋 ${r.numeroPoliza}: ${r.vehiculosEncontrados.length} vehículos, ${r.archivosCloudflare.length} archivos R2`);
+            console.log(
+                `📋 ${r.numeroPoliza}: ${r.vehiculosEncontrados.length} vehículos, ${r.archivosCloudflare.length} archivos R2`
+            );
         });
 
-        console.log(`\n📊 TOTALES:`);
+        console.log('\n📊 TOTALES:');
         console.log(`   - Pólizas a eliminar: ${totalPolicies}`);
         console.log(`   - Vehículos a eliminar: ${totalVehicles}`);
         console.log(`   - Archivos en R2 (permanecerán): ${totalArchivos}`);
@@ -139,7 +141,7 @@ async function eliminarPolizasPrueba() {
         // 5. Eliminar todo
         for (const resultado of resultados) {
             console.log(`\n🔄 Eliminando póliza ${resultado.numeroPoliza}...`);
-            
+
             // Eliminar póliza
             await Policy.deleteOne({ _id: resultado.policy._id });
             console.log(`✅ Póliza ${resultado.numeroPoliza} eliminada`);
@@ -156,11 +158,11 @@ async function eliminarPolizasPrueba() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
         let eliminacionExitosa = true;
-        
+
         for (const numeroPoliza of POLIZAS_PRUEBA) {
             const policyCheck = await Policy.findOne({ numeroPoliza });
             console.log(`   - Póliza ${numeroPoliza} existe: ${!!policyCheck ? '❌ SÍ' : '✅ NO'}`);
-            
+
             if (policyCheck) {
                 eliminacionExitosa = false;
             }
@@ -169,7 +171,7 @@ async function eliminarPolizasPrueba() {
         // Verificar que no haya vehículos BD AUTOS huérfanos
         const vehiculosOBD = await Vehicle.find({ creadoViaOBD: true });
         console.log(`   - Vehículos BD AUTOS restantes: ${vehiculosOBD.length}`);
-        
+
         if (vehiculosOBD.length > 0) {
             console.log('   ⚠️ Vehículos BD AUTOS encontrados:');
             vehiculosOBD.forEach(v => {
@@ -180,7 +182,9 @@ async function eliminarPolizasPrueba() {
         if (eliminacionExitosa) {
             console.log('\n✅ ELIMINACIÓN COMPLETA EXITOSA');
             console.log('   Las pólizas de prueba y sus vehículos asociados han sido eliminados.');
-            console.log('   Nota: Los archivos en Cloudflare R2 permanecen para evitar pérdida de datos.');
+            console.log(
+                '   Nota: Los archivos en Cloudflare R2 permanecen para evitar pérdida de datos.'
+            );
         } else {
             console.log('\n⚠️ ADVERTENCIA: Algunos elementos no se eliminaron correctamente');
         }
@@ -197,7 +201,6 @@ async function eliminarPolizasPrueba() {
         console.log(`   - Total vehículos en DB: ${totalVehiclesDB}`);
         console.log(`   - Pólizas BD AUTOS: ${bdAutosPolicies}`);
         console.log(`   - Vehículos BD AUTOS: ${bdAutosVehicles}`);
-
     } catch (error) {
         console.error('\n❌ ERROR:', error);
     } finally {

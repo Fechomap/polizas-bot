@@ -204,29 +204,29 @@ class PolicyAssignmentHandler {
 
         try {
             switch (asignacion.estado) {
-            case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
-                return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion);
+                case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
+                    return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
-                return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion);
+                case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
+                    return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
-                return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion);
+                case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
+                    return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
-                return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion);
+                case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
+                    return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
-                return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion);
+                case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
+                    return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
-                return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion);
+                case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
+                    return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion);
 
-            case ESTADOS_ASIGNACION.ESPERANDO_PDF:
-                return await this.procesarPDF(bot, msg, userId, asignacion);
+                case ESTADOS_ASIGNACION.ESPERANDO_PDF:
+                    return await this.procesarPDF(bot, msg, userId, asignacion);
 
-            default:
-                return false;
+                default:
+                    return false;
             }
         } catch (error) {
             console.error('Error procesando mensaje de asignación:', error);
@@ -604,7 +604,10 @@ class PolicyAssignmentHandler {
                     console.log('BD AUTOS - Test response status:', testResponse.status);
                     const testBuffer = await testResponse.buffer();
                     console.log('BD AUTOS - Test buffer size:', testBuffer.length);
-                    console.log('BD AUTOS - Test primeros 50 bytes:', testBuffer.slice(0, 50).toString());
+                    console.log(
+                        'BD AUTOS - Test primeros 50 bytes:',
+                        testBuffer.slice(0, 50).toString()
+                    );
                 } catch (testError) {
                     console.error('BD AUTOS - Error en descarga inmediata:', testError);
                 }
@@ -618,7 +621,10 @@ class PolicyAssignmentHandler {
                         throw new Error(`Error descargando PDF: ${response.status}`);
                     }
                     pdfBuffer = await response.buffer();
-                    console.log('BD AUTOS - PDF descargado exitosamente, tamaño:', pdfBuffer.length);
+                    console.log(
+                        'BD AUTOS - PDF descargado exitosamente, tamaño:',
+                        pdfBuffer.length
+                    );
                 } catch (downloadError) {
                     console.error('BD AUTOS - Error descargando PDF:', downloadError);
                     await bot.telegram.sendMessage(
@@ -671,7 +677,10 @@ class PolicyAssignmentHandler {
                         throw new Error(`Error descargando foto: ${response.status}`);
                     }
                     fotoBuffer = await response.buffer();
-                    console.log('BD AUTOS - Foto descargada exitosamente, tamaño:', fotoBuffer.length);
+                    console.log(
+                        'BD AUTOS - Foto descargada exitosamente, tamaño:',
+                        fotoBuffer.length
+                    );
                 } catch (downloadError) {
                     console.error('BD AUTOS - Error descargando foto:', downloadError);
                     await bot.telegram.sendMessage(
@@ -821,8 +830,14 @@ class PolicyAssignmentHandler {
                     if (datosPoliza.archivo.type === 'pdf') {
                         const pdfHeader = buffer.slice(0, 4).toString();
                         if (!pdfHeader.startsWith('%PDF')) {
-                            console.error('BD AUTOS - Buffer no es un PDF válido. Header:', pdfHeader);
-                            console.error('BD AUTOS - Contenido completo (primeros 200 chars):', buffer.slice(0, 200).toString());
+                            console.error(
+                                'BD AUTOS - Buffer no es un PDF válido. Header:',
+                                pdfHeader
+                            );
+                            console.error(
+                                'BD AUTOS - Contenido completo (primeros 200 chars):',
+                                buffer.slice(0, 200).toString()
+                            );
                             throw new Error('El archivo descargado no es un PDF válido');
                         }
                     }

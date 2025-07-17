@@ -197,8 +197,8 @@ const addPaymentToPolicy = async (numeroPoliza, monto, fechaPago) => {
         }
 
         // Añadir el pago al arreglo (marcado como REALIZADO ya que es un pago manual)
-        policy.pagos.push({ 
-            monto, 
+        policy.pagos.push({
+            monto,
             fechaPago,
             estado: 'REALIZADO',
             notas: 'Pago registrado manualmente - dinero real recibido'
@@ -405,7 +405,7 @@ const getSusceptiblePolicies = async () => {
  * @param {string} numeroPoliza - Número de la póliza a consultar
  * @returns {Promise<Object|null>} - Información detallada de pagos o null si no existe
  */
-const getDetailedPaymentInfo = async (numeroPoliza) => {
+const getDetailedPaymentInfo = async numeroPoliza => {
     try {
         const policy = await Policy.findOne({ numeroPoliza }).exec();
         if (!policy) {
@@ -414,16 +414,16 @@ const getDetailedPaymentInfo = async (numeroPoliza) => {
 
         const pagosRealizados = policy.pagos.filter(pago => pago.estado === 'REALIZADO');
         const pagosPlanificados = policy.pagos.filter(pago => pago.estado === 'PLANIFICADO');
-        
+
         // Calcular días transcurridos desde emisión
         const fechaEmision = new Date(policy.fechaEmision);
         const ahora = new Date();
         const msTranscurridos = ahora - fechaEmision;
         const diasTranscurridos = Math.floor(msTranscurridos / (1000 * 60 * 60 * 24));
-        
+
         // Calcular días cubiertos por pagos realizados
-        let diasCubiertos = pagosRealizados.length * 30;
-        let diasDeImpago = Math.max(0, diasTranscurridos - diasCubiertos);
+        const diasCubiertos = pagosRealizados.length * 30;
+        const diasDeImpago = Math.max(0, diasTranscurridos - diasCubiertos);
 
         return {
             numeroPoliza: policy.numeroPoliza,

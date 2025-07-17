@@ -44,6 +44,7 @@ const {
     SaveCommand,
     DeleteCommand,
     ReportPaymentCommand,
+    PaymentReportPDFCommand,
     ReportUsedCommand,
     NotificationCommand,
     BaseAutosCommand
@@ -149,6 +150,9 @@ class CommandHandler {
         const reportPaymentCmd = new ReportPaymentCommand(this);
         this.registry.registerCommand(reportPaymentCmd);
         reportPaymentCmd.register();
+
+        const paymentReportPDFCmd = new PaymentReportPDFCommand(this);
+        this.registry.registerCommand(paymentReportPDFCmd);
 
         const reportUsedCmd = new ReportUsedCommand(this);
         this.registry.registerCommand(reportUsedCmd);
@@ -638,8 +642,14 @@ class CommandHandler {
                         ...Markup.inlineKeyboard([
                             [
                                 Markup.button.callback(
-                                    '💰 Pólizas con Pagos Pendientes',
+                                    '💰 Pagos Pendientes (Lista)',
                                     'accion:reportPayment'
+                                )
+                            ],
+                            [
+                                Markup.button.callback(
+                                    '📄 Pagos Pendientes (PDF)',
+                                    'accion:reportPaymentPDF'
                                 )
                             ],
                             [
@@ -681,6 +691,32 @@ class CommandHandler {
                     await ctx.answerCbQuery('Error');
                 } catch {}
                 await ctx.reply('❌ Error al generar el reporte de pagos pendientes.');
+            }
+        });
+
+        // Acción para el reporte PDF de pagos pendientes
+        this.bot.action('accion:reportPaymentPDF', async ctx => {
+            try {
+                await ctx.answerCbQuery();
+                // Buscar la instancia del comando PaymentReportPDFCommand
+                const paymentReportPDFCmd = this.registry.getCommand('PaymentReportPDF');
+                if (
+                    paymentReportPDFCmd &&
+                    typeof paymentReportPDFCmd.generateReport === 'function'
+                ) {
+                    await paymentReportPDFCmd.generateReport(ctx);
+                } else {
+                    logger.warn(
+                        'No se encontró el comando PaymentReportPDF o su método generateReport'
+                    );
+                    await ctx.reply('❌ Reporte PDF no disponible en este momento.');
+                }
+            } catch (error) {
+                logger.error('Error en accion:reportPaymentPDF:', error);
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+                await ctx.reply('❌ Error al generar el reporte PDF de pagos pendientes.');
             }
         });
 

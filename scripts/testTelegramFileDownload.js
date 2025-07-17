@@ -8,7 +8,9 @@ async function testFileDownload() {
         const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
         // File ID del PDF problemático de la póliza 123456
-        const problemFileId = process.env.TEST_FILE_ID || 'BQACAgUAAxkCAAIq0mdgtC7r-GhLc3VHIU-SZOUJBGvGAAINHAACw_l5Vzx4yf3LBXQTNgQ';
+        const problemFileId =
+            process.env.TEST_FILE_ID ||
+            'BQACAgUAAxkCAAIq0mdgtC7r-GhLc3VHIU-SZOUJBGvGAAINHAACw_l5Vzx4yf3LBXQTNgQ';
 
         console.log('🔍 Probando descarga de archivo desde Telegram');
         console.log('File ID:', problemFileId);
@@ -45,7 +47,6 @@ async function testFileDownload() {
                 console.log('\n⚠️ CONTENIDO COMPLETO (probablemente error):');
                 console.log(buffer.toString());
             }
-
         } catch (error) {
             console.error('\n❌ Error al obtener archivo:', error.message);
             if (error.response) {

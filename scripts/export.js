@@ -184,7 +184,9 @@ const exportData = async () => {
             };
 
             // SOLO exportar pagos REALIZADOS (dinero real recibido)
-            const pagosRealizados = (policy.pagos || []).filter(pago => pago.estado === 'REALIZADO');
+            const pagosRealizados = (policy.pagos || []).filter(
+                pago => pago.estado === 'REALIZADO'
+            );
             for (let i = 0; i < 12; i++) {
                 const pago = pagosRealizados[i];
                 row[`PAGO${i + 1}_MONTO`] = pago ? pago.monto : '';

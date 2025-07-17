@@ -12,14 +12,14 @@ class ServiceHandler {
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-            case 'menu':
-                return await AdminMenu.showServiceMenu(ctx);
+                case 'menu':
+                    return await AdminMenu.showServiceMenu(ctx);
 
-            case 'edit':
-                return await this.handleEditService(ctx);
+                case 'edit':
+                    return await this.handleEditService(ctx);
 
-            default:
-                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+                default:
+                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en ServiceHandler:', error);
@@ -472,20 +472,20 @@ _Escribe el nuevo valor o usa los botones de abajo:_
         };
 
         switch (fieldName) {
-        case 'expediente':
-            return item.numeroExpediente;
-        case 'costo':
-            return item.costo ? `$${item.costo.toFixed(2)}` : null;
-        case 'fecha':
-            return formatDateTime(item.fechaServicio || item.fechaRegistro);
-        case 'contacto':
-            return formatDateTime(item.fechaContactoProgramada);
-        case 'termino':
-            return formatDateTime(item.fechaTerminoProgramada);
-        case 'estado':
-            return item.estado;
-        default:
-            return null;
+            case 'expediente':
+                return item.numeroExpediente;
+            case 'costo':
+                return item.costo ? `$${item.costo.toFixed(2)}` : null;
+            case 'fecha':
+                return formatDateTime(item.fechaServicio || item.fechaRegistro);
+            case 'contacto':
+                return formatDateTime(item.fechaContactoProgramada);
+            case 'termino':
+                return formatDateTime(item.fechaTerminoProgramada);
+            case 'estado':
+                return item.estado;
+            default:
+                return null;
         }
     }
 
@@ -509,42 +509,42 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      */
     static getFieldInstructions(fieldName, type, currentValue) {
         switch (fieldName) {
-        case 'expediente':
-            return (
-                '📝 **Escribe el nuevo número de expediente:**\n' +
+            case 'expediente':
+                return (
+                    '📝 **Escribe el nuevo número de expediente:**\n' +
                     '• Ejemplo: EXP-2025-001\n' +
                     '• Mínimo 3 caracteres'
-            );
-        case 'costo':
-            return (
-                '💰 **Escribe el nuevo costo:**\n' +
+                );
+            case 'costo':
+                return (
+                    '💰 **Escribe el nuevo costo:**\n' +
                     '• Ejemplo: 1250.00\n' +
                     '• Solo números y punto decimal'
-            );
-        case 'fecha':
-            return (
-                '📅 **Escribe la nueva fecha:**\n' +
+                );
+            case 'fecha':
+                return (
+                    '📅 **Escribe la nueva fecha:**\n' +
                     '• Formato: DD/MM/YYYY HH:MM\n' +
                     '• Ejemplo: 15/03/2025 14:30'
-            );
-        case 'contacto':
-            return (
-                '📞 **Escribe la nueva fecha de contacto programado:**\n' +
+                );
+            case 'contacto':
+                return (
+                    '📞 **Escribe la nueva fecha de contacto programado:**\n' +
                     '• Formato: DD/MM/YYYY HH:MM\n' +
                     '• Ejemplo: 20/03/2025 15:30\n' +
                     '• ⚠️ El término programado se ajustará automáticamente'
-            );
-        case 'termino':
-            return (
-                '🏁 **Escribe la nueva fecha de término programado:**\n' +
+                );
+            case 'termino':
+                return (
+                    '🏁 **Escribe la nueva fecha de término programado:**\n' +
                     '• Formato: DD/MM/YYYY HH:MM\n' +
                     '• Ejemplo: 20/03/2025 18:30\n' +
                     '• ⚠️ El contacto programado se ajustará automáticamente'
-            );
-        case 'estado':
-            return '📊 **Selecciona el nuevo estado:**\n' + '• Usa los botones de abajo';
-        default:
-            return 'Ingresa el nuevo valor:';
+                );
+            case 'estado':
+                return '📊 **Selecciona el nuevo estado:**\n' + '• Usa los botones de abajo';
+            default:
+                return 'Ingresa el nuevo valor:';
         }
     }
 
@@ -597,37 +597,37 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      */
     static processFieldValue(fieldName, value) {
         switch (fieldName) {
-        case 'expediente':
-            return value.trim().length >= 3 ? value.trim() : null;
-        case 'costo':
-            const cost = parseFloat(value.replace(',', '.'));
-            return !isNaN(cost) && cost >= 0 ? cost : null;
-        case 'fecha':
-        case 'contacto':
-        case 'termino':
-            if (value === 'NOW') {
-                return new Date();
-            }
-            // Validar formato DD/MM/YYYY HH:MM o DD/MM/YYYY
-            const dateTimeMatch = value.match(
-                /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/
-            );
-            if (dateTimeMatch) {
-                const [, day, month, year, hour = '0', minute = '0'] = dateTimeMatch;
-                const date = new Date(year, month - 1, day, parseInt(hour), parseInt(minute));
-                if (
-                    date.getFullYear() == year &&
+            case 'expediente':
+                return value.trim().length >= 3 ? value.trim() : null;
+            case 'costo':
+                const cost = parseFloat(value.replace(',', '.'));
+                return !isNaN(cost) && cost >= 0 ? cost : null;
+            case 'fecha':
+            case 'contacto':
+            case 'termino':
+                if (value === 'NOW') {
+                    return new Date();
+                }
+                // Validar formato DD/MM/YYYY HH:MM o DD/MM/YYYY
+                const dateTimeMatch = value.match(
+                    /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/
+                );
+                if (dateTimeMatch) {
+                    const [, day, month, year, hour = '0', minute = '0'] = dateTimeMatch;
+                    const date = new Date(year, month - 1, day, parseInt(hour), parseInt(minute));
+                    if (
+                        date.getFullYear() == year &&
                         date.getMonth() == month - 1 &&
                         date.getDate() == day
-                ) {
-                    return date;
+                    ) {
+                        return date;
+                    }
                 }
-            }
-            return null;
-        case 'estado':
-            return ['PENDIENTE', 'ASIGNADO', 'NO_ASIGNADO'].includes(value) ? value : null;
-        default:
-            return value;
+                return null;
+            case 'estado':
+                return ['PENDIENTE', 'ASIGNADO', 'NO_ASIGNADO'].includes(value) ? value : null;
+            default:
+                return value;
         }
     }
 
@@ -636,28 +636,28 @@ _Escribe el nuevo valor o usa los botones de abajo:_
      */
     static updateFieldValue(item, fieldName, value) {
         switch (fieldName) {
-        case 'expediente':
-            item.numeroExpediente = value;
-            break;
-        case 'costo':
-            item.costo = value;
-            break;
-        case 'fecha':
-            if (item.fechaServicio !== undefined) {
-                item.fechaServicio = value;
-            } else {
-                item.fechaRegistro = value;
-            }
-            break;
-        case 'contacto':
-            item.fechaContactoProgramada = value;
-            break;
-        case 'termino':
-            item.fechaTerminoProgramada = value;
-            break;
-        case 'estado':
-            item.estado = value;
-            break;
+            case 'expediente':
+                item.numeroExpediente = value;
+                break;
+            case 'costo':
+                item.costo = value;
+                break;
+            case 'fecha':
+                if (item.fechaServicio !== undefined) {
+                    item.fechaServicio = value;
+                } else {
+                    item.fechaRegistro = value;
+                }
+                break;
+            case 'contacto':
+                item.fechaContactoProgramada = value;
+                break;
+            case 'termino':
+                item.fechaTerminoProgramada = value;
+                break;
+            case 'estado':
+                item.estado = value;
+                break;
         }
     }
 
@@ -768,53 +768,53 @@ _Escribe el nuevo valor o usa los botones de abajo:_
 
         // Manejar diferentes operaciones de servicios
         switch (adminState.operation) {
-        case 'service_search_for_edit':
-            logger.info('🔍 [SERVICE-DEBUG] Procesando búsqueda de servicio');
-            if (messageText.length < 2) {
-                await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+            case 'service_search_for_edit':
+                logger.info('🔍 [SERVICE-DEBUG] Procesando búsqueda de servicio');
+                if (messageText.length < 2) {
+                    await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
+                    return true;
+                }
+                await this.handleServiceSearch(ctx, messageText);
                 return true;
-            }
-            await this.handleServiceSearch(ctx, messageText);
-            return true;
 
-        case 'service_field_edit':
-            logger.info('🔍 [SERVICE-DEBUG] Procesando edición de campo');
-            // Manejar edición de campos
-            const { selectedPolicy, selectedItemType, selectedItemIndex, selectedField } =
+            case 'service_field_edit':
+                logger.info('🔍 [SERVICE-DEBUG] Procesando edición de campo');
+                // Manejar edición de campos
+                const { selectedPolicy, selectedItemType, selectedItemIndex, selectedField } =
                     adminState.data || adminState;
-            logger.info('🔍 [SERVICE-DEBUG] Datos del estado:', {
-                selectedPolicy,
-                selectedItemType,
-                selectedItemIndex,
-                selectedField,
-                adminStateKeys: Object.keys(adminState),
-                adminDataKeys: adminState.data ? Object.keys(adminState.data) : 'no data'
-            });
-
-            if (
-                selectedPolicy &&
-                    selectedItemType !== undefined &&
-                    selectedItemIndex !== undefined &&
-                    selectedField
-            ) {
-                logger.info('🔍 [SERVICE-DEBUG] Llamando handleFieldValue');
-                await this.handleFieldValue(
-                    ctx,
+                logger.info('🔍 [SERVICE-DEBUG] Datos del estado:', {
                     selectedPolicy,
                     selectedItemType,
                     selectedItemIndex,
                     selectedField,
-                    messageText
-                );
-                return true;
-            } else {
-                logger.warn('🔍 [SERVICE-DEBUG] Datos insuficientes para edición de campo');
-                return false;
-            }
+                    adminStateKeys: Object.keys(adminState),
+                    adminDataKeys: adminState.data ? Object.keys(adminState.data) : 'no data'
+                });
 
-        default:
-            logger.info('🔍 [SERVICE-DEBUG] Operación no reconocida:', adminState.operation);
-            return false;
+                if (
+                    selectedPolicy &&
+                    selectedItemType !== undefined &&
+                    selectedItemIndex !== undefined &&
+                    selectedField
+                ) {
+                    logger.info('🔍 [SERVICE-DEBUG] Llamando handleFieldValue');
+                    await this.handleFieldValue(
+                        ctx,
+                        selectedPolicy,
+                        selectedItemType,
+                        selectedItemIndex,
+                        selectedField,
+                        messageText
+                    );
+                    return true;
+                } else {
+                    logger.warn('🔍 [SERVICE-DEBUG] Datos insuficientes para edición de campo');
+                    return false;
+                }
+
+            default:
+                logger.info('🔍 [SERVICE-DEBUG] Operación no reconocida:', adminState.operation);
+                return false;
         }
     }
 

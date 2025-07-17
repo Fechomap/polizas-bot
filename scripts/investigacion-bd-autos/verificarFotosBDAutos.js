@@ -26,11 +26,13 @@ async function verificarFotosBDAutos() {
 
         for (const poliza of polizasBD) {
             console.log(`\n📋 Verificando póliza: ${poliza.numeroPoliza}`);
-            console.log(`   - Fotos en archivos.r2Files.fotos: ${poliza.archivos?.r2Files?.fotos?.length || 0}`);
+            console.log(
+                `   - Fotos en archivos.r2Files.fotos: ${poliza.archivos?.r2Files?.fotos?.length || 0}`
+            );
 
             if (poliza.archivos?.r2Files?.fotos?.length > 0) {
                 console.log('\n🖼️ VERIFICANDO FOTOS:');
-                
+
                 for (let i = 0; i < poliza.archivos.r2Files.fotos.length; i++) {
                     const foto = poliza.archivos.r2Files.fotos[i];
                     console.log(`\n   Foto ${i + 1}:`);
@@ -42,23 +44,29 @@ async function verificarFotosBDAutos() {
 
                     try {
                         // Intentar generar URL firmada
-                        console.log(`   - Generando URL firmada...`);
+                        console.log('   - Generando URL firmada...');
                         const urlFirmada = await storage.getSignedUrl(foto.key, 3600);
-                        console.log(`   - ✅ URL firmada generada correctamente`);
+                        console.log('   - ✅ URL firmada generada correctamente');
 
                         // Intentar descargar
-                        console.log(`   - Intentando descargar...`);
+                        console.log('   - Intentando descargar...');
                         const response = await require('node-fetch')(urlFirmada);
-                        
+
                         console.log(`   - Response status: ${response.status}`);
-                        console.log(`   - Response headers: ${JSON.stringify(Object.fromEntries(response.headers))}`);
+                        console.log(
+                            `   - Response headers: ${JSON.stringify(Object.fromEntries(response.headers))}`
+                        );
 
                         if (response.ok) {
                             const buffer = await response.buffer();
                             console.log(`   - ✅ Descarga exitosa: ${buffer.length} bytes`);
-                            console.log(`   - Primeros 20 bytes: ${buffer.slice(0, 20).toString('hex')}`);
+                            console.log(
+                                `   - Primeros 20 bytes: ${buffer.slice(0, 20).toString('hex')}`
+                            );
                         } else {
-                            console.log(`   - ❌ Error en respuesta: ${response.status} ${response.statusText}`);
+                            console.log(
+                                `   - ❌ Error en respuesta: ${response.status} ${response.statusText}`
+                            );
                             const errorText = await response.text();
                             console.log(`   - Error details: ${errorText}`);
                         }
@@ -73,7 +81,6 @@ async function verificarFotosBDAutos() {
         }
 
         console.log('\n✅ Verificación de fotos completada');
-
     } catch (error) {
         console.error('❌ Error:', error);
     } finally {

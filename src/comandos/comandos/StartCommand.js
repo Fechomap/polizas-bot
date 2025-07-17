@@ -1,6 +1,7 @@
 // src/comandos/comandos/StartCommand.js
 const { Markup } = require('telegraf'); // Importar Markup
 const BaseCommand = require('./BaseCommand');
+const AdminStateManager = require('../../admin/utils/adminStates');
 
 class StartCommand extends BaseCommand {
     constructor(handler) {
@@ -19,6 +20,13 @@ class StartCommand extends BaseCommand {
         // Mantenemos el comando /start por ahora, pero mostramos el menú inline
         this.bot.command(this.getCommandName(), async ctx => {
             try {
+                // LIMPIAR CUALQUIER ESTADO ADMIN PERSISTENTE
+                AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
+                this.logInfo('Estados admin limpiados al ejecutar /start', {
+                    userId: ctx.from.id,
+                    chatId: ctx.chat.id
+                });
+
                 const mainMenu = Markup.inlineKeyboard([
                     [
                         Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),
@@ -46,6 +54,13 @@ class StartCommand extends BaseCommand {
     // Método para mostrar el menú principal (reutilizable)
     async showMainMenu(ctx) {
         try {
+            // LIMPIAR CUALQUIER ESTADO ADMIN PERSISTENTE TAMBIÉN AQUÍ
+            AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
+            this.logInfo('Estados admin limpiados al volver al menú principal', {
+                userId: ctx.from.id,
+                chatId: ctx.chat.id
+            });
+
             const mainMenu = Markup.inlineKeyboard([
                 [
                     Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),

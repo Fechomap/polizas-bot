@@ -493,6 +493,25 @@ class OcuparPolizaCallback extends BaseCommand {
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
+                // PROTECCIÓN ANTI-DOBLE-CLIC: Verificar si ya se está procesando
+                const processingKey = `${chatId}_${numeroPoliza}_${numeroRegistro}`;
+                if (
+                    this.handler.processingCallbacks &&
+                    this.handler.processingCallbacks.has(processingKey)
+                ) {
+                    this.logWarn(
+                        `[ANTI-DUPLICATE] Callback asig_yes ya procesándose para ${processingKey}, ignorando`
+                    );
+                    await ctx.answerCbQuery('⚠️ Procesando... espera un momento');
+                    return;
+                }
+
+                // Marcar como procesándose
+                if (!this.handler.processingCallbacks) {
+                    this.handler.processingCallbacks = new Set();
+                }
+                this.handler.processingCallbacks.add(processingKey);
+
                 this.logInfo(
                     `Registro ${numeroRegistro} marcado como ASIGNADO para póliza: ${numeroPoliza}`,
                     { chatId, threadId }
@@ -629,12 +648,13 @@ class OcuparPolizaCallback extends BaseCommand {
                             fechaTermino: horasCalculadas.fechaTerminoProgramada.toISOString()
                         });
 
-                        // PROGRAMACIÓN ATÓMICA DE NOTIFICACIONES (ANTI-DUPLICADOS)
-                        // Usar Promise.allSettled para programar ambas notificaciones simultáneamente
-                        // pero permitir que una falle sin afectar la otra
-                        const notificationPromises = [
-                            // 1. Notificación de CONTACTO
-                            notificationManager.scheduleNotification({
+                        // PROGRAMACIÓN SECUENCIAL DE NOTIFICACIONES (ANTI-DUPLICADOS)
+                        // Programar las notificaciones de forma secuencial para evitar condiciones de carrera
+                        const results = [{ status: 'rejected' }, { status: 'rejected' }]; // Inicializar array de resultados
+
+                        try {
+                            // 1. Programar notificación de CONTACTO primero
+                            const notifContacto = await notificationManager.scheduleNotification({
                                 numeroPoliza: numeroPoliza,
                                 targetGroupId: -1002212807945,
                                 contactTime: contactTimeStr,
@@ -646,9 +666,19 @@ class OcuparPolizaCallback extends BaseCommand {
                                 telefono: policy.telefono,
                                 scheduledDate: horasCalculadas.fechaContactoProgramada,
                                 tipoNotificacion: 'CONTACTO'
-                            }),
-                            // 2. Notificación de TÉRMINO
-                            notificationManager.scheduleNotification({
+                            });
+                            results[0] = { status: 'fulfilled', value: notifContacto };
+                        } catch (contactoError) {
+                            results[0] = { status: 'rejected', reason: contactoError };
+                            this.logError(
+                                'Error programando notificación de CONTACTO:',
+                                contactoError
+                            );
+                        }
+
+                        try {
+                            // 2. Programar notificación de TÉRMINO después
+                            const notifTermino = await notificationManager.scheduleNotification({
                                 numeroPoliza: numeroPoliza,
                                 targetGroupId: -1002212807945,
                                 contactTime: terminoTimeStr,
@@ -660,10 +690,15 @@ class OcuparPolizaCallback extends BaseCommand {
                                 telefono: policy.telefono,
                                 scheduledDate: horasCalculadas.fechaTerminoProgramada,
                                 tipoNotificacion: 'TERMINO'
-                            })
-                        ];
-
-                        const results = await Promise.allSettled(notificationPromises);
+                            });
+                            results[1] = { status: 'fulfilled', value: notifTermino };
+                        } catch (terminoError) {
+                            results[1] = { status: 'rejected', reason: terminoError };
+                            this.logError(
+                                'Error programando notificación de TÉRMINO:',
+                                terminoError
+                            );
+                        }
 
                         // Procesar resultados
                         const notificationContacto =
@@ -712,6 +747,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 const threadId = StateKeyManager.getThreadId(ctx);
                 this.cleanupAllStates(ctx.chat.id, threadId);
             } finally {
+                // LIMPIAR ESTADO DE PROCESAMIENTO
+                const processingKey = `${ctx.chat.id}_${numeroPoliza}_${numeroRegistro}`;
+                if (this.handler.processingCallbacks) {
+                    this.handler.processingCallbacks.delete(processingKey);
+                    this.logInfo(
+                        `[ANTI-DUPLICATE] Estado de procesamiento limpiado para ${processingKey}`
+                    );
+                }
                 await ctx.answerCbQuery();
             }
         });
@@ -723,6 +766,25 @@ class OcuparPolizaCallback extends BaseCommand {
                 const numeroRegistro = parseInt(ctx.match[2]);
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
+
+                // PROTECCIÓN ANTI-DOBLE-CLIC: Verificar si ya se está procesando
+                const processingKey = `${chatId}_${numeroPoliza}_${numeroRegistro}_no`;
+                if (
+                    this.handler.processingCallbacks &&
+                    this.handler.processingCallbacks.has(processingKey)
+                ) {
+                    this.logWarn(
+                        `[ANTI-DUPLICATE] Callback asig_no ya procesándose para ${processingKey}, ignorando`
+                    );
+                    await ctx.answerCbQuery('⚠️ Procesando... espera un momento');
+                    return;
+                }
+
+                // Marcar como procesándose
+                if (!this.handler.processingCallbacks) {
+                    this.handler.processingCallbacks = new Set();
+                }
+                this.handler.processingCallbacks.add(processingKey);
 
                 this.logInfo(
                     `Registro ${numeroRegistro} marcado como NO ASIGNADO para póliza: ${numeroPoliza}`,
@@ -766,6 +828,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 await ctx.reply('❌ Error al procesar la acción de "No asignado".'); // Slightly improved error message
                 this.cleanupAllStates(ctx.chat.id); // Ensure cleanup even on error
             } finally {
+                // LIMPIAR ESTADO DE PROCESAMIENTO
+                const processingKey = `${ctx.chat.id}_${ctx.match[1]}_${ctx.match[2]}_no`;
+                if (this.handler.processingCallbacks) {
+                    this.handler.processingCallbacks.delete(processingKey);
+                    this.logInfo(
+                        `[ANTI-DUPLICATE] Estado de procesamiento limpiado para ${processingKey}`
+                    );
+                }
                 await ctx.answerCbQuery(); // Acknowledge the callback query
             }
         });

@@ -81,29 +81,29 @@ class VehicleRegistrationHandler {
 
         try {
             switch (registro.estado) {
-            case ESTADOS_REGISTRO.ESPERANDO_SERIE:
-                return await this.procesarSerie(bot, chatId, userId, texto, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_SERIE:
+                    return await this.procesarSerie(bot, chatId, userId, texto, registro);
 
-            case ESTADOS_REGISTRO.ESPERANDO_MARCA:
-                return await this.procesarMarca(bot, chatId, userId, texto, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_MARCA:
+                    return await this.procesarMarca(bot, chatId, userId, texto, registro);
 
-            case ESTADOS_REGISTRO.ESPERANDO_SUBMARCA:
-                return await this.procesarSubmarca(bot, chatId, userId, texto, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_SUBMARCA:
+                    return await this.procesarSubmarca(bot, chatId, userId, texto, registro);
 
-            case ESTADOS_REGISTRO.ESPERANDO_AÑO:
-                return await this.procesarAño(bot, chatId, userId, texto, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_AÑO:
+                    return await this.procesarAño(bot, chatId, userId, texto, registro);
 
-            case ESTADOS_REGISTRO.ESPERANDO_COLOR:
-                return await this.procesarColor(bot, chatId, userId, texto, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_COLOR:
+                    return await this.procesarColor(bot, chatId, userId, texto, registro);
 
-            case ESTADOS_REGISTRO.ESPERANDO_PLACAS:
-                return await this.procesarPlacas(bot, chatId, userId, texto, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_PLACAS:
+                    return await this.procesarPlacas(bot, chatId, userId, texto, registro);
 
-            case ESTADOS_REGISTRO.ESPERANDO_FOTOS:
-                return await this.procesarFotos(bot, msg, userId, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_FOTOS:
+                    return await this.procesarFotos(bot, msg, userId, registro);
 
-            default:
-                return false;
+                default:
+                    return false;
             }
         } catch (error) {
             console.error('Error procesando mensaje de registro:', error);
@@ -330,14 +330,14 @@ class VehicleRegistrationHandler {
             try {
                 const fileLink = await bot.telegram.getFileLink(foto.file_id);
                 console.log('BD AUTOS - FileLink foto:', fileLink.href);
-                
+
                 const response = await require('node-fetch')(fileLink.href);
                 if (!response.ok) {
                     throw new Error(`Error descargando foto: ${response.status}`);
                 }
                 buffer = await response.buffer();
                 console.log('BD AUTOS - Foto descargada exitosamente, tamaño:', buffer.length);
-                
+
                 // Verificar que sea una imagen válida
                 if (buffer.length < 100) {
                     console.error('BD AUTOS - Foto muy pequeña, posible error:', buffer.toString());

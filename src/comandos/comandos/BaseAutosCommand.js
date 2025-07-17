@@ -330,7 +330,10 @@ class BaseAutosCommand extends BaseCommand {
                 // Si el proceso terminó, limpiar el estado BD AUTOS
                 if (procesado && !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
                     if (this.handler?.registry?.stateManager) {
-                        await this.handler.registry.stateManager.clearUserState(userId, 'bd_autos_flow');
+                        await this.handler.registry.stateManager.clearUserState(
+                            userId,
+                            'bd_autos_flow'
+                        );
                     }
                 }
 

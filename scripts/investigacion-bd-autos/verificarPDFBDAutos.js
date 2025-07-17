@@ -57,15 +57,17 @@ async function verificarPDF() {
 
         // Comparar con un PDF normal
         console.log('\n🔄 COMPARANDO CON PDF NORMAL:');
-        const pdfNormalKey = 'pdfs/8-252301CERT1/1752611479799_15537a18a568076d_ILD085450000ILD0854500002.pdf';
+        const pdfNormalKey =
+            'pdfs/8-252301CERT1/1752611479799_15537a18a568076d_ILD085450000ILD0854500002.pdf';
 
         const responseNormal = await fetch(await storage.getSignedUrl(pdfNormalKey));
         const bufferNormal = await responseNormal.buffer();
 
         console.log(`PDF Normal - Tamaño: ${bufferNormal.length} bytes`);
         console.log(`PDF Normal - Header: "${bufferNormal.slice(0, 4).toString('utf8')}"`);
-        console.log(`PDF Normal - Primeros 50 bytes (hex): ${bufferNormal.slice(0, 50).toString('hex')}`);
-
+        console.log(
+            `PDF Normal - Primeros 50 bytes (hex): ${bufferNormal.slice(0, 50).toString('hex')}`
+        );
     } catch (error) {
         console.error('❌ Error:', error);
     }

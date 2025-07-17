@@ -215,7 +215,10 @@ class DocumentHandler {
             if (!response.ok) throw new Error('Falló la descarga del documento');
             const buffer = await response.buffer();
             console.log('FLUJO NORMAL - Buffer length:', buffer.length);
-            console.log('FLUJO NORMAL - Buffer primeros 100 bytes:', buffer.slice(0, 100).toString('hex'));
+            console.log(
+                'FLUJO NORMAL - Buffer primeros 100 bytes:',
+                buffer.slice(0, 100).toString('hex')
+            );
 
             // Subir PDF a Cloudflare R2
             const storage = getInstance();
