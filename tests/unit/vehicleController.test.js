@@ -327,10 +327,13 @@ describe('VehicleController', () => {
             const resultado = await VehicleController.marcarConPoliza(vehicleId, 'poliza123');
 
             expect(resultado.success).toBe(true);
+            expect(resultado.message).toBe('Vehículo marcado como asegurado');
+            expect(resultado.vehiculo).toBeDefined();
 
             // Verificar que el estado cambió
             const vehicle = await Vehicle.findById(vehicleId);
             expect(vehicle.estado).toBe('CON_POLIZA');
+            expect(vehicle.policyId.toString()).toBe('poliza123');
         });
 
         test('debe fallar con vehículo inexistente', async () => {

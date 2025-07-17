@@ -267,14 +267,34 @@ class VehicleController {
         try {
             const vehiculo = await Vehicle.findById(vehicleId);
             if (!vehiculo) {
-                throw new Error('Vehículo no encontrado');
+                return {
+                    success: false,
+                    error: 'Vehículo no encontrado'
+                };
             }
 
-            await vehiculo.marcarConPoliza(policyId);
+            // Actualizar directamente en la base de datos para evitar problemas de validación
+            const updateResult = await Vehicle.findByIdAndUpdate(
+                vehicleId,
+                { 
+                    estado: 'CON_POLIZA',
+                    policyId: policyId,
+                    updatedAt: new Date()
+                },
+                { new: true, runValidators: true }
+            );
+
+            if (!updateResult) {
+                return {
+                    success: false,
+                    error: 'No se pudo actualizar el vehículo'
+                };
+            }
 
             return {
                 success: true,
-                message: 'Vehículo marcado como asegurado'
+                message: 'Vehículo marcado como asegurado',
+                vehiculo: updateResult
             };
         } catch (error) {
             console.error('Error al marcar vehículo con póliza:', error);
