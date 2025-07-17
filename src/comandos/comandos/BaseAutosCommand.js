@@ -96,7 +96,8 @@ class BaseAutosCommand extends BaseCommand {
                 }
 
                 // Mostrar vehículos disponibles para asegurar
-                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(this.bot, chatId, userId);
+                const threadId = StateKeyManager.getThreadId(ctx);
+                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(this.bot, chatId, userId, threadId);
 
                 this.logInfo('Lista de vehículos para asegurar mostrada', {
                     chatId,
@@ -141,11 +142,13 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.deleteMessage();
 
                 // Iniciar asignación de póliza
+                const threadId = StateKeyManager.getThreadId(ctx);
                 await PolicyAssignmentHandler.iniciarAsignacion(
                     this.bot,
                     chatId,
                     userId,
-                    vehicleId
+                    vehicleId,
+                    threadId
                 );
 
                 this.logInfo('Asignación de póliza iniciada', {
@@ -171,10 +174,12 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.deleteMessage();
 
                 // Mostrar página específica
+                const threadId = StateKeyManager.getThreadId(ctx);
                 await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
                     this.bot,
                     chatId,
                     userId,
+                    threadId,
                     pagina
                 );
             } catch (error) {
@@ -188,8 +193,10 @@ class BaseAutosCommand extends BaseCommand {
             try {
                 await ctx.answerCbQuery();
                 const userId = ctx.from.id.toString();
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
-                VehicleRegistrationHandler.cancelarRegistro(userId);
+                VehicleRegistrationHandler.cancelarRegistro(userId, chatId, threadId);
 
                 await ctx.editMessageText('❌ Registro de vehículo cancelado.', {
                     reply_markup: getMainKeyboard()
@@ -207,10 +214,12 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
                 const userId = ctx.from.id.toString();
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
-                // Obtener el registro en proceso
+                // Obtener el registro en proceso usando thread-safe key
                 const { vehiculosEnProceso } = require('./VehicleRegistrationHandler');
-                const registro = vehiculosEnProceso?.get(userId);
+                const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+                const registro = vehiculosEnProceso?.get(stateKey);
 
                 if (!registro) {
                     await ctx.reply('❌ No hay registro en proceso.');
@@ -222,7 +231,8 @@ class BaseAutosCommand extends BaseCommand {
                     this.bot,
                     chatId,
                     userId,
-                    registro
+                    registro,
+                    stateKey
                 );
 
                 if (resultado) {

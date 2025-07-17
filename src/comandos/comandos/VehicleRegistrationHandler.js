@@ -69,9 +69,16 @@ class VehicleRegistrationHandler {
             return true;
         } catch (error) {
             console.error('Error al iniciar registro de vehículo:', error);
+
+            const errorSendOptions = {};
+            if (threadId) {
+                errorSendOptions.message_thread_id = threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ Error al iniciar el registro. Intenta nuevamente.'
+                '❌ Error al iniciar el registro. Intenta nuevamente.',
+                errorSendOptions
             );
             return false;
         }
@@ -193,22 +200,34 @@ class VehicleRegistrationHandler {
     /**
      * Procesa la marca del vehículo
      */
-    static async procesarMarca(bot, chatId, userId, marca, registro) {
+    static async procesarMarca(bot, chatId, userId, marca, registro, stateKey) {
         if (!marca || marca.length < 2) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ La marca debe tener al menos 2 caracteres.\nIntenta nuevamente:'
+                '❌ La marca debe tener al menos 2 caracteres.\nIntenta nuevamente:',
+                sendOptions
             );
             return true;
         }
 
         registro.datos.marca = marca;
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_SUBMARCA;
+        vehiculosEnProceso.set(stateKey, registro);
+
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (registro.threadId) {
+            sendOptions.message_thread_id = registro.threadId;
+        }
 
         await bot.telegram.sendMessage(
             chatId,
             `✅ Marca: *${marca}*\n\n` + '*3/6:* Modelo\nEjemplo: Focus, Corolla, Sentra',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -217,22 +236,34 @@ class VehicleRegistrationHandler {
     /**
      * Procesa la submarca del vehículo
      */
-    static async procesarSubmarca(bot, chatId, userId, submarca, registro) {
+    static async procesarSubmarca(bot, chatId, userId, submarca, registro, stateKey) {
         if (!submarca || submarca.length < 2) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ La submarca debe tener al menos 2 caracteres.\nIntenta nuevamente:'
+                '❌ La submarca debe tener al menos 2 caracteres.\nIntenta nuevamente:',
+                sendOptions
             );
             return true;
         }
 
         registro.datos.submarca = submarca;
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_AÑO;
+        vehiculosEnProceso.set(stateKey, registro);
+
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (registro.threadId) {
+            sendOptions.message_thread_id = registro.threadId;
+        }
 
         await bot.telegram.sendMessage(
             chatId,
             `✅ Modelo: *${submarca}*\n\n` + '*4/6:* Año\nEjemplo: 2023, 2022, 2021',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -241,25 +272,37 @@ class VehicleRegistrationHandler {
     /**
      * Procesa el año del vehículo
      */
-    static async procesarAño(bot, chatId, userId, año, registro) {
+    static async procesarAño(bot, chatId, userId, año, registro, stateKey) {
         const añoNum = parseInt(año);
         const añoActual = new Date().getFullYear();
 
         if (isNaN(añoNum) || añoNum < 1900 || añoNum > añoActual + 2) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                `❌ El año debe ser un número válido entre 1900 y ${añoActual + 2}.\nIntenta nuevamente:`
+                `❌ El año debe ser un número válido entre 1900 y ${añoActual + 2}.\nIntenta nuevamente:`,
+                sendOptions
             );
             return true;
         }
 
         registro.datos.año = añoNum;
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_COLOR;
+        vehiculosEnProceso.set(stateKey, registro);
+
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (registro.threadId) {
+            sendOptions.message_thread_id = registro.threadId;
+        }
 
         await bot.telegram.sendMessage(
             chatId,
             `✅ Año: *${añoNum}*\n\n` + '*5/6:* Color\nEjemplo: Blanco, Negro, Rojo',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -268,23 +311,35 @@ class VehicleRegistrationHandler {
     /**
      * Procesa el color del vehículo
      */
-    static async procesarColor(bot, chatId, userId, color, registro) {
+    static async procesarColor(bot, chatId, userId, color, registro, stateKey) {
         if (!color || color.length < 3) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ El color debe tener al menos 3 caracteres.\nIntenta nuevamente:'
+                '❌ El color debe tener al menos 3 caracteres.\nIntenta nuevamente:',
+                sendOptions
             );
             return true;
         }
 
         registro.datos.color = color;
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_PLACAS;
+        vehiculosEnProceso.set(stateKey, registro);
+
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (registro.threadId) {
+            sendOptions.message_thread_id = registro.threadId;
+        }
 
         await bot.telegram.sendMessage(
             chatId,
             `✅ Color: *${color}*\n\n` +
                 '*6/6:* Placas\nEjemplo: ABC-123-D\nSi no tiene: SIN PLACAS',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -293,17 +348,24 @@ class VehicleRegistrationHandler {
     /**
      * Procesa las placas del vehículo
      */
-    static async procesarPlacas(bot, chatId, userId, placas, registro) {
+    static async procesarPlacas(bot, chatId, userId, placas, registro, stateKey) {
         if (!placas || placas.length < 3) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ Las placas deben tener al menos 3 caracteres.\nIntenta nuevamente:'
+                '❌ Las placas deben tener al menos 3 caracteres.\nIntenta nuevamente:',
+                sendOptions
             );
             return true;
         }
 
         registro.datos.placas = placas.toUpperCase() === 'SIN PLACAS' ? '' : placas;
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_FOTOS;
+        vehiculosEnProceso.set(stateKey, registro);
 
         // Generar datos temporales sin guardar en BD aún
         const mexicanDataGenerator = require('../../utils/mexicanDataGenerator');
@@ -323,12 +385,17 @@ class VehicleRegistrationHandler {
             `📱 ${datosGenerados.telefono}\n\n` +
             '📸 **OBLIGATORIO:** Envía AL MENOS 1 foto del auto para continuar';
 
-        await bot.telegram.sendMessage(chatId, resumen, {
+        const sendOptions = {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: [[{ text: '❌ Cancelar', callback_data: 'vehiculo_cancelar' }]]
             }
-        });
+        };
+        if (registro.threadId) {
+            sendOptions.message_thread_id = registro.threadId;
+        }
+
+        await bot.telegram.sendMessage(chatId, resumen, sendOptions);
 
         return true;
     }
@@ -343,9 +410,15 @@ class VehicleRegistrationHandler {
 
         // Verificar si es una foto
         if (!msg.photo || !msg.photo.length) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '📸 Por favor envía una foto del vehículo o presiona "✅ Finalizar Registro" para completar.'
+                '📸 Por favor envía una foto del vehículo o presiona "✅ Finalizar Registro" para completar.',
+                sendOptions
             );
             return true;
         }
@@ -382,10 +455,16 @@ class VehicleRegistrationHandler {
                 }
             } catch (downloadError) {
                 console.error('BD AUTOS - Error descargando foto:', downloadError);
+
+                const sendOptions = { parse_mode: 'Markdown' };
+                if (registro.threadId) {
+                    sendOptions.message_thread_id = registro.threadId;
+                }
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '❌ Error al procesar la foto. Por favor, intenta enviarla nuevamente.',
-                    { parse_mode: 'Markdown' }
+                    sendOptions
                 );
                 return true;
             }
@@ -444,6 +523,9 @@ class VehicleRegistrationHandler {
 
                 if (registro.fotos.length === 1) {
                     // Primera foto: enviar mensaje nuevo y guardar su ID
+                    if (registro.threadId) {
+                        keyboard.message_thread_id = registro.threadId;
+                    }
                     const sentMessage = await bot.telegram.sendMessage(chatId, mensaje, keyboard);
                     registro.mensajeFotosId = sentMessage.message_id;
                 } else {
@@ -463,6 +545,9 @@ class VehicleRegistrationHandler {
                                 'No se pudo editar mensaje de fotos, enviando nuevo:',
                                 editError.message
                             );
+                            if (registro.threadId) {
+                                keyboard.message_thread_id = registro.threadId;
+                            }
                             const sentMessage = await bot.telegram.sendMessage(
                                 chatId,
                                 mensaje,
@@ -472,6 +557,9 @@ class VehicleRegistrationHandler {
                         }
                     } else {
                         // Fallback: enviar mensaje nuevo si no tenemos ID
+                        if (registro.threadId) {
+                            keyboard.message_thread_id = registro.threadId;
+                        }
                         const sentMessage = await bot.telegram.sendMessage(
                             chatId,
                             mensaje,
@@ -481,16 +569,29 @@ class VehicleRegistrationHandler {
                     }
                 }
             } else {
+                const sendOptions = {};
+                if (registro.threadId) {
+                    sendOptions.message_thread_id = registro.threadId;
+                }
+
                 await bot.telegram.sendMessage(
                     chatId,
-                    '❌ Error al subir foto a Cloudflare. Intenta nuevamente.'
+                    '❌ Error al subir foto a Cloudflare. Intenta nuevamente.',
+                    sendOptions
                 );
             }
         } catch (error) {
             console.error('Error procesando foto:', error);
+
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ Error al procesar la foto. Intenta nuevamente.'
+                '❌ Error al procesar la foto. Intenta nuevamente.',
+                sendOptions
             );
         }
 
@@ -500,15 +601,20 @@ class VehicleRegistrationHandler {
     /**
      * Finaliza el registro del vehículo
      */
-    static async finalizarRegistro(bot, chatId, userId, registro) {
+    static async finalizarRegistro(bot, chatId, userId, registro, stateKey) {
         try {
             // VALIDACIÓN OBLIGATORIA: Verificar que hay al menos 1 foto
             if (!registro.fotos || registro.fotos.length === 0) {
+                const sendOptions = { parse_mode: 'Markdown' };
+                if (registro.threadId) {
+                    sendOptions.message_thread_id = registro.threadId;
+                }
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '❌ **ERROR:** No se puede finalizar el registro sin fotos.\n\n' +
                         '📸 Debes subir AL MENOS 1 foto del vehículo para continuar.',
-                    { parse_mode: 'Markdown' }
+                    sendOptions
                 );
                 return false;
             }
@@ -522,9 +628,15 @@ class VehicleRegistrationHandler {
             const resultado = await VehicleController.registrarVehiculo(datosCompletos, userId);
 
             if (!resultado.success) {
+                const sendOptions = {};
+                if (registro.threadId) {
+                    sendOptions.message_thread_id = registro.threadId;
+                }
+
                 await bot.telegram.sendMessage(
                     chatId,
-                    `❌ Error al crear vehículo: ${resultado.error}`
+                    `❌ Error al crear vehículo: ${resultado.error}`,
+                    sendOptions
                 );
                 return false;
             }
@@ -554,18 +666,29 @@ class VehicleRegistrationHandler {
                 '📊 Estado: SIN PÓLIZA (listo para asegurar)\n\n' +
                 '✅ El vehículo ya está disponible para que otra persona le asigne una póliza.';
 
-            await bot.telegram.sendMessage(chatId, mensaje, {
+            const sendOptions = {
                 parse_mode: 'Markdown',
                 reply_markup: getMainKeyboard()
-            });
+            };
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
+            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
             // Limpiar el registro del proceso
-            vehiculosEnProceso.delete(userId);
+            vehiculosEnProceso.delete(stateKey);
 
             return true;
         } catch (error) {
             console.error('Error finalizando registro:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error al finalizar el registro.');
+
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
+            await bot.telegram.sendMessage(chatId, '❌ Error al finalizar el registro.', sendOptions);
             return false;
         }
     }

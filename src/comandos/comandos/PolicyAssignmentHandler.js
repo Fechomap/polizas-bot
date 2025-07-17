@@ -1,6 +1,7 @@
 const VehicleController = require('../../controllers/vehicleController');
 const policyController = require('../../controllers/policyController');
 const { getMainKeyboard } = require('../teclados');
+const StateKeyManager = require('../../utils/StateKeyManager');
 
 /**
  * Estados del flujo de asignación de pólizas
@@ -19,8 +20,9 @@ const ESTADOS_ASIGNACION = {
 
 /**
  * Almacena temporalmente los datos de asignación en proceso
+ * Usa StateKeyManager para thread-safety
  */
-const asignacionesEnProceso = new Map();
+const asignacionesEnProceso = StateKeyManager.createThreadSafeStateMap();
 
 /**
  * Handler para la asignación de pólizas a vehículos
@@ -29,25 +31,35 @@ class PolicyAssignmentHandler {
     /**
      * Muestra los vehículos disponibles para asegurar
      */
-    static async mostrarVehiculosDisponibles(bot, chatId, userId, pagina = 1) {
+    static async mostrarVehiculosDisponibles(bot, chatId, userId, threadId = null, pagina = 1) {
         try {
             const resultado = await VehicleController.getVehiculosSinPoliza(10, pagina);
 
             if (!resultado.success) {
-                await bot.telegram.sendMessage(chatId, `❌ Error: ${resultado.error}`);
+                const sendOptions = {};
+                if (threadId) {
+                    sendOptions.message_thread_id = threadId;
+                }
+                
+                await bot.telegram.sendMessage(chatId, `❌ Error: ${resultado.error}`, sendOptions);
                 return false;
             }
 
             if (resultado.vehiculos.length === 0) {
+                const sendOptions = {
+                    parse_mode: 'Markdown',
+                    reply_markup: getMainKeyboard()
+                };
+                if (threadId) {
+                    sendOptions.message_thread_id = threadId;
+                }
+                
                 await bot.telegram.sendMessage(
                     chatId,
                     '📋 *NO HAY VEHÍCULOS DISPONIBLES*\n\n' +
                         'No se encontraron vehículos sin póliza para asegurar.\n' +
                         'Solicita al equipo OBD que registre más vehículos.',
-                    {
-                        parse_mode: 'Markdown',
-                        reply_markup: getMainKeyboard()
-                    }
+                    sendOptions
                 );
                 return true;
             }
@@ -97,17 +109,28 @@ class PolicyAssignmentHandler {
             // Botón de menú principal
             botones.push([{ text: '🏠 Menú Principal', callback_data: 'accion:start' }]);
 
-            await bot.telegram.sendMessage(chatId, mensaje, {
+            const sendOptions = {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: botones
                 }
-            });
+            };
+            if (threadId) {
+                sendOptions.message_thread_id = threadId;
+            }
+            
+            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
             return true;
         } catch (error) {
             console.error('Error mostrando vehículos disponibles:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error al consultar vehículos disponibles.');
+            
+            const sendOptions = {};
+            if (threadId) {
+                sendOptions.message_thread_id = threadId;
+            }
+            
+            await bot.telegram.sendMessage(chatId, '❌ Error al consultar vehículos disponibles.', sendOptions);
             return false;
         }
     }
@@ -115,7 +138,7 @@ class PolicyAssignmentHandler {
     /**
      * Inicia el proceso de asignación de póliza a un vehículo específico
      */
-    static async iniciarAsignacion(bot, chatId, userId, vehicleId) {
+    static async iniciarAsignacion(bot, chatId, userId, vehicleId, threadId = null) {
         try {
             // Buscar el vehículo directamente por ID
             const Vehicle = require('../../models/vehicle');
@@ -124,30 +147,47 @@ class PolicyAssignmentHandler {
             try {
                 vehiculo = await Vehicle.findById(vehicleId);
                 if (!vehiculo) {
-                    await bot.telegram.sendMessage(chatId, '❌ Vehículo no encontrado.');
+                    const sendOptions = {};
+                    if (threadId) {
+                        sendOptions.message_thread_id = threadId;
+                    }
+                    
+                    await bot.telegram.sendMessage(chatId, '❌ Vehículo no encontrado.', sendOptions);
                     return false;
                 }
             } catch (error) {
                 // Si falla por ID, intentar buscar por serie o placas
                 const vehicle = await VehicleController.buscarVehiculo(vehicleId);
                 if (!vehicle.success || !vehicle.vehiculo) {
-                    await bot.telegram.sendMessage(chatId, '❌ Vehículo no encontrado.');
+                    const sendOptions = {};
+                    if (threadId) {
+                        sendOptions.message_thread_id = threadId;
+                    }
+                    
+                    await bot.telegram.sendMessage(chatId, '❌ Vehículo no encontrado.', sendOptions);
                     return false;
                 }
                 vehiculo = vehicle.vehiculo;
             }
 
             if (vehiculo.estado !== 'SIN_POLIZA') {
+                const sendOptions = {};
+                if (threadId) {
+                    sendOptions.message_thread_id = threadId;
+                }
+                
                 await bot.telegram.sendMessage(
                     chatId,
                     '❌ Este vehículo ya tiene póliza asignada o no está disponible.\n' +
-                        `Estado actual: ${vehiculo.estado}`
+                        `Estado actual: ${vehiculo.estado}`,
+                    sendOptions
                 );
                 return false;
             }
 
-            // Limpiar cualquier asignación previa para este usuario
-            asignacionesEnProceso.delete(userId);
+            // Limpiar cualquier asignación previa para este usuario en este contexto
+            const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+            asignacionesEnProceso.delete(stateKey);
 
             // Mostrar resumen del vehículo seleccionado
             const mensaje =
@@ -164,17 +204,23 @@ class PolicyAssignmentHandler {
                 '*Paso 1/5:* Ingresa el *número de póliza*\n' +
                 '📝 Puedes escribir cualquier número o código';
 
-            await bot.telegram.sendMessage(chatId, mensaje, {
+            const sendOptions = {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [[{ text: '❌ Cancelar', callback_data: 'poliza_cancelar' }]]
                 }
-            });
+            };
+            if (threadId) {
+                sendOptions.message_thread_id = threadId;
+            }
+            
+            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
-            // Inicializar el estado de asignación
-            asignacionesEnProceso.set(userId, {
+            // Inicializar el estado de asignación con thread-safety
+            asignacionesEnProceso.set(stateKey, {
                 estado: ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA,
                 chatId: chatId,
+                threadId: threadId,
                 vehiculo: vehiculo,
                 datosPoliza: {},
                 iniciado: new Date()
@@ -183,7 +229,13 @@ class PolicyAssignmentHandler {
             return true;
         } catch (error) {
             console.error('Error iniciando asignación:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error al iniciar la asignación de póliza.');
+            
+            const sendOptions = {};
+            if (threadId) {
+                sendOptions.message_thread_id = threadId;
+            }
+            
+            await bot.telegram.sendMessage(chatId, '❌ Error al iniciar la asignación de póliza.', sendOptions);
             return false;
         }
     }
@@ -193,11 +245,13 @@ class PolicyAssignmentHandler {
      */
     static async procesarMensaje(bot, msg, userId) {
         const chatId = msg.chat.id;
+        const threadId = msg.message_thread_id || null;
         const texto = msg.text?.trim();
 
-        const asignacion = asignacionesEnProceso.get(userId);
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        const asignacion = asignacionesEnProceso.get(stateKey);
         if (!asignacion) {
-            return false; // No hay asignación en proceso para este usuario
+            return false; // No hay asignación en proceso para este usuario en este contexto
         }
 
         // La cancelación ahora se maneja via callback_data en BaseAutosCommand
@@ -205,25 +259,25 @@ class PolicyAssignmentHandler {
         try {
             switch (asignacion.estado) {
             case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
-                return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion);
+                return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion, stateKey);
 
             case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
-                return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion);
+                return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion, stateKey);
 
             case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
-                return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion);
+                return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion, stateKey);
 
             case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
-                return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion);
+                return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion, stateKey);
 
             case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
-                return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion);
+                return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion, stateKey);
 
             case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
-                return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion);
+                return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion, stateKey);
 
             case ESTADOS_ASIGNACION.ESPERANDO_PDF:
-                return await this.procesarPDF(bot, msg, userId, asignacion);
+                return await this.procesarPDF(bot, msg, userId, asignacion, stateKey);
 
             default:
                 return false;
@@ -241,22 +295,33 @@ class PolicyAssignmentHandler {
     /**
      * Procesa el número de póliza (permite cualquier entrada manual)
      */
-    static async procesarNumeroPoliza(bot, chatId, userId, numeroPoliza, asignacion) {
+    static async procesarNumeroPoliza(bot, chatId, userId, numeroPoliza, asignacion, stateKey) {
         if (!numeroPoliza || numeroPoliza.trim().length < 1) {
-            await bot.telegram.sendMessage(chatId, '❌ Ingresa un número de póliza válido:');
+            const sendOptions = {};
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
+            await bot.telegram.sendMessage(chatId, '❌ Ingresa un número de póliza válido:', sendOptions);
             return true;
         }
 
         // Guardar el número sin validar si existe (permitir duplicados)
         asignacion.datosPoliza.numeroPoliza = numeroPoliza.trim();
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA;
+        asignacionesEnProceso.set(stateKey, asignacion);
 
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
         await bot.telegram.sendMessage(
             chatId,
             `✅ Número de póliza: *${numeroPoliza}*\n\n` +
                 '*Paso 2/5:* Ingresa la *aseguradora*\n' +
                 '📝 Ejemplo: GNP, Seguros Monterrey, AXA',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -265,24 +330,36 @@ class PolicyAssignmentHandler {
     /**
      * Procesa la aseguradora
      */
-    static async procesarAseguradora(bot, chatId, userId, aseguradora, asignacion) {
+    static async procesarAseguradora(bot, chatId, userId, aseguradora, asignacion, stateKey) {
         if (!aseguradora || aseguradora.trim().length < 2) {
+            const sendOptions = {};
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ La aseguradora debe tener al menos 2 caracteres:'
+                '❌ La aseguradora debe tener al menos 2 caracteres:',
+                sendOptions
             );
             return true;
         }
 
         asignacion.datosPoliza.aseguradora = aseguradora.trim();
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA;
+        asignacionesEnProceso.set(stateKey, asignacion);
 
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
         await bot.telegram.sendMessage(
             chatId,
             `✅ Aseguradora: *${aseguradora}*\n\n` +
                 '*Paso 3/5:* Ingresa el *nombre de la persona* que cotizó\n' +
                 '📝 Ejemplo: Juan Pérez, María González',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
