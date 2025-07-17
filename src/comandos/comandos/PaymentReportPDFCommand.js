@@ -273,10 +273,10 @@ class PaymentReportPDFCommand extends BaseCommand {
                         items[0]?.prioridad === 1
                             ? 'URGENTE: '
                             : items[0]?.prioridad === 2
-                              ? 'ATENCION: '
-                              : items[0]?.prioridad <= 3
-                                ? 'PROGRAMAR: '
-                                : 'REVISAR: ';
+                                ? 'ATENCION: '
+                                : items[0]?.prioridad <= 3
+                                    ? 'PROGRAMAR: '
+                                    : 'REVISAR: ';
                     doc.text(
                         `${prioridadText}${rango} (${items.length} polizas)`,
                         tableLeft,

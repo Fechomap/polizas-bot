@@ -8,23 +8,23 @@ class DatabaseHandler {
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-                case 'menu':
-                    return await adminMenu.showDatabaseMenu(ctx);
+            case 'menu':
+                return await adminMenu.showDatabaseMenu(ctx);
 
-                case 'stats':
-                    return await this.handleStats(ctx);
+            case 'stats':
+                return await this.handleStats(ctx);
 
-                case 'scripts':
-                    return await this.handleScripts(ctx);
+            case 'scripts':
+                return await this.handleScripts(ctx);
 
-                case 'backup':
-                    return await this.handleBackup(ctx);
+            case 'backup':
+                return await this.handleBackup(ctx);
 
-                case 'maintenance':
-                    return await this.handleMaintenance(ctx);
+            case 'maintenance':
+                return await this.handleMaintenance(ctx);
 
-                default:
-                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+            default:
+                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en DatabaseHandler:', error);

@@ -1,5 +1,6 @@
 const VehicleController = require('../../controllers/vehicleController');
 const { getMainKeyboard } = require('../teclados');
+const StateKeyManager = require('../../utils/StateKeyManager');
 
 /**
  * Estados del flujo de registro de vehículos
@@ -17,8 +18,9 @@ const ESTADOS_REGISTRO = {
 
 /**
  * Almacena temporalmente los datos del vehículo en proceso
+ * Usa StateKeyManager para thread-safety
  */
-const vehiculosEnProceso = new Map();
+const vehiculosEnProceso = StateKeyManager.createThreadSafeStateMap();
 
 /**
  * Handler para el registro de vehículos OBD
@@ -27,27 +29,37 @@ class VehicleRegistrationHandler {
     /**
      * Inicia el proceso de registro de un nuevo vehículo
      */
-    static async iniciarRegistro(bot, chatId, userId) {
+    static async iniciarRegistro(bot, chatId, userId, threadId = null) {
         try {
-            // Limpiar cualquier registro previo para este usuario
-            vehiculosEnProceso.delete(userId);
+            const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+
+            // Limpiar cualquier registro previo para este usuario en este contexto
+            vehiculosEnProceso.delete(stateKey);
 
             const mensaje =
                 '🚗 *REGISTRO DE AUTO*\n\n' +
                 '*1/6:* Número de serie (VIN) - 17 caracteres\n' +
                 'Ejemplo: 3FADP4EJ2FM123456';
 
-            await bot.telegram.sendMessage(chatId, mensaje, {
+            const sendOptions = {
                 parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [[{ text: '❌ Cancelar', callback_data: 'vehiculo_cancelar' }]]
                 }
-            });
+            };
 
-            // Inicializar el estado del registro
-            vehiculosEnProceso.set(userId, {
+            // Enviar al hilo correcto si threadId está presente
+            if (threadId) {
+                sendOptions.message_thread_id = threadId;
+            }
+
+            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
+
+            // Inicializar el estado del registro con thread-safety
+            vehiculosEnProceso.set(stateKey, {
                 estado: ESTADOS_REGISTRO.ESPERANDO_SERIE,
                 chatId: chatId,
+                threadId: threadId,
                 datos: {},
                 fotos: [], // Inicializar array de fotos desde el inicio
                 mensajeFotosId: null, // ID del mensaje de contador de fotos
@@ -70,44 +82,52 @@ class VehicleRegistrationHandler {
      */
     static async procesarMensaje(bot, msg, userId) {
         const chatId = msg.chat.id;
+        const threadId = msg.message_thread_id || null;
         const texto = msg.text?.trim();
 
-        const registro = vehiculosEnProceso.get(userId);
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        const registro = vehiculosEnProceso.get(stateKey);
         if (!registro) {
-            return false; // No hay registro en proceso para este usuario
+            return false; // No hay registro en proceso para este usuario en este contexto
         }
 
         // La cancelación ahora se maneja via callback_data en BaseAutosCommand
 
         try {
             switch (registro.estado) {
-                case ESTADOS_REGISTRO.ESPERANDO_SERIE:
-                    return await this.procesarSerie(bot, chatId, userId, texto, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_SERIE:
+                return await this.procesarSerie(bot, chatId, userId, texto, registro, stateKey);
 
-                case ESTADOS_REGISTRO.ESPERANDO_MARCA:
-                    return await this.procesarMarca(bot, chatId, userId, texto, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_MARCA:
+                return await this.procesarMarca(bot, chatId, userId, texto, registro, stateKey);
 
-                case ESTADOS_REGISTRO.ESPERANDO_SUBMARCA:
-                    return await this.procesarSubmarca(bot, chatId, userId, texto, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_SUBMARCA:
+                return await this.procesarSubmarca(bot, chatId, userId, texto, registro, stateKey);
 
-                case ESTADOS_REGISTRO.ESPERANDO_AÑO:
-                    return await this.procesarAño(bot, chatId, userId, texto, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_AÑO:
+                return await this.procesarAño(bot, chatId, userId, texto, registro, stateKey);
 
-                case ESTADOS_REGISTRO.ESPERANDO_COLOR:
-                    return await this.procesarColor(bot, chatId, userId, texto, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_COLOR:
+                return await this.procesarColor(bot, chatId, userId, texto, registro, stateKey);
 
-                case ESTADOS_REGISTRO.ESPERANDO_PLACAS:
-                    return await this.procesarPlacas(bot, chatId, userId, texto, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_PLACAS:
+                return await this.procesarPlacas(bot, chatId, userId, texto, registro, stateKey);
 
-                case ESTADOS_REGISTRO.ESPERANDO_FOTOS:
-                    return await this.procesarFotos(bot, msg, userId, registro);
+            case ESTADOS_REGISTRO.ESPERANDO_FOTOS:
+                return await this.procesarFotos(bot, msg, userId, registro);
 
-                default:
-                    return false;
+            default:
+                return false;
             }
         } catch (error) {
             console.error('Error procesando mensaje de registro:', error);
-            await bot.telegram.sendMessage(chatId, '❌ Error en el registro. Intenta nuevamente.');
+
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
+            await bot.telegram.sendMessage(chatId, '❌ Error en el registro. Intenta nuevamente.', sendOptions);
             return true;
         }
     }
@@ -115,11 +135,17 @@ class VehicleRegistrationHandler {
     /**
      * Procesa el número de serie (VIN)
      */
-    static async procesarSerie(bot, chatId, userId, serie, registro) {
+    static async procesarSerie(bot, chatId, userId, serie, registro, stateKey) {
         if (!serie || serie.length !== 17) {
+            const sendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ El número de serie debe tener exactamente 17 caracteres.\nIntenta nuevamente:'
+                '❌ El número de serie debe tener exactamente 17 caracteres.\nIntenta nuevamente:',
+                sendOptions
             );
             return true;
         }
@@ -127,6 +153,11 @@ class VehicleRegistrationHandler {
         // Verificar que no exista el vehículo
         const busqueda = await VehicleController.buscarVehiculo(serie);
         if (busqueda.success && busqueda.vehiculo) {
+            const sendOptions = { parse_mode: 'Markdown' };
+            if (registro.threadId) {
+                sendOptions.message_thread_id = registro.threadId;
+            }
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ Ya existe un vehículo registrado con esta serie:\n\n' +
@@ -135,19 +166,25 @@ class VehicleRegistrationHandler {
                     `🎨 Color: ${busqueda.vehiculo.color}\n` +
                     `👤 Titular: ${busqueda.vehiculo.titular || busqueda.vehiculo.titularTemporal || 'Sin titular'}\n\n` +
                     'Ingresa una serie diferente:',
-                { parse_mode: 'Markdown' }
+                sendOptions
             );
             return true;
         }
 
         registro.datos.serie = serie.toUpperCase();
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_MARCA;
+        vehiculosEnProceso.set(stateKey, registro);
+
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (registro.threadId) {
+            sendOptions.message_thread_id = registro.threadId;
+        }
 
         await bot.telegram.sendMessage(
             chatId,
             `✅ Serie: *${serie.toUpperCase()}*\n\n` +
                 '*2/6:* Marca\nEjemplo: Ford, Toyota, Nissan',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -536,15 +573,17 @@ class VehicleRegistrationHandler {
     /**
      * Verifica si un usuario tiene un registro en proceso
      */
-    static tieneRegistroEnProceso(userId) {
-        return vehiculosEnProceso.has(userId);
+    static tieneRegistroEnProceso(userId, chatId, threadId = null) {
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        return vehiculosEnProceso.has(stateKey);
     }
 
     /**
      * Cancela un registro en proceso
      */
-    static cancelarRegistro(userId) {
-        vehiculosEnProceso.delete(userId);
+    static cancelarRegistro(userId, chatId, threadId = null) {
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        vehiculosEnProceso.delete(stateKey);
     }
 
     /**

@@ -14,23 +14,23 @@ class ReportsHandler {
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-                case 'menu':
-                    return await AdminMenu.showReportsMenu(ctx);
+            case 'menu':
+                return await AdminMenu.showReportsMenu(ctx);
 
-                case 'monthly':
-                    return await this.handleMonthlyReport(ctx);
+            case 'monthly':
+                return await this.handleMonthlyReport(ctx);
 
-                case 'weekly':
-                    return await this.handleWeeklyReport(ctx);
+            case 'weekly':
+                return await this.handleWeeklyReport(ctx);
 
-                case 'custom':
-                    return await this.handleCustomReport(ctx);
+            case 'custom':
+                return await this.handleCustomReport(ctx);
 
-                case 'executive':
-                    return await this.handleExecutiveReport(ctx);
+            case 'executive':
+                return await this.handleExecutiveReport(ctx);
 
-                default:
-                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+            default:
+                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en ReportsHandler:', error);
@@ -430,9 +430,9 @@ Selecciona el período para generar el reporte:
                     hasFinancialSummary: !!data?.financialSummary,
                     financialData: data?.financialSummary
                         ? {
-                              totalRevenue: data.financialSummary.totalRevenue,
-                              totalRevenueInMonth: data.financialSummary.totalRevenueInMonth
-                          }
+                            totalRevenue: data.financialSummary.totalRevenue,
+                            totalRevenueInMonth: data.financialSummary.totalRevenueInMonth
+                        }
                         : 'NO DATA',
                     hasAseguradoraAnalysis: !!data?.aseguradoraAnalysis,
                     aseguradorasCount: data?.aseguradoraAnalysis?.length || 0,
@@ -1741,10 +1741,10 @@ Selecciona el mes que deseas analizar:
         const growthRate =
             oldest.data.totalPolicies > 0
                 ? (
-                      ((latest.data.totalPolicies - oldest.data.totalPolicies) /
+                    ((latest.data.totalPolicies - oldest.data.totalPolicies) /
                           oldest.data.totalPolicies) *
                       100
-                  ).toFixed(1)
+                ).toFixed(1)
                 : 0;
 
         return (

@@ -2,6 +2,7 @@ const BaseCommand = require('./BaseCommand');
 const { VehicleRegistrationHandler } = require('./VehicleRegistrationHandler');
 const { PolicyAssignmentHandler } = require('./PolicyAssignmentHandler');
 const { getBaseAutosKeyboard, getMainKeyboard } = require('../teclados');
+const StateKeyManager = require('../../utils/StateKeyManager');
 
 /**
  * Comando principal para Base de Autos
@@ -54,9 +55,10 @@ class BaseAutosCommand extends BaseCommand {
 
                 const userId = ctx.from.id.toString();
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
                 // Verificar si ya tiene un registro en proceso
-                if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId)) {
+                if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadId)) {
                     await ctx.reply(
                         '⚠️ Ya tienes un registro en proceso. Completalo o cancelalo primero.'
                     );
@@ -64,7 +66,7 @@ class BaseAutosCommand extends BaseCommand {
                 }
 
                 // Iniciar registro de vehículo
-                await VehicleRegistrationHandler.iniciarRegistro(this.bot, chatId, userId);
+                await VehicleRegistrationHandler.iniciarRegistro(this.bot, chatId, userId, threadId);
 
                 this.logInfo('Registro de vehículo iniciado', {
                     chatId,
@@ -309,8 +311,11 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarMensajeBaseAutos(message, userId) {
         try {
+            const chatId = message.chat.id;
+            const threadId = message.message_thread_id || null;
+
             // Verificar si hay registro de vehículo en proceso
-            if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId)) {
+            if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadId)) {
                 const procesado = await VehicleRegistrationHandler.procesarMensaje(
                     this.bot,
                     message,

@@ -33,16 +33,16 @@ class VehicleController {
             // Usar datos del titular si vienen incluidos, sino generar nuevos
             const datosTemporal = vehicleData.titular
                 ? {
-                      titular: vehicleData.titular,
-                      rfc: vehicleData.rfc,
-                      telefono: vehicleData.telefono,
-                      correo: vehicleData.correo,
-                      calle: vehicleData.calle,
-                      colonia: vehicleData.colonia,
-                      municipio: vehicleData.municipio,
-                      estadoRegion: vehicleData.estadoRegion,
-                      cp: vehicleData.cp
-                  }
+                    titular: vehicleData.titular,
+                    rfc: vehicleData.rfc,
+                    telefono: vehicleData.telefono,
+                    correo: vehicleData.correo,
+                    calle: vehicleData.calle,
+                    colonia: vehicleData.colonia,
+                    municipio: vehicleData.municipio,
+                    estadoRegion: vehicleData.estadoRegion,
+                    cp: vehicleData.cp
+                }
                 : await generarDatosMexicanosCompletos();
 
             // Crear el vehículo con datos combinados
@@ -276,7 +276,7 @@ class VehicleController {
             // Actualizar directamente en la base de datos para evitar problemas de validación
             const updateResult = await Vehicle.findByIdAndUpdate(
                 vehicleId,
-                { 
+                {
                     estado: 'CON_POLIZA',
                     policyId: policyId,
                     updatedAt: new Date()
@@ -328,15 +328,15 @@ class VehicleController {
 
             stats.forEach(stat => {
                 switch (stat._id) {
-                    case 'SIN_POLIZA':
-                        estadisticas.sinPoliza = stat.count;
-                        break;
-                    case 'CON_POLIZA':
-                        estadisticas.conPoliza = stat.count;
-                        break;
-                    case 'ELIMINADO':
-                        estadisticas.eliminados = stat.count;
-                        break;
+                case 'SIN_POLIZA':
+                    estadisticas.sinPoliza = stat.count;
+                    break;
+                case 'CON_POLIZA':
+                    estadisticas.conPoliza = stat.count;
+                    break;
+                case 'ELIMINADO':
+                    estadisticas.eliminados = stat.count;
+                    break;
                 }
                 estadisticas.total += stat.count;
             });

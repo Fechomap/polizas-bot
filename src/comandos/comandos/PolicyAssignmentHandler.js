@@ -204,29 +204,29 @@ class PolicyAssignmentHandler {
 
         try {
             switch (asignacion.estado) {
-                case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
-                    return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
+                return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion);
 
-                case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
-                    return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
+                return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion);
 
-                case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
-                    return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
+                return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion);
 
-                case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
-                    return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
+                return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion);
 
-                case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
-                    return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
+                return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion);
 
-                case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
-                    return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
+                return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion);
 
-                case ESTADOS_ASIGNACION.ESPERANDO_PDF:
-                    return await this.procesarPDF(bot, msg, userId, asignacion);
+            case ESTADOS_ASIGNACION.ESPERANDO_PDF:
+                return await this.procesarPDF(bot, msg, userId, asignacion);
 
-                default:
-                    return false;
+            default:
+                return false;
             }
         } catch (error) {
             console.error('Error procesando mensaje de asignación:', error);

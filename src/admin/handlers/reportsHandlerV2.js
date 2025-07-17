@@ -191,19 +191,19 @@ class ReportsHandlerV2 {
                     const realServiceUsageRate =
                         stats.totalPolicies > 0
                             ? Math.round(
-                                  (stats.policiesWithServices / stats.totalPolicies) * 100 * 100
-                              ) / 100
+                                (stats.policiesWithServices / stats.totalPolicies) * 100 * 100
+                            ) / 100
                             : 0;
 
                     // ROI real (ingresos totales vs costos totales)
                     const realROI =
                         stats.totalServiceCost > 0
                             ? Math.round(
-                                  ((stats.totalPaymentAmount - stats.totalServiceCost) /
+                                ((stats.totalPaymentAmount - stats.totalServiceCost) /
                                       stats.totalServiceCost) *
                                       100 *
                                       100
-                              ) / 100
+                            ) / 100
                             : 0;
 
                     // Edad promedio de las pólizas
@@ -488,10 +488,10 @@ class ReportsHandlerV2 {
         const profitMarginInMonth =
             totalRevenueInMonth > 0
                 ? Math.round(
-                      ((totalRevenueInMonth - totalServiceCostsInMonth) / totalRevenueInMonth) *
+                    ((totalRevenueInMonth - totalServiceCostsInMonth) / totalRevenueInMonth) *
                           100 *
                           100
-                  ) / 100
+                ) / 100
                 : 0;
 
         const averageROI =
@@ -719,12 +719,12 @@ class ReportsHandlerV2 {
                 retentionRate:
                     monthlyStats.totalPoliciesCreated > 0
                         ? Math.round(
-                              (1 -
+                            (1 -
                                   monthlyStats.totalPoliciesDeleted /
                                       monthlyStats.totalPoliciesCreated) *
                                   100 *
                                   100
-                          ) / 100
+                        ) / 100
                         : 100,
                 mostActiveWeekdays: this.analyzeWeekdayPatterns(dailyAnalysis, startDate),
                 growthTrend: this.calculateGrowthTrend(dailyAnalysis)
@@ -871,18 +871,18 @@ class ReportsHandlerV2 {
                 retentionRate:
                     stats.policiesCreated > 0
                         ? Math.round(
-                              (1 - stats.policiesDeleted / stats.policiesCreated) * 100 * 100
-                          ) / 100
+                            (1 - stats.policiesDeleted / stats.policiesCreated) * 100 * 100
+                        ) / 100
                         : 100,
                 netPolicyChange: stats.policiesCreated - stats.policiesDeleted,
                 roi:
                     stats.totalServiceCosts > 0
                         ? Math.round(
-                              ((stats.totalInvestment - stats.totalServiceCosts) /
+                            ((stats.totalInvestment - stats.totalServiceCosts) /
                                   stats.totalServiceCosts) *
                                   100 *
                                   100
-                          ) / 100
+                        ) / 100
                         : 0
             }))
             .sort((a, b) => b.policiesCreated - a.policiesCreated);
@@ -1132,8 +1132,8 @@ class ReportsHandlerV2 {
                 patterns.growthTrend.trend === 'CRECIENTE'
                     ? '#28a745'
                     : patterns.growthTrend.trend === 'DECRECIENTE'
-                      ? '#dc3545'
-                      : '#ffc107';
+                        ? '#dc3545'
+                        : '#ffc107';
 
             doc.fontSize(12)
                 .fillColor(trendColor)

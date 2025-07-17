@@ -25,23 +25,23 @@ class PolicyHandler {
     static async handleAction(ctx, action) {
         try {
             switch (action) {
-                case 'menu':
-                    return await AdminMenu.showPolicyMenu(ctx);
+            case 'menu':
+                return await AdminMenu.showPolicyMenu(ctx);
 
-                case 'edit':
-                    return await this.handlePolicyEdit(ctx);
+            case 'edit':
+                return await this.handlePolicyEdit(ctx);
 
-                case 'delete':
-                    return await this.handlePolicyDelete(ctx);
+            case 'delete':
+                return await this.handlePolicyDelete(ctx);
 
-                case 'restore':
-                    return await this.handlePolicyRestore(ctx);
+            case 'restore':
+                return await this.handlePolicyRestore(ctx);
 
-                case 'stats':
-                    return await this.handleStats(ctx);
+            case 'stats':
+                return await this.handleStats(ctx);
 
-                default:
-                    await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
+            default:
+                await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en PolicyHandler:', error);
@@ -1106,46 +1106,46 @@ Selecciona una póliza:
 
         // Manejar diferentes operaciones admin
         switch (adminState.operation) {
-            case 'policy_search_for_edit':
-            case 'policy_search_for_delete':
-            case 'policy_mass_search_for_delete':
-                if (messageText.length < 2) {
-                    await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
-                    return true;
-                }
-                await this.handlePolicySearch(ctx, messageText);
+        case 'policy_search_for_edit':
+        case 'policy_search_for_delete':
+        case 'policy_mass_search_for_delete':
+            if (messageText.length < 2) {
+                await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
                 return true;
+            }
+            await this.handlePolicySearch(ctx, messageText);
+            return true;
 
-            case 'policy_mass_search_for_restore':
-                if (messageText.length < 2) {
-                    await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
-                    return true;
-                }
-                await this.handleDeletedPolicySearch(ctx, messageText);
+        case 'policy_mass_search_for_restore':
+            if (messageText.length < 2) {
+                await ctx.reply('❌ El término de búsqueda debe tener al menos 2 caracteres.');
                 return true;
+            }
+            await this.handleDeletedPolicySearch(ctx, messageText);
+            return true;
 
-            case 'policy_deletion_reason':
-                if (messageText.length < 3) {
-                    await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
-                    return true;
-                }
-                await this.handleDeletionReason(ctx, messageText);
+        case 'policy_deletion_reason':
+            if (messageText.length < 3) {
+                await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
                 return true;
+            }
+            await this.handleDeletionReason(ctx, messageText);
+            return true;
 
-            case 'policy_mass_deletion_reason':
-                if (messageText.length < 3) {
-                    await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
-                    return true;
-                }
-                await this.handleMassDeletionReason(ctx, messageText);
+        case 'policy_mass_deletion_reason':
+            if (messageText.length < 3) {
+                await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
                 return true;
+            }
+            await this.handleMassDeletionReason(ctx, messageText);
+            return true;
 
-            case 'field_editing':
-                await this.processFieldEdit(ctx, messageText);
-                return true;
+        case 'field_editing':
+            await this.processFieldEdit(ctx, messageText);
+            return true;
 
-            default:
-                return false;
+        default:
+            return false;
         }
     }
 
@@ -2158,123 +2158,123 @@ Escribe el nuevo valor o presiona Cancelar:
         const trimmedValue = value.trim();
 
         switch (fieldInfo.type) {
-            case 'string':
-                if (trimmedValue.length < 3) {
-                    return { isValid: false, error: 'El valor debe tener al menos 3 caracteres' };
-                }
-                return { isValid: true, processedValue: trimmedValue };
+        case 'string':
+            if (trimmedValue.length < 3) {
+                return { isValid: false, error: 'El valor debe tener al menos 3 caracteres' };
+            }
+            return { isValid: true, processedValue: trimmedValue };
 
-            case 'rfc':
-                if (!/^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$/.test(trimmedValue.toUpperCase())) {
-                    return { isValid: false, error: 'RFC inválido. Formato: XXXX######XXX' };
-                }
-                return { isValid: true, processedValue: trimmedValue.toUpperCase() };
+        case 'rfc':
+            if (!/^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$/.test(trimmedValue.toUpperCase())) {
+                return { isValid: false, error: 'RFC inválido. Formato: XXXX######XXX' };
+            }
+            return { isValid: true, processedValue: trimmedValue.toUpperCase() };
 
-            case 'email':
-                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
-                    return {
-                        isValid: false,
-                        error: 'Email inválido. Formato: ejemplo@dominio.com'
-                    };
-                }
-                return { isValid: true, processedValue: trimmedValue.toLowerCase() };
+        case 'email':
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) {
+                return {
+                    isValid: false,
+                    error: 'Email inválido. Formato: ejemplo@dominio.com'
+                };
+            }
+            return { isValid: true, processedValue: trimmedValue.toLowerCase() };
 
-            case 'phone':
-                const phoneClean = trimmedValue.replace(/\D/g, '');
-                if (phoneClean.length !== 10) {
-                    return { isValid: false, error: 'Teléfono debe tener 10 dígitos' };
-                }
-                return { isValid: true, processedValue: phoneClean };
+        case 'phone':
+            const phoneClean = trimmedValue.replace(/\D/g, '');
+            if (phoneClean.length !== 10) {
+                return { isValid: false, error: 'Teléfono debe tener 10 dígitos' };
+            }
+            return { isValid: true, processedValue: phoneClean };
 
-            case 'cp':
-                const cpClean = trimmedValue.replace(/\D/g, '');
-                if (cpClean.length !== 5) {
-                    return { isValid: false, error: 'Código postal debe tener 5 dígitos' };
-                }
-                return { isValid: true, processedValue: cpClean };
+        case 'cp':
+            const cpClean = trimmedValue.replace(/\D/g, '');
+            if (cpClean.length !== 5) {
+                return { isValid: false, error: 'Código postal debe tener 5 dígitos' };
+            }
+            return { isValid: true, processedValue: cpClean };
 
-            case 'year':
-                const year = parseInt(trimmedValue);
-                const currentYear = new Date().getFullYear();
-                if (isNaN(year) || year < 1990 || year > currentYear + 1) {
-                    return {
-                        isValid: false,
-                        error: `Año debe ser entre 1990 y ${currentYear + 1}`
-                    };
-                }
-                return { isValid: true, processedValue: year };
+        case 'year':
+            const year = parseInt(trimmedValue);
+            const currentYear = new Date().getFullYear();
+            if (isNaN(year) || year < 1990 || year > currentYear + 1) {
+                return {
+                    isValid: false,
+                    error: `Año debe ser entre 1990 y ${currentYear + 1}`
+                };
+            }
+            return { isValid: true, processedValue: year };
 
-            case 'date':
-                const dateMatch = trimmedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-                if (!dateMatch) {
-                    return { isValid: false, error: 'Fecha inválida. Formato: DD/MM/AAAA' };
-                }
-                const [, day, month, year2] = dateMatch;
-                const date = new Date(year2, month - 1, day);
-                if (
-                    date.getDate() != day ||
+        case 'date':
+            const dateMatch = trimmedValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (!dateMatch) {
+                return { isValid: false, error: 'Fecha inválida. Formato: DD/MM/AAAA' };
+            }
+            const [, day, month, year2] = dateMatch;
+            const date = new Date(year2, month - 1, day);
+            if (
+                date.getDate() != day ||
                     date.getMonth() != month - 1 ||
                     date.getFullYear() != year2
-                ) {
-                    return { isValid: false, error: 'Fecha inválida. Verifica día/mes/año' };
-                }
-                return { isValid: true, processedValue: date };
+            ) {
+                return { isValid: false, error: 'Fecha inválida. Verifica día/mes/año' };
+            }
+            return { isValid: true, processedValue: date };
 
-            case 'rating':
-                const rating = parseInt(trimmedValue);
-                if (isNaN(rating) || rating < 0 || rating > 100) {
-                    return {
-                        isValid: false,
-                        error: 'Calificación debe ser un número entre 0 y 100'
-                    };
-                }
-                return { isValid: true, processedValue: rating };
+        case 'rating':
+            const rating = parseInt(trimmedValue);
+            if (isNaN(rating) || rating < 0 || rating > 100) {
+                return {
+                    isValid: false,
+                    error: 'Calificación debe ser un número entre 0 y 100'
+                };
+            }
+            return { isValid: true, processedValue: rating };
 
-            case 'number':
-                const num = parseInt(trimmedValue);
-                if (isNaN(num) || num < 0) {
-                    return { isValid: false, error: 'Debe ser un número positivo' };
-                }
-                return { isValid: true, processedValue: num };
+        case 'number':
+            const num = parseInt(trimmedValue);
+            if (isNaN(num) || num < 0) {
+                return { isValid: false, error: 'Debe ser un número positivo' };
+            }
+            return { isValid: true, processedValue: num };
 
-            case 'status':
-                const validStatuses = ['ACTIVO', 'INACTIVO', 'ELIMINADO'];
-                const upperValue = trimmedValue.toUpperCase();
-                if (!validStatuses.includes(upperValue)) {
-                    return {
-                        isValid: false,
-                        error: 'Estado debe ser: ACTIVO, INACTIVO o ELIMINADO'
-                    };
-                }
-                return { isValid: true, processedValue: upperValue };
+        case 'status':
+            const validStatuses = ['ACTIVO', 'INACTIVO', 'ELIMINADO'];
+            const upperValue = trimmedValue.toUpperCase();
+            if (!validStatuses.includes(upperValue)) {
+                return {
+                    isValid: false,
+                    error: 'Estado debe ser: ACTIVO, INACTIVO o ELIMINADO'
+                };
+            }
+            return { isValid: true, processedValue: upperValue };
 
-            case 'vin':
-                const vinClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                if (vinClean.length !== 17) {
-                    return { isValid: false, error: 'VIN debe tener 17 caracteres alfanuméricos' };
-                }
-                // Validación básica de VIN: no contiene I, O, Q
-                if (/[IOQ]/.test(vinClean)) {
-                    return { isValid: false, error: 'VIN no puede contener las letras I, O o Q' };
-                }
-                return { isValid: true, processedValue: vinClean };
+        case 'vin':
+            const vinClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+            if (vinClean.length !== 17) {
+                return { isValid: false, error: 'VIN debe tener 17 caracteres alfanuméricos' };
+            }
+            // Validación básica de VIN: no contiene I, O, Q
+            if (/[IOQ]/.test(vinClean)) {
+                return { isValid: false, error: 'VIN no puede contener las letras I, O o Q' };
+            }
+            return { isValid: true, processedValue: vinClean };
 
-            case 'plates':
-                const plateClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                if (plateClean.length < 6 || plateClean.length > 7) {
-                    return { isValid: false, error: 'Placas deben tener 6 o 7 caracteres' };
-                }
-                // Validar formato mexicano: ABC1234 o 123ABC
-                if (!/^[A-Z]{3}[0-9]{3,4}$|^[0-9]{3}[A-Z]{3,4}$/.test(plateClean)) {
-                    return {
-                        isValid: false,
-                        error: 'Formato de placas inválido. Usar ABC1234 o 123ABC'
-                    };
-                }
-                return { isValid: true, processedValue: plateClean };
+        case 'plates':
+            const plateClean = trimmedValue.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+            if (plateClean.length < 6 || plateClean.length > 7) {
+                return { isValid: false, error: 'Placas deben tener 6 o 7 caracteres' };
+            }
+            // Validar formato mexicano: ABC1234 o 123ABC
+            if (!/^[A-Z]{3}[0-9]{3,4}$|^[0-9]{3}[A-Z]{3,4}$/.test(plateClean)) {
+                return {
+                    isValid: false,
+                    error: 'Formato de placas inválido. Usar ABC1234 o 123ABC'
+                };
+            }
+            return { isValid: true, processedValue: plateClean };
 
-            default:
-                return { isValid: true, processedValue: trimmedValue };
+        default:
+            return { isValid: true, processedValue: trimmedValue };
         }
     }
 
