@@ -86,9 +86,10 @@ class BaseAutosCommand extends BaseCommand {
 
                 const userId = ctx.from.id.toString();
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
                 // Verificar si ya tiene una asignación en proceso
-                if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
+                if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
                     await ctx.reply(
                         '⚠️ Ya tienes una asignación en proceso. Completala o cancelala primero.'
                     );
@@ -96,7 +97,6 @@ class BaseAutosCommand extends BaseCommand {
                 }
 
                 // Mostrar vehículos disponibles para asegurar
-                const threadId = StateKeyManager.getThreadId(ctx);
                 await PolicyAssignmentHandler.mostrarVehiculosDisponibles(this.bot, chatId, userId, threadId);
 
                 this.logInfo('Lista de vehículos para asegurar mostrada', {
@@ -276,10 +276,12 @@ class BaseAutosCommand extends BaseCommand {
                 const fechaISO = ctx.match[1];
                 const userId = ctx.from.id.toString();
                 const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
-                // Verificar que hay asignación en proceso
+                // Verificar que hay asignación en proceso usando thread-safe key
                 const { asignacionesEnProceso } = require('./PolicyAssignmentHandler');
-                const asignacion = asignacionesEnProceso.get(userId);
+                const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+                const asignacion = asignacionesEnProceso.get(stateKey);
 
                 if (!asignacion) {
                     await ctx.reply('❌ No hay asignación de póliza en proceso.');
@@ -293,7 +295,8 @@ class BaseAutosCommand extends BaseCommand {
                     this.bot,
                     chatId,
                     fechaISO,
-                    asignacion
+                    asignacion,
+                    stateKey
                 );
 
                 this.logInfo('Fecha de emisión seleccionada', {
@@ -335,7 +338,7 @@ class BaseAutosCommand extends BaseCommand {
             }
 
             // Verificar si hay asignación de póliza en proceso
-            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
+            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
                 const procesado = await PolicyAssignmentHandler.procesarMensaje(
                     this.bot,
                     message,
@@ -343,7 +346,7 @@ class BaseAutosCommand extends BaseCommand {
                 );
 
                 // Si el proceso terminó, limpiar el estado BD AUTOS
-                if (procesado && !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
+                if (procesado && !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
                     if (this.handler?.registry?.stateManager) {
                         await this.handler.registry.stateManager.clearUserState(
                             userId,
@@ -370,8 +373,11 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarDocumentoBaseAutos(message, userId) {
         try {
+            const chatId = message.chat.id;
+            const threadId = message.message_thread_id || null;
+            
             // Solo procesar si hay asignación de póliza en proceso
-            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)) {
+            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
                 const procesado = await PolicyAssignmentHandler.procesarMensaje(
                     this.bot,
                     message,

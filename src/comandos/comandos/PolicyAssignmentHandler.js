@@ -368,16 +368,23 @@ class PolicyAssignmentHandler {
     /**
      * Procesa el nombre de la persona que cotizó
      */
-    static async procesarNombrePersona(bot, chatId, userId, nombrePersona, asignacion) {
+    static async procesarNombrePersona(bot, chatId, userId, nombrePersona, asignacion, stateKey) {
         if (!nombrePersona || nombrePersona.trim().length < 3) {
+            const sendOptions = {};
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ El nombre debe tener al menos 3 caracteres:'
+                '❌ El nombre debe tener al menos 3 caracteres:',
+                sendOptions
             );
             return true;
         }
 
         asignacion.datosPoliza.nombrePersona = nombrePersona.trim();
+        asignacionesEnProceso.set(stateKey, asignacion);
 
         // Generar fecha de emisión automática y mostrar selector
         await this.mostrarSelectorFechaEmision(bot, chatId, asignacion);
@@ -421,12 +428,17 @@ class PolicyAssignmentHandler {
 
         asignacion.estado = ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION;
 
-        await bot.telegram.sendMessage(chatId, mensaje, {
+        const sendOptions = {
             parse_mode: 'Markdown',
             reply_markup: {
                 inline_keyboard: botones
             }
-        });
+        };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
+        await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
     }
 
     /**
@@ -460,7 +472,7 @@ class PolicyAssignmentHandler {
      * Procesa la selección de fecha de emisión (via callback)
      * Esta función ya no se usa directamente, se maneja via callback en BaseAutosCommand
      */
-    static async procesarFechaEmision(bot, chatId, userId, fechaISO, asignacion) {
+    static async procesarFechaEmision(bot, chatId, userId, fechaISO, asignacion, stateKey) {
         // Esta función se mantiene por compatibilidad pero no se usa en el nuevo flujo
         return false;
     }
@@ -468,7 +480,7 @@ class PolicyAssignmentHandler {
     /**
      * Procesa la fecha seleccionada y calcula automáticamente la fecha de fin
      */
-    static async confirmarFechaEmision(bot, chatId, fechaISO, asignacion) {
+    static async confirmarFechaEmision(bot, chatId, fechaISO, asignacion, stateKey) {
         const fechaEmision = new Date(fechaISO);
 
         // Calcular fecha de fin automáticamente (1 año después)
@@ -478,10 +490,16 @@ class PolicyAssignmentHandler {
         asignacion.datosPoliza.fechaEmision = fechaEmision;
         asignacion.datosPoliza.fechaFinCobertura = fechaFin;
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO;
+        asignacionesEnProceso.set(stateKey, asignacion);
 
         const fechaEmisionStr = fechaEmision.toLocaleDateString('es-MX');
         const fechaFinStr = fechaFin.toLocaleDateString('es-MX');
 
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
         await bot.telegram.sendMessage(
             chatId,
             `✅ Fecha de emisión: *${fechaEmisionStr}*\n` +
@@ -489,7 +507,7 @@ class PolicyAssignmentHandler {
                 '*Paso 5/5:* Ingresa el *PRIMER PAGO*\n' +
                 '💰 Solo el monto\n' +
                 '📝 Ejemplo: 8500',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -529,27 +547,39 @@ class PolicyAssignmentHandler {
     /**
      * Procesa el primer pago (obligatorio - solo monto)
      */
-    static async procesarPrimerPago(bot, chatId, userId, texto, asignacion) {
+    static async procesarPrimerPago(bot, chatId, userId, texto, asignacion, stateKey) {
         // Validar que sea un número válido
         const monto = parseFloat(texto.trim());
         if (isNaN(monto) || monto <= 0) {
+            const sendOptions = {};
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 8500'
+                '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 8500',
+                sendOptions
             );
             return true;
         }
 
         asignacion.datosPoliza.primerPago = monto;
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO;
+        asignacionesEnProceso.set(stateKey, asignacion);
 
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
         await bot.telegram.sendMessage(
             chatId,
             `✅ Primer pago: $${monto.toLocaleString()}\n\n` +
                 'Ahora ingresa el *SEGUNDO PAGO*\n' +
                 '💰 Solo el monto\n' +
                 '📝 Ejemplo: 3500',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -558,13 +588,19 @@ class PolicyAssignmentHandler {
     /**
      * Procesa el segundo pago (obligatorio - solo monto)
      */
-    static async procesarSegundoPago(bot, chatId, userId, texto, asignacion) {
+    static async procesarSegundoPago(bot, chatId, userId, texto, asignacion, stateKey) {
         // Validar que sea un número válido
         const monto = parseFloat(texto.trim());
         if (isNaN(monto) || monto <= 0) {
+            const sendOptions = {};
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
             await bot.telegram.sendMessage(
                 chatId,
-                '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 3500'
+                '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 3500',
+                sendOptions
             );
             return true;
         }
@@ -573,16 +609,22 @@ class PolicyAssignmentHandler {
 
         // Ir directamente a PDF o finalización
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PDF;
+        asignacionesEnProceso.set(stateKey, asignacion);
 
         const totalPagos = asignacion.datosPoliza.primerPago + monto;
 
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
         await bot.telegram.sendMessage(
             chatId,
             `✅ Segundo pago: $${monto.toLocaleString()}\n\n` +
                 `💰 *Total de la póliza: $${totalPagos.toLocaleString()}*\n\n` +
                 '📎 *OBLIGATORIO:* Envía el PDF o foto de la póliza\n' +
                 '🔗 Formatos aceptados: PDF, JPG, PNG',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
 
         return true;
@@ -638,18 +680,23 @@ class PolicyAssignmentHandler {
     /**
      * Procesa el PDF o foto de la póliza (OBLIGATORIO)
      */
-    static async procesarPDF(bot, msg, userId, asignacion) {
+    static async procesarPDF(bot, msg, userId, asignacion, stateKey) {
         const chatId = msg.chat.id;
 
         // Si el usuario intenta enviar texto en lugar de archivo
         if (msg.text && !msg.document && !msg.photo) {
+            const sendOptions = { parse_mode: 'Markdown' };
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ **ARCHIVO OBLIGATORIO**\n\n' +
                     '📎 Debes enviar un PDF o foto de la póliza\n' +
                     '🚫 No puedes continuar sin adjuntar el archivo\n' +
                     '🔗 Formatos aceptados: PDF, JPG, PNG',
-                { parse_mode: 'Markdown' }
+                sendOptions
             );
             return true;
         }
@@ -704,10 +751,16 @@ class PolicyAssignmentHandler {
                     );
                 } catch (downloadError) {
                     console.error('BD AUTOS - Error descargando PDF:', downloadError);
+                    
+                    const sendOptions = { parse_mode: 'Markdown' };
+                    if (asignacion.threadId) {
+                        sendOptions.message_thread_id = asignacion.threadId;
+                    }
+                    
                     await bot.telegram.sendMessage(
                         chatId,
                         '❌ Error al procesar el PDF. Por favor, intenta enviarlo nuevamente.',
-                        { parse_mode: 'Markdown' }
+                        sendOptions
                     );
                     return true;
                 }
@@ -721,19 +774,32 @@ class PolicyAssignmentHandler {
                     buffer: pdfBuffer // Guardar el buffer
                 };
 
+                const sendOptions = {};
+                if (asignacion.threadId) {
+                    sendOptions.message_thread_id = asignacion.threadId;
+                }
+                
                 await bot.telegram.sendMessage(
                     chatId,
                     `✅ PDF guardado: ${msg.document.file_name}\n\n` +
                         '🎉 ¡Todos los datos están completos!\n' +
-                        'Procesando asignación de póliza...'
+                        'Procesando asignación de póliza...',
+                    sendOptions
                 );
 
-                return await this.finalizarAsignacion(bot, chatId, userId, asignacion);
+                return await this.finalizarAsignacion(bot, chatId, userId, asignacion, stateKey);
             } catch (error) {
                 console.error('Error procesando PDF:', error);
+                
+                const sendOptions = {};
+                if (asignacion.threadId) {
+                    sendOptions.message_thread_id = asignacion.threadId;
+                }
+                
                 await bot.telegram.sendMessage(
                     chatId,
-                    '❌ Error al procesar el PDF. Intenta nuevamente.'
+                    '❌ Error al procesar el PDF. Intenta nuevamente.',
+                    sendOptions
                 );
                 return true;
             }
@@ -760,10 +826,16 @@ class PolicyAssignmentHandler {
                     );
                 } catch (downloadError) {
                     console.error('BD AUTOS - Error descargando foto:', downloadError);
+                    
+                    const sendOptions = { parse_mode: 'Markdown' };
+                    if (asignacion.threadId) {
+                        sendOptions.message_thread_id = asignacion.threadId;
+                    }
+                    
                     await bot.telegram.sendMessage(
                         chatId,
                         '❌ Error al procesar la foto. Por favor, intenta enviarla nuevamente.',
-                        { parse_mode: 'Markdown' }
+                        sendOptions
                     );
                     return true;
                 }
@@ -777,19 +849,32 @@ class PolicyAssignmentHandler {
                     buffer: fotoBuffer // Guardar el buffer
                 };
 
+                const sendOptions = {};
+                if (asignacion.threadId) {
+                    sendOptions.message_thread_id = asignacion.threadId;
+                }
+                
                 await bot.telegram.sendMessage(
                     chatId,
                     '✅ Foto de póliza guardada\n\n' +
                         '🎉 ¡Todos los datos están completos!\n' +
-                        'Procesando asignación de póliza...'
+                        'Procesando asignación de póliza...',
+                    sendOptions
                 );
 
-                return await this.finalizarAsignacion(bot, chatId, userId, asignacion);
+                return await this.finalizarAsignacion(bot, chatId, userId, asignacion, stateKey);
             } catch (error) {
                 console.error('Error procesando foto:', error);
+                
+                const sendOptions = {};
+                if (asignacion.threadId) {
+                    sendOptions.message_thread_id = asignacion.threadId;
+                }
+                
                 await bot.telegram.sendMessage(
                     chatId,
-                    '❌ Error al procesar la foto. Intenta nuevamente.'
+                    '❌ Error al procesar la foto. Intenta nuevamente.',
+                    sendOptions
                 );
                 return true;
             }
@@ -797,6 +882,11 @@ class PolicyAssignmentHandler {
 
         // Si es otro tipo de documento que no sea PDF, rechazar
         if (msg.document && msg.document.mime_type !== 'application/pdf') {
+            const sendOptions = { parse_mode: 'Markdown' };
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ **FORMATO NO VÁLIDO**\n\n' +
@@ -806,19 +896,24 @@ class PolicyAssignmentHandler {
                     '• PDF (documentos)\n' +
                     '• JPG/PNG (fotos)\n\n' +
                     'Por favor, envía el archivo correcto.',
-                { parse_mode: 'Markdown' }
+                sendOptions
             );
             return true;
         }
 
         // Si no es PDF ni foto, solicitar archivo válido
+        const sendOptions = { parse_mode: 'Markdown' };
+        if (asignacion.threadId) {
+            sendOptions.message_thread_id = asignacion.threadId;
+        }
+        
         await bot.telegram.sendMessage(
             chatId,
             '❌ **ARCHIVO OBLIGATORIO**\n\n' +
                 '📎 Debes enviar un archivo PDF o una foto\n' +
                 '🔗 Formatos aceptados: PDF, JPG, PNG\n\n' +
                 'No puedes finalizar sin adjuntar el archivo.',
-            { parse_mode: 'Markdown' }
+            sendOptions
         );
         return true;
     }
@@ -826,7 +921,7 @@ class PolicyAssignmentHandler {
     /**
      * Finaliza la asignación de póliza
      */
-    static async finalizarAsignacion(bot, chatId, userId, asignacion) {
+    static async finalizarAsignacion(bot, chatId, userId, asignacion, stateKey) {
         let polizaGuardada = null; // Declarar fuera del try para que esté disponible en catch
 
         try {
@@ -1014,13 +1109,18 @@ class PolicyAssignmentHandler {
                 '\n✅ Estado: CON\\_POLIZA\n' +
                 `🆔 ID: ${polizaGuardada._id}`;
 
-            await bot.telegram.sendMessage(chatId, mensaje, {
+            const sendOptions = {
                 parse_mode: 'Markdown',
                 reply_markup: getMainKeyboard()
-            });
+            };
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            
+            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
             // Limpiar el proceso de asignación
-            asignacionesEnProceso.delete(userId);
+            asignacionesEnProceso.delete(stateKey);
 
             // Limpiar el estado del flujo BD AUTOS
             // Nota: El stateManager no está disponible en este contexto estático
@@ -1036,10 +1136,14 @@ class PolicyAssignmentHandler {
                 mensajeError += `\n\n⚠️ La póliza se creó parcialmente:\n📋 Número: ${asignacion.datosPoliza.numeroPoliza}\n🆔 ID: ${polizaGuardada._id}`;
             }
 
-            await bot.telegram.sendMessage(chatId, mensajeError);
+            const sendOptions = {};
+            if (asignacion.threadId) {
+                sendOptions.message_thread_id = asignacion.threadId;
+            }
+            await bot.telegram.sendMessage(chatId, mensajeError, sendOptions);
 
             // Limpiar el estado aunque haya error
-            asignacionesEnProceso.delete(userId);
+            asignacionesEnProceso.delete(stateKey);
 
             // Limpiar el estado del flujo BD AUTOS
             // Nota: El stateManager no está disponible en este contexto estático
@@ -1097,8 +1201,20 @@ class PolicyAssignmentHandler {
     /**
      * Verifica si un usuario tiene una asignación en proceso
      */
-    static tieneAsignacionEnProceso(userId) {
-        return asignacionesEnProceso.has(userId);
+    static tieneAsignacionEnProceso(userId, chatId = null, threadId = null) {
+        // Para compatibilidad hacia atrás, si solo se pasa userId, verificar ambos formatos
+        if (chatId === null) {
+            // Verificar formato viejo (solo userId) para compatibilidad
+            if (asignacionesEnProceso.has(userId)) {
+                return true;
+            }
+            // No podemos verificar formato nuevo sin chatId, así que retornar false
+            return false;
+        }
+        
+        // Usar formato thread-safe
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        return asignacionesEnProceso.has(stateKey);
     }
 
     /**
