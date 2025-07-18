@@ -1,7 +1,7 @@
 // types/index.d.ts - Barrel file para todos los tipos
 
 export * from './global';
-export * from './database';
+export * from '../src/types/database';
 export * from './bot';
 
 // Re-exportar tipos de librerías externas con alias

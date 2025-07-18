@@ -86,7 +86,7 @@ export class VehicleController {
 
             // Usar datos del titular si vienen incluidos, sino generar nuevos
             let datosTemporal: IDatosMexicanos;
-            
+
             if (vehicleData.titular) {
                 datosTemporal = {
                     titular: vehicleData.titular,
