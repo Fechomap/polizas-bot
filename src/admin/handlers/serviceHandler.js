@@ -189,6 +189,9 @@ _Intenta con otro número de expediente._
                 await this.showExpedienteSearchResults(ctx, searchResults, expediente);
             }
 
+            // LIMPIAR el estado de búsqueda después de operación exitosa
+            AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
+
             await AuditLogger.log(ctx, 'service_search_completed', 'service', {
                 searchTerm: expediente,
                 resultsCount: searchResults.length
@@ -196,6 +199,9 @@ _Intenta con otro número de expediente._
         } catch (error) {
             logger.error('Error al buscar servicios por expediente:', error);
             await ctx.reply('❌ Error en la búsqueda. Intenta nuevamente.');
+
+            // LIMPIAR el estado también en caso de error
+            AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
         }
     }
 
@@ -1104,8 +1110,32 @@ Selecciona un servicio para editar:
             // Procesar el valor según el tipo de campo
             const processedValue = this.processFieldValue(fieldName, value);
             if (processedValue === null) {
-                await ctx.answerCbQuery('Valor inválido', { show_alert: true });
+                // Manejar respuesta según el tipo de contexto
+                if (ctx.callbackQuery) {
+                    await ctx.answerCbQuery('Valor inválido', { show_alert: true });
+                } else {
+                    await ctx.reply('❌ Valor inválido');
+                }
                 return;
+            }
+
+            // VALIDACIÓN CRÍTICA: Fechas no pueden estar en el pasado
+            if ((fieldName === 'contacto' || fieldName === 'termino') && processedValue instanceof Date) {
+                const now = new Date();
+                const minimumTime = new Date(now.getTime() + (5 * 60 * 1000)); // +5 minutos mínimo
+
+                if (processedValue < minimumTime) {
+                    const errorMsg = '❌ Error: La fecha debe ser al menos 5 minutos en el futuro.\n' +
+                                   `Hora actual: ${now.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}\n` +
+                                   `Mínimo permitido: ${minimumTime.toLocaleString('es-MX', { timeZone: 'America/Mexico_City' })}`;
+
+                    if (ctx.callbackQuery) {
+                        await ctx.answerCbQuery('Fecha en el pasado no permitida', { show_alert: true });
+                    } else {
+                        await ctx.reply(errorMsg);
+                    }
+                    return;
+                }
             }
 
             // Lógica especial para fechas de notificación
@@ -1143,13 +1173,17 @@ Selecciona un servicio para editar:
                 await ctx.reply('✅ Campo actualizado correctamente');
             }
 
-            // Limpiar estado de edición de campo
+            // LIMPIAR COMPLETAMENTE el estado de edición de campo para evitar bucles
             AdminStateManager.updateAdminState(ctx.from.id, ctx.chat.id, {
                 selectedPolicy: policyId,
                 selectedItemType: type,
                 selectedItemIndex: itemIndex,
-                operation: 'service_direct_edit_shown'
+                operation: 'service_direct_edit_shown',
+                selectedField: null // Limpiar campo seleccionado
             });
+
+            // CAMBIAR la operación para salir del modo de edición
+            AdminStateManager.getAdminState(ctx.from.id, ctx.chat.id).operation = 'service_direct_edit_shown';
 
             // Volver a mostrar el menú de edición
             const result = { policy, type, item, itemIndex };
@@ -1175,7 +1209,8 @@ Selecciona un servicio para editar:
         oldTermino,
         numeroPoliza
     ) {
-        const notificationManager = require('../../notifications/NotificationManager');
+        const NotificationManager = require('../../services/NotificationManager');
+        const notificationManager = NotificationManager.getInstance();
 
         if (fieldName === 'contacto') {
             // Calcular diferencia y aplicar al término
@@ -1229,26 +1264,31 @@ Selecciona un servicio para editar:
      */
     static async updateNotifications(numeroPoliza, numeroExpediente, fechaContacto, fechaTermino) {
         try {
-            const notificationManager = require('../../notifications/NotificationManager');
+            const NotificationManager = require('../../services/NotificationManager');
+            const notificationManager = NotificationManager.getInstance();
 
             // Eliminar notificaciones existentes para este expediente
             await notificationManager.cancelNotificationsByExpediente(numeroExpediente);
 
             // Crear nuevas notificaciones si las fechas están definidas
             if (fechaContacto) {
-                await notificationManager.scheduleContactoNotification(
-                    numeroPoliza,
-                    numeroExpediente,
-                    fechaContacto
-                );
+                await notificationManager.scheduleNotification({
+                    numeroPoliza: numeroPoliza,
+                    targetGroupId: -1002212807945,
+                    expedienteNum: numeroExpediente,
+                    scheduledDate: fechaContacto,
+                    tipoNotificacion: 'CONTACTO'
+                });
             }
 
             if (fechaTermino) {
-                await notificationManager.scheduleTerminoNotification(
-                    numeroPoliza,
-                    numeroExpediente,
-                    fechaTermino
-                );
+                await notificationManager.scheduleNotification({
+                    numeroPoliza: numeroPoliza,
+                    targetGroupId: -1002212807945,
+                    expedienteNum: numeroExpediente,
+                    scheduledDate: fechaTermino,
+                    tipoNotificacion: 'TERMINO'
+                });
             }
 
             logger.info(`Notificaciones actualizadas para expediente ${numeroExpediente}`);

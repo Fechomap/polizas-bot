@@ -13,8 +13,8 @@ const AddPaymentCommand = require('./AddPaymentCommand');
 const AddServiceCommand = require('./AddServiceCommand');
 const SaveCommand = require('./SaveCommand');
 const DeleteCommand = require('./DeleteCommand');
-const ReportPaymentCommand = require('./ReportPaymentCommand');
 const PaymentReportPDFCommand = require('./PaymentReportPDFCommand');
+const PaymentReportExcelCommand = require('./PaymentReportExcelCommand');
 const ReportUsedCommand = require('./ReportUsedCommand');
 const ExcelUploadHandler = require('./ExcelUploadHandler'); // Añadir esta línea
 const NotificationCommand = require('./NotificationCommand');
@@ -35,8 +35,8 @@ module.exports = {
     AddServiceCommand,
     SaveCommand,
     DeleteCommand,
-    ReportPaymentCommand,
     PaymentReportPDFCommand,
+    PaymentReportExcelCommand,
     ReportUsedCommand,
     ExcelUploadHandler, // Añadir esta línea
     NotificationCommand,

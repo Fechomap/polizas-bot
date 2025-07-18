@@ -707,6 +707,12 @@ class AdminModule {
                 );
                 logger.info('🔍 [ADMIN-DEBUG] Estado admin actual:', adminState);
 
+                // PRIORIZAR comandos que empiezan con "/" sobre estados admin
+                if (ctx.message.text.startsWith('/')) {
+                    logger.info('🔍 [ADMIN-DEBUG] Comando detectado, priorizando sobre estado admin');
+                    return next(); // Dejar que el comando se procese normalmente
+                }
+
                 // Intentar procesar como búsqueda de póliza o edición de campo
                 let handled = await this.handlers.policy.handleTextMessage(ctx);
                 logger.info('🔍 [ADMIN-DEBUG] Procesado por policy handler:', handled);

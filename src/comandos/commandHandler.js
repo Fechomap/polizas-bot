@@ -43,8 +43,8 @@ const {
     AddServiceCommand,
     SaveCommand,
     DeleteCommand,
-    ReportPaymentCommand,
     PaymentReportPDFCommand,
+    PaymentReportExcelCommand,
     ReportUsedCommand,
     NotificationCommand,
     BaseAutosCommand
@@ -147,9 +147,6 @@ class CommandHandler {
         this.registry.registerCommand(deleteCmd);
         deleteCmd.register();
 
-        const reportPaymentCmd = new ReportPaymentCommand(this);
-        this.registry.registerCommand(reportPaymentCmd);
-        reportPaymentCmd.register();
 
         const paymentReportPDFCmd = new PaymentReportPDFCommand(this);
         this.registry.registerCommand(paymentReportPDFCmd);
@@ -671,28 +668,6 @@ class CommandHandler {
             }
         });
 
-        // Acción para el reporte de pagos pendientes
-        this.bot.action('accion:reportPayment', async ctx => {
-            try {
-                await ctx.answerCbQuery();
-                // Buscar la instancia del comando ReportPaymentCommand
-                const reportPaymentCmd = this.registry.getCommand('reportPayment');
-                if (reportPaymentCmd && typeof reportPaymentCmd.generateReport === 'function') {
-                    await reportPaymentCmd.generateReport(ctx);
-                } else {
-                    logger.warn(
-                        'No se encontró el comando reportPayment o su método generateReport'
-                    );
-                    await ctx.reply('❌ Reporte no disponible en este momento.');
-                }
-            } catch (error) {
-                logger.error('Error en accion:reportPayment:', error);
-                try {
-                    await ctx.answerCbQuery('Error');
-                } catch {}
-                await ctx.reply('❌ Error al generar el reporte de pagos pendientes.');
-            }
-        });
 
         // Acción para el reporte PDF de pagos pendientes
         this.bot.action('accion:reportPaymentPDF', async ctx => {
@@ -719,6 +694,7 @@ class CommandHandler {
                 await ctx.reply('❌ Error al generar el reporte PDF de pagos pendientes.');
             }
         });
+
 
         // Acción para el reporte de pólizas prioritarias
         this.bot.action('accion:reportUsed', async ctx => {

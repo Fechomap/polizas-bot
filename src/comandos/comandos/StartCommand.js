@@ -17,33 +17,21 @@ class StartCommand extends BaseCommand {
     }
 
     register() {
-        // Mantenemos el comando /start por ahora, pero mostramos el menú inline
+        // Comando /start con navegación persistente
         this.bot.command(this.getCommandName(), async ctx => {
             try {
-                // LIMPIAR CUALQUIER ESTADO ADMIN PERSISTENTE
+                // SOLO limpiar estados admin problemáticos, NO toda la navegación
                 AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
                 this.logInfo('Estados admin limpiados al ejecutar /start', {
                     userId: ctx.from.id,
                     chatId: ctx.chat.id
                 });
 
-                const mainMenu = Markup.inlineKeyboard([
-                    [
-                        Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),
-                        Markup.button.callback('🔧 ADMINISTRACIÓN', 'accion:administracion')
-                    ],
-                    [
-                        Markup.button.callback('📊 REPORTES', 'accion:reportes'),
-                        Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
-                    ],
-                    [Markup.button.callback('❓ AYUDA', 'accion:help')]
-                ]);
-
-                await ctx.reply(
-                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:',
-                    { parse_mode: 'Markdown', ...mainMenu }
-                );
-                this.logInfo('Menú principal mostrado vía /start', { chatId: ctx.chat.id });
+                // Usar el nuevo sistema de navegación persistente
+                await this.showMainMenu(ctx);
+                this.logInfo('Menú principal mostrado vía /start con navegación persistente', { 
+                    chatId: ctx.chat.id 
+                });
             } catch (error) {
                 this.logError('Error en comando start al mostrar menú:', error);
                 await ctx.reply('❌ Error al mostrar el menú principal. Intenta nuevamente.');
@@ -51,55 +39,8 @@ class StartCommand extends BaseCommand {
         });
     }
 
-    // Método para mostrar el menú principal (reutilizable)
-    async showMainMenu(ctx) {
-        try {
-            // LIMPIAR CUALQUIER ESTADO ADMIN PERSISTENTE TAMBIÉN AQUÍ
-            AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
-            this.logInfo('Estados admin limpiados al volver al menú principal', {
-                userId: ctx.from.id,
-                chatId: ctx.chat.id
-            });
-
-            const mainMenu = Markup.inlineKeyboard([
-                [
-                    Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),
-                    Markup.button.callback('🔧 ADMINISTRACIÓN', 'accion:administracion')
-                ],
-                [
-                    Markup.button.callback('📊 REPORTES', 'accion:reportes'),
-                    Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
-                ],
-                [Markup.button.callback('❓ AYUDA', 'accion:help')]
-            ]);
-
-            // Podríamos editar el mensaje anterior si existe ctx.callbackQuery
-            if (ctx.callbackQuery) {
-                await ctx.editMessageText(
-                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:',
-                    { parse_mode: 'Markdown', ...mainMenu }
-                );
-                await ctx.answerCbQuery();
-            } else {
-                // Si no es callback, enviamos uno nuevo
-                await ctx.reply(
-                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:',
-                    { parse_mode: 'Markdown', ...mainMenu }
-                );
-            }
-            this.logInfo('Menú principal mostrado', { chatId: ctx.chat.id });
-        } catch (error) {
-            this.logError('Error al mostrar menú principal (showMainMenu):', error);
-            // Evitar doble respuesta si falla la edición
-            if (!ctx.callbackQuery) {
-                await ctx.reply('❌ Error al mostrar el menú.');
-            } else {
-                try {
-                    await ctx.answerCbQuery('Error al mostrar menú');
-                } catch {}
-            }
-        }
-    }
+    // Este método ahora está heredado de BaseCommand con navegación persistente
+    // Mantener para compatibilidad pero usar el padre
 }
 
 module.exports = StartCommand;
