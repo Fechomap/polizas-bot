@@ -1,5 +1,10 @@
 // src/services/CloudflareStorage.ts
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+    S3Client,
+    PutObjectCommand,
+    DeleteObjectCommand,
+    GetObjectCommand
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import logger from '../utils/logger';
 import crypto from 'crypto';
@@ -55,7 +60,7 @@ class CloudflareStorage {
     /**
      * Genera un nombre de archivo único
      */
-    generateFileName(policyNumber: string, originalName: string, type: string = 'file'): string {
+    generateFileName(policyNumber: string, originalName: string, type = 'file'): string {
         const timestamp = Date.now();
         const randomId = crypto.randomBytes(8).toString('hex');
         const extension = path.extname(originalName);
@@ -162,7 +167,7 @@ class CloudflareStorage {
     /**
      * Genera URL firmada para acceso temporal
      */
-    async getSignedUrl(fileName: string, expiresIn: number = 3600): Promise<string> {
+    async getSignedUrl(fileName: string, expiresIn = 3600): Promise<string> {
         try {
             const command = new GetObjectCommand({
                 Bucket: this.bucket,

@@ -54,7 +54,7 @@ class StateKeyManager {
 
         // Extraer threadId de un mensaje normal
         if (ctx.message && 'message_thread_id' in ctx.message) {
-            return (ctx.message as any).message_thread_id;
+            return ctx.message.message_thread_id;
         }
 
         // Extraer threadId de un callback_query
@@ -173,7 +173,7 @@ class StateKeyManager {
     /**
      * Genera una clave temporal única para operaciones de corta duración
      */
-    static generateTempKey(prefix: string = 'temp'): string {
+    static generateTempKey(prefix = 'temp'): string {
         const timestamp = Date.now();
         const random = Math.random().toString(36).substring(2, 8);
         return `${prefix}:${timestamp}:${random}`;

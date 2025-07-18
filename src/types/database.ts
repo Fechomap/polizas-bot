@@ -14,9 +14,29 @@ export interface IR2File {
     key: string;
     size: number;
     contentType: string;
-    uploadedAt: Date;
+    uploadDate: Date;
     originalName?: string;
     fuenteOriginal?: string;
+}
+
+// Interfaz para coordenadas
+export interface ICoordenadas {
+    origen: {
+        lat: number;
+        lng: number;
+    };
+    destino: {
+        lat: number;
+        lng: number;
+    };
+}
+
+// Interfaz para información de ruta
+export interface IRutaInfo {
+    distanciaKm: number;
+    tiempoMinutos: number;
+    googleMapsUrl?: string;
+    aproximado?: boolean;
 }
 
 // Interfaz para el titular de póliza
@@ -29,17 +49,23 @@ export interface ITitular {
 
 // Interfaz para servicios de póliza
 export interface IServicio {
-    nombre: string;
+    numeroServicio: number;
+    numeroRegistroOrigen?: number;
     costo: number;
-    descripcion?: string;
-    activo: boolean;
-    fechaCreacion: Date;
+    fechaServicio: Date;
+    numeroExpediente: string;
+    origenDestino: string;
+    fechaContactoProgramada?: Date;
+    fechaTerminoProgramada?: Date;
+    coordenadas?: ICoordenadas;
+    rutaInfo?: IRutaInfo;
 }
 
 // Interfaz para pagos
 export interface IPago {
     monto: number;
-    fecha: Date;
+    fechaPago: Date;
+    estado: 'PLANIFICADO' | 'REALIZADO' | 'CANCELADO';
     metodoPago?: string;
     referencia?: string;
     notas?: string;
@@ -214,4 +240,78 @@ export interface IScheduledNotification extends Document {
     // Timestamps
     createdAt: Date;
     updatedAt: Date;
+}
+
+// Interfaces adicionales para tipos de datos
+
+export interface IPolicyData {
+    titular: string;
+    correo?: string;
+    rfc?: string;
+    telefono?: string;
+    calle?: string;
+    colonia?: string;
+    municipio?: string;
+    estadoRegion?: string;
+    cp?: string;
+    marca: string;
+    submarca: string;
+    año: number;
+    color: string;
+    serie: string;
+    placas: string;
+    agenteCotizador: string;
+    aseguradora: string;
+    numeroPoliza: string;
+    fechaEmision: Date;
+    notas?: string;
+}
+
+export interface IVehicleData {
+    serie: string;
+    marca: string;
+    submarca: string;
+    año: number;
+    color: string;
+    placas?: string;
+    titular?: string;
+    rfc?: string;
+    telefono?: string;
+    correo?: string;
+    calle?: string;
+    colonia?: string;
+    municipio?: string;
+    estadoRegion?: string;
+    cp?: string;
+    notas?: string;
+}
+
+export interface IDatosMexicanos {
+    titular: string;
+    rfc: string;
+    telefono: string;
+    correo: string;
+    calle: string;
+    colonia: string;
+    municipio: string;
+    estadoRegion: string;
+    cp: string;
+}
+
+export interface IFileObject {
+    data: Buffer;
+    contentType: string;
+}
+
+export interface IRegistro {
+    numeroRegistro: number;
+    costo: number;
+    fechaRegistro: Date;
+    numeroExpediente: string;
+    origenDestino: string;
+    estado: 'PENDIENTE' | 'ASIGNADO' | 'NO_ASIGNADO';
+    coordenadas?: ICoordenadas;
+    rutaInfo?: IRutaInfo;
+    fechaContactoProgramada?: Date;
+    fechaTerminoProgramada?: Date;
 }

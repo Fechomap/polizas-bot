@@ -293,7 +293,7 @@ class NotificationManager {
                 // Obtener datos adicionales de la póliza
                 let policyData: IPolicyData = {};
                 try {
-                    const policy = await getPolicyByNumber(data.numeroPoliza) as any;
+                    const policy = (await getPolicyByNumber(data.numeroPoliza)) as any;
                     if (policy) {
                         policyData = {
                             marcaModelo: `${policy.marca} ${policy.submarca} (${policy.año})`,
@@ -409,7 +409,7 @@ class NotificationManager {
     /**
      * Envía una notificación con reintentos
      */
-    async sendNotificationWithRetry(notificationId: string, retryCount: number = 0): Promise<void> {
+    async sendNotificationWithRetry(notificationId: string, retryCount = 0): Promise<void> {
         const MAX_RETRIES = 3;
         const RETRY_DELAYS = [5000, 15000, 60000]; // 5s, 15s, 1min
 
