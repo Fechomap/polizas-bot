@@ -1,14 +1,14 @@
 // src/comandos/comandos/PaymentReportPDFCommand.js
 /**
  * 📄 COMANDO OPTIMIZADO: Reporte PDF de Pagos Pendientes
- * 
+ *
  * MEJORAS IMPLEMENTADAS (FASE 3):
  * ✅ Diseño visual moderno con colores corporativos
  * ✅ Headers con gradientes y branding
  * ✅ Gráficos de resumen y urgencia
  * ✅ Compresión y optimización
  * ✅ Navegación persistente integrada
- * 
+ *
  * Lógica mejorada: calcula días de impago por período específico (no acumulativo)
  */
 
@@ -22,22 +22,22 @@ const logger = require('../../utils/logger');
 class PaymentReportPDFCommand extends BaseCommand {
     constructor(handler) {
         super(handler);
-        
+
         // 🎨 CONFIGURACIÓN DE DISEÑO CORPORATIVO
         this.colors = {
-            primary: '#2E86AB',      // Azul corporativo
-            secondary: '#A23B72',    // Magenta
-            accent: '#F18F01',       // Naranja
-            success: '#C73E1D',      // Rojo/urgente
-            text: '#2C3E50',         // Gris oscuro
-            lightGray: '#ECF0F1',    // Gris claro
+            primary: '#2E86AB', // Azul corporativo
+            secondary: '#A23B72', // Magenta
+            accent: '#F18F01', // Naranja
+            success: '#C73E1D', // Rojo/urgente
+            text: '#2C3E50', // Gris oscuro
+            lightGray: '#ECF0F1', // Gris claro
             white: '#FFFFFF',
-            urgent: '#E74C3C',       // Rojo urgente
-            warning: '#F39C12',      // Amarillo advertencia
-            safe: '#27AE60',         // Verde seguro
-            tableStroke: '#E74C3C'   // Color estándar para TODAS las tablas (naranja/rojo)
+            urgent: '#E74C3C', // Rojo urgente
+            warning: '#F39C12', // Amarillo advertencia
+            safe: '#27AE60', // Verde seguro
+            tableStroke: '#E74C3C' // Color estándar para TODAS las tablas (naranja/rojo)
         };
-        
+
         // 📏 CONFIGURACIÓN DE LAYOUT
         this.layout = {
             margin: 40,
@@ -219,7 +219,9 @@ class PaymentReportPDFCommand extends BaseCommand {
             }
 
             // Calcular días hasta vencer para determinar urgencia real
-            const diasHastaVencer = this.calculateDaysUntilNextMonthUnpaid(policy.fechaLimiteCobertura);
+            const diasHastaVencer = this.calculateDaysUntilNextMonthUnpaid(
+                policy.fechaLimiteCobertura
+            );
 
             // Calcular urgencia basada en días HASTA VENCER - CRITICAS: <=2 días para vencer
             if (diasHastaVencer <= 2 && diasHastaVencer > 0) {
@@ -265,38 +267,36 @@ class PaymentReportPDFCommand extends BaseCommand {
      */
     addCorporateHeader(doc, stats) {
         const { margin, headerHeight } = this.layout;
-        
+
         // Fondo con gradiente corporativo
-        doc.rect(0, 0, doc.page.width, headerHeight)
-           .fill(this.colors.primary);
-        
+        doc.rect(0, 0, doc.page.width, headerHeight).fill(this.colors.primary);
+
         // Logo/Branding (SIN EMOJIS para evitar problemas de encoding)
         doc.fontSize(24)
-           .font('Helvetica-Bold')
-           .fill(this.colors.white)
-           .text('POLIZAS BOT', margin, 20);
-        
+            .font('Helvetica-Bold')
+            .fill(this.colors.white)
+            .text('POLIZAS BOT', margin, 20);
+
         // Título del reporte
-        doc.fontSize(16)
-           .text('REPORTE DE PAGOS PENDIENTES', margin, 45);
-        
+        doc.fontSize(16).text('REPORTE DE PAGOS PENDIENTES', margin, 45);
+
         // Fecha y estadísticas en header
         const dateStr = new Date().toLocaleDateString('es-MX', {
             weekday: 'long',
-            year: 'numeric', 
+            year: 'numeric',
             month: 'long',
             day: 'numeric'
         });
-        
+
         doc.fontSize(10)
-           .text(`Generado: ${dateStr}`, doc.page.width - 200, 20)
-           .text(`Total polizas: ${stats.totalPolicies}`, doc.page.width - 200, 35)
-           .text(`Monto total: $${stats.totalAmount.toLocaleString()}`, doc.page.width - 200, 50);
+            .text(`Generado: ${dateStr}`, doc.page.width - 200, 20)
+            .text(`Total polizas: ${stats.totalPolicies}`, doc.page.width - 200, 35)
+            .text(`Monto total: $${stats.totalAmount.toLocaleString()}`, doc.page.width - 200, 50);
     }
 
     /**
      * 📊 Genera gráfico de barras de urgencia
-     * @param {PDFDocument} doc - Documento PDF  
+     * @param {PDFDocument} doc - Documento PDF
      * @param {Object} urgencyData - Datos de urgencia
      */
     addUrgencyChart(doc, urgencyData) {
@@ -304,39 +304,38 @@ class PaymentReportPDFCommand extends BaseCommand {
         const chartWidth = 400;
         const chartHeight = 80;
         const barHeight = 20;
-        
+
         doc.fontSize(12)
-           .font('Helvetica-Bold')
-           .fill(this.colors.text)
-           .text('DISTRIBUCION POR URGENCIA', this.layout.margin, chartY);
-        
+            .font('Helvetica-Bold')
+            .fill(this.colors.text)
+            .text('DISTRIBUCION POR URGENCIA', this.layout.margin, chartY);
+
         const categories = [
             { label: 'Critico (<=2 dias)', count: urgencyData.critical, color: this.colors.urgent },
             { label: 'Urgente (3-15 dias)', count: urgencyData.urgent, color: this.colors.warning },
             { label: 'Normal (>15 dias)', count: urgencyData.normal, color: this.colors.safe }
         ];
-        
+
         const maxCount = Math.max(...categories.map(c => c.count));
         let currentY = chartY + 25;
-        
+
         categories.forEach(category => {
             const barWidth = maxCount > 0 ? (category.count / maxCount) * chartWidth : 0;
-            
+
             // Barra de color
-            doc.rect(this.layout.margin + 120, currentY, barWidth, barHeight)
-               .fill(category.color);
-            
+            doc.rect(this.layout.margin + 120, currentY, barWidth, barHeight).fill(category.color);
+
             // Etiqueta
             doc.fontSize(9)
-               .fill(this.colors.text)
-               .text(category.label, this.layout.margin, currentY + 6);
-            
+                .fill(this.colors.text)
+                .text(category.label, this.layout.margin, currentY + 6);
+
             // Cantidad
             doc.text(`${category.count}`, this.layout.margin + 120 + barWidth + 5, currentY + 6);
-            
+
             currentY += barHeight + 5;
         });
-        
+
         doc.y = currentY + this.layout.sectionSpacing;
     }
 
@@ -347,67 +346,67 @@ class PaymentReportPDFCommand extends BaseCommand {
      */
     addKPISection(doc, stats) {
         const kpiY = doc.y + this.layout.sectionSpacing;
-        
+
         doc.fontSize(12)
-           .font('Helvetica-Bold')
-           .fill(this.colors.text)
-           .text('INDICADORES CLAVE', this.layout.margin, kpiY);
-        
+            .font('Helvetica-Bold')
+            .fill(this.colors.text)
+            .text('INDICADORES CLAVE', this.layout.margin, kpiY);
+
         const kpis = [
-            { 
-                label: 'Total Pendiente', 
-                value: `$${stats.totalAmount.toLocaleString()}`, 
+            {
+                label: 'Total Pendiente',
+                value: `$${stats.totalAmount.toLocaleString()}`,
                 icon: '$',
-                color: this.colors.primary 
+                color: this.colors.primary
             },
-            { 
-                label: `Promedio (${stats.polizasConCosto} c/costo)`, 
-                value: stats.polizasConCosto > 0 ? 
-                    `$${Math.round(stats.totalAmount / stats.polizasConCosto).toLocaleString()}` : 
-                    '$0', 
+            {
+                label: `Promedio (${stats.polizasConCosto} c/costo)`,
+                value:
+                    stats.polizasConCosto > 0
+                        ? `$${Math.round(stats.totalAmount / stats.polizasConCosto).toLocaleString()}`
+                        : '$0',
                 icon: '#',
-                color: this.colors.secondary 
+                color: this.colors.secondary
             },
-            { 
-                label: 'Polizas Criticas', 
-                value: `${stats.criticalPolicies}`, 
+            {
+                label: 'Polizas Criticas',
+                value: `${stats.criticalPolicies}`,
                 icon: '!',
-                color: this.colors.urgent 
+                color: this.colors.urgent
             }
         ];
-        
+
         let currentX = this.layout.margin;
         const kpiWidth = 150;
-        
+
         kpis.forEach(kpi => {
             // Caja de KPI
-            doc.rect(currentX, kpiY + 25, kpiWidth, 60)
-               .stroke(kpi.color);
-            
+            doc.rect(currentX, kpiY + 25, kpiWidth, 60).stroke(kpi.color);
+
             // Fondo ligero
             doc.rect(currentX, kpiY + 25, kpiWidth, 60)
-               .fillOpacity(0.1)
-               .fill(this.colors.lightGray)
-               .fillOpacity(1); // Restaurar opacidad normal
-            
+                .fillOpacity(0.1)
+                .fill(this.colors.lightGray)
+                .fillOpacity(1); // Restaurar opacidad normal
+
             // Icono y valor
             doc.fontSize(16)
-               .fill(kpi.color)
-               .text(kpi.icon, currentX + 10, kpiY + 35);
-               
+                .fill(kpi.color)
+                .text(kpi.icon, currentX + 10, kpiY + 35);
+
             doc.fontSize(14)
-               .font('Helvetica-Bold')
-               .text(kpi.value, currentX + 35, kpiY + 35);
-            
+                .font('Helvetica-Bold')
+                .text(kpi.value, currentX + 35, kpiY + 35);
+
             // Label
             doc.fontSize(9)
-               .font('Helvetica')
-               .fill(this.colors.text)
-               .text(kpi.label, currentX + 10, kpiY + 60);
-            
+                .font('Helvetica')
+                .fill(this.colors.text)
+                .text(kpi.label, currentX + 10, kpiY + 60);
+
             currentX += kpiWidth + 20;
         });
-        
+
         doc.y = kpiY + 100;
     }
 
@@ -419,19 +418,27 @@ class PaymentReportPDFCommand extends BaseCommand {
      */
     addOptimizedFooter(doc, pageNumber, metadata) {
         const footerY = doc.page.height - this.layout.footerHeight;
-        
+
         // Línea separadora
         doc.moveTo(this.layout.margin, footerY)
-           .lineTo(doc.page.width - this.layout.margin, footerY)
-           .stroke(this.colors.lightGray);
-        
+            .lineTo(doc.page.width - this.layout.margin, footerY)
+            .stroke(this.colors.lightGray);
+
         // Información del footer (SIN EMOJIS)
         doc.fontSize(8)
-           .fill(this.colors.text)
-           .text(`Pagina ${pageNumber}`, this.layout.margin, footerY + 10)
-           .text(`${new Date().toISOString()}`, this.layout.margin, footerY + 25)
-           .text(`Generado por Polizas Bot v${metadata.version || '2.0.0'}`, doc.page.width - 200, footerY + 10)
-           .text(`${metadata.totalRecords} registros procesados`, doc.page.width - 200, footerY + 25);
+            .fill(this.colors.text)
+            .text(`Pagina ${pageNumber}`, this.layout.margin, footerY + 10)
+            .text(`${new Date().toISOString()}`, this.layout.margin, footerY + 25)
+            .text(
+                `Generado por Polizas Bot v${metadata.version || '2.0.0'}`,
+                doc.page.width - 200,
+                footerY + 10
+            )
+            .text(
+                `${metadata.totalRecords} registros procesados`,
+                doc.page.width - 200,
+                footerY + 25
+            );
     }
 
     /**
@@ -439,10 +446,10 @@ class PaymentReportPDFCommand extends BaseCommand {
      */
     async generatePDF(pendingPolicies) {
         // 📄 Configuración optimizada del documento con compresión y UTF-8
-        const doc = new PDFDocument({ 
-            margin: this.layout.margin, 
+        const doc = new PDFDocument({
+            margin: this.layout.margin,
             size: 'A4',
-            compress: true,  // ✅ Compresión activada
+            compress: true, // ✅ Compresión activada
             bufferPages: true, // Para mejor manejo de caracteres
             info: {
                 Title: 'Reporte de Pagos Pendientes',
@@ -468,11 +475,11 @@ class PaymentReportPDFCommand extends BaseCommand {
             try {
                 // Configurar fuente estándar para evitar problemas de encoding
                 doc.font('Helvetica');
-                
+
                 // HEADER CORPORATIVO CON ESTADÍSTICAS (SIN EMOJIS)
                 const stats = this.calculateReportStats(pendingPolicies);
                 this.addCorporateHeader(doc, stats);
-                
+
                 // Posicionar después del header corporativo
                 doc.y = this.layout.headerHeight + this.layout.sectionSpacing;
 
@@ -516,7 +523,7 @@ class PaymentReportPDFCommand extends BaseCommand {
                 const drawVerticalLines = (y1, y2) => {
                     let x = tableLeft;
                     doc.strokeColor(this.colors.tableStroke).lineWidth(1);
-                    
+
                     // Línea izquierda
                     doc.moveTo(x, y1).lineTo(x, y2).stroke();
 
@@ -568,10 +575,10 @@ class PaymentReportPDFCommand extends BaseCommand {
                         items[0]?.prioridad === 1
                             ? 'URGENTE: '
                             : items[0]?.prioridad === 2
-                                ? 'ATENCION: '
-                                : items[0]?.prioridad <= 3
-                                    ? 'PROGRAMAR: '
-                                    : 'REVISAR: ';
+                              ? 'ATENCION: '
+                              : items[0]?.prioridad <= 3
+                                ? 'PROGRAMAR: '
+                                : 'REVISAR: ';
                     doc.text(
                         `${prioridadText}${rango} (${items.length} polizas)`,
                         tableLeft,
@@ -596,10 +603,15 @@ class PaymentReportPDFCommand extends BaseCommand {
                             doc.text('NUMERO DE POLIZA', tableLeft + 5, currentY + 5, {
                                 width: colWidths.poliza - 10
                             });
-                            doc.text('DIAS PARA VENCER', tableLeft + colWidths.poliza + 5, currentY + 5, {
-                                width: colWidths.diasVencer - 10,
-                                align: 'center'
-                            });
+                            doc.text(
+                                'DIAS PARA VENCER',
+                                tableLeft + colWidths.poliza + 5,
+                                currentY + 5,
+                                {
+                                    width: colWidths.diasVencer - 10,
+                                    align: 'center'
+                                }
+                            );
                             doc.text(
                                 'MONTO REQUERIDO',
                                 tableLeft + colWidths.poliza + colWidths.diasVencer + 5,
@@ -608,12 +620,16 @@ class PaymentReportPDFCommand extends BaseCommand {
                             );
                             doc.text(
                                 'SERVICIOS',
-                                tableLeft + colWidths.poliza + colWidths.diasVencer + colWidths.monto + 5,
+                                tableLeft +
+                                    colWidths.poliza +
+                                    colWidths.diasVencer +
+                                    colWidths.monto +
+                                    5,
                                 currentY + 5,
                                 { width: colWidths.servicios - 10, align: 'center' }
                             );
                             currentY += 25;
-                            
+
                             // USAR LAS MISMAS FUNCIONES DE COLOR
                             drawHorizontalLine(newHeaderY);
                             drawHorizontalLine(currentY);
@@ -649,7 +665,11 @@ class PaymentReportPDFCommand extends BaseCommand {
                         );
                         doc.text(
                             numServicios.toString(),
-                            tableLeft + colWidths.poliza + colWidths.diasVencer + colWidths.monto + 3,
+                            tableLeft +
+                                colWidths.poliza +
+                                colWidths.diasVencer +
+                                colWidths.monto +
+                                3,
                             currentY + 3,
                             { width: colWidths.servicios - 6, align: 'center' }
                         );
@@ -831,7 +851,7 @@ class PaymentReportPDFCommand extends BaseCommand {
 
             // Generar PDF
             const pdfBuffer = await this.generatePDF(pendingPolicies);
-            
+
             // Generar Excel usando el comando Excel
             const PaymentReportExcelCommand = require('./PaymentReportExcelCommand');
             const excelCommand = new PaymentReportExcelCommand(this.handler);
@@ -842,12 +862,12 @@ class PaymentReportPDFCommand extends BaseCommand {
             await fs.mkdir(tempDir, { recursive: true });
 
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
-            
+
             // Archivo PDF
             const pdfFileName = `reporte_pagos_pendientes_${timestamp}.pdf`;
             const pdfFilePath = path.join(tempDir, pdfFileName);
             await fs.writeFile(pdfFilePath, pdfBuffer);
-            
+
             // Archivo Excel
             const excelFileName = `reporte_pagos_pendientes_${timestamp}.xlsx`;
             const excelFilePath = path.join(tempDir, excelFileName);
@@ -856,10 +876,12 @@ class PaymentReportPDFCommand extends BaseCommand {
             // Calcular estadísticas para los mensajes
             const totalAmount = this.calculateTotalAmount(pendingPolicies);
             const criticalPolicies = pendingPolicies.filter(p => {
-                const diasHastaVencer = this.calculateDaysUntilNextMonthUnpaid(p.fechaLimiteCobertura);
+                const diasHastaVencer = this.calculateDaysUntilNextMonthUnpaid(
+                    p.fechaLimiteCobertura
+                );
                 return diasHastaVencer <= 2 && diasHastaVencer > 0;
             }).length;
-            
+
             // Enviar archivo PDF
             await ctx.replyWithDocument(
                 {
@@ -883,14 +905,15 @@ class PaymentReportPDFCommand extends BaseCommand {
             );
 
             // Mensaje final con navegación persistente
-            const message = `📊 **Reportes Generados Exitosamente**\n\n` +
-                          `📅 **Fecha:** ${new Date().toLocaleString('es-MX')}\n` +
-                          `📋 **Total pólizas:** ${pendingPolicies.length}\n` +
-                          `💰 **Monto total:** $${totalAmount.toLocaleString()}\n` +
-                          `🚨 **Pólizas críticas:** ${criticalPolicies}\n\n` +
-                          `✅ **Archivos generados:**\n` +
-                          `• 📄 PDF optimizado con diseño corporativo\n` +
-                          `• 📊 Excel multi-hoja con análisis avanzado`;
+            const message =
+                `📊 **Reportes Generados Exitosamente**\n\n` +
+                `📅 **Fecha:** ${new Date().toLocaleString('es-MX')}\n` +
+                `📋 **Total pólizas:** ${pendingPolicies.length}\n` +
+                `💰 **Monto total:** $${totalAmount.toLocaleString()}\n` +
+                `🚨 **Pólizas críticas:** ${criticalPolicies}\n\n` +
+                `✅ **Archivos generados:**\n` +
+                `• 📄 PDF optimizado con diseño corporativo\n` +
+                `• 📊 Excel multi-hoja con análisis avanzado`;
 
             await this.replyWithNavigation(ctx, message);
 

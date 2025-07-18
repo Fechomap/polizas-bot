@@ -147,7 +147,6 @@ class CommandHandler {
         this.registry.registerCommand(deleteCmd);
         deleteCmd.register();
 
-
         const paymentReportPDFCmd = new PaymentReportPDFCommand(this);
         this.registry.registerCommand(paymentReportPDFCmd);
 
@@ -668,7 +667,6 @@ class CommandHandler {
             }
         });
 
-
         // Acción para el reporte PDF de pagos pendientes
         this.bot.action('accion:reportPaymentPDF', async ctx => {
             try {
@@ -694,7 +692,6 @@ class CommandHandler {
                 await ctx.reply('❌ Error al generar el reporte PDF de pagos pendientes.');
             }
         });
-
 
         // Acción para el reporte de pólizas prioritarias
         this.bot.action('accion:reportUsed', async ctx => {

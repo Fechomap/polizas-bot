@@ -1,7 +1,10 @@
 // src/comandos/comandos/BaseCommand.js
 const logger = require('../../utils/logger');
 const { getInstance: getNavigationManager } = require('../../navigation/NavigationManager');
-const { markNavigationHandled, addNavigationToResponse } = require('../../navigation/NavigationMiddleware');
+const {
+    markNavigationHandled,
+    addNavigationToResponse
+} = require('../../navigation/NavigationMiddleware');
 
 class BaseCommand {
     constructor(handler) {

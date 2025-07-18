@@ -29,8 +29,8 @@ class StartCommand extends BaseCommand {
 
                 // Usar el nuevo sistema de navegación persistente
                 await this.showMainMenu(ctx);
-                this.logInfo('Menú principal mostrado vía /start con navegación persistente', { 
-                    chatId: ctx.chat.id 
+                this.logInfo('Menú principal mostrado vía /start con navegación persistente', {
+                    chatId: ctx.chat.id
                 });
             } catch (error) {
                 this.logError('Error en comando start al mostrar menú:', error);

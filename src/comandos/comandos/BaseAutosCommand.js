@@ -66,7 +66,12 @@ class BaseAutosCommand extends BaseCommand {
                 }
 
                 // Iniciar registro de vehículo
-                await VehicleRegistrationHandler.iniciarRegistro(this.bot, chatId, userId, threadId);
+                await VehicleRegistrationHandler.iniciarRegistro(
+                    this.bot,
+                    chatId,
+                    userId,
+                    threadId
+                );
 
                 this.logInfo('Registro de vehículo iniciado', {
                     chatId,
@@ -97,7 +102,12 @@ class BaseAutosCommand extends BaseCommand {
                 }
 
                 // Mostrar vehículos disponibles para asegurar
-                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(this.bot, chatId, userId, threadId);
+                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
+                    this.bot,
+                    chatId,
+                    userId,
+                    threadId
+                );
 
                 this.logInfo('Lista de vehículos para asegurar mostrada', {
                     chatId,
@@ -346,7 +356,10 @@ class BaseAutosCommand extends BaseCommand {
                 );
 
                 // Si el proceso terminó, limpiar el estado BD AUTOS
-                if (procesado && !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
+                if (
+                    procesado &&
+                    !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)
+                ) {
                     if (this.handler?.registry?.stateManager) {
                         await this.handler.registry.stateManager.clearUserState(
                             userId,
@@ -375,7 +388,7 @@ class BaseAutosCommand extends BaseCommand {
         try {
             const chatId = message.chat.id;
             const threadId = message.message_thread_id || null;
-            
+
             // Solo procesar si hay asignación de póliza en proceso
             if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
                 const procesado = await PolicyAssignmentHandler.procesarMensaje(

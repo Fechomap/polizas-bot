@@ -27,9 +27,7 @@ class NavigationManager {
                         { text: '📊 REPORTES', callback: 'accion:reportes' },
                         { text: '🚗 BASE DE AUTOS', callback: 'accion:base_autos' }
                     ],
-                    [
-                        { text: '❓ AYUDA', callback: 'accion:help' }
-                    ]
+                    [{ text: '❓ AYUDA', callback: 'accion:help' }]
                 ]
             },
 
@@ -38,14 +36,13 @@ class NavigationManager {
                 subtitle: 'Selecciona el tipo de reporte:',
                 buttons: [
                     [
-                        { text: '📄 Pagos Pendientes (PDF + Excel)', callback: 'accion:reportPaymentPDF' }
+                        {
+                            text: '📄 Pagos Pendientes (PDF + Excel)',
+                            callback: 'accion:reportPaymentPDF'
+                        }
                     ],
-                    [
-                        { text: '📈 Reportes Utilizados', callback: 'accion:reportUsed' }
-                    ],
-                    [
-                        { text: '🏠 Menú Principal', callback: 'accion:volver_menu' }
-                    ]
+                    [{ text: '📈 Reportes Utilizados', callback: 'accion:reportUsed' }],
+                    [{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]
                 ]
             }
         };
@@ -122,9 +119,7 @@ class NavigationManager {
             const navigationButtons = [];
 
             // Botón principal siempre presente
-            navigationButtons.push([
-                { text: '🏠 Menú Principal', callback: 'accion:volver_menu' }
-            ]);
+            navigationButtons.push([{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]);
 
             // Botón contextual si hay parent
             if (context?.parent) {
@@ -145,7 +140,9 @@ class NavigationManager {
             logger.error('Error agregando navegación persistente:', error);
             return {
                 text: originalText,
-                markup: this._buildKeyboard([[{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]]),
+                markup: this._buildKeyboard([
+                    [{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]
+                ]),
                 parseMode: 'Markdown'
             };
         }
@@ -250,7 +247,7 @@ class NavigationManager {
 
             // Usuario activo si tiene contexto de últimos 30 minutos
             const lastContext = stack[stack.length - 1];
-            if (lastContext && (now - lastContext.timestamp) < 30 * 60 * 1000) {
+            if (lastContext && now - lastContext.timestamp < 30 * 60 * 1000) {
                 activeUsers++;
             }
         }
@@ -299,7 +296,9 @@ class NavigationManager {
     _getErrorMenu() {
         return {
             text: '❌ Error en navegación. Volviendo al menú principal...',
-            markup: this._buildKeyboard([[{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]]),
+            markup: this._buildKeyboard([
+                [{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]
+            ]),
             parseMode: 'Markdown'
         };
     }

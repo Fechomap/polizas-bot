@@ -40,7 +40,7 @@ class PolicyAssignmentHandler {
                 if (threadId) {
                     sendOptions.message_thread_id = threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(chatId, `❌ Error: ${resultado.error}`, sendOptions);
                 return false;
             }
@@ -53,7 +53,7 @@ class PolicyAssignmentHandler {
                 if (threadId) {
                     sendOptions.message_thread_id = threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '📋 *NO HAY VEHÍCULOS DISPONIBLES*\n\n' +
@@ -118,19 +118,23 @@ class PolicyAssignmentHandler {
             if (threadId) {
                 sendOptions.message_thread_id = threadId;
             }
-            
+
             await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
             return true;
         } catch (error) {
             console.error('Error mostrando vehículos disponibles:', error);
-            
+
             const sendOptions = {};
             if (threadId) {
                 sendOptions.message_thread_id = threadId;
             }
-            
-            await bot.telegram.sendMessage(chatId, '❌ Error al consultar vehículos disponibles.', sendOptions);
+
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Error al consultar vehículos disponibles.',
+                sendOptions
+            );
             return false;
         }
     }
@@ -151,8 +155,12 @@ class PolicyAssignmentHandler {
                     if (threadId) {
                         sendOptions.message_thread_id = threadId;
                     }
-                    
-                    await bot.telegram.sendMessage(chatId, '❌ Vehículo no encontrado.', sendOptions);
+
+                    await bot.telegram.sendMessage(
+                        chatId,
+                        '❌ Vehículo no encontrado.',
+                        sendOptions
+                    );
                     return false;
                 }
             } catch (error) {
@@ -163,8 +171,12 @@ class PolicyAssignmentHandler {
                     if (threadId) {
                         sendOptions.message_thread_id = threadId;
                     }
-                    
-                    await bot.telegram.sendMessage(chatId, '❌ Vehículo no encontrado.', sendOptions);
+
+                    await bot.telegram.sendMessage(
+                        chatId,
+                        '❌ Vehículo no encontrado.',
+                        sendOptions
+                    );
                     return false;
                 }
                 vehiculo = vehicle.vehiculo;
@@ -175,7 +187,7 @@ class PolicyAssignmentHandler {
                 if (threadId) {
                     sendOptions.message_thread_id = threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '❌ Este vehículo ya tiene póliza asignada o no está disponible.\n' +
@@ -213,7 +225,7 @@ class PolicyAssignmentHandler {
             if (threadId) {
                 sendOptions.message_thread_id = threadId;
             }
-            
+
             await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
             // Inicializar el estado de asignación con thread-safety
@@ -229,13 +241,17 @@ class PolicyAssignmentHandler {
             return true;
         } catch (error) {
             console.error('Error iniciando asignación:', error);
-            
+
             const sendOptions = {};
             if (threadId) {
                 sendOptions.message_thread_id = threadId;
             }
-            
-            await bot.telegram.sendMessage(chatId, '❌ Error al iniciar la asignación de póliza.', sendOptions);
+
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Error al iniciar la asignación de póliza.',
+                sendOptions
+            );
             return false;
         }
     }
@@ -258,29 +274,71 @@ class PolicyAssignmentHandler {
 
         try {
             switch (asignacion.estado) {
-            case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
-                return await this.procesarNumeroPoliza(bot, chatId, userId, texto, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.ESPERANDO_NUMERO_POLIZA:
+                    return await this.procesarNumeroPoliza(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        asignacion,
+                        stateKey
+                    );
 
-            case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
-                return await this.procesarAseguradora(bot, chatId, userId, texto, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.ESPERANDO_ASEGURADORA:
+                    return await this.procesarAseguradora(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        asignacion,
+                        stateKey
+                    );
 
-            case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
-                return await this.procesarNombrePersona(bot, chatId, userId, texto, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.ESPERANDO_NOMBRE_PERSONA:
+                    return await this.procesarNombrePersona(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        asignacion,
+                        stateKey
+                    );
 
-            case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
-                return await this.procesarFechaEmision(bot, chatId, userId, texto, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.SELECCIONANDO_FECHA_EMISION:
+                    return await this.procesarFechaEmision(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        asignacion,
+                        stateKey
+                    );
 
-            case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
-                return await this.procesarPrimerPago(bot, chatId, userId, texto, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO:
+                    return await this.procesarPrimerPago(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        asignacion,
+                        stateKey
+                    );
 
-            case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
-                return await this.procesarSegundoPago(bot, chatId, userId, texto, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO:
+                    return await this.procesarSegundoPago(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        asignacion,
+                        stateKey
+                    );
 
-            case ESTADOS_ASIGNACION.ESPERANDO_PDF:
-                return await this.procesarPDF(bot, msg, userId, asignacion, stateKey);
+                case ESTADOS_ASIGNACION.ESPERANDO_PDF:
+                    return await this.procesarPDF(bot, msg, userId, asignacion, stateKey);
 
-            default:
-                return false;
+                default:
+                    return false;
             }
         } catch (error) {
             console.error('Error procesando mensaje de asignación:', error);
@@ -301,8 +359,12 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
-            await bot.telegram.sendMessage(chatId, '❌ Ingresa un número de póliza válido:', sendOptions);
+
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Ingresa un número de póliza válido:',
+                sendOptions
+            );
             return true;
         }
 
@@ -315,7 +377,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(
             chatId,
             `✅ Número de póliza: *${numeroPoliza}*\n\n` +
@@ -336,7 +398,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ La aseguradora debe tener al menos 2 caracteres:',
@@ -353,7 +415,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(
             chatId,
             `✅ Aseguradora: *${aseguradora}*\n\n` +
@@ -374,7 +436,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ El nombre debe tener al menos 3 caracteres:',
@@ -437,7 +499,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
     }
 
@@ -499,7 +561,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(
             chatId,
             `✅ Fecha de emisión: *${fechaEmisionStr}*\n` +
@@ -555,7 +617,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 8500',
@@ -572,7 +634,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(
             chatId,
             `✅ Primer pago: $${monto.toLocaleString()}\n\n` +
@@ -596,7 +658,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ Ingresa un monto válido\n' + '💰 Solo números\n' + '📝 Ejemplo: 3500',
@@ -617,7 +679,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(
             chatId,
             `✅ Segundo pago: $${monto.toLocaleString()}\n\n` +
@@ -689,7 +751,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ **ARCHIVO OBLIGATORIO**\n\n' +
@@ -751,12 +813,12 @@ class PolicyAssignmentHandler {
                     );
                 } catch (downloadError) {
                     console.error('BD AUTOS - Error descargando PDF:', downloadError);
-                    
+
                     const sendOptions = { parse_mode: 'Markdown' };
                     if (asignacion.threadId) {
                         sendOptions.message_thread_id = asignacion.threadId;
                     }
-                    
+
                     await bot.telegram.sendMessage(
                         chatId,
                         '❌ Error al procesar el PDF. Por favor, intenta enviarlo nuevamente.',
@@ -778,7 +840,7 @@ class PolicyAssignmentHandler {
                 if (asignacion.threadId) {
                     sendOptions.message_thread_id = asignacion.threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(
                     chatId,
                     `✅ PDF guardado: ${msg.document.file_name}\n\n` +
@@ -790,12 +852,12 @@ class PolicyAssignmentHandler {
                 return await this.finalizarAsignacion(bot, chatId, userId, asignacion, stateKey);
             } catch (error) {
                 console.error('Error procesando PDF:', error);
-                
+
                 const sendOptions = {};
                 if (asignacion.threadId) {
                     sendOptions.message_thread_id = asignacion.threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '❌ Error al procesar el PDF. Intenta nuevamente.',
@@ -826,12 +888,12 @@ class PolicyAssignmentHandler {
                     );
                 } catch (downloadError) {
                     console.error('BD AUTOS - Error descargando foto:', downloadError);
-                    
+
                     const sendOptions = { parse_mode: 'Markdown' };
                     if (asignacion.threadId) {
                         sendOptions.message_thread_id = asignacion.threadId;
                     }
-                    
+
                     await bot.telegram.sendMessage(
                         chatId,
                         '❌ Error al procesar la foto. Por favor, intenta enviarla nuevamente.',
@@ -853,7 +915,7 @@ class PolicyAssignmentHandler {
                 if (asignacion.threadId) {
                     sendOptions.message_thread_id = asignacion.threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '✅ Foto de póliza guardada\n\n' +
@@ -865,12 +927,12 @@ class PolicyAssignmentHandler {
                 return await this.finalizarAsignacion(bot, chatId, userId, asignacion, stateKey);
             } catch (error) {
                 console.error('Error procesando foto:', error);
-                
+
                 const sendOptions = {};
                 if (asignacion.threadId) {
                     sendOptions.message_thread_id = asignacion.threadId;
                 }
-                
+
                 await bot.telegram.sendMessage(
                     chatId,
                     '❌ Error al procesar la foto. Intenta nuevamente.',
@@ -886,7 +948,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(
                 chatId,
                 '❌ **FORMATO NO VÁLIDO**\n\n' +
@@ -906,7 +968,7 @@ class PolicyAssignmentHandler {
         if (asignacion.threadId) {
             sendOptions.message_thread_id = asignacion.threadId;
         }
-        
+
         await bot.telegram.sendMessage(
             chatId,
             '❌ **ARCHIVO OBLIGATORIO**\n\n' +
@@ -1116,7 +1178,7 @@ class PolicyAssignmentHandler {
             if (asignacion.threadId) {
                 sendOptions.message_thread_id = asignacion.threadId;
             }
-            
+
             await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
             // Limpiar el proceso de asignación
@@ -1211,7 +1273,7 @@ class PolicyAssignmentHandler {
             // No podemos verificar formato nuevo sin chatId, así que retornar false
             return false;
         }
-        
+
         // Usar formato thread-safe
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
         return asignacionesEnProceso.has(stateKey);

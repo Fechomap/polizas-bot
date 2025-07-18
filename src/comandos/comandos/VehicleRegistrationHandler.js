@@ -102,29 +102,43 @@ class VehicleRegistrationHandler {
 
         try {
             switch (registro.estado) {
-            case ESTADOS_REGISTRO.ESPERANDO_SERIE:
-                return await this.procesarSerie(bot, chatId, userId, texto, registro, stateKey);
+                case ESTADOS_REGISTRO.ESPERANDO_SERIE:
+                    return await this.procesarSerie(bot, chatId, userId, texto, registro, stateKey);
 
-            case ESTADOS_REGISTRO.ESPERANDO_MARCA:
-                return await this.procesarMarca(bot, chatId, userId, texto, registro, stateKey);
+                case ESTADOS_REGISTRO.ESPERANDO_MARCA:
+                    return await this.procesarMarca(bot, chatId, userId, texto, registro, stateKey);
 
-            case ESTADOS_REGISTRO.ESPERANDO_SUBMARCA:
-                return await this.procesarSubmarca(bot, chatId, userId, texto, registro, stateKey);
+                case ESTADOS_REGISTRO.ESPERANDO_SUBMARCA:
+                    return await this.procesarSubmarca(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        registro,
+                        stateKey
+                    );
 
-            case ESTADOS_REGISTRO.ESPERANDO_AÑO:
-                return await this.procesarAño(bot, chatId, userId, texto, registro, stateKey);
+                case ESTADOS_REGISTRO.ESPERANDO_AÑO:
+                    return await this.procesarAño(bot, chatId, userId, texto, registro, stateKey);
 
-            case ESTADOS_REGISTRO.ESPERANDO_COLOR:
-                return await this.procesarColor(bot, chatId, userId, texto, registro, stateKey);
+                case ESTADOS_REGISTRO.ESPERANDO_COLOR:
+                    return await this.procesarColor(bot, chatId, userId, texto, registro, stateKey);
 
-            case ESTADOS_REGISTRO.ESPERANDO_PLACAS:
-                return await this.procesarPlacas(bot, chatId, userId, texto, registro, stateKey);
+                case ESTADOS_REGISTRO.ESPERANDO_PLACAS:
+                    return await this.procesarPlacas(
+                        bot,
+                        chatId,
+                        userId,
+                        texto,
+                        registro,
+                        stateKey
+                    );
 
-            case ESTADOS_REGISTRO.ESPERANDO_FOTOS:
-                return await this.procesarFotos(bot, msg, userId, registro);
+                case ESTADOS_REGISTRO.ESPERANDO_FOTOS:
+                    return await this.procesarFotos(bot, msg, userId, registro);
 
-            default:
-                return false;
+                default:
+                    return false;
             }
         } catch (error) {
             console.error('Error procesando mensaje de registro:', error);
@@ -134,7 +148,11 @@ class VehicleRegistrationHandler {
                 sendOptions.message_thread_id = registro.threadId;
             }
 
-            await bot.telegram.sendMessage(chatId, '❌ Error en el registro. Intenta nuevamente.', sendOptions);
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Error en el registro. Intenta nuevamente.',
+                sendOptions
+            );
             return true;
         }
     }
@@ -688,7 +706,11 @@ class VehicleRegistrationHandler {
                 sendOptions.message_thread_id = registro.threadId;
             }
 
-            await bot.telegram.sendMessage(chatId, '❌ Error al finalizar el registro.', sendOptions);
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Error al finalizar el registro.',
+                sendOptions
+            );
             return false;
         }
     }

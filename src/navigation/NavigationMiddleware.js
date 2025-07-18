@@ -27,7 +27,6 @@ const navigationMiddleware = async (ctx, next) => {
         if (!ctx.navigationHandled && ctx.from?.id) {
             await addAutomaticNavigation(ctx);
         }
-
     } catch (error) {
         logger.error('Error en navigation middleware:', error);
         // Continuar sin navegación en caso de error
@@ -53,13 +52,10 @@ async function addAutomaticNavigation(ctx) {
 
         // Enviar menú como mensaje separado si no hay mensaje previo para editar
         if (!ctx.callbackQuery) {
-            await ctx.reply(
-                '🧭 Navegación disponible:',
-                {
-                    parse_mode: 'Markdown',
-                    ...mainMenu.markup
-                }
-            );
+            await ctx.reply('🧭 Navegación disponible:', {
+                parse_mode: 'Markdown',
+                ...mainMenu.markup
+            });
         }
 
         logger.debug('Navegación automática agregada', {
@@ -67,7 +63,6 @@ async function addAutomaticNavigation(ctx) {
             hasCallbackQuery: !!ctx.callbackQuery,
             chatId: ctx.chat?.id
         });
-
     } catch (error) {
         logger.error('Error agregando navegación automática:', error);
     }
@@ -117,7 +112,9 @@ function isInActiveFlow(ctx) {
         if (!chatId) return false;
 
         // Verificar flujos BD AUTOS
-        const { VehicleRegistrationHandler } = require('../comandos/comandos/VehicleRegistrationHandler');
+        const {
+            VehicleRegistrationHandler
+        } = require('../comandos/comandos/VehicleRegistrationHandler');
         const { PolicyAssignmentHandler } = require('../comandos/comandos/PolicyAssignmentHandler');
 
         const threadId = ctx.message?.message_thread_id || null;
@@ -137,7 +134,6 @@ function isInActiveFlow(ctx) {
         }
 
         return false;
-
     } catch (error) {
         logger.debug('Error verificando flujos activos:', error);
         return false; // En caso de error, permitir navegación
@@ -179,7 +175,6 @@ function addNavigationToResponse(ctx, text, options = {}) {
             ...response.markup,
             parse_mode: response.parseMode
         };
-
     } catch (error) {
         logger.error('Error agregando navegación a respuesta:', error);
         return { text, ...options };

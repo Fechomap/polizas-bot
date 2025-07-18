@@ -4,127 +4,214 @@ import { Document, ObjectId } from 'mongoose';
 
 // Interfaz para archivos almacenados
 export interface IFile {
-  data?: Buffer;
-  contentType?: string;
+    data?: Buffer;
+    contentType?: string;
 }
 
 // Interfaz para archivos en R2
 export interface IR2File {
-  url: string;
-  key: string;
-  size: number;
-  contentType: string;
-  uploadedAt: Date;
-  originalName?: string;
-  fuenteOriginal?: string;
+    url: string;
+    key: string;
+    size: number;
+    contentType: string;
+    uploadedAt: Date;
+    originalName?: string;
+    fuenteOriginal?: string;
 }
 
 // Interfaz para el titular de póliza
 export interface ITitular {
-  nombre: string;
-  correo?: string;
-  telefono?: string;
-  rfc?: string;
+    nombre: string;
+    correo?: string;
+    telefono?: string;
+    rfc?: string;
 }
 
 // Interfaz para servicios de póliza
 export interface IServicio {
-  nombre: string;
-  costo: number;
-  descripcion?: string;
-  activo: boolean;
-  fechaCreacion: Date;
+    nombre: string;
+    costo: number;
+    descripcion?: string;
+    activo: boolean;
+    fechaCreacion: Date;
 }
 
 // Interfaz para pagos
 export interface IPago {
-  monto: number;
-  fecha: Date;
-  metodoPago?: string;
-  referencia?: string;
-  notas?: string;
+    monto: number;
+    fecha: Date;
+    metodoPago?: string;
+    referencia?: string;
+    notas?: string;
 }
 
 // Interfaz base para Policy
 export interface IPolicy extends Document {
-  _id: ObjectId;
-  titular: string;
-  correo?: string;
-  contraseña?: string;
-  rfc: string;
-  telefono?: string;
-  poliza: string;
-  vigenciaInicio: Date;
-  vigenciaFin: Date;
-  aseguradora?: string;
-  tipoSeguro?: string;
-  prima?: number;
-  deducible?: number;
-  cobertura?: string[];
-  vehiculo?: {
-    marca?: string;
-    modelo?: string;
-    año?: number;
-    placas?: string;
-    serie?: string;
-    motor?: string;
-    color?: string;
-    tipoVehiculo?: string;
-  };
-  servicios?: IServicio[];
-  pagos?: IPago[];
-  archivos?: IFile[];
-  archivosR2?: IR2File[];
-  notas?: string;
-  estado: 'activa' | 'vencida' | 'cancelada' | 'suspendida';
-  fechaCreacion: Date;
-  fechaActualizacion: Date;
-  creadoPor?: string;
-  actualizadoPor?: string;
-  tags?: string[];
-  ocupada?: boolean;
-  fechaOcupacion?: Date;
-  usuarioOcupacion?: string;
+    _id: ObjectId;
+    // Datos del titular
+    titular: string;
+    correo?: string;
+    contraseña?: string;
+    rfc: string;
+    telefono?: string;
+
+    // Dirección
+    calle: string;
+    colonia: string;
+    municipio: string;
+    estadoRegion?: string;
+    cp: string;
+
+    // Datos del vehículo
+    marca: string;
+    submarca: string;
+    año: number;
+    color: string;
+    serie: string;
+    placas: string;
+
+    // Datos de la póliza
+    agenteCotizador: string;
+    aseguradora: string;
+    numeroPoliza: string;
+    fechaEmision: Date;
+
+    // Campos adicionales
+    estadoPoliza?: string;
+    fechaFinCobertura?: Date;
+    fechaFinGracia?: Date;
+    diasRestantesCobertura: number;
+    diasRestantesGracia: number;
+
+    // Calificación y servicios
+    calificacion: number;
+    totalServicios: number;
+
+    // Contadores
+    servicioCounter: number;
+    registroCounter: number;
+
+    // Arrays
+    pagos: any[];
+    registros: any[];
+    servicios: any[];
+
+    // Archivos
+    archivos: {
+        fotos: IFile[];
+        pdfs: IFile[];
+        r2Files: {
+            fotos: IR2File[];
+            pdfs: IR2File[];
+        };
+    };
+
+    // Estado
+    estado: 'ACTIVO' | 'INACTIVO' | 'ELIMINADO';
+    fechaEliminacion?: Date;
+    motivoEliminacion?: string;
+
+    // BD AUTOS
+    vehicleId?: ObjectId;
+    creadoViaOBD: boolean;
+    asignadoPor?: string;
+
+    // Timestamps
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 // Interfaz para Vehicle
 export interface IVehicle extends Document {
-  _id: ObjectId;
-  marca: string;
-  modelo: string;
-  año: number;
-  placas?: string;
-  serie?: string;
-  motor?: string;
-  color?: string;
-  tipoVehiculo?: string;
-  propietario?: string;
-  telefono?: string;
-  correo?: string;
-  estado: 'disponible' | 'asegurado' | 'proceso' | 'baja';
-  fechaCreacion: Date;
-  fechaActualizacion: Date;
-  archivos?: IFile[];
-  archivosR2?: IR2File[];
-  notas?: string;
-  polizaAsociada?: ObjectId;
-  fuenteOriginal?: string;
+    _id: ObjectId;
+    // Identificación del vehículo
+    serie: string;
+    marca: string;
+    submarca: string;
+    año: number;
+    color: string;
+    placas: string;
+
+    // Datos del titular
+    titular: string;
+    rfc: string;
+    telefono: string;
+    correo: string;
+
+    // Dirección del titular
+    calle?: string;
+    colonia?: string;
+    municipio?: string;
+    estadoRegion?: string;
+    cp?: string;
+
+    // Archivos
+    archivos: {
+        fotos: IFile[];
+        r2Files: {
+            fotos: IR2File[];
+        };
+    };
+
+    // Estado
+    estado: 'SIN_POLIZA' | 'CON_POLIZA' | 'ELIMINADO';
+
+    // Metadatos
+    creadoPor: string;
+    creadoVia: 'TELEGRAM_BOT' | 'WEB_INTERFACE' | 'API';
+    notas?: string;
+
+    // Referencia a póliza
+    policyId?: ObjectId;
+
+    // Timestamps
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 // Interfaz para notificaciones programadas
 export interface IScheduledNotification extends Document {
-  _id: ObjectId;
-  tipo: 'vencimiento' | 'recordatorio' | 'pago' | 'servicio';
-  mensaje: string;
-  fechaEnvio: Date;
-  destinatarios: number[];
-  enviado: boolean;
-  fechaEnviado?: Date;
-  error?: string;
-  intentos: number;
-  maxIntentos: number;
-  datos?: Record<string, any>;
-  polizaId?: ObjectId;
-  vehiculoId?: ObjectId;
-  fechaCreacion: Date;
+    _id: ObjectId;
+
+    // Información de la póliza
+    numeroPoliza: string;
+    expedienteNum: string;
+    origenDestino?: string;
+
+    // Datos adicionales
+    placas?: string;
+    fotoUrl?: string;
+    marcaModelo?: string;
+    colorVehiculo?: string;
+    telefono?: string;
+
+    // Programación
+    contactTime: string;
+    scheduledDate: Date;
+    lastScheduledAt?: Date;
+    processingStartedAt?: Date;
+
+    // Metadatos
+    createdBy?: {
+        chatId?: number;
+        username?: string;
+    };
+    targetGroupId: number;
+
+    // Tipo y estado
+    tipoNotificacion: 'CONTACTO' | 'TERMINO' | 'MANUAL';
+    status: 'PENDING' | 'SCHEDULED' | 'PROCESSING' | 'SENT' | 'FAILED' | 'CANCELLED';
+
+    // Control de envío
+    sentAt?: Date;
+    error?: string;
+    retryCount: number;
+    lastRetryAt?: Date;
+
+    // Datos adicionales
+    additionalData?: Record<string, any>;
+
+    // Timestamps
+    createdAt: Date;
+    updatedAt: Date;
 }

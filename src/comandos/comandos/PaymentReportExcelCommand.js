@@ -1,14 +1,14 @@
 // src/comandos/comandos/PaymentReportExcelCommand.js
 /**
  * 📊 COMANDO EXCEL: Reporte Multi-Hoja de Pagos Pendientes
- * 
+ *
  * IMPLEMENTACIÓN FASE 4 (T4.1-T4.3):
  * ✅ Estructura multi-hoja (Resumen, Detalle, Análisis)
  * ✅ Fórmulas automáticas y sumatorias
  * ✅ Formato condicional y estilos corporativos
  * ✅ Filtros automáticos y pivot tables
  * ✅ Navegación persistente integrada
- * 
+ *
  * Base: PaymentReportPDFCommand (reutiliza lógica de cálculos)
  */
 
@@ -22,17 +22,17 @@ const logger = require('../../utils/logger');
 class PaymentReportExcelCommand extends BaseCommand {
     constructor(handler) {
         super(handler);
-        
+
         // 🎨 CONFIGURACIÓN DE DISEÑO CORPORATIVO EXCEL
         this.colors = {
-            primary: 'FF2E86AB',        // Azul corporativo
-            secondary: 'FFA23B72',      // Magenta
-            accent: 'FFF18F01',         // Naranja
-            urgent: 'FFE74C3C',         // Rojo urgente
-            warning: 'FFF39C12',        // Amarillo advertencia
-            safe: 'FF27AE60',           // Verde seguro
-            lightGray: 'FFECF0F1',      // Gris claro
-            darkGray: 'FF2C3E50',       // Gris oscuro
+            primary: 'FF2E86AB', // Azul corporativo
+            secondary: 'FFA23B72', // Magenta
+            accent: 'FFF18F01', // Naranja
+            urgent: 'FFE74C3C', // Rojo urgente
+            warning: 'FFF39C12', // Amarillo advertencia
+            safe: 'FF27AE60', // Verde seguro
+            lightGray: 'FFECF0F1', // Gris claro
+            darkGray: 'FF2C3E50', // Gris oscuro
             white: 'FFFFFFFF'
         };
 
@@ -193,11 +193,16 @@ class PaymentReportExcelCommand extends BaseCommand {
      */
     createSummarySheet(workbook, pendingPolicies) {
         const worksheet = workbook.addWorksheet('📊 Resumen Ejecutivo');
-        
+
         // Configurar anchos de columnas
         worksheet.columns = [
-            { width: 25 }, { width: 20 }, { width: 20 }, { width: 25 },
-            { width: 20 }, { width: 15 }, { width: 15 }
+            { width: 25 },
+            { width: 20 },
+            { width: 20 },
+            { width: 25 },
+            { width: 20 },
+            { width: 15 },
+            { width: 15 }
         ];
 
         // ===== HEADER CORPORATIVO =====
@@ -219,7 +224,10 @@ class PaymentReportExcelCommand extends BaseCommand {
 
         // ===== KPIs PRINCIPALES =====
         const totalPolicies = pendingPolicies.length;
-        const totalAmount = pendingPolicies.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0);
+        const totalAmount = pendingPolicies.reduce(
+            (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+            0
+        );
         const criticalPolicies = pendingPolicies.filter(p => p.diasDeImpago <= 7).length;
         const avgAmount = totalPolicies > 0 ? totalAmount / totalPolicies : 0;
 
@@ -269,8 +277,12 @@ class PaymentReportExcelCommand extends BaseCommand {
             worksheet.getCell(`D${row}`).value = kpi.status;
 
             // Formato condicional por estado
-            const statusStyle = kpi.status === 'CRÍTICO' ? this.styles.urgent : 
-                              kpi.status === 'ALTO' ? this.styles.warning : this.styles.safe;
+            const statusStyle =
+                kpi.status === 'CRÍTICO'
+                    ? this.styles.urgent
+                    : kpi.status === 'ALTO'
+                      ? this.styles.warning
+                      : this.styles.safe;
             worksheet.getCell(`D${row}`).style = statusStyle;
 
             // Formato de moneda para valores monetarios
@@ -308,21 +320,30 @@ class PaymentReportExcelCommand extends BaseCommand {
                 category: '🚨 Crítico (≤7 días)',
                 count: urgent7.length,
                 percentage: totalPolicies > 0 ? urgent7.length / totalPolicies : 0,
-                amount: urgent7.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0),
+                amount: urgent7.reduce(
+                    (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                    0
+                ),
                 style: this.styles.urgent
             },
             {
                 category: '⚠️ Urgente (8-15 días)',
                 count: urgent15.length,
                 percentage: totalPolicies > 0 ? urgent15.length / totalPolicies : 0,
-                amount: urgent15.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0),
+                amount: urgent15.reduce(
+                    (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                    0
+                ),
                 style: this.styles.warning
             },
             {
                 category: '✅ Normal (>15 días)',
                 count: normal.length,
                 percentage: totalPolicies > 0 ? normal.length / totalPolicies : 0,
-                amount: normal.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0),
+                amount: normal.reduce(
+                    (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                    0
+                ),
                 style: this.styles.safe
             }
         ];
@@ -344,7 +365,7 @@ class PaymentReportExcelCommand extends BaseCommand {
         const lastDataRow = 16;
         worksheet.getCell(`B${lastDataRow + 2}`).value = { formula: `SUM(B14:B${lastDataRow})` };
         worksheet.getCell(`D${lastDataRow + 2}`).value = { formula: `SUM(D14:D${lastDataRow})` };
-        
+
         worksheet.getCell(`A${lastDataRow + 2}`).value = '🧮 TOTALES:';
         worksheet.getCell(`A${lastDataRow + 2}`).style = this.styles.kpi;
     }
@@ -358,9 +379,16 @@ class PaymentReportExcelCommand extends BaseCommand {
 
         // Configurar anchos de columnas
         worksheet.columns = [
-            { width: 20 }, { width: 15 }, { width: 15 }, { width: 20 },
-            { width: 15 }, { width: 15 }, { width: 25 }, { width: 20 },
-            { width: 15 }, { width: 25 }
+            { width: 20 },
+            { width: 15 },
+            { width: 15 },
+            { width: 20 },
+            { width: 15 },
+            { width: 15 },
+            { width: 25 },
+            { width: 20 },
+            { width: 15 },
+            { width: 25 }
         ];
 
         // ===== HEADERS =====
@@ -386,7 +414,7 @@ class PaymentReportExcelCommand extends BaseCommand {
         // ===== DATOS =====
         pendingPolicies.forEach((policy, index) => {
             const row = index + 2;
-            
+
             worksheet.getCell(row, 1).value = policy.numeroPoliza;
             worksheet.getCell(row, 2).value = policy.diasDeImpago;
             worksheet.getCell(row, 3).value = policy.diasTranscurridos;
@@ -430,14 +458,14 @@ class PaymentReportExcelCommand extends BaseCommand {
         const totalRow = pendingPolicies.length + 3;
         worksheet.getCell(totalRow, 6).value = 'TOTALES:';
         worksheet.getCell(totalRow, 6).style = this.styles.kpi;
-        
-        worksheet.getCell(totalRow, 7).value = { 
-            formula: `SUM(G2:G${pendingPolicies.length + 1})` 
+
+        worksheet.getCell(totalRow, 7).value = {
+            formula: `SUM(G2:G${pendingPolicies.length + 1})`
         };
         worksheet.getCell(totalRow, 7).style = this.styles.currency;
-        
-        worksheet.getCell(totalRow, 8).value = { 
-            formula: `SUM(H2:H${pendingPolicies.length + 1})` 
+
+        worksheet.getCell(totalRow, 8).value = {
+            formula: `SUM(H2:H${pendingPolicies.length + 1})`
         };
         worksheet.getCell(totalRow, 8).style = this.styles.currency;
     }
@@ -448,10 +476,14 @@ class PaymentReportExcelCommand extends BaseCommand {
      */
     createAnalysisSheet(workbook, pendingPolicies) {
         const worksheet = workbook.addWorksheet('🔍 Análisis Avanzado');
-        
+
         // Configurar anchos de columnas
         worksheet.columns = [
-            { width: 30 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 20 }
+            { width: 30 },
+            { width: 15 },
+            { width: 20 },
+            { width: 15 },
+            { width: 20 }
         ];
 
         // ===== ANÁLISIS POR RANGOS DE DÍAS =====
@@ -479,17 +511,24 @@ class PaymentReportExcelCommand extends BaseCommand {
             { label: '>60 días (Crítico)', min: 61, max: Infinity }
         ];
 
-        const totalAmount = pendingPolicies.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0);
+        const totalAmount = pendingPolicies.reduce(
+            (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+            0
+        );
 
         ranges.forEach((range, index) => {
             const row = 4 + index;
-            const policiesInRange = pendingPolicies.filter(p => 
-                p.diasDeImpago >= range.min && p.diasDeImpago <= range.max
+            const policiesInRange = pendingPolicies.filter(
+                p => p.diasDeImpago >= range.min && p.diasDeImpago <= range.max
             );
-            
-            const rangeAmount = policiesInRange.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0);
+
+            const rangeAmount = policiesInRange.reduce(
+                (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                0
+            );
             const rangePercentage = totalAmount > 0 ? rangeAmount / totalAmount : 0;
-            const rangeAverage = policiesInRange.length > 0 ? rangeAmount / policiesInRange.length : 0;
+            const rangeAverage =
+                policiesInRange.length > 0 ? rangeAmount / policiesInRange.length : 0;
 
             worksheet.getCell(`A${row}`).value = range.label;
             worksheet.getCell(`B${row}`).value = policiesInRange.length;
@@ -537,7 +576,10 @@ class PaymentReportExcelCommand extends BaseCommand {
 
         Object.entries(sourceGroups).forEach(([source, policies], index) => {
             const row = 14 + index;
-            const sourceAmount = policies.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0);
+            const sourceAmount = policies.reduce(
+                (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                0
+            );
             const sourcePercentage = totalAmount > 0 ? sourceAmount / totalAmount : 0;
 
             worksheet.getCell(`A${row}`).value = source;
@@ -555,7 +597,7 @@ class PaymentReportExcelCommand extends BaseCommand {
      */
     async generateExcel(pendingPolicies) {
         const workbook = new ExcelJS.Workbook();
-        
+
         // Metadata del workbook
         workbook.creator = 'Polizas Bot';
         workbook.lastModifiedBy = 'Sistema Automatizado';
@@ -597,7 +639,10 @@ class PaymentReportExcelCommand extends BaseCommand {
             await fs.writeFile(filePath, excelBuffer);
 
             // Calcular estadísticas para el mensaje
-            const totalAmount = pendingPolicies.reduce((sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0), 0);
+            const totalAmount = pendingPolicies.reduce(
+                (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                0
+            );
             const criticalPolicies = pendingPolicies.filter(p => p.diasDeImpago <= 7).length;
 
             // Enviar archivo
@@ -612,15 +657,16 @@ class PaymentReportExcelCommand extends BaseCommand {
             );
 
             // Mensaje con navegación persistente
-            const message = `📊 **Reporte Excel Generado Exitosamente**\n\n` +
-                          `📅 **Fecha:** ${new Date().toLocaleString('es-MX')}\n` +
-                          `📋 **Total pólizas:** ${pendingPolicies.length}\n` +
-                          `💰 **Monto total:** $${totalAmount.toLocaleString()}\n` +
-                          `🚨 **Pólizas críticas:** ${criticalPolicies}\n\n` +
-                          `✅ **Incluye 3 hojas:**\n` +
-                          `• 📊 Resumen Ejecutivo con KPIs\n` +
-                          `• 📋 Detalle Completo con filtros\n` +
-                          `• 🔍 Análisis Avanzado con estadísticas`;
+            const message =
+                `📊 **Reporte Excel Generado Exitosamente**\n\n` +
+                `📅 **Fecha:** ${new Date().toLocaleString('es-MX')}\n` +
+                `📋 **Total pólizas:** ${pendingPolicies.length}\n` +
+                `💰 **Monto total:** $${totalAmount.toLocaleString()}\n` +
+                `🚨 **Pólizas críticas:** ${criticalPolicies}\n\n` +
+                `✅ **Incluye 3 hojas:**\n` +
+                `• 📊 Resumen Ejecutivo con KPIs\n` +
+                `• 📋 Detalle Completo con filtros\n` +
+                `• 🔍 Análisis Avanzado con estadísticas`;
 
             await this.replyWithNavigation(ctx, message);
 

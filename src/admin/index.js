@@ -709,7 +709,9 @@ class AdminModule {
 
                 // PRIORIZAR comandos que empiezan con "/" sobre estados admin
                 if (ctx.message.text.startsWith('/')) {
-                    logger.info('🔍 [ADMIN-DEBUG] Comando detectado, priorizando sobre estado admin');
+                    logger.info(
+                        '🔍 [ADMIN-DEBUG] Comando detectado, priorizando sobre estado admin'
+                    );
                     return next(); // Dejar que el comando se procese normalmente
                 }
 
