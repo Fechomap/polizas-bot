@@ -71,16 +71,16 @@ class ReportUsedCommand extends BaseCommand {
     async generateReport(ctx: Context): Promise<void> {
         let waitMsg: TelegramMessage | null = null;
         let progressInterval: NodeJS.Timeout | null = null;
-        let scriptRunning: boolean = true; // Flag to control interval
+        let scriptRunning = true; // Flag to control interval
 
         try {
             this.logInfo(`Ejecutando comando ${this.getCommandName()}`);
-            
+
             // Enviar mensaje inicial
-            waitMsg = await ctx.reply(
+            waitMsg = (await ctx.reply(
                 '🔄 Iniciando cálculo de estados de pólizas...\n' +
                     'Este proceso puede tardar varios minutos, se enviarán actualizaciones periódicas.'
-            ) as TelegramMessage;
+            )) as TelegramMessage;
 
             // Variables para seguimiento y mensajes de progreso
             const progressState: ProgressState = {
@@ -100,7 +100,9 @@ class ReportUsedCommand extends BaseCommand {
                 }
 
                 progressState.updateCount++;
-                const elapsedSeconds: number = Math.floor((Date.now() - progressState.lastProgressUpdate) / 1000);
+                const elapsedSeconds: number = Math.floor(
+                    (Date.now() - progressState.lastProgressUpdate) / 1000
+                );
 
                 try {
                     // Use handler's bot instance
@@ -224,10 +226,10 @@ class ReportUsedCommand extends BaseCommand {
             await new Promise<void>(resolve => setTimeout(resolve, 2000));
 
             // Buscar el top 10 de pólizas
-            const topPolicies: PolicyDocument[] = await Policy.find({ estado: 'ACTIVO' })
+            const topPolicies: PolicyDocument[] = (await Policy.find({ estado: 'ACTIVO' })
                 .sort({ calificacion: -1 })
                 .limit(10)
-                .lean() as PolicyDocument[];
+                .lean()) as PolicyDocument[];
 
             if (!topPolicies.length) {
                 await ctx.reply('✅ No hay pólizas prioritarias que mostrar.');
@@ -249,7 +251,7 @@ class ReportUsedCommand extends BaseCommand {
                 const totalServicios: number = (pol.servicios || []).length;
                 const totalPagos: number = (pol.pagos || []).length;
 
-                let alertaPrioridad: string = '';
+                let alertaPrioridad = '';
                 const calificacion: number = pol.calificacion || 0;
                 if (calificacion >= 80) alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
                 else if (calificacion >= 60) alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
@@ -326,10 +328,10 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
 
             // Fallback: Try fetching policies anyway
             try {
-                const fallbackPolicies: PolicyDocument[] = await Policy.find({ estado: 'ACTIVO' })
+                const fallbackPolicies: PolicyDocument[] = (await Policy.find({ estado: 'ACTIVO' })
                     .sort({ calificacion: -1 })
                     .limit(10)
-                    .lean() as PolicyDocument[];
+                    .lean()) as PolicyDocument[];
 
                 if (fallbackPolicies.length > 0) {
                     await ctx.reply(

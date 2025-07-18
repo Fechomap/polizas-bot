@@ -45,4 +45,12 @@ export interface BotContext extends TelegrafContext {
     threadId?: string;
 }
 
+// Alias para compatibilidad
+export interface IContextBot extends BotContext {}
+
+// Tipos para thread safety
+export interface IThreadSafeStateMap {
+    [key: string]: any;
+}
+
 export {};

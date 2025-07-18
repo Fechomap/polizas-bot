@@ -226,7 +226,9 @@ class PaymentReportPDFCommand extends BaseCommand {
 
                 // Filtrar SOLO pagos REALIZADOS (dinero real recibido)
                 const pagosRealizados = pagos.filter((pago: Pago) => pago.estado === 'REALIZADO');
-                const pagosPlanificados = pagos.filter((pago: Pago) => pago.estado === 'PLANIFICADO');
+                const pagosPlanificados = pagos.filter(
+                    (pago: Pago) => pago.estado === 'PLANIFICADO'
+                );
 
                 // Calcular fecha límite de cobertura basada en pagos realizados
                 const fechaLimiteCobertura = this.calculateMonthsCoveredByPayments(

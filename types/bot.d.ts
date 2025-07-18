@@ -1,7 +1,14 @@
 // types/bot.d.ts - Tipos específicos para el bot
 
-import { Context } from 'telegraf';
+import { Context, Update } from 'telegraf';
 import { BotContext } from './global';
+
+// Extensión del contexto para incluir match property
+declare module 'telegraf' {
+    interface Context<U extends Update = Update> {
+        match?: RegExpMatchArray;
+    }
+}
 
 // Tipos para comandos del bot
 export type CommandType = 'text' | 'callback' | 'document' | 'photo' | 'video';

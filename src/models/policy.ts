@@ -18,7 +18,7 @@ const r2FileSchema = new Schema<IR2File>(
         key: { type: String, required: true },
         size: { type: Number, required: true },
         contentType: { type: String, required: true },
-        uploadedAt: { type: Date, default: Date.now },
+        uploadDate: { type: Date, default: Date.now },
         originalName: { type: String, required: false },
         fuenteOriginal: { type: String, required: false }
     },

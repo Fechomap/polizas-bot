@@ -19,6 +19,17 @@ export interface IR2File {
     fuenteOriginal?: string;
 }
 
+// Alias para compatibilidad con documentHandler.ts
+export interface IR2FileObject {
+    url: string;
+    key: string;
+    size: number;
+    contentType: string;
+    uploadedAt: Date;
+    originalName?: string;
+    fuenteOriginal?: string;
+}
+
 // Interfaz para coordenadas
 export interface ICoordenadas {
     origen: {
@@ -45,6 +56,19 @@ export interface ITitular {
     correo?: string;
     telefono?: string;
     rfc?: string;
+}
+
+// Interfaz para datos mexicanos
+export interface IDatosMexicanos {
+    titular: string;
+    rfc: string;
+    telefono: string;
+    correo: string;
+    calle: string;
+    colonia: string;
+    municipio: string;
+    estado: string;
+    cp: string;
 }
 
 // Interfaz para servicios de póliza
@@ -147,6 +171,36 @@ export interface IPolicy extends Document {
     updatedAt: Date;
 }
 
+// Alias para compatibilidad con ExcelUploadHandler
+export type IPolicyData = IPolicy;
+
+// Interfaces para procesamiento de Excel
+export interface IProcessingDetail {
+    numeroPoliza: string;
+    status: 'SUCCESS' | 'ERROR';
+    message: string;
+}
+
+export interface IProcessingResults {
+    total: number;
+    successful: number;
+    failed: number;
+    details: IProcessingDetail[];
+}
+
+export interface IValidationResult {
+    isValid: boolean;
+    errors: string[];
+}
+
+// Interfaces para upload de archivos
+export interface IUploadResult {
+    url: string;
+    key: string;
+    size: number;
+    contentType?: string;
+}
+
 // Interfaz para Vehicle
 export interface IVehicle extends Document {
     _id: ObjectId;
@@ -244,7 +298,7 @@ export interface IScheduledNotification extends Document {
 
 // Interfaces adicionales para tipos de datos
 
-export interface IPolicyData {
+export interface IPolicyDataAlternative {
     titular: string;
     correo?: string;
     rfc?: string;

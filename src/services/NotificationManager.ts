@@ -41,7 +41,7 @@ interface INotificationStats {
 class NotificationManager {
     public bot: Telegraf | null;
     private activeTimers: Map<string, NodeJS.Timeout>;
-    private isInitialized: boolean;
+    public isInitialized: boolean;
     private processingLocks: Set<string>;
     private recoveryInterval: NodeJS.Timeout | null;
 

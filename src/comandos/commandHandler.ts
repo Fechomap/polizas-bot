@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { Markup } from 'telegraf';
 import config from '../config';
+import CommandRegistry from './comandos/CommandRegistry';
 import {
     getPolicyByNumber,
     savePolicy,
@@ -21,15 +22,14 @@ import fetch from 'node-fetch';
 import type { Context } from 'telegraf';
 import type { IPolicy } from '../types/database';
 
-const StateKeyManager = require('../utils/StateKeyManager');
-const threadValidatorMiddleware = require('../middleware/threadValidator');
+import StateKeyManager from '../utils/StateKeyManager';
+import threadValidatorMiddleware from '../middleware/threadValidator';
 
 // Import the model Policy directly
-const Policy = require('../models/policy');
+import Policy from '../models/policy';
 
 // Import command registry and modules
-const {
-    CommandRegistry,
+import {
     StartCommand,
     GetCommand,
     ViewFilesCallbacks,
@@ -49,10 +49,10 @@ const {
     ReportUsedCommand,
     NotificationCommand,
     BaseAutosCommand
-} = require('./comandos');
+} from './comandos';
 
 // Import DocumentHandler
-const DocumentHandler = require('./comandos/documentHandler');
+import DocumentHandler from './comandos/documentHandler';
 
 // Interfaces
 interface ThreadSafeStateMap {
@@ -147,7 +147,7 @@ class CommandHandler {
         this.bot = bot;
 
         // Initialize the command registry
-        this.registry = new (require('./comandos/CommandRegistry'))();
+        this.registry = new CommandRegistry();
 
         // Inicializar mapas de estado con soporte para hilos
         this.uploadTargets = StateKeyManager.createThreadSafeStateMap();

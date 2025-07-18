@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../dist/tests",
+    "rootDir": "./",
+    "types": ["jest", "node"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "skipLibCheck": true
+  },
+  "include": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "setup.ts",
+    "../src/**/*",
+    "../types/**/*"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
