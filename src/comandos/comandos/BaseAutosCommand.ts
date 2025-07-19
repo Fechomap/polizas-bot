@@ -326,16 +326,19 @@ class BaseAutosCommand extends BaseCommand {
             try {
                 await ctx.answerCbQuery();
                 const userId = ctx.from?.id;
+                const chatId = ctx.chat?.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
 
-                if (!userId) {
-                    await ctx.reply('❌ Error: No se pudo identificar el usuario.');
+                if (!userId || !chatId) {
+                    await ctx.reply('❌ Error: No se pudo identificar el usuario o chat.');
                     return;
                 }
 
-                // Limpiar asignación en proceso
+                // Limpiar asignación en proceso usando la clave correcta
                 const { asignacionesEnProceso } = require('./PolicyAssignmentHandler');
                 if (asignacionesEnProceso) {
-                    asignacionesEnProceso.delete(userId);
+                    const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+                    asignacionesEnProceso.delete(stateKey);
                 }
 
                 await ctx.editMessageText('❌ Asignación de póliza cancelada.', {

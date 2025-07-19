@@ -1,5 +1,5 @@
 // Script para probar la nueva generación de domicilios reales con HereMaps
-const { generarDatosMexicanosCompletos } = require('../src/utils/mexicanDataGenerator');
+const { generarDatosMexicanosReales, generarDatosMexicanosCompletos } = require('../dist/utils/mexicanDataGenerator');
 
 async function probarDomiciliosReales() {
     console.log('🗺️  PRUEBA DE DOMICILIOS REALES CON HEREMAPS\n');
@@ -9,7 +9,7 @@ async function probarDomiciliosReales() {
     for (let i = 0; i < 5; i++) {
         try {
             console.log(`🏠 Generando domicilio ${i + 1}...`);
-            const datos = await generarDatosMexicanosCompletos();
+            const datos = await generarDatosMexicanosReales();
 
             console.log(`✅ ${datos.titular}`);
             console.log(`📧 ${datos.correo}`);
@@ -40,7 +40,7 @@ async function probarDomiciliosReales() {
     const domicilios = [];
     for (let i = 0; i < 10; i++) {
         try {
-            const datos = await generarDatosMexicanosCompletos();
+            const datos = await generarDatosMexicanosReales();
             domicilios.push(datos);
             await new Promise(resolve => setTimeout(resolve, 500));
         } catch (error) {

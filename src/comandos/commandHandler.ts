@@ -872,6 +872,36 @@ class CommandHandler {
             const flowStateManager = require('../utils/FlowStateManager').default;
             flowStateManager.clearAllStates(chatId, threadId);
 
+            // Limpiar estados de Base de Autos
+            try {
+                const { asignacionesEnProceso } = require('./comandos/PolicyAssignmentHandler');
+                const { vehiculosEnProceso } = require('./comandos/VehicleRegistrationHandler');
+                const StateKeyManager = require('../utils/StateKeyManager').default;
+                
+                // Buscar todas las claves que correspondan a este chatId y threadId
+                if (asignacionesEnProceso) {
+                    const allKeys = Array.from(asignacionesEnProceso.getInternalMap().keys()) as string[];
+                    const contextKey = StateKeyManager.getContextKey(chatId, threadId);
+                    const keysToDelete = allKeys.filter((key: string) => key.includes(`:${contextKey}`));
+                    keysToDelete.forEach((key: string) => {
+                        asignacionesEnProceso.delete(key);
+                    });
+                    logger.debug(`Eliminados ${keysToDelete.length} estados de asignación para chatId=${chatId}`);
+                }
+                
+                if (vehiculosEnProceso) {
+                    const allKeys = Array.from(vehiculosEnProceso.getInternalMap().keys()) as string[];
+                    const contextKey = StateKeyManager.getContextKey(chatId, threadId);
+                    const keysToDelete = allKeys.filter((key: string) => key.includes(`:${contextKey}`));
+                    keysToDelete.forEach((key: string) => {
+                        vehiculosEnProceso.delete(key);
+                    });
+                    logger.debug(`Eliminados ${keysToDelete.length} estados de vehículo para chatId=${chatId}`);
+                }
+            } catch (error) {
+                logger.warn('Error limpiando estados de Base de Autos:', error);
+            }
+
             logger.debug(`🧹 Estados de hilo específico limpiados para chatId=${chatId}, threadId=${threadId}`);
             return;
         }
@@ -893,6 +923,33 @@ class CommandHandler {
 
         const flowStateManager = require('../utils/FlowStateManager').default;
         flowStateManager.clearAllStates(chatId);
+
+        // Limpiar estados de Base de Autos para todo el chat
+        try {
+            const { asignacionesEnProceso } = require('./comandos/PolicyAssignmentHandler');
+            const { vehiculosEnProceso } = require('./comandos/VehicleRegistrationHandler');
+            
+            // Buscar todas las claves que correspondan a este chatId (sin importar threadId)
+            if (asignacionesEnProceso) {
+                const allKeys = Array.from(asignacionesEnProceso.getInternalMap().keys()) as string[];
+                const keysToDelete = allKeys.filter((key: string) => key.includes(`${chatId}`));
+                keysToDelete.forEach((key: string) => {
+                    asignacionesEnProceso.delete(key);
+                });
+                logger.debug(`Eliminados ${keysToDelete.length} estados de asignación para chatId=${chatId}`);
+            }
+            
+            if (vehiculosEnProceso) {
+                const allKeys = Array.from(vehiculosEnProceso.getInternalMap().keys()) as string[];
+                const keysToDelete = allKeys.filter((key: string) => key.includes(`${chatId}`));
+                keysToDelete.forEach((key: string) => {
+                    vehiculosEnProceso.delete(key);
+                });
+                logger.debug(`Eliminados ${keysToDelete.length} estados de vehículo para chatId=${chatId}`);
+            }
+        } catch (error) {
+            logger.warn('Error limpiando estados de Base de Autos:', error);
+        }
 
         logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
     }

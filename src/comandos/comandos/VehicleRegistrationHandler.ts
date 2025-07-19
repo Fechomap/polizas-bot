@@ -3,7 +3,7 @@ import { VehicleController } from '../../controllers/vehicleController';
 import { getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/CloudflareStorage';
-import * as mexicanDataGenerator from '../../utils/mexicanDataGenerator';
+import { generarDatosMexicanosReales } from '../../utils/mexicanDataGenerator';
 import type { Telegraf } from 'telegraf';
 import type { Message } from 'telegraf/typings/core/types/typegram';
 import type { IUploadResult, IR2File } from '../../../types/index';
@@ -473,8 +473,8 @@ export class VehicleRegistrationHandler {
         registro.estado = ESTADOS_REGISTRO.ESPERANDO_FOTOS;
         vehiculosEnProceso.set(stateKey, registro);
 
-        // Generar datos temporales sin guardar en BD aún
-        const datosGenerados = await mexicanDataGenerator.generarDatosMexicanosCompletos();
+        // Generar datos temporales sin guardar en BD aún usando direcciones reales
+        const datosGenerados = await generarDatosMexicanosReales();
 
         // Guardar los datos generados para usar al finalizar
         registro.datosGenerados = datosGenerados;

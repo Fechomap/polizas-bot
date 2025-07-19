@@ -352,6 +352,10 @@ export interface IDatosMexicanos {
     municipio: string;
     estadoRegion: string;
     cp: string;
+    coordenadas?: {
+        lat: number;
+        lng: number;
+    };
 }
 
 export interface IFileObject {
