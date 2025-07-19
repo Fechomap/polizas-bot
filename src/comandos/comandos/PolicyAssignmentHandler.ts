@@ -5,6 +5,8 @@ import StateKeyManager from '../../utils/StateKeyManager';
 import { BotContext } from '../../../types';
 import type { IVehicle, IPolicy } from '../../types/database';
 import type { Context } from 'telegraf';
+import Vehicle from '../../models/vehicle';
+import Policy from '../../models/policy';
 
 /**
  * Estados del flujo de asignación de pólizas
@@ -246,12 +248,11 @@ export class PolicyAssignmentHandler {
     ): Promise<boolean> {
         try {
             // Buscar el vehículo directamente por ID
-            const Vehicle = require('../../models/vehicle');
             let vehiculo: IVehicle;
 
             try {
-                vehiculo = await Vehicle.findById(vehicleId);
-                if (!vehiculo) {
+                const foundVehicle = await Vehicle.findById(vehicleId);
+                if (!foundVehicle) {
                     const sendOptions: any = {};
                     if (threadId) {
                         sendOptions.message_thread_id = threadId;
@@ -264,6 +265,7 @@ export class PolicyAssignmentHandler {
                     );
                     return false;
                 }
+                vehiculo = foundVehicle;
             } catch (error) {
                 // Si falla por ID, intentar buscar por serie o placas
                 const vehicle = await VehicleController.buscarVehiculo(vehicleId);
@@ -1154,8 +1156,12 @@ export class PolicyAssignmentHandler {
 
                     // Actualizar la póliza con la referencia a R2
                     if (uploadResult?.url) {
-                        const Policy = require('../../models/policy');
                         const polizaActualizada = await Policy.findById(polizaGuardada._id);
+                        
+                        if (!polizaActualizada) {
+                            console.error('No se pudo encontrar la póliza para actualizar con R2');
+                            return false;
+                        }
 
                         if (!polizaActualizada.archivos) {
                             polizaActualizada.archivos = {
@@ -1320,7 +1326,6 @@ export class PolicyAssignmentHandler {
             }
 
             // Actualizar la póliza con las fotos del vehículo
-            const Policy = require('../../models/policy');
             const polizaActualizada = await Policy.findById(poliza._id);
 
             if (!polizaActualizada) {
