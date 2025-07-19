@@ -3,7 +3,7 @@ import BaseCommand, { NavigationContext, IBaseHandler } from './BaseCommand';
 import type { Context } from 'telegraf';
 
 // Import AdminStateManager
-const AdminStateManager = require('../../admin/utils/adminStates');
+const AdminStateManager = require('../../admin/utils/adminStates').default;
 
 class StartCommand extends BaseCommand {
     constructor(handler: IBaseHandler) {

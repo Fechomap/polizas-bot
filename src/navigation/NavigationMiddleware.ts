@@ -150,7 +150,7 @@ function isInActiveFlow(ctx: NavigationContext): boolean {
 
         // Verificar flujos Admin
         try {
-            const AdminStateManager = require('../admin/utils/adminStates');
+            const AdminStateManager = require('../admin/utils/adminStates').default;
             if (AdminStateManager?.hasActiveState?.(userId, chatId)) {
                 return true;
             }

@@ -1,5 +1,5 @@
 // src/comandos/comandos/VehicleRegistrationHandler.ts
-import * as VehicleController from '../../controllers/vehicleController';
+import { VehicleController } from '../../controllers/vehicleController';
 import { getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/CloudflareStorage';
@@ -242,7 +242,7 @@ export class VehicleRegistrationHandler {
                     `🚗 *${busqueda.vehiculo.marca} ${busqueda.vehiculo.submarca}*\n` +
                     `📅 Año: ${busqueda.vehiculo.año}\n` +
                     `🎨 Color: ${busqueda.vehiculo.color}\n` +
-                    `👤 Titular: ${busqueda.vehiculo.titular || busqueda.vehiculo.titularTemporal || 'Sin titular'}\n\n` +
+                    `👤 Titular: ${busqueda.vehiculo.titular || 'Sin titular'}\n\n` +
                     'Ingresa una serie diferente:',
                 sendOptions
             );
@@ -753,7 +753,7 @@ export class VehicleRegistrationHandler {
                 ...registro.datos,
                 ...registro.datosGenerados
             };
-            const resultado = await VehicleController.registrarVehiculo(datosCompletos, userId);
+            const resultado = await VehicleController.registrarVehiculo(datosCompletos, String(userId));
 
             if (!resultado.success) {
                 const sendOptions: ISendOptions = {};
@@ -770,12 +770,15 @@ export class VehicleRegistrationHandler {
             }
 
             const vehicle = resultado.vehicle;
+            if (!vehicle) {
+                throw new Error('Error: no se pudo obtener el vehículo registrado');
+            }
 
             // Si hay fotos ya subidas a Cloudflare, vincularlas al vehículo
             if (registro.fotos && registro.fotos.length > 0) {
                 // Las fotos ya están en Cloudflare, solo guardamos las referencias
                 const resultadoFotos = await VehicleController.vincularFotosCloudflare(
-                    vehicle._id,
+                    String(vehicle._id),
                     registro.fotos
                 );
                 if (!resultadoFotos.success) {
@@ -789,7 +792,7 @@ export class VehicleRegistrationHandler {
                 'El vehículo ha sido registrado exitosamente en la base de datos OBD.\n\n' +
                 `🆔 ID: ${vehicle._id}\n` +
                 `🚗 Vehículo: ${vehicle.marca} ${vehicle.submarca} ${vehicle.año}\n` +
-                `👤 Titular: ${vehicle.titular || vehicle.titularTemporal || 'Sin titular'}\n` +
+                `👤 Titular: ${vehicle.titular || 'Sin titular'}\n` +
                 `📊 Fotos: ${registro.fotos ? registro.fotos.length : 0}\n` +
                 '📊 Estado: SIN PÓLIZA (listo para asegurar)\n\n' +
                 '✅ El vehículo ya está disponible para que otra persona le asigne una póliza.';
@@ -858,8 +861,8 @@ export class VehicleRegistrationHandler {
         }>;
     } {
         return {
-            registrosActivos: vehiculosEnProceso.size,
-            registros: Array.from(vehiculosEnProceso.entries()).map(([userId, registro]) => ({
+            registrosActivos: vehiculosEnProceso.size(),
+            registros: Array.from(vehiculosEnProceso.getInternalMap().entries()).map(([userId, registro]) => ({
                 userId,
                 estado: registro.estado,
                 iniciado: registro.iniciado,

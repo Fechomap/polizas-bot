@@ -8,7 +8,7 @@ interface IParsedContextKey {
     threadId: string | null;
 }
 
-interface IThreadSafeStateMap<T = any> {
+export interface IThreadSafeStateMap<T = any> {
     set: (chatId: string | number, value: T, threadId?: string | number | null) => T;
     get: (chatId: string | number, threadId?: string | number | null) => T | undefined;
     has: (chatId: string | number, threadId?: string | number | null) => boolean;

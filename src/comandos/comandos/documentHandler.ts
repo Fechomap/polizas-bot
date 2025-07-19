@@ -1,12 +1,11 @@
-import { Context, Markup } from 'telegraf';
+import { Context, Markup, Telegraf } from 'telegraf';
 import { Document, Message } from 'telegraf/typings/core/types/typegram';
 import logger from '../../utils/logger';
 import fetch from 'node-fetch';
 import { getPolicyByNumber } from '../../controllers/policyController';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/CloudflareStorage';
-import { Bot } from 'telegraf';
-import { IPolicy, IR2FileObject } from '../../types/database';
+import { IPolicy, IR2FileObject, IR2File } from '../../types/database';
 
 interface IExcelUploadHandler {
     awaitingExcelUpload: Map<number, boolean>;
@@ -33,12 +32,12 @@ interface ICommandHandler {
 }
 
 class DocumentHandler {
-    private bot: Bot;
+    private bot: Telegraf;
     private handler: ICommandHandler;
     private excelUploadHandler: IExcelUploadHandler | null = null;
     private mediaUploadHandler: IMediaUploadHandler | null = null;
 
-    constructor(bot: Bot, commandHandler: ICommandHandler) {
+    constructor(bot: Telegraf, commandHandler: ICommandHandler) {
         this.bot = bot;
         this.handler = commandHandler;
     }
@@ -54,6 +53,7 @@ class DocumentHandler {
     register(): void {
         this.bot.on('document', async (ctx: Context) => {
             try {
+                if (!ctx.chat) return;
                 const chatId = ctx.chat.id;
                 const documentInfo = (ctx.message as any)?.document || {};
                 const fileName = documentInfo.file_name || '';
@@ -86,7 +86,8 @@ class DocumentHandler {
 
                 // PASO 2: Verificar si estamos esperando un PDF para una póliza
                 const threadId = StateKeyManager.getThreadId(ctx);
-                const numeroPoliza = this.handler.uploadTargets.get(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : '';
+                const numeroPoliza = this.handler.uploadTargets.get(chatId, threadIdStr);
                 if (numeroPoliza) {
                     logger.info(`Decidiendo procesar como PDF para póliza ${numeroPoliza}`, {
                         chatId
@@ -125,11 +126,14 @@ class DocumentHandler {
 
                 // PASO 4: No estamos esperando ningún documento - IGNORAR SILENCIOSAMENTE
                 // No responder nada - el bot simplemente ignora el archivo
+                return;
             } catch (error) {
                 // Solo mostrar error si estamos en un contexto válido
+                if (!ctx.chat) return;
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                const numeroPoliza = this.handler.uploadTargets.get(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : '';
+                const numeroPoliza = this.handler.uploadTargets.get(chatId, threadIdStr);
                 const esperandoExcel = this.excelUploadHandler?.awaitingExcelUpload?.get(chatId);
 
                 if (numeroPoliza || esperandoExcel) {
@@ -137,6 +141,7 @@ class DocumentHandler {
                     await ctx.reply('❌ Error al procesar el documento.');
                 }
                 // Si no hay contexto válido, no responder nada (silencioso)
+                return; // Explicit return to ensure all code paths return a value
             }
         });
 
@@ -146,9 +151,11 @@ class DocumentHandler {
     private async processExcelUpload(ctx: Context): Promise<void> {
         if (!this.excelUploadHandler) {
             logger.error('ExcelUploadHandler no disponible');
-            return await ctx.reply('❌ Error interno: Manejador de Excel no disponible');
+            await ctx.reply('❌ Error interno: Manejador de Excel no disponible');
+            return;
         }
 
+        if (!ctx.chat) return;
         const chatId = ctx.chat.id;
 
         try {
@@ -193,7 +200,8 @@ class DocumentHandler {
 
             // Limpiar otros estados posibles
             const threadId = StateKeyManager.getThreadId(ctx);
-            this.handler.clearChatState(chatId, threadId);
+            const threadIdStr = threadId ? String(threadId) : '';
+            this.handler.clearChatState(chatId, threadIdStr);
 
             // Mostrar botón para volver al menú
             await ctx.reply(
@@ -211,8 +219,9 @@ class DocumentHandler {
 
             // Limpiar estado en caso de error
             const threadId = StateKeyManager.getThreadId(ctx);
+            const threadIdStr = threadId ? String(threadId) : '';
             this.excelUploadHandler.awaitingExcelUpload.delete(chatId);
-            this.handler.clearChatState(chatId, threadId);
+            this.handler.clearChatState(chatId, threadIdStr);
 
             // Limpiar también el message_id almacenado en caso de error
             if (this.handler.excelUploadMessages) {
@@ -250,20 +259,21 @@ class DocumentHandler {
                 (ctx.message as any).document.file_name || `documento_${Date.now()}.pdf`;
             const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
 
-            // Crear objeto de archivo R2
-            const r2FileObject: IR2FileObject = {
+            // Crear objeto de archivo R2 compatible con IR2File
+            const r2FileObject: IR2File = {
                 url: uploadResult.url,
                 key: uploadResult.key,
                 size: uploadResult.size,
                 contentType: uploadResult.contentType,
-                uploadedAt: new Date(),
+                uploadDate: new Date(),
                 originalName: originalName
             };
 
             // Find the policy and update
             const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
             if (!policy) {
-                return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                return;
             }
 
             // Initialize files if it doesn't exist
@@ -286,8 +296,11 @@ class DocumentHandler {
             logger.error('Error al procesar PDF:', error);
             await ctx.reply('❌ Error al procesar el documento PDF.');
             // Considerar limpiar estado en error
-            const threadId = StateKeyManager.getThreadId(ctx);
-            this.handler.uploadTargets.delete(ctx.chat.id, threadId);
+            if (ctx.chat) {
+                const threadId = StateKeyManager.getThreadId(ctx);
+                const threadIdStr = threadId ? String(threadId) : '';
+                this.handler.uploadTargets.delete(ctx.chat.id, threadIdStr);
+            }
         }
     }
 

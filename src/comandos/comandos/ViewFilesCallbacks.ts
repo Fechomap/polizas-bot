@@ -1,11 +1,11 @@
 import { Context } from 'telegraf';
-import { BaseCommand } from './BaseCommand';
+import { BaseCommand, IBaseHandler } from './BaseCommand';
 import { getPolicyByNumber } from '../../controllers/policyController';
 import fetch from 'node-fetch';
 import { getInstance } from '../../services/CloudflareStorage';
 import { IPolicy, IR2FileObject } from '../../types/database';
 
-interface IHandler {
+interface IHandler extends IBaseHandler {
     registry: {
         registerCallback(pattern: RegExp, handler: (ctx: Context) => Promise<void>): void;
     };

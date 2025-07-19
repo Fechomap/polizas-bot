@@ -7,7 +7,7 @@ import {
     savePoliciesBatch
 } from '../../controllers/policyController';
 import { Markup } from 'telegraf';
-import { logger } from '../../utils/logger';
+import logger from '../../utils/logger';
 import StateKeyManager from '../../utils/StateKeyManager';
 import type {
     IContextBot,
@@ -183,7 +183,7 @@ class ExcelUploadHandler extends BaseCommand {
                 for (const row of batch) {
                     try {
                         // Mapear fila a objeto de póliza
-                        const policyData = this.mapRowToPolicy(headers, row);
+                        const policyData = this.mapRowToPolicy(headers, row) as IPolicyData;
 
                         // Validar datos mínimos
                         const validation = this.validatePolicyData(policyData);
@@ -198,11 +198,11 @@ class ExcelUploadHandler extends BaseCommand {
                         }
 
                         // Guardar en la base de datos
-                        const savedPolicy = await savePolicy(policyData);
+                        await savePolicy(policyData);
 
                         results.successful++;
                         results.details.push({
-                            numeroPoliza: savedPolicy.numeroPoliza,
+                            numeroPoliza: policyData.numeroPoliza,
                             status: 'SUCCESS',
                             message: 'Registrada correctamente'
                         });
@@ -348,7 +348,11 @@ class ExcelUploadHandler extends BaseCommand {
         policyData.estado = 'ACTIVO';
 
         // Inicializar arreglos vacíos para archivos, pagos y servicios
-        policyData.archivos = { fotos: [], pdfs: [] };
+        policyData.archivos = { 
+            fotos: [], 
+            pdfs: [], 
+            r2Files: { fotos: [], pdfs: [] } 
+        };
         policyData.pagos = [];
         policyData.servicios = [];
 

@@ -1,5 +1,21 @@
-// tests/unit/comandos/thread-safety.test.js
-const StateKeyManager = require('../../../src/utils/StateKeyManager');
+// tests/unit/comandos/thread-safety.test.ts
+import { jest } from '@jest/globals';
+import StateKeyManager from '../../../src/utils/StateKeyManager';
+import { Context } from 'telegraf';
+
+interface ThreadState {
+    estado?: string;
+    poliza?: string;
+    numeroPoliza?: string;
+    threadId?: number;
+    vehiculo?: any;
+    timestamp?: number;
+}
+
+interface ParsedContextKey {
+    chatId: string;
+    threadId: string | null;
+}
 
 describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
     describe('StateKeyManager - Generación de claves', () => {
@@ -23,7 +39,7 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             // Contexto con mensaje normal
             const ctxWithMessage = {
                 message: { message_thread_id: 777 }
-            };
+            } as unknown as Context;
             expect(StateKeyManager.getThreadId(ctxWithMessage)).toBe(777);
 
             // Contexto con callback query
@@ -31,11 +47,11 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
                 callbackQuery: {
                     message: { message_thread_id: 888 }
                 }
-            };
+            } as unknown as Context;
             expect(StateKeyManager.getThreadId(ctxWithCallback)).toBe(888);
 
             // Contexto sin threadId
-            const ctxNoThread = { message: {} };
+            const ctxNoThread = { message: {} } as unknown as Context;
             expect(StateKeyManager.getThreadId(ctxNoThread)).toBe(null);
         });
 
@@ -43,8 +59,8 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             const key1 = '123456:777';
             const key2 = '123456';
 
-            const parsed1 = StateKeyManager.parseContextKey(key1);
-            const parsed2 = StateKeyManager.parseContextKey(key2);
+            const parsed1 = StateKeyManager.parseContextKey(key1) as ParsedContextKey;
+            const parsed2 = StateKeyManager.parseContextKey(key2) as ParsedContextKey;
 
             expect(parsed1.chatId).toBe('123456');
             expect(parsed1.threadId).toBe('777');
@@ -54,7 +70,7 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
     });
 
     describe('StateKeyManager - Thread Safe State Map', () => {
-        let stateMap;
+        let stateMap: ReturnType<typeof StateKeyManager.createThreadSafeStateMap>;
 
         beforeEach(() => {
             stateMap = StateKeyManager.createThreadSafeStateMap();
@@ -104,12 +120,11 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
 
             const complexData = {
                 numeroPoliza: 'COMPLEX-001',
-                origenDestino: 'CDMX - Puebla',
-                usarFechaActual: true,
                 coordenadas: {
                     origen: { lat: 19.4326, lng: -99.1332 },
-                    destino: { lat: 19.0414, lng: -98.2063 }
-                }
+                    destino: { lat: 19.3793, lng: -99.1585 }
+                },
+                servicios: ['GPS', 'Asistencia Vial', 'Seguro Ampliado']
             };
 
             stateMap.set(chatId, complexData, threadId);
@@ -128,17 +143,17 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             // Establecer múltiples estados en diferentes threads
             stateMap.set(chatId, 'DATA-1', threadId1);
             stateMap.set(chatId, 'DATA-2', threadId2);
-            stateMap.set(chatId, 'DATA-MAIN', null);
+            stateMap.set(chatId, 'DATA-MAIN', null); // Thread principal
 
-            // Verificar que todos están establecidos
+            // Verificar que todos existen
             expect(stateMap.has(chatId, threadId1)).toBe(true);
             expect(stateMap.has(chatId, threadId2)).toBe(true);
             expect(stateMap.has(chatId, null)).toBe(true);
 
-            // Limpiar todos los estados del chat
+            // Eliminar todos los estados del chat
             const deletedCount = stateMap.deleteAll(chatId);
 
-            // Verificar que todos se limpiaron
+            // Verificar eliminación
             expect(deletedCount).toBe(3);
             expect(stateMap.has(chatId, threadId1)).toBe(false);
             expect(stateMap.has(chatId, threadId2)).toBe(false);
@@ -155,16 +170,22 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             stateMap.set(chatId, 'VALUE-2', threadId2);
             stateMap.set(chatId, 'VALUE-MAIN', null);
 
-            const allStates = stateMap.getAllByChatId(chatId);
+            // Obtener todos los estados
+            const allStates = stateMap.getAllInChat(chatId);
 
-            expect(allStates).toHaveLength(3);
+            // Verificar resultados
+            expect(Object.keys(allStates).length).toBe(3);
+            
+            // Extraer threadIds y values para verificaciones
+            const threadIds = Object.keys(allStates).map(key => {
+                const parsed = StateKeyManager.parseContextKey(key) as ParsedContextKey;
+                return parsed.threadId;
+            });
+            
+            const values = Object.values(allStates);
 
-            // Verificar que contiene todos los estados
-            const threadIds = allStates.map(state => state.threadId);
-            const values = allStates.map(state => state.value);
-
-            expect(threadIds).toContain(threadId1.toString());
-            expect(threadIds).toContain(threadId2.toString());
+            expect(threadIds).toContain('777');
+            expect(threadIds).toContain('888');
             expect(threadIds).toContain(null);
             expect(values).toContain('VALUE-1');
             expect(values).toContain('VALUE-2');
@@ -182,7 +203,6 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             expect(stateMap.get(chatId1, threadId)).toBe('CHAT1-DATA');
             expect(stateMap.get(chatId2, threadId)).toBe('CHAT2-DATA');
 
-            // Limpiar chat1 no debe afectar chat2
             stateMap.deleteAll(chatId1);
             expect(stateMap.has(chatId1, threadId)).toBe(false);
             expect(stateMap.has(chatId2, threadId)).toBe(true);
@@ -191,7 +211,7 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
     });
 
     describe('Casos de uso del mundo real', () => {
-        let stateMap;
+        let stateMap: ReturnType<typeof StateKeyManager.createThreadSafeStateMap>;
 
         beforeEach(() => {
             stateMap = StateKeyManager.createThreadSafeStateMap();
@@ -203,31 +223,29 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             const thread2 = 1002; // Thread de ventas
             const thread3 = 1003; // Thread general
 
-            // Usuario 1 en thread de soporte técnico consultando póliza
-            stateMap.set(groupChatId, { estado: 'consultando', poliza: 'SOPORTE-001' }, thread1);
+            // Simular diferentes usuarios en threads
+            stateMap.set(groupChatId, {
+                estado: 'consultando',
+                poliza: 'SOPORTE-001',
+                vehiculo: { marca: 'Toyota', año: 2022 }
+            } as ThreadState, thread1);
 
-            // Usuario 2 en thread de ventas añadiendo servicio
-            stateMap.set(
-                groupChatId,
-                {
-                    estado: 'añadiendo_servicio',
-                    numeroPoliza: 'VENTA-001',
-                    origenDestino: 'Toluca - CDMX'
-                },
-                thread2
-            );
+            stateMap.set(groupChatId, {
+                estado: 'añadiendo_servicio',
+                numeroPoliza: 'VENTA-001',
+                servicios: ['Asistencia vial', 'GPS']
+            } as ThreadState, thread2);
 
-            // Usuario 3 en thread general subiendo archivos
-            stateMap.set(
-                groupChatId,
-                { estado: 'subiendo_archivo', poliza: 'GENERAL-001' },
-                thread3
-            );
+            stateMap.set(groupChatId, {
+                estado: 'subiendo_archivo',
+                poliza: 'GENERAL-001',
+                archivos: ['archivo1.pdf']
+            } as ThreadState, thread3);
 
-            // Verificar que cada thread mantiene su estado independiente
-            const state1 = stateMap.get(groupChatId, thread1);
-            const state2 = stateMap.get(groupChatId, thread2);
-            const state3 = stateMap.get(groupChatId, thread3);
+            // Obtener estados
+            const state1 = stateMap.get(groupChatId, thread1) as ThreadState;
+            const state2 = stateMap.get(groupChatId, thread2) as ThreadState;
+            const state3 = stateMap.get(groupChatId, thread3) as ThreadState;
 
             expect(state1.estado).toBe('consultando');
             expect(state2.estado).toBe('añadiendo_servicio');
@@ -239,56 +257,49 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
         });
 
         it('debe prevenir contaminación entre threads concurrentes', async () => {
-            const chatId = 777666555;
-            const thread1 = 2001;
-            const thread2 = 2002;
-
-            // Simular procesamiento concurrente
-            const promises = [
-                // Thread 1: Usuario añadiendo pago
-                new Promise(resolve => {
-                    stateMap.set(chatId, { tipo: 'pago', estado: 'esperando_poliza' }, thread1);
-                    setTimeout(() => {
-                        stateMap.set(
-                            chatId,
-                            { tipo: 'pago', estado: 'procesando', poliza: 'PAGO-001' },
-                            thread1
-                        );
-                        resolve();
-                    }, 10);
-                }),
-
-                // Thread 2: Usuario añadiendo servicio
-                new Promise(resolve => {
-                    stateMap.set(chatId, { tipo: 'servicio', estado: 'esperando_poliza' }, thread2);
-                    setTimeout(() => {
-                        stateMap.set(
-                            chatId,
-                            { tipo: 'servicio', estado: 'procesando', poliza: 'SERVICIO-002' },
-                            thread2
-                        );
-                        resolve();
-                    }, 5);
-                })
-            ];
-
-            await Promise.all(promises);
-
-            // Verificar que no hubo interferencia
-            const state1 = stateMap.get(chatId, thread1);
-            const state2 = stateMap.get(chatId, thread2);
-
-            expect(state1.tipo).toBe('pago');
-            expect(state1.poliza).toBe('PAGO-001');
-            expect(state2.tipo).toBe('servicio');
-            expect(state2.poliza).toBe('SERVICIO-002');
+            const chatId = 333222111;
+            const threads = [2001, 2002, 2003, 2004, 2005];
+            
+            // Simular operaciones concurrentes
+            await Promise.all(threads.map(async (threadId) => {
+                // Simulación de operaciones asincrónicas
+                await new Promise(resolve => setTimeout(resolve, Math.random() * 10));
+                
+                stateMap.set(
+                    chatId,
+                    {
+                        estado: `estado_${threadId}`,
+                        vehiculo: { id: `vehiculo_${threadId}` },
+                        timestamp: Date.now()
+                    } as ThreadState,
+                    threadId
+                );
+            }));
+            
+            // Verificar cada thread individualmente
+            threads.forEach(threadId => {
+                const state = stateMap.get(chatId, threadId) as ThreadState;
+                expect(state.estado).toBe(`estado_${threadId}`);
+                expect(state.vehiculo.id).toBe(`vehiculo_${threadId}`);
+            });
+            
+            // Verificar sin contaminación cruzada
+            for (let i = 0; i < threads.length; i++) {
+                for (let j = 0; j < threads.length; j++) {
+                    if (i !== j) {
+                        const state_i = stateMap.get(chatId, threads[i]) as ThreadState;
+                        const state_j = stateMap.get(chatId, threads[j]) as ThreadState;
+                        expect(state_i.vehiculo.id).not.toBe(state_j.vehiculo.id);
+                    }
+                }
+            }
         });
-
-        it('debe manejar limpieza selectiva de threads', () => {
-            const chatId = 888777666;
-            const threads = [1001, 1002, 1003, 1004];
-
-            // Establecer estados en múltiples threads
+        
+        it('debe soportar operaciones de limpieza selectiva', () => {
+            const chatId = 444333222;
+            const threads = [1001, 1002, 1003, 1004, 1005];
+            
+            // Configurar datos en múltiples threads
             threads.forEach(threadId => {
                 stateMap.set(
                     chatId,
@@ -296,34 +307,37 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
                         threadId,
                         estado: 'activo',
                         timestamp: Date.now()
-                    },
+                    } as ThreadState,
                     threadId
                 );
             });
-
+            
             // Verificar que todos están activos
             threads.forEach(threadId => {
                 expect(stateMap.has(chatId, threadId)).toBe(true);
             });
-
+            
             // Limpiar solo threads específicos
             stateMap.delete(chatId, 1001);
             stateMap.delete(chatId, 1003);
-
+            
             // Verificar limpieza selectiva
             expect(stateMap.has(chatId, 1001)).toBe(false);
             expect(stateMap.has(chatId, 1002)).toBe(true);
             expect(stateMap.has(chatId, 1003)).toBe(false);
             expect(stateMap.has(chatId, 1004)).toBe(true);
-
+            
             // Verificar que los datos restantes siguen correctos
-            expect(stateMap.get(chatId, 1002).threadId).toBe(1002);
-            expect(stateMap.get(chatId, 1004).threadId).toBe(1004);
+            const state1002 = stateMap.get(chatId, 1002) as ThreadState;
+            const state1004 = stateMap.get(chatId, 1004) as ThreadState;
+            
+            expect(state1002.threadId).toBe(1002);
+            expect(state1004.threadId).toBe(1004);
         });
     });
 
     describe('Casos extremos y edge cases', () => {
-        let stateMap;
+        let stateMap: ReturnType<typeof StateKeyManager.createThreadSafeStateMap>;
 
         beforeEach(() => {
             stateMap = StateKeyManager.createThreadSafeStateMap();
@@ -375,8 +389,21 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             const chatId = 789012;
             const threadId = 555;
 
+            interface LargeData {
+                numeroPoliza: string;
+                servicios: Array<{
+                    id: number;
+                    descripcion: string;
+                    fecha: string;
+                }>;
+                metadata: {
+                    procesado: boolean;
+                    timestamp: number;
+                };
+            }
+
             // Crear un objeto grande
-            const largeData = {
+            const largeData: LargeData = {
                 numeroPoliza: 'LARGE-001',
                 servicios: Array.from({ length: 1000 }, (_, i) => ({
                     id: i,
@@ -390,7 +417,7 @@ describe('Thread Safety Tests - Verificación exhaustiva de thread_ids', () => {
             };
 
             stateMap.set(chatId, largeData, threadId);
-            const retrieved = stateMap.get(chatId, threadId);
+            const retrieved = stateMap.get(chatId, threadId) as LargeData;
 
             expect(retrieved.numeroPoliza).toBe('LARGE-001');
             expect(retrieved.servicios).toHaveLength(1000);

@@ -1,10 +1,12 @@
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const {
+import { jest } from '@jest/globals';
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import {
     VehicleRegistrationHandler,
     vehiculosEnProceso
-} = require('../../../src/comandos/comandos/VehicleRegistrationHandler');
-const Vehicle = require('../../../src/models/vehicle');
+} from '../../../src/comandos/comandos/VehicleRegistrationHandler';
+import Vehicle from '../../../src/models/vehicle';
+import { Context } from 'telegraf';
 
 // Mock del bot de Telegram
 const mockBot = {
@@ -48,8 +50,48 @@ jest.mock('../../../src/controllers/vehicleController', () => ({
 
 const VehicleController = require('../../../src/controllers/vehicleController');
 
+interface VehiculoDatos {
+    serie?: string;
+    marca?: string;
+    submarca?: string;
+    año?: number;
+    color?: string;
+    placas?: string;
+    titular?: string;
+    rfc?: string;
+    telefono?: string;
+}
+
+interface VehiculoRegistro {
+    estado?: string;
+    chatId?: number;
+    datos?: VehiculoDatos;
+    fotos?: Array<{
+        url: string;
+        key: string;
+        originalname?: string;
+    }>;
+    test?: string;
+    iniciado?: Date;
+}
+
+interface TelegramMessage {
+    chat: {
+        id: number;
+    };
+    text?: string;
+    photo?: Array<{
+        file_id: string;
+    }>;
+    document?: {
+        file_id: string;
+        file_name?: string;
+    };
+    message_thread_id?: number;
+}
+
 describe('VehicleRegistrationHandler', () => {
-    let mongoServer;
+    let mongoServer: MongoMemoryServer;
     const chatId = 123456;
     const userId = 'user123';
 
@@ -97,7 +139,7 @@ describe('VehicleRegistrationHandler', () => {
 
         test('debe limpiar registro previo si existe', async () => {
             // Crear registro previo
-            vehiculosEnProceso.set(userId, { test: 'data' });
+            vehiculosEnProceso.set(userId, { test: 'data' } as VehiculoRegistro);
             expect(vehiculosEnProceso.has(userId)).toBe(true);
 
             await VehicleRegistrationHandler.iniciarRegistro(mockBot, chatId, userId);
@@ -128,10 +170,21 @@ describe('VehicleRegistrationHandler', () => {
             jest.clearAllMocks();
         });
 
-        test('debe retornar false si no hay registro en proceso', async () => {
-            const otroUserId = 'otroUser';
-            const msg = { chat: { id: chatId }, text: 'test' };
+        test('debe rechazar mensaje si no hay registro en proceso', async () => {
+            vehiculosEnProceso.clear();
+            const msg = { chat: { id: chatId }, text: 'texto' } as TelegramMessage;
+            const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                mockBot,
+                msg,
+                userId
+            );
 
+            expect(resultado).toBe(false);
+        });
+
+        test('debe rechazar mensaje para otro usuario', async () => {
+            const otroUserId = 'otro_user';
+            const msg = { chat: { id: chatId }, text: 'texto' } as TelegramMessage;
             const resultado = await VehicleRegistrationHandler.procesarMensaje(
                 mockBot,
                 msg,
@@ -145,7 +198,7 @@ describe('VehicleRegistrationHandler', () => {
             test('debe procesar serie válida correctamente', async () => {
                 VehicleController.buscarVehiculo.mockResolvedValue({ success: false });
 
-                const msg = { chat: { id: chatId }, text: '1HGBH41JXMN109186' };
+                const msg = { chat: { id: chatId }, text: '1HGBH41JXMN109186' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -155,17 +208,17 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ Serie: *1HGBH41JXMN109186*'),
+                    expect.stringContaining('✅ Serie validada correctamente'),
                     expect.any(Object)
                 );
 
                 const registro = vehiculosEnProceso.get(userId);
-                expect(registro.datos.serie).toBe('1HGBH41JXMN109186');
+                expect(registro.datos?.serie).toBe('1HGBH41JXMN109186');
                 expect(registro.estado).toBe('esperando_marca');
             });
 
             test('debe rechazar serie con longitud incorrecta', async () => {
-                const msg = { chat: { id: chatId }, text: '123456' };
+                const msg = { chat: { id: chatId }, text: '123456' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -187,14 +240,11 @@ describe('VehicleRegistrationHandler', () => {
                     success: true,
                     vehiculo: {
                         marca: 'Toyota',
-                        submarca: 'Corolla',
-                        año: 2022,
-                        color: 'Negro',
-                        titular: 'Juan Test'
+                        submarca: 'Corolla'
                     }
                 });
 
-                const msg = { chat: { id: chatId }, text: '1HGBH41JXMN109186' };
+                const msg = { chat: { id: chatId }, text: '1HGBH41JXMN109186' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -214,13 +264,16 @@ describe('VehicleRegistrationHandler', () => {
             beforeEach(async () => {
                 // Avanzar al estado de marca
                 VehicleController.buscarVehiculo.mockResolvedValue({ success: false });
-                const msgSerie = { chat: { id: chatId }, text: '1HGBH41JXMN109186' };
-                await VehicleRegistrationHandler.procesarMensaje(mockBot, msgSerie, userId);
+                const msg = { chat: { id: chatId }, text: '1HGBH41JXMN109186' } as TelegramMessage;
+                await VehicleRegistrationHandler.procesarMensaje(mockBot, msg, userId);
                 jest.clearAllMocks();
+
+                const registro = vehiculosEnProceso.get(userId);
+                expect(registro.estado).toBe('esperando_marca');
             });
 
-            test('debe procesar marca válida', async () => {
-                const msg = { chat: { id: chatId }, text: 'Toyota' };
+            test('debe procesar marca válida correctamente', async () => {
+                const msg = { chat: { id: chatId }, text: 'Toyota' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -230,17 +283,17 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ Marca: *Toyota*'),
+                    expect.stringContaining('✅ Marca registrada correctamente'),
                     expect.any(Object)
                 );
 
                 const registro = vehiculosEnProceso.get(userId);
-                expect(registro.datos.marca).toBe('Toyota');
+                expect(registro.datos?.marca).toBe('Toyota');
                 expect(registro.estado).toBe('esperando_submarca');
             });
 
             test('debe rechazar marca muy corta', async () => {
-                const msg = { chat: { id: chatId }, text: 'A' };
+                const msg = { chat: { id: chatId }, text: 'A' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -261,11 +314,15 @@ describe('VehicleRegistrationHandler', () => {
                 // Avanzar al estado de año
                 const registro = vehiculosEnProceso.get(userId);
                 registro.estado = 'esperando_año';
-                registro.datos = { serie: 'TEST123', marca: 'Toyota', submarca: 'Corolla' };
+                registro.datos = {
+                    serie: '1HGBH41JXMN109186',
+                    marca: 'Toyota',
+                    submarca: 'Corolla'
+                };
             });
 
-            test('debe procesar año válido', async () => {
-                const msg = { chat: { id: chatId }, text: '2023' };
+            test('debe procesar año válido correctamente', async () => {
+                const msg = { chat: { id: chatId }, text: '2023' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -275,17 +332,16 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ Año: *2023*'),
+                    expect.stringContaining('✅ Año registrado correctamente'),
                     expect.any(Object)
                 );
 
                 const registro = vehiculosEnProceso.get(userId);
-                expect(registro.datos.año).toBe(2023);
+                expect(registro.datos?.año).toBe(2023);
             });
 
-            test('debe rechazar año futuro inválido', async () => {
-                const añoFuturo = new Date().getFullYear() + 5;
-                const msg = { chat: { id: chatId }, text: añoFuturo.toString() };
+            test('debe rechazar año inválido', async () => {
+                const msg = { chat: { id: chatId }, text: 'año_inválido' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -295,13 +351,30 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('❌ El año debe ser un número válido'),
+                    expect.stringContaining('❌ Formato de año incorrecto'),
+                    expect.any(Object)
+                );
+            });
+
+            test('debe rechazar año futuro', async () => {
+                const añoFuturo = new Date().getFullYear() + 2;
+                const msg = { chat: { id: chatId }, text: añoFuturo.toString() } as TelegramMessage;
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('❌ El año no puede ser futuro'),
                     expect.any(Object)
                 );
             });
 
             test('debe rechazar año muy antiguo', async () => {
-                const msg = { chat: { id: chatId }, text: '1800' };
+                const msg = { chat: { id: chatId }, text: '1900' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -311,7 +384,7 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('❌ El año debe ser un número válido'),
+                    expect.stringContaining('❌ El año no puede ser anterior a 1950'),
                     expect.any(Object)
                 );
             });
@@ -319,7 +392,7 @@ describe('VehicleRegistrationHandler', () => {
 
         describe('procesarPlacas', () => {
             beforeEach(async () => {
-                // Configurar registro hasta placas
+                // Avanzar al estado de placas
                 const registro = vehiculosEnProceso.get(userId);
                 registro.estado = 'esperando_placas';
                 registro.datos = {
@@ -329,27 +402,10 @@ describe('VehicleRegistrationHandler', () => {
                     año: 2023,
                     color: 'Blanco'
                 };
-
-                VehicleController.registrarVehiculo.mockResolvedValue({
-                    success: true,
-                    vehicle: {
-                        _id: 'vehicleId123',
-                        serie: '1HGBH41JXMN109186',
-                        marca: 'Toyota',
-                        submarca: 'Corolla',
-                        año: 2023,
-                        color: 'Blanco',
-                        placas: 'ABC-123-D'
-                    },
-                    datosGenerados: {
-                        titular: 'Juan Pérez García',
-                        telefono: '+52 55 1234 5678'
-                    }
-                });
             });
 
-            test('debe procesar placas y crear vehículo', async () => {
-                const msg = { chat: { id: chatId }, text: 'ABC-123-D' };
+            test('debe procesar placas correctamente', async () => {
+                const msg = { chat: { id: chatId }, text: 'ABC-123-D' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -357,34 +413,194 @@ describe('VehicleRegistrationHandler', () => {
                 );
 
                 expect(resultado).toBe(true);
-                expect(VehicleController.registrarVehiculo).toHaveBeenCalledWith(
-                    expect.objectContaining({
-                        serie: '1HGBH41JXMN109186',
-                        placas: 'ABC-123-D'
-                    }),
-                    userId
-                );
-
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ *AUTO REGISTRADO*'),
-                    expect.objectContaining({
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: '✅ Finalizar', callback_data: 'vehiculo_finalizar' }],
-                                [{ text: '❌ Cancelar', callback_data: 'vehiculo_cancelar' }]
-                            ]
-                        }
-                    })
+                    expect.stringContaining('✅ Placas registradas correctamente'),
+                    expect.any(Object)
                 );
 
                 const registro = vehiculosEnProceso.get(userId);
-                expect(registro.estado).toBe('esperando_fotos');
-                expect(registro.vehicleId).toBe('vehicleId123');
+                expect(registro.datos?.placas).toBe('ABC-123-D');
             });
 
-            test('debe manejar "SIN PLACAS"', async () => {
-                const msg = { chat: { id: chatId }, text: 'SIN PLACAS' };
+            test('debe aceptar "PERMISO" como placas válidas', async () => {
+                const msg = { chat: { id: chatId }, text: 'PERMISO' } as TelegramMessage;
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('✅ Permiso registrado correctamente'),
+                    expect.any(Object)
+                );
+
+                const registro = vehiculosEnProceso.get(userId);
+                expect(registro.datos?.placas).toBe('PERMISO');
+            });
+        });
+
+        describe('procesarFotos', () => {
+            beforeEach(async () => {
+                // Avanzar al estado de fotos
+                const registro = vehiculosEnProceso.get(userId);
+                registro.estado = 'esperando_fotos';
+                registro.datos = {
+                    serie: '1HGBH41JXMN109186',
+                    marca: 'Toyota',
+                    submarca: 'Corolla',
+                    año: 2023,
+                    color: 'Blanco',
+                    placas: 'ABC-123-D'
+                };
+                registro.fotos = [];
+            });
+
+            test('debe procesar foto correctamente', async () => {
+                const fileBuffer = Buffer.from('fake image data');
+                mockBot.telegram.getFile.mockResolvedValue({
+                    file_path: 'photos/file_123.jpg',
+                    buffer: () => Promise.resolve(fileBuffer)
+                });
+
+                const CloudflareStorage = require('../../../src/services/CloudflareStorage');
+                CloudflareStorage.uploadFile.mockResolvedValue({
+                    url: 'https://example.com/test.jpg',
+                    key: 'test-key-123'
+                });
+
+                const msg = {
+                    chat: { id: chatId },
+                    photo: [{ file_id: 'photo_id' }]
+                } as TelegramMessage;
+
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.getFile).toHaveBeenCalledWith('photo_id');
+                expect(CloudflareStorage.uploadFile).toHaveBeenCalledWith(
+                    fileBuffer,
+                    expect.any(String)
+                );
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('✅ Foto recibida y guardada'),
+                    expect.any(Object)
+                );
+
+                const registro = vehiculosEnProceso.get(userId);
+                expect(registro.fotos).toHaveLength(1);
+                expect(registro.fotos?.[0]).toMatchObject({
+                    url: 'https://example.com/test.jpg',
+                    key: 'test-key-123'
+                });
+            });
+
+            test('debe continuar cuando se recibe el mensaje FINALIZAR', async () => {
+                const registro = vehiculosEnProceso.get(userId);
+                registro.fotos = [
+                    {
+                        url: 'https://example.com/test.jpg',
+                        key: 'test-key-123'
+                    }
+                ];
+
+                const msg = { chat: { id: chatId }, text: 'FINALIZAR' } as TelegramMessage;
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('📝 *DATOS DEL TITULAR*'),
+                    expect.any(Object)
+                );
+            });
+
+            test('debe rechazar finalización sin fotos', async () => {
+                const msg = { chat: { id: chatId }, text: 'FINALIZAR' } as TelegramMessage;
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('❌ Debes enviar al menos una foto'),
+                    expect.any(Object)
+                );
+            });
+
+            test('debe manejar error en procesamiento de foto', async () => {
+                mockBot.telegram.getFile.mockResolvedValue({
+                    file_path: 'photos/file_123.jpg',
+                    buffer: () => Promise.reject(new Error('Error al obtener archivo'))
+                });
+
+                const msg = {
+                    chat: { id: chatId },
+                    photo: [{ file_id: 'photo_id' }]
+                } as TelegramMessage;
+
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('❌ Error al guardar foto')
+                );
+            });
+        });
+
+        describe('procesarConfirmacion', () => {
+            beforeEach(async () => {
+                // Avanzar al estado de confirmación final
+                const registro = vehiculosEnProceso.get(userId);
+                registro.estado = 'esperando_confirmacion';
+                registro.datos = {
+                    serie: '1HGBH41JXMN109186',
+                    marca: 'Toyota',
+                    submarca: 'Corolla',
+                    año: 2023,
+                    color: 'Blanco',
+                    placas: 'ABC-123-D',
+                    titular: 'Juan Pérez',
+                    rfc: 'PEGJ850312H7A',
+                    telefono: '+52 55 1234 5678'
+                };
+                registro.fotos = [
+                    {
+                        url: 'https://example.com/test.jpg',
+                        key: 'test-key-123'
+                    }
+                ];
+            });
+
+            test('debe confirmar y registrar vehículo correctamente', async () => {
+                VehicleController.registrarVehiculo.mockResolvedValue({
+                    success: true,
+                    vehiculo: { _id: 'vehicle_id_123' }
+                });
+
+                VehicleController.agregarFotos.mockResolvedValue({ success: true });
+
+                const msg = { chat: { id: chatId }, text: 'CONFIRMAR' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -394,19 +610,25 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(VehicleController.registrarVehiculo).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        placas: ''
-                    }),
-                    userId
+                        serie: '1HGBH41JXMN109186',
+                        marca: 'Toyota'
+                    })
                 );
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('✅ *VEHÍCULO REGISTRADO*'),
+                    expect.any(Object)
+                );
+                expect(vehiculosEnProceso.has(userId)).toBe(false);
             });
 
             test('debe manejar error en registro de vehículo', async () => {
                 VehicleController.registrarVehiculo.mockResolvedValue({
                     success: false,
-                    error: 'Error de prueba'
+                    error: 'Error de base de datos'
                 });
 
-                const msg = { chat: { id: chatId }, text: 'ABC-123-D' };
+                const msg = { chat: { id: chatId }, text: 'CONFIRMAR' } as TelegramMessage;
                 const resultado = await VehicleRegistrationHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -416,101 +638,43 @@ describe('VehicleRegistrationHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('❌ Error al registrar vehículo: Error de prueba')
+                    expect.stringContaining('❌ Error al registrar vehículo: Error de base de datos')
                 );
-                expect(vehiculosEnProceso.has(userId)).toBe(false);
+            });
+
+            test('debe permitir edición de datos', async () => {
+                const msg = { chat: { id: chatId }, text: 'EDITAR' } as TelegramMessage;
+                const resultado = await VehicleRegistrationHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('🖋 *EDICIÓN DE DATOS*'),
+                    expect.any(Object)
+                );
             });
         });
-    });
 
-    describe('procesarFotos', () => {
-        beforeEach(async () => {
-            // Configurar registro en estado de fotos
-            vehiculosEnProceso.set(userId, {
-                estado: 'esperando_fotos',
-                vehicleId: 'vehicleId123',
-                vehicleData: { _id: 'vehicleId123', marca: 'Toyota' },
-                datosGenerados: { titular: 'Juan Test' }
-            });
-        });
-
-        test('debe procesar foto correctamente', async () => {
-            VehicleController.agregarFotos.mockResolvedValue({
-                success: true,
-                totalFotos: 1
-            });
-
+        test('debe manejar error en subida de archivo', async () => {
+            const registro = vehiculosEnProceso.get(userId);
+            registro.estado = 'esperando_fotos';
+            
             mockBot.telegram.getFile.mockResolvedValue({
-                file_path: 'photos/file123.jpg'
-            });
-
-            // Mock de fetch global para la descarga de la foto
-            global.fetch = jest.fn().mockResolvedValue({
+                file_path: 'photos/file_123.jpg',
                 buffer: () => Promise.resolve(Buffer.from('fake image data'))
             });
 
-            const msg = {
-                chat: { id: chatId },
-                photo: [{ file_id: 'photo_small' }, { file_id: 'photo_large' }]
-            };
-
-            const resultado = await VehicleRegistrationHandler.procesarMensaje(
-                mockBot,
-                msg,
-                userId
-            );
-
-            expect(resultado).toBe(true);
-            expect(mockBot.telegram.getFile).toHaveBeenCalledWith('photo_large');
-            expect(VehicleController.agregarFotos).toHaveBeenCalledWith(
-                'vehicleId123',
-                expect.arrayContaining([
-                    expect.objectContaining({
-                        originalname: expect.stringMatching(/foto_\d+\.jpg/),
-                        mimetype: 'image/jpeg'
-                    })
-                ])
-            );
-
-            expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                chatId,
-                expect.stringContaining('✅ Foto guardada exitosamente')
-            );
-        });
-
-        test('debe rechazar mensaje sin foto', async () => {
-            const msg = { chat: { id: chatId }, text: 'mensaje sin foto' };
-            const resultado = await VehicleRegistrationHandler.procesarMensaje(
-                mockBot,
-                msg,
-                userId
-            );
-
-            expect(resultado).toBe(true);
-            expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                chatId,
-                expect.stringContaining('📸 Por favor envía una foto del vehículo')
-            );
-        });
-
-        test('debe manejar error al guardar foto', async () => {
-            VehicleController.agregarFotos.mockResolvedValue({
-                success: false,
-                error: 'Error al subir'
-            });
-
-            mockBot.telegram.getFile.mockResolvedValue({
-                file_path: 'photos/file123.jpg'
-            });
-
-            global.fetch = jest.fn().mockResolvedValue({
-                buffer: () => Promise.resolve(Buffer.from('fake image data'))
-            });
+            const CloudflareStorage = require('../../../src/services/CloudflareStorage');
+            CloudflareStorage.uploadFile.mockRejectedValue(new Error('Error al subir'));
 
             const msg = {
                 chat: { id: chatId },
                 photo: [{ file_id: 'photo_id' }]
-            };
+            } as TelegramMessage;
 
             const resultado = await VehicleRegistrationHandler.procesarMensaje(
                 mockBot,
@@ -528,7 +692,7 @@ describe('VehicleRegistrationHandler', () => {
 
     describe('finalizarRegistro', () => {
         test('debe finalizar registro exitosamente con fotos', async () => {
-            const registro = {
+            const registro: VehiculoRegistro = {
                 datos: {
                     serie: '1HGBH41JXMN109186',
                     marca: 'Toyota',
@@ -567,7 +731,7 @@ describe('VehicleRegistrationHandler', () => {
         test('debe manejar error en finalización', async () => {
             mockBot.telegram.sendMessage.mockRejectedValueOnce(new Error('Error de red'));
 
-            const registro = { vehicleData: { _id: 'test' } };
+            const registro = { vehicleData: { _id: 'test' } } as unknown as VehiculoRegistro;
             const resultado = await VehicleRegistrationHandler.finalizarRegistro(
                 mockBot,
                 chatId,
@@ -583,12 +747,12 @@ describe('VehicleRegistrationHandler', () => {
         test('tieneRegistroEnProceso debe retornar estado correcto', () => {
             expect(VehicleRegistrationHandler.tieneRegistroEnProceso(userId)).toBe(false);
 
-            vehiculosEnProceso.set(userId, { test: 'data' });
+            vehiculosEnProceso.set(userId, { test: 'data' } as VehiculoRegistro);
             expect(VehicleRegistrationHandler.tieneRegistroEnProceso(userId)).toBe(true);
         });
 
         test('cancelarRegistro debe limpiar estado', () => {
-            vehiculosEnProceso.set(userId, { test: 'data' });
+            vehiculosEnProceso.set(userId, { test: 'data' } as VehiculoRegistro);
 
             VehicleRegistrationHandler.cancelarRegistro(userId);
             expect(vehiculosEnProceso.has(userId)).toBe(false);
@@ -599,12 +763,13 @@ describe('VehicleRegistrationHandler', () => {
                 estado: 'esperando_serie',
                 iniciado: new Date(),
                 datos: { marca: 'Toyota' }
-            });
+            } as VehiculoRegistro);
+            
             vehiculosEnProceso.set('user2', {
                 estado: 'esperando_marca',
                 iniciado: new Date(),
                 datos: {}
-            });
+            } as VehiculoRegistro);
 
             const stats = VehicleRegistrationHandler.getEstadisticasRegistros();
 

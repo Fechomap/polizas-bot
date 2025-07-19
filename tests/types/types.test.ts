@@ -6,23 +6,25 @@
 import { jest } from '@jest/globals';
 
 // Importar tipos
-import type { IPolicy, IVehicle, IScheduledNotification } from '../../types/database';
+import type { IPolicy, IVehicle, IScheduledNotification } from '../../src/types/database';
 import type { BotContext } from '../../types/global';
 
 describe('Database Types Tests', () => {
     test('IPolicy tiene todas las propiedades requeridas', () => {
-        const mockPolicy: IPolicy = {
-            _id: 'test-id',
+        const mockPolicy: Partial<IPolicy> = {
+            titular: 'Juan Pérez',
             numeroPoliza: 'POL-001',
-            empresa: 'Test Insurance',
-            tipoPoliza: 'AUTO',
-            fechaInicio: new Date('2024-01-01'),
-            fechaFin: new Date('2024-12-31'),
-            prima: 12000,
-            cobertura: 'Amplia',
-            estado: 'ACTIVA',
-            beneficiario: 'Juan Pérez',
-            vehiculos: [],
+            aseguradora: 'Test Insurance',
+            fechaEmision: new Date('2024-01-01'),
+            marca: 'Toyota',
+            submarca: 'Corolla',
+            año: 2024,
+            color: 'Blanco',
+            serie: 'VIN123456789',
+            placas: 'ABC-123',
+            agenteCotizador: 'Agente Test',
+            rfc: 'PEGJ850312H7A',
+            estado: 'ACTIVO',
             servicios: [],
             pagos: [],
             createdAt: new Date(),
@@ -30,85 +32,72 @@ describe('Database Types Tests', () => {
         };
 
         expect(mockPolicy.numeroPoliza).toBe('POL-001');
-        expect(mockPolicy.empresa).toBe('Test Insurance');
-        expect(mockPolicy.tipoPoliza).toBe('AUTO');
-        expect(mockPolicy.estado).toBe('ACTIVA');
-        expect(Array.isArray(mockPolicy.vehiculos)).toBe(true);
+        expect(mockPolicy.aseguradora).toBe('Test Insurance');
+        expect(mockPolicy.titular).toBe('Juan Pérez');
+        expect(mockPolicy.estado).toBe('ACTIVO');
         expect(Array.isArray(mockPolicy.servicios)).toBe(true);
         expect(Array.isArray(mockPolicy.pagos)).toBe(true);
     });
 
     test('IVehicle tiene todas las propiedades requeridas', () => {
-        const mockVehicle: IVehicle = {
-            _id: 'vehicle-id',
-            modelo: 'Toyota Corolla',
+        const mockVehicle: Partial<IVehicle> = {
+            serie: 'VIN123456789',
             marca: 'Toyota',
+            submarca: 'Corolla',
             año: 2024,
-            placas: 'ABC-123',
-            numeroSerie: 'VIN123456789',
             color: 'Blanco',
-            tipo: 'SEDAN',
-            uso: 'PARTICULAR',
-            puertas: 4,
-            asientos: 5,
-            motor: '1.8L',
-            transmision: 'AUTOMATICA',
-            combustible: 'GASOLINA',
-            valorComercial: 350000,
-            propietario: {
-                nombre: 'Juan Pérez',
-                rfc: 'PEGJ850312H7A',
-                telefono: '+52 55 1234 5678',
-                email: 'juan@example.com',
-                direccion: {
-                    calle: 'Calle 123',
-                    colonia: 'Centro',
-                    ciudad: 'Ciudad de México',
-                    estado: 'CDMX',
-                    codigoPostal: '01000'
-                }
-            },
-            estado: 'ACTIVO',
+            placas: 'ABC-123',
+            titular: 'Juan Pérez',
+            rfc: 'PEGJ850312H7A',
+            telefono: '+52 55 1234 5678',
+            correo: 'juan@example.com',
+            calle: 'Calle 123',
+            colonia: 'Centro',
+            municipio: 'Ciudad de México',
+            estadoRegion: 'CDMX',
+            cp: '01000',
+            estado: 'SIN_POLIZA',
+            creadoPor: 'user123',
+            creadoVia: 'TELEGRAM_BOT',
             createdAt: new Date(),
             updatedAt: new Date()
         };
 
-        expect(mockVehicle.modelo).toBe('Toyota Corolla');
+        expect(mockVehicle.serie).toBe('VIN123456789');
         expect(mockVehicle.marca).toBe('Toyota');
+        expect(mockVehicle.submarca).toBe('Corolla');
         expect(mockVehicle.año).toBe(2024);
         expect(mockVehicle.placas).toBe('ABC-123');
-        expect(mockVehicle.propietario.nombre).toBe('Juan Pérez');
-        expect(mockVehicle.propietario.direccion.ciudad).toBe('Ciudad de México');
+        expect(mockVehicle.titular).toBe('Juan Pérez');
+        expect(mockVehicle.municipio).toBe('Ciudad de México');
     });
 
     test('IScheduledNotification tiene todas las propiedades requeridas', () => {
-        const mockNotification: IScheduledNotification = {
-            _id: 'notification-id',
-            userId: 12345,
-            chatId: -1000,
-            message: 'Test notification',
-            scheduledFor: new Date('2024-12-31'),
-            type: 'REMINDER',
-            priority: 'NORMAL',
+        const mockNotification: Partial<IScheduledNotification> = {
+            numeroPoliza: 'POL-001',
+            expedienteNum: 'EXP-123',
+            origenDestino: 'CDMX - Guadalajara',
+            placas: 'ABC-123',
+            marcaModelo: 'Toyota Corolla',
+            colorVehiculo: 'Blanco',
+            telefono: '+52 55 1234 5678',
+            contactTime: '09:00',
+            scheduledDate: new Date('2024-12-31'),
+            targetGroupId: -1000,
+            tipoNotificacion: 'CONTACTO',
             status: 'PENDING',
-            attempts: 0,
-            maxAttempts: 3,
-            retryDelay: 60000,
-            metadata: {
-                policyId: 'policy-123',
-                reminderType: 'PAYMENT'
-            },
+            retryCount: 0,
             createdAt: new Date(),
             updatedAt: new Date()
         };
 
-        expect(mockNotification.userId).toBe(12345);
-        expect(mockNotification.chatId).toBe(-1000);
-        expect(mockNotification.message).toBe('Test notification');
-        expect(mockNotification.type).toBe('REMINDER');
+        expect(mockNotification.numeroPoliza).toBe('POL-001');
+        expect(mockNotification.expedienteNum).toBe('EXP-123');
+        expect(mockNotification.origenDestino).toBe('CDMX - Guadalajara');
+        expect(mockNotification.tipoNotificacion).toBe('CONTACTO');
         expect(mockNotification.status).toBe('PENDING');
-        expect(mockNotification.attempts).toBe(0);
-        expect(mockNotification.metadata?.policyId).toBe('policy-123');
+        expect(mockNotification.retryCount).toBe(0);
+        expect(mockNotification.targetGroupId).toBe(-1000);
     });
 });
 
@@ -144,22 +133,24 @@ describe('Bot Context Types Tests', () => {
 
 describe('Type Utility Tests', () => {
     test('Los tipos pueden ser utilizados en funciones', () => {
-        const processPolicy = (policy: IPolicy): string => {
-            return `Policy ${policy.numeroPoliza} for ${policy.beneficiario}`;
+        const processPolicy = (policy: Partial<IPolicy>): string => {
+            return `Policy ${policy.numeroPoliza} for ${policy.titular}`;
         };
 
-        const testPolicy: IPolicy = {
-            _id: 'test-id',
+        const testPolicy: Partial<IPolicy> = {
             numeroPoliza: 'POL-001',
-            empresa: 'Test Insurance',
-            tipoPoliza: 'AUTO',
-            fechaInicio: new Date('2024-01-01'),
-            fechaFin: new Date('2024-12-31'),
-            prima: 12000,
-            cobertura: 'Amplia',
-            estado: 'ACTIVA',
-            beneficiario: 'Juan Pérez',
-            vehiculos: [],
+            titular: 'Juan Pérez',
+            aseguradora: 'Test Insurance',
+            fechaEmision: new Date('2024-01-01'),
+            marca: 'Toyota',
+            submarca: 'Corolla',
+            año: 2024,
+            color: 'Blanco',
+            serie: 'VIN123456789',
+            placas: 'ABC-123',
+            agenteCotizador: 'Agente Test',
+            rfc: 'PEGJ850312H7A',
+            estado: 'ACTIVO',
             servicios: [],
             pagos: [],
             createdAt: new Date(),
@@ -171,42 +162,31 @@ describe('Type Utility Tests', () => {
     });
 
     test('Los tipos opcionales funcionan correctamente', () => {
-        const processVehicle = (vehicle: IVehicle): string => {
-            const extras = vehicle.extras ? ` with ${vehicle.extras.join(', ')}` : '';
-            return `${vehicle.marca} ${vehicle.modelo}${extras}`;
+        const processVehicle = (vehicle: Partial<IVehicle>): string => {
+            const extras = vehicle.notas ? ` with ${vehicle.notas}` : '';
+            return `${vehicle.marca} ${vehicle.submarca}${extras}`;
         };
 
-        const vehicleWithExtras: IVehicle = {
-            _id: 'vehicle-id',
-            modelo: 'Corolla',
+        const vehicleWithExtras: Partial<IVehicle> = {
+            serie: 'VIN123456789',
+            submarca: 'Corolla',
             marca: 'Toyota',
             año: 2024,
-            placas: 'ABC-123',
-            numeroSerie: 'VIN123456789',
             color: 'Blanco',
-            tipo: 'SEDAN',
-            uso: 'PARTICULAR',
-            puertas: 4,
-            asientos: 5,
-            motor: '1.8L',
-            transmision: 'AUTOMATICA',
-            combustible: 'GASOLINA',
-            valorComercial: 350000,
-            propietario: {
-                nombre: 'Juan Pérez',
-                rfc: 'PEGJ850312H7A',
-                telefono: '+52 55 1234 5678',
-                email: 'juan@example.com',
-                direccion: {
-                    calle: 'Calle 123',
-                    colonia: 'Centro',
-                    ciudad: 'Ciudad de México',
-                    estado: 'CDMX',
-                    codigoPostal: '01000'
-                }
-            },
-            estado: 'ACTIVO',
-            extras: ['GPS', 'Aire acondicionado'],
+            placas: 'ABC-123',
+            titular: 'Juan Pérez',
+            rfc: 'PEGJ850312H7A',
+            telefono: '+52 55 1234 5678',
+            correo: 'juan@example.com',
+            calle: 'Calle 123',
+            colonia: 'Centro',
+            municipio: 'Ciudad de México',
+            estadoRegion: 'CDMX',
+            cp: '01000',
+            estado: 'SIN_POLIZA',
+            creadoPor: 'user123',
+            creadoVia: 'TELEGRAM_BOT',
+            notas: 'GPS, Aire acondicionado',
             createdAt: new Date(),
             updatedAt: new Date()
         };
@@ -218,16 +198,15 @@ describe('Type Utility Tests', () => {
 
 describe('Enum Types Tests', () => {
     test('Los tipos de enum funcionan correctamente', () => {
-        const validStates = ['ACTIVA', 'VENCIDA', 'CANCELADA', 'SUSPENDIDA'] as const;
+        const validStates = ['ACTIVO', 'INACTIVO', 'ELIMINADO'] as const;
         type PolicyState = typeof validStates[number];
 
         const checkPolicyState = (state: PolicyState): boolean => {
             return validStates.includes(state);
         };
 
-        expect(checkPolicyState('ACTIVA')).toBe(true);
-        expect(checkPolicyState('VENCIDA')).toBe(true);
-        expect(checkPolicyState('CANCELADA')).toBe(true);
-        expect(checkPolicyState('SUSPENDIDA')).toBe(true);
+        expect(checkPolicyState('ACTIVO')).toBe(true);
+        expect(checkPolicyState('INACTIVO')).toBe(true);
+        expect(checkPolicyState('ELIMINADO')).toBe(true);
     });
 });

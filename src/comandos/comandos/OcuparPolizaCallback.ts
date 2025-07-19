@@ -1,6 +1,6 @@
 import { Context, Markup } from 'telegraf';
 import { Message } from 'telegraf/typings/core/types/typegram';
-import { BaseCommand } from './BaseCommand';
+import { BaseCommand, IBaseHandler } from './BaseCommand';
 import {
     getPolicyByNumber,
     convertirRegistroAServicio,
@@ -10,7 +10,8 @@ import {
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/NotificationManager';
 import HereMapsService from '../../services/HereMapsService';
-import { IPolicy, IThreadSafeStateMap } from '../../types/database';
+import { IPolicy } from '../../types/database';
+import type { IThreadSafeStateMap } from '../../utils/StateKeyManager';
 
 interface IScheduledServiceInfo {
     numeroPoliza: string;
@@ -23,7 +24,7 @@ interface IScheduledServiceInfo {
     policy?: IPolicy;
 }
 
-interface IHandler {
+interface IHandler extends IBaseHandler {
     awaitingPhoneNumber: IThreadSafeStateMap<string>;
     awaitingOrigenDestino: IThreadSafeStateMap<string>;
     awaitingOrigen: IThreadSafeStateMap<string>;
@@ -95,7 +96,8 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
                 if (!policy) {
-                    return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    return;
                 }
 
                 this.polizaCache.set(
@@ -170,13 +172,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 } catch (editError) {
                     this.logInfo(
                         '[keepPhone] No se pudo editar mensaje original:',
-                        (editError as Error).message
+                        { error: (editError as Error).message }
                     );
                 }
 
                 const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
                 if (!policy) {
-                    return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    return;
                 }
 
                 this.logInfo('[keepPhone] Intentando eliminar estado awaitingPhoneNumber', {
@@ -240,7 +243,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 } catch (editError) {
                     this.logInfo(
                         '[changePhone] No se pudo editar mensaje original:',
-                        (editError as Error).message
+                        { error: (editError as Error).message }
                     );
                 }
 
@@ -296,7 +299,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 } catch (editError) {
                     this.logInfo(
                         'No se pudo editar mensaje original (probablemente ya fue editado):',
-                        (editError as Error).message
+                        { error: (editError as Error).message }
                     );
                 }
 
@@ -335,7 +338,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 } catch (editError) {
                     this.logInfo(
                         'No se pudo editar mensaje original (probablemente ya fue editado):',
-                        (editError as Error).message
+                        { error: (editError as Error).message }
                     );
                 }
 
@@ -346,7 +349,8 @@ class OcuparPolizaCallback extends BaseCommand {
                     { parse_mode: 'Markdown' }
                 );
 
-                this.cleanupAllStates(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : null;
+                this.cleanupAllStates(chatId, threadIdStr);
             } catch (error) {
                 this.logError('Error en callback noRegistrar:', error);
                 await ctx.reply('❌ Error al finalizar el proceso.');
@@ -374,9 +378,10 @@ class OcuparPolizaCallback extends BaseCommand {
                 const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);
                 if (!serviceInfo?.contactTime) {
                     this.logError('No se encontró info de servicio o falta hora de contacto');
-                    return await ctx.reply(
+                    await ctx.reply(
                         '❌ Error: No se encontró la información de la hora de contacto.'
                     );
+                    return;
                 }
 
                 this.logInfo(
@@ -421,12 +426,14 @@ class OcuparPolizaCallback extends BaseCommand {
                 this.logInfo(
                     `Limpiando estados para chatId=${chatId}, threadId=${threadId} después de completar flujo.`
                 );
-                this.cleanupAllStates(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : null;
+                this.cleanupAllStates(chatId, threadIdStr);
             } catch (error) {
                 this.logError('Error al procesar selección de día:', error);
                 await ctx.reply('❌ Error al procesar la selección de día. Operación cancelada.');
                 const threadId = StateKeyManager.getThreadId(ctx);
-                this.cleanupAllStates(ctx.chat!.id, threadId);
+                const threadIdStr = threadId ? String(threadId) : null;
+                this.cleanupAllStates(ctx.chat!.id, threadIdStr);
             }
         });
     }
@@ -453,15 +460,22 @@ class OcuparPolizaCallback extends BaseCommand {
             if (cachedData && cachedData.numeroPoliza === numeroPoliza) {
                 policy = cachedData.policy;
             } else {
+                if (!numeroPoliza) {
+                    this.logError(`Número de póliza no encontrado en handlePhoneNumber`);
+                    this.awaitingPhoneNumber.delete(chatId, threadId);
+                    await ctx.reply('❌ Error: Número de póliza no encontrado. Operación cancelada.');
+                    return true;
+                }
                 policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
             }
 
             if (!policy) {
                 this.logError(`Póliza no encontrada en handlePhoneNumber: ${numeroPoliza}`);
                 this.awaitingPhoneNumber.delete(chatId, threadId);
-                return await ctx.reply(
+                await ctx.reply(
                     `❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`
                 );
+                return true;
             }
 
             policy.telefono = messageText;
@@ -480,7 +494,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             this.awaitingPhoneNumber.delete(chatId, threadId);
 
-            const origenResult = this.awaitingOrigen.set(chatId, numeroPoliza, threadId);
+            const origenResult = this.awaitingOrigen.set(chatId, numeroPoliza || '', threadId);
             this.logInfo(`Estado de espera de origen guardado: ${origenResult ? 'OK' : 'FALLO'}`, {
                 chatId,
                 threadId: threadId || 'ninguno'
@@ -582,10 +596,11 @@ class OcuparPolizaCallback extends BaseCommand {
 
         const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
         if (!timeRegex.test(messageText)) {
-            return await ctx.reply(
+            await ctx.reply(
                 '⚠️ Formato de hora inválido. Debe ser HH:mm (24 horas).\n' +
                     'Ejemplos válidos: 09:30, 14:45, 23:15'
             );
+            return false;
         }
 
         try {
@@ -593,7 +608,8 @@ class OcuparPolizaCallback extends BaseCommand {
             if (!serviceInfo) {
                 this.logError(`No se encontró info de servicio para póliza: ${numeroPoliza}`);
                 this.awaitingContactTime.delete(chatId, threadId);
-                return await ctx.reply('❌ Error al procesar la hora. Operación cancelada.');
+                await ctx.reply('❌ Error al procesar la hora. Operación cancelada.');
+                return false;
             }
 
             if (!serviceInfo.expediente) {
@@ -687,7 +703,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 );
                 this.handler.clearChatState(chatId, threadId);
             } else {
-                this.logWarn(
+                this.logError(
                     'No se pudo llamar a CommandHandler.clearChatState desde OcuparPolizaCallback'
                 );
             }
@@ -707,7 +723,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 );
                 this.handler.clearChatState(chatId, null);
             } else {
-                this.logWarn(
+                this.logError(
                     'No se pudo llamar a CommandHandler.clearChatState desde OcuparPolizaCallback (sin threadId)'
                 );
             }

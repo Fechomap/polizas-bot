@@ -74,7 +74,7 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
                 await ctx.deleteMessage();
 
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
@@ -83,8 +83,11 @@ class BaseAutosCommand extends BaseCommand {
                     return;
                 }
 
+                // Convertir threadId a string si es necesario
+                const threadIdStr = threadId ? String(threadId) : null;
+
                 // Verificar si ya tiene un registro en proceso
-                if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadId)) {
+                if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)) {
                     await ctx.reply(
                         '⚠️ Ya tienes un registro en proceso. Completalo o cancelalo primero.'
                     );
@@ -96,7 +99,7 @@ class BaseAutosCommand extends BaseCommand {
                     this.bot,
                     chatId,
                     userId,
-                    threadId
+                    threadIdStr
                 );
 
                 this.logInfo('Registro de vehículo iniciado', {
@@ -115,7 +118,7 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
                 await ctx.deleteMessage();
 
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
@@ -124,8 +127,13 @@ class BaseAutosCommand extends BaseCommand {
                     return;
                 }
 
+                // Convertir tipos según lo que necesita cada función
+                const threadIdStr = threadId ? String(threadId) : null;
+                const threadIdNum = typeof threadId === 'number' ? threadId : null;
+                const userIdStr = String(userId);
+
                 // Verificar si ya tiene una asignación en proceso
-                if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
+                if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userIdStr, chatId, threadIdNum)) {
                     await ctx.reply(
                         '⚠️ Ya tienes una asignación en proceso. Completala o cancelala primero.'
                     );
@@ -136,8 +144,8 @@ class BaseAutosCommand extends BaseCommand {
                 await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
                     this.bot,
                     chatId,
-                    userId,
-                    threadId
+                    userIdStr,
+                    threadIdNum
                 );
 
                 this.logInfo('Lista de vehículos para asegurar mostrada', {
@@ -177,7 +185,7 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
 
                 const vehicleId = ctx.match?.[1];
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
 
                 if (!vehicleId || !userId || !chatId) {
@@ -189,12 +197,15 @@ class BaseAutosCommand extends BaseCommand {
 
                 // Iniciar asignación de póliza
                 const threadId = StateKeyManager.getThreadId(ctx);
+                const threadIdNum = typeof threadId === 'number' ? threadId : null;
+                const userIdStr = String(userId);
+                
                 await PolicyAssignmentHandler.iniciarAsignacion(
                     this.bot,
                     chatId,
-                    userId,
+                    userIdStr,
                     vehicleId,
-                    threadId
+                    threadIdNum
                 );
 
                 this.logInfo('Asignación de póliza iniciada', {
@@ -214,7 +225,7 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
 
                 const pagina = parseInt(ctx.match?.[1] || '1');
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
 
                 if (!userId || !chatId) {
@@ -226,11 +237,14 @@ class BaseAutosCommand extends BaseCommand {
 
                 // Mostrar página específica
                 const threadId = StateKeyManager.getThreadId(ctx);
+                const threadIdNum = typeof threadId === 'number' ? threadId : null;
+                const userIdStr = String(userId);
+                
                 await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
                     this.bot,
                     chatId,
-                    userId,
-                    threadId,
+                    userIdStr,
+                    threadIdNum,
                     pagina
                 );
             } catch (error: any) {
@@ -243,7 +257,7 @@ class BaseAutosCommand extends BaseCommand {
         this.bot.action('vehiculo_cancelar', async (ctx: NavigationContext) => {
             try {
                 await ctx.answerCbQuery();
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
@@ -252,10 +266,11 @@ class BaseAutosCommand extends BaseCommand {
                     return;
                 }
 
-                VehicleRegistrationHandler.cancelarRegistro(userId, chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : null;
+                VehicleRegistrationHandler.cancelarRegistro(userId, chatId, threadIdStr);
 
                 await ctx.editMessageText('❌ Registro de vehículo cancelado.', {
-                    reply_markup: getMainKeyboard()
+                    reply_markup: getMainKeyboard().reply_markup
                 });
 
                 this.logInfo('Registro de vehículo cancelado', { userId });
@@ -268,7 +283,7 @@ class BaseAutosCommand extends BaseCommand {
         this.bot.action('vehiculo_finalizar', async (ctx: NavigationContext) => {
             try {
                 await ctx.answerCbQuery();
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
@@ -310,7 +325,7 @@ class BaseAutosCommand extends BaseCommand {
         this.bot.action('poliza_cancelar', async (ctx: NavigationContext) => {
             try {
                 await ctx.answerCbQuery();
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
 
                 if (!userId) {
                     await ctx.reply('❌ Error: No se pudo identificar el usuario.');
@@ -324,7 +339,7 @@ class BaseAutosCommand extends BaseCommand {
                 }
 
                 await ctx.editMessageText('❌ Asignación de póliza cancelada.', {
-                    reply_markup: getMainKeyboard()
+                    reply_markup: getMainKeyboard().reply_markup
                 });
 
                 this.logInfo('Asignación de póliza cancelada', { userId });
@@ -340,7 +355,7 @@ class BaseAutosCommand extends BaseCommand {
                 await ctx.answerCbQuery();
 
                 const fechaISO = ctx.match?.[1];
-                const userId = ctx.from?.id?.toString();
+                const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
@@ -395,21 +410,24 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarMensajeBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            const chatId = message.chat.id;
+            const chatId = typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
             const threadId = message.message_thread_id || null;
+            const threadIdStr = threadId ? String(threadId) : null;
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdNum = parseInt(userId);
 
             // Verificar si hay registro de vehículo en proceso
-            if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadId)) {
+            if (VehicleRegistrationHandler.tieneRegistroEnProceso(userIdNum, chatId, threadIdStr)) {
                 const procesado = await VehicleRegistrationHandler.procesarMensaje(
                     this.bot,
-                    message,
-                    userId
+                    message as any,
+                    userIdNum
                 );
                 if (procesado) return true;
             }
 
             // Verificar si hay asignación de póliza en proceso
-            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
+            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
                 const procesado = await PolicyAssignmentHandler.procesarMensaje(
                     this.bot,
                     message,
@@ -419,7 +437,7 @@ class BaseAutosCommand extends BaseCommand {
                 // Si el proceso terminó, limpiar el estado BD AUTOS
                 if (
                     procesado &&
-                    !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)
+                    !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)
                 ) {
                     const handlerWithRegistry = this.handler as BaseAutosHandler;
                     if (handlerWithRegistry?.registry?.stateManager) {
@@ -448,11 +466,12 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarDocumentoBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            const chatId = message.chat.id;
+            const chatId = typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
             const threadId = message.message_thread_id || null;
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
             // Solo procesar si hay asignación de póliza en proceso
-            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)) {
+            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
                 const procesado = await PolicyAssignmentHandler.procesarMensaje(
                     this.bot,
                     message,

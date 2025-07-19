@@ -6,6 +6,7 @@ import {
 } from '../../navigation/NavigationMiddleware';
 import type { Context } from 'telegraf';
 import type { NavigationManager } from '../../navigation/NavigationManager';
+import type { ParseMode } from 'telegraf/typings/core/types/typegram';
 
 // Base handler interface
 interface IBaseHandler {
@@ -13,8 +14,8 @@ interface IBaseHandler {
     [key: string]: any;
 }
 
-// Telegraf context with navigation properties
-interface NavigationContext extends Context {
+// Navigation properties type (matching NavigationMiddleware)
+type NavigationContext = Context & {
     navManager?: NavigationManager;
     navigationHandled?: boolean;
     answered?: boolean;
@@ -25,7 +26,7 @@ interface NavigationContext extends Context {
 }
 
 interface ReplyOptions {
-    parse_mode?: string;
+    parse_mode?: ParseMode;
     reply_markup?: any;
     [key: string]: any;
 }

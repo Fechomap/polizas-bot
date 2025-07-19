@@ -1,11 +1,43 @@
-const { PolicyAssignmentHandler } = require('../../../src/comandos/comandos/PolicyAssignmentHandler');
-const StateKeyManager = require('../../../src/utils/StateKeyManager').default;
+/**
+ * Validación crítica de ThreadID Fix - TypeScript con ESM
+ */
+
+import { jest } from '@jest/globals';
+import { PolicyAssignmentHandler } from '../../../src/comandos/comandos/PolicyAssignmentHandler';
+import StateKeyManager from '../../../src/utils/StateKeyManager';
+import { Telegraf } from 'telegraf';
 
 // Mock de dependencias
 jest.mock('../../../src/models/vehicle');
 
+interface MockBot {
+    telegram: {
+        sendMessage: jest.Mock;
+    }
+}
+
+interface VehicleData {
+    _id: string;
+    marca: string;
+    submarca: string;
+    año: number;
+    color: string;
+    serie: string;
+    placas: string;
+    titular: string;
+    rfc: string;
+    telefono: string;
+    estado: string;
+}
+
+interface MockMessage {
+    chat: { id: number };
+    message_thread_id?: number;
+    text: string;
+}
+
 describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
-    let mockBot;
+    let mockBot: MockBot;
     const userId = '7143094298';
     const chatId = -1002291817096;
     const threadId = 30068;
@@ -33,7 +65,7 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
             rfc: 'MEAL861220MYH',
             telefono: 'Sin teléfono',
             estado: 'SIN_POLIZA'
-        });
+        } as VehicleData);
     });
 
     test('✅ CRÍTICO: tieneAsignacionEnProceso debe usar stateKey thread-safe', () => {
@@ -64,7 +96,7 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
         const vehicleId = '687970cf36b1895394b9497f';
         
         // Iniciar asignación
-        const resultado = await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId);
+        const resultado = await PolicyAssignmentHandler.iniciarAsignacion(mockBot as unknown as Telegraf, chatId, userId, vehicleId, threadId);
         expect(resultado).toBe(true);
         
         // Verificar que se guardó con el formato correcto
@@ -84,10 +116,10 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
         const vehicleId = '687970cf36b1895394b9497f';
         
         // Primero iniciar asignación
-        await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId);
+        await PolicyAssignmentHandler.iniciarAsignacion(mockBot as unknown as Telegraf, chatId, userId, vehicleId, threadId);
         
         // Simular mensaje de número de póliza
-        const mensaje = {
+        const mensaje: MockMessage = {
             chat: { id: chatId },
             message_thread_id: threadId,
             text: '12346'
@@ -96,7 +128,7 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
         mockBot.telegram.sendMessage.mockClear();
         
         // Procesar mensaje
-        const procesado = await PolicyAssignmentHandler.procesarMensaje(mockBot, mensaje, userId);
+        const procesado = await PolicyAssignmentHandler.procesarMensaje(mockBot as unknown as Telegraf, mensaje, userId);
         expect(procesado).toBe(true);
         
         // Verificar que se procesó y se envió respuesta con threadId correcto
@@ -111,21 +143,21 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
         const vehicleId = '687970cf36b1895394b9497f';
         
         // Iniciar asignaciones en ambos threads
-        await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId1);
-        await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId2);
+        await PolicyAssignmentHandler.iniciarAsignacion(mockBot as unknown as Telegraf, chatId, userId, vehicleId, threadId1);
+        await PolicyAssignmentHandler.iniciarAsignacion(mockBot as unknown as Telegraf, chatId, userId, vehicleId, threadId2);
         
         // Verificar que ambos existen independientemente
         expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId1)).toBe(true);
         expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId2)).toBe(true);
         
         // Procesar mensajes en cada thread
-        const mensajeThread1 = {
+        const mensajeThread1: MockMessage = {
             chat: { id: chatId },
             message_thread_id: threadId1,
             text: 'POLIZA-001'
         };
         
-        const mensajeThread2 = {
+        const mensajeThread2: MockMessage = {
             chat: { id: chatId },
             message_thread_id: threadId2,
             text: 'POLIZA-002'
@@ -134,11 +166,11 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
         mockBot.telegram.sendMessage.mockClear();
         
         // Procesar en thread1
-        const procesado1 = await PolicyAssignmentHandler.procesarMensaje(mockBot, mensajeThread1, userId);
+        const procesado1 = await PolicyAssignmentHandler.procesarMensaje(mockBot as unknown as Telegraf, mensajeThread1, userId);
         expect(procesado1).toBe(true);
         
         // Procesar en thread2
-        const procesado2 = await PolicyAssignmentHandler.procesarMensaje(mockBot, mensajeThread2, userId);
+        const procesado2 = await PolicyAssignmentHandler.procesarMensaje(mockBot as unknown as Telegraf, mensajeThread2, userId);
         expect(procesado2).toBe(true);
         
         // Verificar que ambos threads mantienen sus estados independientes
@@ -152,16 +184,16 @@ describe('VALIDACIÓN CRÍTICA: ThreadID Fix para ASEGURAR AUTO', () => {
         const threadIdIncorrecto = 99999;
         
         // Iniciar asignación en thread específico
-        await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadIdCorrecto);
+        await PolicyAssignmentHandler.iniciarAsignacion(mockBot as unknown as Telegraf, chatId, userId, vehicleId, threadIdCorrecto);
         
         // Intentar procesar mensaje desde thread incorrecto
-        const mensajeIncorrecto = {
+        const mensajeIncorrecto: MockMessage = {
             chat: { id: chatId },
             message_thread_id: threadIdIncorrecto,
             text: '12346'
         };
         
-        const procesado = await PolicyAssignmentHandler.procesarMensaje(mockBot, mensajeIncorrecto, userId);
+        const procesado = await PolicyAssignmentHandler.procesarMensaje(mockBot as unknown as Telegraf, mensajeIncorrecto, userId);
         expect(procesado).toBe(false); // Debe rechazar el mensaje
     });
 

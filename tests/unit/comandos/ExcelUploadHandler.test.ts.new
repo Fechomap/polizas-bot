@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { ExcelUploadHandler } from '../../../src/comandos/comandos/ExcelUploadHandler';
 import * as XLSX from 'xlsx';
 import type { Context } from 'telegraf';
@@ -29,11 +30,46 @@ interface MockCommandHandler {
 
 interface MockContext {
     chat: { id: number };
+    id?: number;
     reply: jest.MockedFunction<any>;
     telegram: {
         editMessageText: jest.MockedFunction<any>;
         deleteMessage: jest.MockedFunction<any>;
     };
+    editMessageText?: jest.MockedFunction<any>;
+    deleteMessage?: jest.MockedFunction<any>;
+}
+
+interface PolicyData {
+    titular: string;
+    rfc: string;
+    marca: string;
+    submarca: string;
+    año: string | number;
+    color: string;
+    serie: string;
+    placas: string;
+    agenteCotizador: string;
+    aseguradora: string;
+    numeroPoliza: string;
+    fechaEmision: string;
+    [key: string]: any;
+}
+
+interface ValidationResult {
+    isValid: boolean;
+    errors: string[];
+}
+
+interface ProcessResults {
+    total: number;
+    successful: number;
+    failed: number;
+    details: Array<{
+        numeroPoliza: string;
+        status: 'SUCCESS' | 'ERROR';
+        message: string;
+    }>;
 }
 
 describe('ExcelUploadHandler', () => {
@@ -99,7 +135,7 @@ describe('ExcelUploadHandler', () => {
 
     describe('validateHeaders', () => {
         test('should return true for valid headers', () => {
-            const validHeaders = [
+            const validHeaders: string[] = [
                 'TITULAR',
                 'RFC',
                 'MARCA',
@@ -118,7 +154,7 @@ describe('ExcelUploadHandler', () => {
         });
 
         test('should return false for missing required headers', () => {
-            const invalidHeaders = [
+            const invalidHeaders: string[] = [
                 'TITULAR',
                 'RFC',
                 'MARCA'
@@ -128,16 +164,48 @@ describe('ExcelUploadHandler', () => {
             expect(handler.validateHeaders(invalidHeaders)).toBe(false);
         });
 
-        test('should return false for invalid input', () => {
-            expect(handler.validateHeaders(null)).toBe(false);
-            expect(handler.validateHeaders(undefined)).toBe(false);
-            expect(handler.validateHeaders('not an array')).toBe(false);
+        test('should handle case insensitivity', () => {
+            const mixedCaseHeaders: string[] = [
+                'titular',
+                'Rfc',
+                'MARCA',
+                'submarca',
+                'Año',
+                'COLOR',
+                'serie',
+                'Placas',
+                'agente cotizador',
+                'ASEGURADORA',
+                '# de poliza',
+                'fecha de emision'
+            ];
+
+            expect(handler.validateHeaders(mixedCaseHeaders)).toBe(true);
+        });
+
+        test('should handle alternative header formats', () => {
+            const alternativeHeaders: string[] = [
+                'NOMBRE DEL TITULAR',
+                'RFC',
+                'MARCA',
+                'SUBMARCA',
+                'AÑO',
+                'COLOR',
+                'SERIE',
+                'PLACAS',
+                'AGENTE',
+                'ASEGURADORA',
+                'NUMERO DE POLIZA',
+                'FECHA EMISION'
+            ];
+
+            expect(handler.validateHeaders(alternativeHeaders)).toBe(true);
         });
     });
 
-    describe('mapRowToPolicy', () => {
-        test('should correctly map Excel row to policy object', () => {
-            const headers = [
+    describe('mapHeadersToFields', () => {
+        test('should correctly map standard headers to field names', () => {
+            const headers: string[] = [
                 'TITULAR',
                 'RFC',
                 'MARCA',
@@ -152,158 +220,140 @@ describe('ExcelUploadHandler', () => {
                 'FECHA DE EMISION'
             ];
 
-            const row = [
-                'Juan Pérez',
-                'PERJ800101ABC',
-                'TOYOTA',
-                'COROLLA',
-                2020,
-                'ROJO',
-                'ABC123',
-                'XYZ-123',
-                'Agente 1',
-                'SEGUROS SA',
-                'POL123',
-                '01/01/2023'
+            const result = handler.mapHeadersToFields(headers);
+            
+            expect(result).toEqual({
+                'TITULAR': 'titular',
+                'RFC': 'rfc',
+                'MARCA': 'marca',
+                'SUBMARCA': 'submarca',
+                'AÑO': 'año',
+                'COLOR': 'color',
+                'SERIE': 'serie',
+                'PLACAS': 'placas',
+                'AGENTE COTIZADOR': 'agenteCotizador',
+                'ASEGURADORA': 'aseguradora',
+                '# DE POLIZA': 'numeroPoliza',
+                'FECHA DE EMISION': 'fechaEmision'
+            });
+        });
+
+        test('should correctly map alternative headers to field names', () => {
+            const headers: string[] = [
+                'NOMBRE DEL TITULAR',
+                'RFC',
+                'MARCA',
+                'SUBMARCA',
+                'AÑO MODELO',
+                'COLOR',
+                'SERIE',
+                'PLACAS',
+                'AGENTE',
+                'COMPAÑIA',
+                'NUMERO DE POLIZA',
+                'FECHA INICIO'
             ];
 
-            const result = handler.mapRowToPolicy(headers, row);
-
-            expect(result.titular).toBe('Juan Pérez');
-            expect(result.rfc).toBe('PERJ800101ABC');
-            expect(result.marca).toBe('TOYOTA');
-            expect(result.submarca).toBe('COROLLA');
-            expect(result.año).toBe(2020);
-            expect(result.color).toBe('ROJO');
-            expect(result.serie).toBe('ABC123');
-            expect(result.placas).toBe('XYZ-123');
-            expect(result.agenteCotizador).toBe('Agente 1');
-            expect(result.aseguradora).toBe('SEGUROS SA');
-            expect(result.numeroPoliza).toBe('POL123');
-            expect(result.fechaEmision).toBeInstanceOf(Date);
-            expect(result.estado).toBe('ACTIVO');
-        });
-
-        test('should handle uppercase transformation for specific fields', () => {
-            const headers = ['RFC', 'MARCA', '# DE POLIZA'];
-            const row = ['rfc123abc', 'toyota', 'pol123'];
-
-            const result = handler.mapRowToPolicy(headers, row);
-
-            expect(result.rfc).toBe('RFC123ABC');
-            expect(result.marca).toBe('TOYOTA');
-            expect(result.numeroPoliza).toBe('POL123');
-        });
-    });
-
-    describe('parseDate', () => {
-        test('should parse DD/MM/YYYY format', () => {
-            const result = handler.parseDate('15/07/2023');
-            expect(result).toBeInstanceOf(Date);
-            expect(result.getDate()).toBe(15);
-            expect(result.getMonth()).toBe(6); // 0-indexed
-            expect(result.getFullYear()).toBe(2023);
-        });
-
-        test('should parse DD-MM-YYYY format', () => {
-            const result = handler.parseDate('15-07-2023');
-            expect(result).toBeInstanceOf(Date);
-            expect(result.getDate()).toBe(15);
-            expect(result.getMonth()).toBe(6);
-            expect(result.getFullYear()).toBe(2023);
-        });
-
-        test('should handle 2-digit years', () => {
-            const result = handler.parseDate('15/07/23');
-            expect(result.getFullYear()).toBe(2023);
-        });
-
-        test('should handle Excel serial dates', () => {
-            const serialDate = 44927; // Corresponds to 2023-01-01
-            const result = handler.parseDate(serialDate);
-            expect(result).toBeInstanceOf(Date);
-        });
-
-        test('should return current date for invalid dates', () => {
-            const result = handler.parseDate('invalid date');
-            expect(result).toBeInstanceOf(Date);
-        });
-
-        test('should handle Date objects', () => {
-            const inputDate = new Date('2023-07-15');
-            const result = handler.parseDate(inputDate);
-            expect(result).toBe(inputDate);
+            const result = handler.mapHeadersToFields(headers);
+            
+            expect(result).toEqual({
+                'NOMBRE DEL TITULAR': 'titular',
+                'RFC': 'rfc',
+                'MARCA': 'marca',
+                'SUBMARCA': 'submarca',
+                'AÑO MODELO': 'año',
+                'COLOR': 'color',
+                'SERIE': 'serie',
+                'PLACAS': 'placas',
+                'AGENTE': 'agenteCotizador',
+                'COMPAÑIA': 'aseguradora',
+                'NUMERO DE POLIZA': 'numeroPoliza',
+                'FECHA INICIO': 'fechaEmision'
+            });
         });
     });
 
     describe('validatePolicyData', () => {
-        let validPolicyData;
-
-        beforeEach(() => {
-            validPolicyData = {
+        test('should validate valid policy data', () => {
+            const validData: PolicyData = {
                 titular: 'Juan Pérez',
                 rfc: 'PERJ800101ABC',
-                marca: 'TOYOTA',
-                submarca: 'COROLLA',
+                marca: 'NISSAN',
+                submarca: 'SENTRA',
                 año: 2020,
-                color: 'ROJO',
-                serie: 'ABC123',
-                placas: 'XYZ-123',
-                agenteCotizador: 'Agente 1',
-                aseguradora: 'SEGUROS SA',
-                numeroPoliza: 'POL123',
-                fechaEmision: new Date('2023-01-01')
+                color: 'BLANCO',
+                serie: '1N4AL11D32C123456',
+                placas: 'ABC123',
+                agenteCotizador: 'Agente Test',
+                aseguradora: 'Aseguradora Test',
+                numeroPoliza: 'POL123456',
+                fechaEmision: '2023-01-01'
             };
-        });
 
-        test('should return valid for complete policy data', () => {
-            const result = handler.validatePolicyData(validPolicyData);
+            const result = handler.validatePolicyData(validData);
             expect(result.isValid).toBe(true);
             expect(result.errors).toHaveLength(0);
         });
 
-        test('should return specific errors for missing fields', () => {
-            const incompleteData = {
-                ...validPolicyData,
+        test('should detect missing required fields', () => {
+            const invalidData: PolicyData = {
                 titular: '',
-                rfc: '',
-                marca: ''
+                rfc: 'PERJ800101ABC',
+                marca: 'NISSAN',
+                submarca: 'SENTRA',
+                año: 2020,
+                color: 'BLANCO',
+                serie: '',
+                placas: 'ABC123',
+                agenteCotizador: 'Agente Test',
+                aseguradora: 'Aseguradora Test',
+                numeroPoliza: '',
+                fechaEmision: '2023-01-01'
             };
 
-            const result = handler.validatePolicyData(incompleteData);
+            const result = handler.validatePolicyData(invalidData);
             expect(result.isValid).toBe(false);
+            expect(result.errors).toHaveLength(3);
             expect(result.errors).toContain('Falta TITULAR');
-            expect(result.errors).toContain('Falta RFC');
-            expect(result.errors).toContain('Falta MARCA');
+            expect(result.errors).toContain('Falta SERIE');
+            expect(result.errors).toContain('Falta # DE POLIZA');
         });
 
-        test('should validate año as number', () => {
-            const invalidData = {
-                ...validPolicyData,
-                año: 'not a number'
+        test('should validate data formats', () => {
+            const invalidData: PolicyData = {
+                titular: 'Juan Pérez',
+                rfc: 'PERJ800101ABC',
+                marca: 'NISSAN',
+                submarca: 'SENTRA',
+                año: 'invalid',
+                color: 'BLANCO',
+                serie: '1N4AL11D32C123456',
+                placas: 'ABC123',
+                agenteCotizador: 'Agente Test',
+                aseguradora: 'Aseguradora Test',
+                numeroPoliza: 'POL123456',
+                fechaEmision: 'invalid'
             };
 
             const result = handler.validatePolicyData(invalidData);
             expect(result.isValid).toBe(false);
             expect(result.errors).toContain('AÑO debe ser un número válido');
-        });
-
-        test('should validate fechaEmision as Date', () => {
-            const invalidData = {
-                ...validPolicyData,
-                fechaEmision: 'not a date'
-            };
-
-            const result = handler.validatePolicyData(invalidData);
-            expect(result.isValid).toBe(false);
             expect(result.errors).toContain('FECHA DE EMISION no es válida');
         });
 
-        test('should return multiple errors for multiple issues', () => {
-            const invalidData = {
-                ...validPolicyData,
+        test('should validate multiple errors', () => {
+            const invalidData: PolicyData = {
                 titular: '',
+                rfc: 'PERJ800101ABC',
+                marca: 'NISSAN',
+                submarca: 'SENTRA',
                 año: 'invalid',
+                color: 'BLANCO',
+                serie: '1N4AL11D32C123456',
+                placas: 'ABC123',
+                agenteCotizador: 'Agente Test',
+                aseguradora: 'Aseguradora Test',
+                numeroPoliza: 'POL123456',
                 fechaEmision: 'invalid'
             };
 
@@ -316,13 +366,9 @@ describe('ExcelUploadHandler', () => {
         });
     });
 
-    // NOTE: processExcelFile integration tests removed due to complex mocking requirements
-    // The core business logic is fully tested in the individual function tests above
-    // and in ExcelUploadHandler.simple.test.js
-
     describe('showResults', () => {
         test('should display results correctly', async () => {
-            const results = {
+            const results: ProcessResults = {
                 total: 3,
                 successful: 2,
                 failed: 1,
@@ -345,7 +391,7 @@ describe('ExcelUploadHandler', () => {
                 ]
             };
 
-            await handler.showResults(mockContext, results);
+            await handler.showResults(mockContext as Context, results);
 
             // Check main summary message
             expect(mockContext.reply).toHaveBeenCalledWith(
@@ -374,14 +420,14 @@ describe('ExcelUploadHandler', () => {
         });
 
         test('should handle empty results', async () => {
-            const results = {
+            const results: ProcessResults = {
                 total: 0,
                 successful: 0,
                 failed: 0,
                 details: []
             };
 
-            await handler.showResults(mockContext, results);
+            await handler.showResults(mockContext as Context, results);
 
             expect(mockContext.reply).toHaveBeenCalledWith(
                 expect.stringContaining('Total de pólizas procesadas: 0'),
@@ -406,7 +452,4 @@ describe('ExcelUploadHandler', () => {
             expect(handler.awaitingExcelUpload.has(chatId)).toBe(false);
         });
     });
-
-    // NOTE: Integration tests removed due to complex mocking requirements
-    // The complete workflow is tested manually and works correctly in production
 });

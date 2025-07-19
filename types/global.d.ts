@@ -43,6 +43,7 @@ export interface BotContext extends TelegrafContext {
     };
     message?: any;
     threadId?: string;
+    state?: Record<string | symbol, any>;
 }
 
 // Alias para compatibilidad

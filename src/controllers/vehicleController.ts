@@ -96,6 +96,7 @@ export class VehicleController {
                     calle: vehicleData.calle || '',
                     colonia: vehicleData.colonia || '',
                     municipio: vehicleData.municipio || '',
+                    estado: vehicleData.estado || vehicleData.estadoRegion || '',
                     estadoRegion: vehicleData.estadoRegion || '',
                     cp: vehicleData.cp || ''
                 };

@@ -5,16 +5,9 @@ import { getInstance as getNotificationManager } from '../../services/Notificati
 import moment from 'moment-timezone';
 import type { IBaseHandler, NavigationContext } from './BaseCommand';
 import type { NotificationManager } from '../../services/NotificationManager';
+import type { IScheduledNotification } from '../../types/database';
 
 // Interfaces
-interface ScheduledNotificationDoc {
-    status: string;
-    scheduledDate: Date;
-    numeroPoliza: string;
-    expedienteNum: string;
-    marcaModelo?: string;
-    _id?: string;
-}
 
 interface NotificationStats {
     byStatus: Array<{ _id: string; count: number }>;
@@ -55,7 +48,7 @@ class NotificationCommand extends BaseCommand {
             try {
                 // Verificar si es administrador
                 if (ctx.from?.id !== this.ADMIN_ID) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         '⚠️ Este comando está restringido solo para administradores.'
                     );
                 }
@@ -69,7 +62,7 @@ class NotificationCommand extends BaseCommand {
                         await notificationManager.initialize();
                     } catch (initError: any) {
                         this.logError('Error al inicializar NotificationManager:', initError);
-                        return await ctx.reply(
+                        await ctx.reply(
                             '❌ Error al inicializar el sistema de notificaciones.'
                         );
                     }
@@ -79,7 +72,8 @@ class NotificationCommand extends BaseCommand {
                 const pendingNotifications = await notificationManager.getPendingNotifications();
 
                 if (pendingNotifications.length === 0) {
-                    return await ctx.reply('📅 No hay notificaciones programadas pendientes.');
+                    await ctx.reply('📅 No hay notificaciones programadas pendientes.');
+                        return;
                 }
 
                 await ctx.reply(
@@ -116,7 +110,8 @@ class NotificationCommand extends BaseCommand {
                 try {
                     // Verificar si es administrador
                     if (ctx.from?.id !== this.ADMIN_ID) {
-                        return await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
+                        await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
+                        return;
                     }
 
                     await ctx.answerCbQuery();
@@ -129,7 +124,7 @@ class NotificationCommand extends BaseCommand {
                     const tomorrow = new Date(today);
                     tomorrow.setDate(tomorrow.getDate() + 1);
 
-                    const todayNotifications: ScheduledNotificationDoc[] =
+                    const todayNotifications: IScheduledNotification[] =
                         await ScheduledNotification.find({
                             scheduledDate: {
                                 $gte: today,
@@ -138,12 +133,13 @@ class NotificationCommand extends BaseCommand {
                         }).sort({ scheduledDate: 1 });
 
                     if (todayNotifications.length === 0) {
-                        return await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
+                        await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
                             ...Markup.inlineKeyboard([
                                 [Markup.button.callback('⬅️ Volver', 'notification:back')],
                                 [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                             ])
                         });
+                        return;
                     }
 
                     // Dividir en bloques de 8 máximo
@@ -155,7 +151,7 @@ class NotificationCommand extends BaseCommand {
 
                         let message = `📋 *Notificaciones de HOY (${i + 1}/${totalChunks})*\n\n`;
 
-                        chunk.forEach((notification: ScheduledNotificationDoc) => {
+                        chunk.forEach((notification: IScheduledNotification) => {
                             // CRÍTICO: Usar moment-timezone para mostrar hora correcta en CDMX
                             const scheduledMoment = moment(notification.scheduledDate).tz(
                                 'America/Mexico_City'
@@ -201,10 +197,12 @@ class NotificationCommand extends BaseCommand {
                             await ctx.reply(message, { parse_mode: 'Markdown' });
                         }
                     }
+                    return;
                 } catch (error: any) {
                     this.logError('Error en notification:list:', error);
                     await ctx.reply('❌ Error al obtener notificaciones del día.');
                 }
+                return;
             }
         );
 
@@ -215,7 +213,8 @@ class NotificationCommand extends BaseCommand {
                 try {
                     // Verificar si es administrador
                     if (ctx.from?.id !== this.ADMIN_ID) {
-                        return await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
+                        await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
+                        return;
                     }
 
                     await ctx.answerCbQuery();
@@ -224,7 +223,8 @@ class NotificationCommand extends BaseCommand {
                     const allPending = await notificationManager.getPendingNotifications();
 
                     if (allPending.length === 0) {
-                        return await ctx.reply('📅 No hay notificaciones programadas pendientes.');
+                        await ctx.reply('📅 No hay notificaciones programadas pendientes.');
+                        return;
                     }
 
                     // Filtrar solo las de hoy
@@ -233,30 +233,31 @@ class NotificationCommand extends BaseCommand {
                     const tomorrow = new Date(today);
                     tomorrow.setDate(tomorrow.getDate() + 1);
 
-                    const todayNotifications = allPending.filter((n: ScheduledNotificationDoc) => {
+                    const todayNotifications = allPending.filter((n: IScheduledNotification) => {
                         const date = new Date(n.scheduledDate);
                         return date >= today && date < tomorrow;
                     });
 
                     if (todayNotifications.length === 0) {
-                        return await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
+                        await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
                             ...Markup.inlineKeyboard([
                                 [Markup.button.callback('⬅️ Volver', 'notification:back')],
                                 [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                             ])
                         });
+                        return;
                     }
 
                     // Ordenar por hora
                     todayNotifications.sort(
-                        (a: ScheduledNotificationDoc, b: ScheduledNotificationDoc) =>
+                        (a: IScheduledNotification, b: IScheduledNotification) =>
                             new Date(a.scheduledDate).getTime() -
                             new Date(b.scheduledDate).getTime()
                     );
 
                     let message = `⏰ *Notificaciones para HOY (${todayNotifications.length})*\n\n`;
 
-                    todayNotifications.forEach((notification: ScheduledNotificationDoc) => {
+                    todayNotifications.forEach((notification: IScheduledNotification) => {
                         // CRÍTICO: Usar moment-timezone para mostrar hora correcta en CDMX
                         const scheduledMoment = moment(notification.scheduledDate).tz(
                             'America/Mexico_City'
@@ -280,10 +281,12 @@ class NotificationCommand extends BaseCommand {
                             [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                         ])
                     });
+                    return;
                 } catch (error: any) {
                     this.logError('Error en notification:today:', error);
                     await ctx.reply('❌ Error al obtener notificaciones de hoy.');
                 }
+                return;
             }
         );
 
@@ -294,7 +297,8 @@ class NotificationCommand extends BaseCommand {
                 try {
                     // Verificar si es administrador
                     if (ctx.from?.id !== this.ADMIN_ID) {
-                        return await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
+                        await ctx.answerCbQuery('⚠️ Acción restringida a administradores');
+                        return;
                     }
 
                     await ctx.answerCbQuery();

@@ -68,6 +68,7 @@ export interface IDatosMexicanos {
     colonia: string;
     municipio: string;
     estado: string;
+    estadoRegion: string;
     cp: string;
 }
 
@@ -335,6 +336,7 @@ export interface IVehicleData {
     calle?: string;
     colonia?: string;
     municipio?: string;
+    estado?: string;
     estadoRegion?: string;
     cp?: string;
     notas?: string;

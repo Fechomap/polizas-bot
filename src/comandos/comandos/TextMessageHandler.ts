@@ -470,7 +470,7 @@ export class TextMessageHandler extends BaseCommand {
                         '[TextMsgHandler] Estado awaitingServiceData activo. Llamando a handleServiceData.'
                     );
                     // Usar la versión corregida de handleServiceData
-                    const handleServiceData = require('../handleServiceData');
+                    const handleServiceData = require('../handleServiceData').default;
                     const serviceResult: IServiceResult | null = await handleServiceData.call(
                         this.handler,
                         ctx,

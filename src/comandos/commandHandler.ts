@@ -22,7 +22,7 @@ import fetch from 'node-fetch';
 import type { Context } from 'telegraf';
 import type { IPolicy } from '../types/database';
 
-import StateKeyManager from '../utils/StateKeyManager';
+import StateKeyManager, { IThreadSafeStateMap } from '../utils/StateKeyManager';
 import threadValidatorMiddleware from '../middleware/threadValidator';
 
 // Import the model Policy directly
@@ -55,15 +55,9 @@ import {
 import DocumentHandler from './comandos/documentHandler';
 
 // Interfaces
-interface ThreadSafeStateMap {
-    set(chatId: string | number, value: any, threadId?: string | number | null): boolean;
-    get(chatId: string | number, threadId?: string | number | null): any;
-    has(chatId: string | number, threadId?: string | number | null): boolean;
-    delete(chatId: string | number, threadId?: string | number | null): boolean;
-    deleteAll(chatId: string | number): boolean;
-}
+// ThreadSafeStateMap eliminada - usamos IThreadSafeStateMap de StateKeyManager
 
-interface ChatContext extends Context {
+type ChatContext = Context & {
     chat: {
         id: number;
         [key: string]: any;
@@ -114,27 +108,27 @@ interface ServiceData {
 }
 
 class CommandHandler {
-    private bot: any;
-    private registry: any;
+    public bot: any;
+    public registry: any;
 
     // State maps with thread support
-    private uploadTargets: ThreadSafeStateMap;
-    private awaitingSaveData: ThreadSafeStateMap;
-    private awaitingGetPolicyNumber: ThreadSafeStateMap;
-    private awaitingUploadPolicyNumber: ThreadSafeStateMap;
-    private awaitingDeletePolicyNumber: ThreadSafeStateMap;
-    private awaitingPaymentPolicyNumber: ThreadSafeStateMap;
-    private awaitingPaymentData: ThreadSafeStateMap;
-    private awaitingServicePolicyNumber: ThreadSafeStateMap;
-    private awaitingServiceData: ThreadSafeStateMap;
-    private awaitingPhoneNumber: ThreadSafeStateMap;
-    private awaitingOrigenDestino: ThreadSafeStateMap;
-    private awaitingDeleteReason: ThreadSafeStateMap;
-    private awaitingOrigen: ThreadSafeStateMap;
-    private awaitingDestino: ThreadSafeStateMap;
+    public uploadTargets: IThreadSafeStateMap<any>;
+    public awaitingSaveData: IThreadSafeStateMap<any>;
+    public awaitingGetPolicyNumber: IThreadSafeStateMap<any>;
+    public awaitingUploadPolicyNumber: IThreadSafeStateMap<any>;
+    public awaitingDeletePolicyNumber: IThreadSafeStateMap<any>;
+    public awaitingPaymentPolicyNumber: IThreadSafeStateMap<any>;
+    public awaitingPaymentData: IThreadSafeStateMap<any>;
+    public awaitingServicePolicyNumber: IThreadSafeStateMap<any>;
+    public awaitingServiceData: IThreadSafeStateMap<any>;
+    public awaitingPhoneNumber: IThreadSafeStateMap<any>;
+    public awaitingOrigenDestino: IThreadSafeStateMap<any>;
+    public awaitingDeleteReason: IThreadSafeStateMap<any>;
+    public awaitingOrigen: IThreadSafeStateMap<any>;
+    public awaitingDestino: IThreadSafeStateMap<any>;
 
     // Map para almacenar message_id del botón "Cancelar Registro"
-    private excelUploadMessages: Map<number | string, number>;
+    public excelUploadMessages: Map<number, number>;
 
     // Store instances of commands needed for actions
     private startCommandInstance: any;
@@ -176,7 +170,7 @@ class CommandHandler {
 
         // Setup group restriction
         // Register thread validator middleware
-        this.bot.use(threadValidatorMiddleware(this));
+        this.bot.use(threadValidatorMiddleware(this as any));
         this.setupGroupRestriction();
 
         // Register all commands
@@ -207,7 +201,7 @@ class CommandHandler {
         this.registry.registerCommand(this.helpCommandInstance);
         this.helpCommandInstance.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        const ocuparCmd = new OcuparPolizaCallback(this);
+        const ocuparCmd = new OcuparPolizaCallback(this as any);
         this.registry.registerCommand(ocuparCmd);
         ocuparCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
@@ -253,8 +247,8 @@ class CommandHandler {
         baseAutosCmd.register();
 
         // Register DocumentHandler to handle all document conflicts
-        const documentHandler = new DocumentHandler(this.bot, this);
-        documentHandler.setHandlers(excelUploadCmd, mediaCmd);
+        const documentHandler = new DocumentHandler(this.bot, this as any);
+        documentHandler.setHandlers(excelUploadCmd as any, mediaCmd);
         documentHandler.register();
 
         // Register callback handlers (estos ya lo hacen bien)
@@ -263,7 +257,7 @@ class CommandHandler {
         viewFilesCallbacks.register();
 
         // Register text message handler (este también)
-        new TextMessageHandler(this).register();
+        new TextMessageHandler(this as any).register();
 
         // Register remaining commands/callbacks that haven't been modularized yet
         this.setupRemainingCommands();
@@ -289,7 +283,7 @@ class CommandHandler {
 
                 // CRÍTICO: Limpiar también estado administrativo para evitar interferencia
                 try {
-                    const AdminStateManager = require('../admin/utils/adminStates');
+                    const AdminStateManager = require('../admin/utils/adminStates').default;
                     AdminStateManager.clearAdminState(ctx.from.id, ctx.chat.id);
                 } catch (error) {
                     // Si no existe el módulo admin, continuar normalmente
@@ -875,7 +869,7 @@ class CommandHandler {
             this.awaitingOrigenDestino.delete(chatId, threadId);
             this.awaitingDeleteReason.delete(chatId, threadId);
 
-            const flowStateManager = require('../utils/FlowStateManager');
+            const flowStateManager = require('../utils/FlowStateManager').default;
             flowStateManager.clearAllStates(chatId, threadId);
 
             return;
@@ -894,7 +888,7 @@ class CommandHandler {
         this.awaitingOrigenDestino.deleteAll(chatId);
         this.awaitingDeleteReason.deleteAll(chatId);
 
-        const flowStateManager = require('../utils/FlowStateManager');
+        const flowStateManager = require('../utils/FlowStateManager').default;
         flowStateManager.clearAllStates(chatId);
 
         logger.debug(`Estado completamente limpiado para chatId=${chatId}`);
@@ -984,7 +978,7 @@ class CommandHandler {
                 );
                 // No limpiar estado, permitir reintento
             } else {
-                const flowStateManager = require('../utils/FlowStateManager');
+                const flowStateManager = require('../utils/FlowStateManager').default;
                 flowStateManager.saveState(
                     chatId,
                     numeroPoliza,
@@ -1339,9 +1333,10 @@ ${serviciosInfo}
                 logger.warn(
                     `Se recibieron datos de pago sin una póliza en espera para chatId: ${chatId}`
                 );
-                return await ctx.reply(
+                await ctx.reply(
                     '❌ Hubo un problema. Por favor, inicia el proceso de añadir pago desde el menú principal.'
                 );
+                return;
             }
 
             // Separar las líneas
@@ -1350,7 +1345,7 @@ ${serviciosInfo}
                 .map(l => l.trim())
                 .filter(Boolean);
             if (lines.length < 2) {
-                return await ctx.reply(
+                await ctx.reply(
                     '❌ Formato inválido. Debes ingresar 2 líneas: Monto y Fecha (DD/MM/YYYY)'
                 );
             }
@@ -1361,18 +1356,18 @@ ${serviciosInfo}
             // Validar y parsear monto
             const monto = parseFloat(montoStr.replace(',', '.')); // soportar "345,00"
             if (isNaN(monto) || monto <= 0) {
-                return await ctx.reply('❌ Monto inválido. Ingresa un número mayor a 0.');
+                await ctx.reply('❌ Monto inválido. Ingresa un número mayor a 0.');
             }
 
             // Validar y parsear fecha
             const [dia, mes, anio] = fechaStr.split(/[/-]/);
             if (!dia || !mes || !anio) {
-                return await ctx.reply('❌ Fecha inválida. Usa el formato DD/MM/YYYY');
+                await ctx.reply('❌ Fecha inválida. Usa el formato DD/MM/YYYY');
             }
 
             const fechaJS = new Date(`${anio}-${mes}-${dia}`);
             if (isNaN(fechaJS.getTime())) {
-                return await ctx.reply(
+                await ctx.reply(
                     '❌ Fecha inválida. Verifica que sea un día, mes y año correctos.'
                 );
             }
@@ -1381,7 +1376,7 @@ ${serviciosInfo}
             const { addPaymentToPolicy } = require('../controllers/policyController');
             const updatedPolicy = await addPaymentToPolicy(numeroPoliza, monto, fechaJS);
             if (!updatedPolicy) {
-                return await ctx.reply(
+                await ctx.reply(
                     `❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`
                 );
             }
@@ -1412,7 +1407,7 @@ ${serviciosInfo}
         const chatId = ctx.chat.id;
         const threadId = StateKeyManager.getThreadId(ctx);
         try {
-            const flowStateManager = require('../utils/FlowStateManager');
+            const flowStateManager = require('../utils/FlowStateManager').default;
             const activeFlows = flowStateManager.getActiveFlows(chatId, threadId);
 
             if (activeFlows.length > 0) {
@@ -1520,7 +1515,7 @@ ${serviciosInfo}
                 logger.warn(
                     `Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}`
                 );
-                return await ctx.reply(
+                await ctx.reply(
                     '❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.'
                 );
             }
@@ -1545,7 +1540,7 @@ ${serviciosInfo}
             if (usarFechaActual && origenDestinoGuardado) {
                 // En este caso solo esperamos 2 líneas: costo y expediente
                 if (lines.length < 2) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         '❌ Formato inválido. Debes ingresar 2 líneas:\n' +
                             '1) Costo (ej. 550.00)\n' +
                             '2) Número de Expediente'
@@ -1557,12 +1552,12 @@ ${serviciosInfo}
                 // Validar costo
                 const costo = parseFloat(costoStr.replace(',', '.'));
                 if (isNaN(costo) || costo <= 0) {
-                    return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
+                    await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
                 }
 
                 // Validar expediente
                 if (!expediente || expediente.length < 3) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         '❌ Número de expediente inválido. Ingresa al menos 3 caracteres.'
                     );
                 }
@@ -1574,7 +1569,7 @@ ${serviciosInfo}
                 const origenDestino = origenDestinoGuardado;
 
                 // Guardar el número de expediente en FlowStateManager para uso en notificaciones
-                const flowStateManager = require('../utils/FlowStateManager');
+                const flowStateManager = require('../utils/FlowStateManager').default;
                 flowStateManager.saveState(
                     chatId,
                     numeroPoliza,
@@ -1598,7 +1593,7 @@ ${serviciosInfo}
                     origenDestino
                 );
                 if (!updatedPolicy) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         `❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`
                     );
                 }
@@ -1629,7 +1624,7 @@ ${serviciosInfo}
                 // MODO COMPLETO: Flujo normal con 4 datos
                 // Necesitamos 4 líneas: Costo, Fecha, Expediente, Origen-Destino
                 if (lines.length < 4) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         '❌ Formato inválido. Debes ingresar 4 líneas:\n' +
                             '1) Costo (ej. 550.00)\n' +
                             '2) Fecha (DD/MM/YYYY)\n' +
@@ -1643,29 +1638,29 @@ ${serviciosInfo}
                 // Validar costo
                 const costo = parseFloat(costoStr.replace(',', '.'));
                 if (isNaN(costo) || costo <= 0) {
-                    return await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
+                    await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
                 }
 
                 // Validar fecha
                 const [dia, mes, anio] = fechaStr.split(/[/-]/);
                 if (!dia || !mes || !anio) {
-                    return await ctx.reply('❌ Fecha inválida. Usa el formato DD/MM/YYYY');
+                    await ctx.reply('❌ Fecha inválida. Usa el formato DD/MM/YYYY');
                 }
                 const fechaJS = new Date(`${anio}-${mes}-${dia}`);
                 if (isNaN(fechaJS.getTime())) {
-                    return await ctx.reply('❌ Fecha inválida. Verifica día, mes y año correctos.');
+                    await ctx.reply('❌ Fecha inválida. Verifica día, mes y año correctos.');
                 }
 
                 // Validar expediente
                 if (!expediente || expediente.length < 3) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         '❌ Número de expediente inválido. Ingresa al menos 3 caracteres.'
                     );
                 }
 
                 // Validar origen-destino
                 if (!origenDestino || origenDestino.length < 3) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         '❌ Origen y destino inválidos. Ingresa al menos 3 caracteres.'
                     );
                 }
@@ -1679,7 +1674,7 @@ ${serviciosInfo}
                     origenDestino
                 );
                 if (!updatedPolicy) {
-                    return await ctx.reply(
+                    await ctx.reply(
                         `❌ No se encontró la póliza *${numeroPoliza}*. Proceso cancelado.`
                     );
                 }
@@ -1775,3 +1770,5 @@ ${serviciosInfo}
 }
 
 export default CommandHandler;
+
+

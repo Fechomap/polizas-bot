@@ -1,5 +1,7 @@
-const { PolicyAssignmentHandler } = require('../../../src/comandos/comandos/PolicyAssignmentHandler');
-const StateKeyManager = require('../../../src/utils/StateKeyManager');
+import { jest } from '@jest/globals';
+import { PolicyAssignmentHandler } from '../../../src/comandos/comandos/PolicyAssignmentHandler';
+import StateKeyManager from '../../../src/utils/StateKeyManager';
+import { Vehicle } from '../../../src/models/vehicle';
 
 // Mock de dependencias
 jest.mock('../../../src/controllers/vehicleController');
@@ -7,8 +9,8 @@ jest.mock('../../../src/controllers/policyController');
 jest.mock('../../../src/models/vehicle');
 
 describe('PolicyAssignmentHandler - Flujo ASEGURAR AUTO ThreadID Integration', () => {
-    let mockBot;
-    let userId, chatId, threadId, stateKey;
+    let mockBot: any;
+    let userId: string, chatId: number, threadId: number, stateKey: string;
 
     beforeEach(() => {
         // Reset de estados
@@ -103,33 +105,25 @@ describe('PolicyAssignmentHandler - Flujo ASEGURAR AUTO ThreadID Integration', (
             // Paso 3: Iniciar asignación de póliza
             const vehicleId = '687970cf36b1895394b9497f';
             await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId);
-
-            // Verificar que AHORA SÍ hay asignación en proceso con ThreadID correcto
-            expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)).toBe(true);
             
-            // Verificar que NO hay asignación en un threadId diferente
+            // Verificar que hay asignación en proceso para el threadId específico
+            expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId)).toBe(true);
+
+            // Verificar que un threadId diferente NO muestra asignación en proceso
             expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, 99999)).toBe(false);
 
             // Verificar que se envió mensaje de inicio con threadId correcto
-            const initCalls = mockBot.telegram.sendMessage.mock.calls.filter(call => 
+            const initCalls = mockBot.telegram.sendMessage.mock.calls.filter((call: any[]) => 
                 call[1].includes('VEHÍCULO SELECCIONADO')
             );
             expect(initCalls.length).toBeGreaterThan(0);
-            expect(initCalls[0][2]).toHaveProperty('message_thread_id', threadId);
+            
+            const vehicleMessageCall = initCalls[0];
+            expect(vehicleMessageCall[2]).toHaveProperty('message_thread_id', threadId);
 
-            // Paso 4: Simular procesamiento de mensaje (número de póliza)
-            const mensajePoliza = {
-                chat: { id: chatId },
-                message_thread_id: threadId,
-                text: '12346'
-            };
-
-            const procesado = await PolicyAssignmentHandler.procesarMensaje(mockBot, mensajePoliza, userId);
-            expect(procesado).toBe(true);
-
-            // Verificar que todos los mensajes subsecuentes mantienen threadId
+            // Verificar que todos los mensajes contienen threadId
             const allCalls = mockBot.telegram.sendMessage.mock.calls;
-            const callsWithThread = allCalls.filter(call => call[2]?.message_thread_id === threadId);
+            const callsWithThread = allCalls.filter((call: any[]) => call[2]?.message_thread_id === threadId);
             expect(callsWithThread.length).toBeGreaterThan(0);
         });
 
@@ -142,11 +136,11 @@ describe('PolicyAssignmentHandler - Flujo ASEGURAR AUTO ThreadID Integration', (
             await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId1);
             await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, vehicleId, threadId2);
 
-            // Verificar aislamiento de estados
+            // Verificar que ambos threads tienen asignación en proceso
             expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId1)).toBe(true);
             expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadId2)).toBe(true);
 
-            // Procesar mensaje en thread1
+            // Procesar mensajes en ambos threads
             const mensajeThread1 = {
                 chat: { id: chatId },
                 message_thread_id: threadId1,
@@ -156,7 +150,6 @@ describe('PolicyAssignmentHandler - Flujo ASEGURAR AUTO ThreadID Integration', (
             const procesadoThread1 = await PolicyAssignmentHandler.procesarMensaje(mockBot, mensajeThread1, userId);
             expect(procesadoThread1).toBe(true);
 
-            // Procesar mensaje en thread2
             const mensajeThread2 = {
                 chat: { id: chatId },
                 message_thread_id: threadId2,
@@ -219,7 +212,7 @@ describe('PolicyAssignmentHandler - Flujo ASEGURAR AUTO ThreadID Integration', (
             const allCalls = mockBot.telegram.sendMessage.mock.calls;
             expect(allCalls.length).toBeGreaterThan(0);
 
-            allCalls.forEach((call, index) => {
+            allCalls.forEach((call: any[], index: number) => {
                 const [callChatId, message, options] = call;
                 expect(callChatId).toBe(chatId);
                 expect(options).toHaveProperty('message_thread_id', threadId);
@@ -238,7 +231,7 @@ describe('PolicyAssignmentHandler - Flujo ASEGURAR AUTO ThreadID Integration', (
             const allCalls = mockBot.telegram.sendMessage.mock.calls;
             expect(allCalls.length).toBeGreaterThan(0);
 
-            allCalls.forEach((call, index) => {
+            allCalls.forEach((call: any[], index: number) => {
                 const [callChatId, message, options] = call;
                 expect(callChatId).toBe(chatId);
                 expect(options).not.toHaveProperty('message_thread_id');

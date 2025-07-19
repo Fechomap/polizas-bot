@@ -1,7 +1,7 @@
 import { Context } from 'telegraf';
-import { BaseCommand } from './BaseCommand';
+import { BaseCommand, IBaseHandler } from './BaseCommand';
 
-interface IHandler {
+interface IHandler extends IBaseHandler {
     // Add any handler interface properties if needed
 }
 

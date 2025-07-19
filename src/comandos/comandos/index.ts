@@ -19,5 +19,5 @@ export { default as ExcelUploadHandler } from './ExcelUploadHandler';
 export { default as NotificationCommand } from './NotificationCommand';
 export { default as BaseAutosCommand } from './BaseAutosCommand';
 export { default as DocumentHandler } from './documentHandler';
-export { default as VehicleRegistrationHandler } from './VehicleRegistrationHandler';
+export { VehicleRegistrationHandler } from './VehicleRegistrationHandler';
 export { default as PolicyAssignmentHandler } from './PolicyAssignmentHandler';

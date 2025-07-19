@@ -39,7 +39,7 @@ interface ProgressState {
 
 interface ScriptExecutionOptions {
     detached: boolean;
-    stdio: [string, string, string];
+    stdio: ('ignore' | 'pipe')[];
 }
 
 class ReportUsedCommand extends BaseCommand {

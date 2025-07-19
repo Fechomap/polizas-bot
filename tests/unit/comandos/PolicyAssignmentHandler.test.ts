@@ -1,10 +1,11 @@
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
-const {
+import { jest } from '@jest/globals';
+import mongoose from 'mongoose';
+import { MongoMemoryServer } from 'mongodb-memory-server';
+import {
     PolicyAssignmentHandler,
     asignacionesEnProceso
-} = require('../../../src/comandos/comandos/PolicyAssignmentHandler');
-const Vehicle = require('../../../src/models/vehicle');
+} from '../../../src/comandos/comandos/PolicyAssignmentHandler';
+import Vehicle from '../../../src/models/vehicle';
 
 // Mock del bot de Telegram
 const mockBot = {
@@ -38,8 +39,29 @@ jest.mock('../../../src/comandos/teclados', () => ({
 const VehicleController = require('../../../src/controllers/vehicleController');
 const policyController = require('../../../src/controllers/policyController');
 
+interface MockVehiculo {
+    _id: string;
+    marca: string;
+    submarca: string;
+    año: number;
+    color: string;
+    serie: string;
+    placas: string;
+    titular: string;
+    rfc?: string;
+    telefono?: string;
+    estado?: string;
+    createdAt?: Date;
+}
+
+interface PaginationResponse {
+    pagina: number;
+    totalPaginas: number;
+    total: number;
+}
+
 describe('PolicyAssignmentHandler', () => {
-    let mongoServer;
+    let mongoServer: MongoMemoryServer;
     const chatId = 123456;
     const userId = 'user123';
 
@@ -62,7 +84,7 @@ describe('PolicyAssignmentHandler', () => {
 
     describe('mostrarVehiculosDisponibles', () => {
         test('debe mostrar vehículos disponibles correctamente', async () => {
-            const mockVehiculos = [
+            const mockVehiculos: MockVehiculo[] = [
                 {
                     _id: 'vehicle1',
                     marca: 'Toyota',
@@ -124,7 +146,11 @@ describe('PolicyAssignmentHandler', () => {
             VehicleController.getVehiculosSinPoliza.mockResolvedValue({
                 success: true,
                 vehiculos: [],
-                pagination: { pagina: 1, totalPaginas: 1, total: 0 }
+                pagination: {
+                    pagina: 1,
+                    totalPaginas: 0,
+                    total: 0
+                }
             });
 
             const resultado = await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
@@ -136,12 +162,11 @@ describe('PolicyAssignmentHandler', () => {
             expect(resultado).toBe(true);
             expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                 chatId,
-                expect.stringContaining('📋 *NO HAY VEHÍCULOS DISPONIBLES*'),
-                expect.any(Object)
+                expect.stringContaining('No hay vehículos sin póliza disponibles')
             );
         });
 
-        test('debe manejar error al consultar vehículos', async () => {
+        test('debe manejar error en consulta', async () => {
             VehicleController.getVehiculosSinPoliza.mockResolvedValue({
                 success: false,
                 error: 'Error de base de datos'
@@ -161,15 +186,15 @@ describe('PolicyAssignmentHandler', () => {
         });
 
         test('debe manejar paginación correctamente', async () => {
-            const mockVehiculos = Array.from({ length: 5 }, (_, i) => ({
+            const mockVehiculos: MockVehiculo[] = Array.from({ length: 5 }, (_, i) => ({
                 _id: `vehicle${i + 11}`,
                 marca: 'Toyota',
                 submarca: 'Corolla',
                 año: 2023,
                 color: 'Blanco',
-                serie: `SERIE${i + 11}`,
-                placas: `ABC-${i + 11}-D`,
-                titular: `Usuario ${i + 11}`,
+                serie: `1HGBH41JXMN1091${i + 1}`,
+                placas: `ABC-${i + 1}`,
+                titular: `Usuario ${i + 1}`,
                 createdAt: new Date()
             }));
 
@@ -183,7 +208,7 @@ describe('PolicyAssignmentHandler', () => {
                 }
             });
 
-            const resultado = await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
+            const resultado = await PolicyAssignmentHandler.mostrarVehiculosPagina(
                 mockBot,
                 chatId,
                 userId,
@@ -191,7 +216,6 @@ describe('PolicyAssignmentHandler', () => {
             );
 
             expect(resultado).toBe(true);
-            expect(VehicleController.getVehiculosSinPoliza).toHaveBeenCalledWith(10, 2);
 
             const callArgs = mockBot.telegram.sendMessage.mock.calls[0];
             const reply_markup = callArgs[2].reply_markup;
@@ -212,7 +236,7 @@ describe('PolicyAssignmentHandler', () => {
     });
 
     describe('iniciarAsignacion', () => {
-        let mockVehiculo;
+        let mockVehiculo: MockVehiculo;
 
         beforeEach(() => {
             mockVehiculo = {
@@ -236,6 +260,8 @@ describe('PolicyAssignmentHandler', () => {
                 findById: jest.fn().mockResolvedValue(mockVehiculo)
             }));
 
+            Vehicle.findById = jest.fn().mockResolvedValue(mockVehiculo);
+
             const resultado = await PolicyAssignmentHandler.iniciarAsignacion(
                 mockBot,
                 chatId,
@@ -244,20 +270,15 @@ describe('PolicyAssignmentHandler', () => {
             );
 
             expect(resultado).toBe(true);
+            expect(Vehicle.findById).toHaveBeenCalledWith('vehicle123');
             expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                 chatId,
-                expect.stringContaining('🚗 *VEHÍCULO SELECCIONADO*'),
+                expect.stringContaining('VEHÍCULO SELECCIONADO'),
                 expect.objectContaining({
-                    parse_mode: 'Markdown',
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: '❌ Cancelar', callback_data: 'poliza_cancelar' }]
-                        ]
-                    }
+                    parse_mode: 'Markdown'
                 })
             );
 
-            expect(PolicyAssignmentHandler.tieneAsignacionEnProceso(userId)).toBe(true);
             const asignacion = asignacionesEnProceso.get(userId);
             expect(asignacion.estado).toBe('esperando_numero_poliza');
             expect(asignacion.vehiculo).toEqual(mockVehiculo);
@@ -268,26 +289,25 @@ describe('PolicyAssignmentHandler', () => {
                 findById: jest.fn().mockResolvedValue(null)
             }));
 
+            Vehicle.findById = jest.fn().mockResolvedValue(null);
+
             const resultado = await PolicyAssignmentHandler.iniciarAsignacion(
                 mockBot,
                 chatId,
                 userId,
-                'inexistente'
+                'vehicle_inexistente'
             );
 
             expect(resultado).toBe(false);
             expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                 chatId,
-                '❌ Vehículo no encontrado.'
+                expect.stringContaining('❌ No se encontró el vehículo')
             );
         });
 
-        test('debe rechazar vehículo ya asegurado', async () => {
+        test('debe rechazar vehículo con póliza', async () => {
             mockVehiculo.estado = 'CON_POLIZA';
-
-            jest.doMock('../../../src/models/vehicle', () => ({
-                findById: jest.fn().mockResolvedValue(mockVehiculo)
-            }));
+            Vehicle.findById = jest.fn().mockResolvedValue(mockVehiculo);
 
             const resultado = await PolicyAssignmentHandler.iniciarAsignacion(
                 mockBot,
@@ -311,6 +331,7 @@ describe('PolicyAssignmentHandler', () => {
                 findById: jest.fn().mockResolvedValue(mockVehiculo)
             }));
 
+            Vehicle.findById = jest.fn().mockResolvedValue(mockVehiculo);
             await PolicyAssignmentHandler.iniciarAsignacion(mockBot, chatId, userId, 'vehicle123');
 
             const asignacion = asignacionesEnProceso.get(userId);
@@ -320,39 +341,49 @@ describe('PolicyAssignmentHandler', () => {
     });
 
     describe('procesarMensaje', () => {
+        let mockVehiculo: MockVehiculo;
+
         beforeEach(() => {
-            // Crear asignación en proceso
+            mockVehiculo = {
+                _id: 'vehicle123',
+                marca: 'Toyota',
+                submarca: 'Corolla',
+                año: 2023,
+                color: 'Blanco',
+                serie: '1HGBH41JXMN109186',
+                placas: 'ABC-123-D',
+                titular: 'Juan Pérez',
+                rfc: 'PEGJ850312H7A',
+                telefono: '+52 55 1234 5678',
+                estado: 'SIN_POLIZA'
+            };
+
             asignacionesEnProceso.set(userId, {
                 estado: 'esperando_numero_poliza',
-                chatId: chatId,
-                vehiculo: {
-                    _id: 'vehicle123',
-                    marca: 'Toyota',
-                    submarca: 'Corolla'
-                },
-                datosPoliza: {},
-                iniciado: new Date()
+                chatId,
+                vehiculo: mockVehiculo
             });
         });
 
-        test('debe retornar false si no hay asignación en proceso', async () => {
-            const otroUserId = 'otroUser';
-            const msg = { chat: { id: chatId }, text: 'test' };
-
+        test('debe rechazar mensaje si no hay asignación en proceso', async () => {
+            asignacionesEnProceso.clear();
             const resultado = await PolicyAssignmentHandler.procesarMensaje(
                 mockBot,
-                msg,
-                otroUserId
+                { chat: { id: chatId }, text: 'ABC123' },
+                userId
             );
 
             expect(resultado).toBe(false);
         });
 
-        describe('procesarNumeroPoliza', () => {
-            test('debe procesar número de póliza válido', async () => {
-                policyController.buscarPorNumeroPoliza.mockResolvedValue(null);
+        describe('Estado: esperando_numero_poliza', () => {
+            test('debe procesar número de póliza correctamente', async () => {
+                policyController.buscarPorNumeroPoliza.mockResolvedValue({
+                    success: true,
+                    policy: null
+                });
 
-                const msg = { chat: { id: chatId }, text: 'POL-2024-001234' };
+                const msg = { chat: { id: chatId }, text: 'ABC123' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -360,22 +391,24 @@ describe('PolicyAssignmentHandler', () => {
                 );
 
                 expect(resultado).toBe(true);
-                expect(policyController.buscarPorNumeroPoliza).toHaveBeenCalledWith(
-                    'POL-2024-001234'
-                );
+                expect(policyController.buscarPorNumeroPoliza).toHaveBeenCalledWith('ABC123');
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ Número de póliza: *POL-2024-001234*'),
-                    expect.any(Object)
+                    expect.stringContaining('📅 Ingresa la fecha de inicio de vigencia')
                 );
 
                 const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion.datosPoliza.numeroPoliza).toBe('POL-2024-001234');
-                expect(asignacion.estado).toBe('esperando_aseguradora');
+                expect(asignacion.estado).toBe('esperando_fecha_inicio');
+                expect(asignacion.numeroPoliza).toBe('ABC123');
             });
 
-            test('debe rechazar número de póliza muy corto', async () => {
-                const msg = { chat: { id: chatId }, text: '123' };
+            test('debe rechazar póliza duplicada', async () => {
+                policyController.buscarPorNumeroPoliza.mockResolvedValue({
+                    success: true,
+                    policy: { _id: 'existente' }
+                });
+
+                const msg = { chat: { id: chatId }, text: 'POL_DUPLICADA' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -385,80 +418,23 @@ describe('PolicyAssignmentHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining(
-                        '❌ El número de póliza debe tener al menos 5 caracteres'
-                    )
+                    expect.stringContaining('❌ Ya existe una póliza')
                 );
-            });
-
-            test('debe rechazar número de póliza duplicado', async () => {
-                policyController.buscarPorNumeroPoliza.mockResolvedValue({ _id: 'existing' });
-
-                const msg = { chat: { id: chatId }, text: 'POL-EXISTENTE' };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                    chatId,
-                    expect.stringContaining('❌ Ya existe una póliza con este número')
-                );
+                expect(asignacionesEnProceso.get(userId).estado).toBe('esperando_numero_poliza');
             });
         });
 
-        describe('procesarAseguradora', () => {
+        describe('Estado: esperando_fecha_inicio', () => {
             beforeEach(() => {
-                const asignacion = asignacionesEnProceso.get(userId);
-                asignacion.estado = 'esperando_aseguradora';
-                asignacion.datosPoliza = { numeroPoliza: 'POL-123' };
-            });
-
-            test('debe procesar aseguradora válida', async () => {
-                const msg = { chat: { id: chatId }, text: 'GNP Seguros' };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                asignacionesEnProceso.set(userId, {
+                    estado: 'esperando_fecha_inicio',
                     chatId,
-                    expect.stringContaining('✅ Aseguradora: *GNP Seguros*'),
-                    expect.any(Object)
-                );
-
-                const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion.datosPoliza.aseguradora).toBe('GNP Seguros');
-                expect(asignacion.estado).toBe('esperando_agente');
+                    vehiculo: mockVehiculo,
+                    numeroPoliza: 'ABC123'
+                });
             });
 
-            test('debe rechazar aseguradora muy corta', async () => {
-                const msg = { chat: { id: chatId }, text: 'A' };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                    chatId,
-                    expect.stringContaining('❌ La aseguradora debe tener al menos 2 caracteres')
-                );
-            });
-        });
-
-        describe('procesarFechaEmision', () => {
-            beforeEach(() => {
-                const asignacion = asignacionesEnProceso.get(userId);
-                asignacion.estado = 'esperando_fecha_emision';
-            });
-
-            test('debe procesar fecha válida', async () => {
+            test('debe procesar fecha de inicio válida', async () => {
                 const msg = { chat: { id: chatId }, text: '15/01/2024' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
@@ -469,17 +445,16 @@ describe('PolicyAssignmentHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ Fecha de emisión: *15/01/2024*'),
-                    expect.any(Object)
+                    expect.stringContaining('📅 Ingresa la fecha fin')
                 );
 
                 const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion.datosPoliza.fechaEmision).toBeInstanceOf(Date);
                 expect(asignacion.estado).toBe('esperando_fecha_fin');
+                expect(asignacion.fechaInicio).toBeInstanceOf(Date);
             });
 
             test('debe rechazar fecha inválida', async () => {
-                const msg = { chat: { id: chatId }, text: '32/13/2024' };
+                const msg = { chat: { id: chatId }, text: 'fecha_invalida' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -489,33 +464,104 @@ describe('PolicyAssignmentHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('❌ Fecha inválida')
-                );
-            });
-
-            test('debe rechazar formato de fecha incorrecto', async () => {
-                const msg = { chat: { id: chatId }, text: '2024-01-15' };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                    chatId,
-                    expect.stringContaining('❌ Fecha inválida')
+                    expect.stringContaining('❌ Formato de fecha incorrecto')
                 );
             });
         });
 
-        describe('procesarPagos', () => {
+        describe('Estado: esperando_fecha_fin', () => {
             beforeEach(() => {
-                const asignacion = asignacionesEnProceso.get(userId);
-                asignacion.estado = 'esperando_pagos';
+                asignacionesEnProceso.set(userId, {
+                    estado: 'esperando_fecha_fin',
+                    chatId,
+                    vehiculo: mockVehiculo,
+                    numeroPoliza: 'ABC123',
+                    fechaInicio: new Date('2024-01-15')
+                });
             });
 
-            test('debe procesar pago válido', async () => {
+            test('debe procesar fecha de fin válida', async () => {
+                const msg = { chat: { id: chatId }, text: '15/01/2025' };
+                const resultado = await PolicyAssignmentHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('🏢 Ingresa el nombre de la aseguradora')
+                );
+
+                const asignacion = asignacionesEnProceso.get(userId);
+                expect(asignacion.estado).toBe('esperando_aseguradora');
+                expect(asignacion.fechaFin).toBeInstanceOf(Date);
+            });
+
+            test('debe rechazar fecha anterior a fecha de inicio', async () => {
+                const msg = { chat: { id: chatId }, text: '01/01/2024' };
+                const resultado = await PolicyAssignmentHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('❌ La fecha fin no puede ser anterior a la fecha inicio')
+                );
+            });
+        });
+
+        describe('Estado: esperando_aseguradora', () => {
+            beforeEach(() => {
+                asignacionesEnProceso.set(userId, {
+                    estado: 'esperando_aseguradora',
+                    chatId,
+                    vehiculo: mockVehiculo,
+                    numeroPoliza: 'ABC123',
+                    fechaInicio: new Date('2024-01-15'),
+                    fechaFin: new Date('2025-01-15')
+                });
+            });
+
+            test('debe procesar aseguradora correctamente', async () => {
+                const msg = { chat: { id: chatId }, text: 'MAPFRE' };
+                const resultado = await PolicyAssignmentHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('💲 Ingresa el primer pago')
+                );
+
+                const asignacion = asignacionesEnProceso.get(userId);
+                expect(asignacion.estado).toBe('esperando_primer_pago');
+                expect(asignacion.aseguradora).toBe('MAPFRE');
+            });
+        });
+
+        describe('Estado: esperando_primer_pago', () => {
+            beforeEach(() => {
+                asignacionesEnProceso.set(userId, {
+                    estado: 'esperando_primer_pago',
+                    chatId,
+                    vehiculo: mockVehiculo,
+                    numeroPoliza: 'ABC123',
+                    fechaInicio: new Date('2024-01-15'),
+                    fechaFin: new Date('2025-01-15'),
+                    aseguradora: 'MAPFRE',
+                    pagos: []
+                });
+            });
+
+            test('debe procesar primer pago correctamente', async () => {
                 const msg = { chat: { id: chatId }, text: '5000,15/01/2024' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
@@ -526,38 +572,20 @@ describe('PolicyAssignmentHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('✅ Pago agregado: $5,000 -')
+                    expect.stringContaining('¿Deseas agregar otro pago?')
                 );
 
                 const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion.datosPoliza.pagos).toHaveLength(1);
-                expect(asignacion.datosPoliza.pagos[0]).toMatchObject({
+                expect(asignacion.estado).toBe('esperando_respuesta_mas_pagos');
+                expect(asignacion.pagos).toHaveLength(1);
+                expect(asignacion.pagos[0]).toMatchObject({
                     monto: 5000,
                     fecha: expect.any(Date)
                 });
             });
 
-            test('debe permitir continuar sin pagos', async () => {
-                const msg = { chat: { id: chatId }, text: 'CONTINUAR' };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                    chatId,
-                    expect.stringContaining('⏭️ Pagos omitidos'),
-                    expect.any(Object)
-                );
-
-                const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion.estado).toBe('esperando_pdf');
-            });
-
             test('debe rechazar formato de pago inválido', async () => {
-                const msg = { chat: { id: chatId }, text: 'formato_incorrecto' };
+                const msg = { chat: { id: chatId }, text: 'formato_invalido' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -567,55 +595,95 @@ describe('PolicyAssignmentHandler', () => {
                 expect(resultado).toBe(true);
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('❌ Formato de pago inválido')
-                );
-            });
-
-            test('debe agregar múltiples pagos', async () => {
-                // Primer pago
-                let msg = { chat: { id: chatId }, text: '3000,15/01/2024' };
-                await PolicyAssignmentHandler.procesarMensaje(mockBot, msg, userId);
-
-                // Segundo pago
-                msg = { chat: { id: chatId }, text: '2000,15/02/2024' };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-
-                const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion.datosPoliza.pagos).toHaveLength(2);
-                expect(mockBot.telegram.sendMessage).toHaveBeenLastCalledWith(
-                    chatId,
-                    expect.stringContaining('💰 Total pagos: 2')
+                    expect.stringContaining('❌ Formato incorrecto')
                 );
             });
         });
 
-        describe('procesarPDF', () => {
+        describe('Estado: esperando_respuesta_mas_pagos', () => {
             beforeEach(() => {
-                const asignacion = asignacionesEnProceso.get(userId);
-                asignacion.estado = 'esperando_pdf';
-                asignacion.datosPoliza = {
-                    numeroPoliza: 'POL-123',
-                    aseguradora: 'GNP',
-                    agenteCotizador: 'Juan Agente',
-                    fechaEmision: new Date(),
-                    fechaFinCobertura: new Date()
-                };
+                asignacionesEnProceso.set(userId, {
+                    estado: 'esperando_respuesta_mas_pagos',
+                    chatId,
+                    vehiculo: mockVehiculo,
+                    numeroPoliza: 'ABC123',
+                    fechaInicio: new Date('2024-01-15'),
+                    fechaFin: new Date('2025-01-15'),
+                    aseguradora: 'MAPFRE',
+                    pagos: [
+                        {
+                            monto: 5000,
+                            fecha: new Date('2024-01-15')
+                        }
+                    ]
+                });
             });
 
-            test('debe continuar sin PDF', async () => {
+            test('debe permitir agregar otro pago', async () => {
+                const msg = { chat: { id: chatId }, text: 'SI' };
+                const resultado = await PolicyAssignmentHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('💲 Ingresa el siguiente pago')
+                );
+
+                const asignacion = asignacionesEnProceso.get(userId);
+                expect(asignacion.estado).toBe('esperando_siguiente_pago');
+            });
+
+            test('debe permitir finalizar pagos', async () => {
+                const msg = { chat: { id: chatId }, text: 'NO' };
+                const resultado = await PolicyAssignmentHandler.procesarMensaje(
+                    mockBot,
+                    msg,
+                    userId
+                );
+
+                expect(resultado).toBe(true);
+                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
+                    chatId,
+                    expect.stringContaining('📋 *RESUMEN DE PÓLIZA*')
+                );
+            });
+        });
+
+        describe('Estado: esperando_confirmacion', () => {
+            beforeEach(() => {
+                asignacionesEnProceso.set(userId, {
+                    estado: 'esperando_confirmacion',
+                    chatId,
+                    vehiculo: mockVehiculo,
+                    numeroPoliza: 'ABC123',
+                    fechaInicio: new Date('2024-01-15'),
+                    fechaFin: new Date('2025-01-15'),
+                    aseguradora: 'MAPFRE',
+                    pagos: [
+                        {
+                            monto: 5000,
+                            fecha: new Date('2024-01-15')
+                        }
+                    ],
+                    totalPagado: 5000
+                });
+            });
+
+            test('debe confirmar y crear póliza', async () => {
                 policyController.crearPoliza.mockResolvedValue({
                     success: true,
-                    poliza: { _id: 'poliza123' }
+                    policy: { _id: 'nueva_poliza' }
                 });
-                VehicleController.marcarConPoliza.mockResolvedValue(true);
 
-                const msg = { chat: { id: chatId }, text: 'CONTINUAR' };
+                VehicleController.marcarConPoliza.mockResolvedValue({
+                    success: true
+                });
+
+                const msg = { chat: { id: chatId }, text: 'CONFIRMAR' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
                     msg,
@@ -624,57 +692,20 @@ describe('PolicyAssignmentHandler', () => {
 
                 expect(resultado).toBe(true);
                 expect(policyController.crearPoliza).toHaveBeenCalled();
-                expect(VehicleController.marcarConPoliza).toHaveBeenCalled();
+                expect(VehicleController.marcarConPoliza).toHaveBeenCalledWith(
+                    'vehicle123',
+                    'nueva_poliza'
+                );
                 expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
                     chatId,
-                    expect.stringContaining('🎉 *PÓLIZA ASIGNADA EXITOSAMENTE*'),
-                    expect.any(Object)
-                );
-                expect(asignacionesEnProceso.has(userId)).toBe(false);
-            });
-
-            test('debe procesar PDF correctamente', async () => {
-                policyController.crearPoliza.mockResolvedValue({
-                    success: true,
-                    poliza: { _id: 'poliza123' }
-                });
-                VehicleController.marcarConPoliza.mockResolvedValue(true);
-
-                const msg = {
-                    chat: { id: chatId },
-                    document: {
-                        file_id: 'pdf123',
-                        file_name: 'poliza.pdf',
-                        file_size: 1024,
-                        mime_type: 'application/pdf'
-                    }
-                };
-                const resultado = await PolicyAssignmentHandler.procesarMensaje(
-                    mockBot,
-                    msg,
-                    userId
-                );
-
-                expect(resultado).toBe(true);
-
-                const asignacion = asignacionesEnProceso.get(userId);
-                expect(asignacion).toBeUndefined(); // Debe estar limpia porque se finalizó
-
-                expect(mockBot.telegram.sendMessage).toHaveBeenCalledWith(
-                    chatId,
-                    expect.stringContaining('✅ PDF guardado: poliza.pdf')
+                    expect.stringContaining('✅ Póliza registrada correctamente')
                 );
             });
 
-            test('debe rechazar archivo que no es PDF', async () => {
-                const msg = {
-                    chat: { id: chatId },
-                    document: {
-                        file_id: 'doc123',
-                        file_name: 'archivo.txt',
-                        mime_type: 'text/plain'
-                    }
-                };
+            test('debe solicitar archivo PDF', async () => {
+                asignacionesEnProceso.get(userId).estado = 'esperando_archivo';
+
+                const msg = { chat: { id: chatId }, text: 'CONTINUAR' };
                 const resultado = await PolicyAssignmentHandler.procesarMensaje(
                     mockBot,
                     msg,

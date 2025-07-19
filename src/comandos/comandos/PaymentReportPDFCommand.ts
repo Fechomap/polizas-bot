@@ -167,6 +167,11 @@ class PaymentReportPDFCommand extends BaseCommand {
         return 'Genera un reporte PDF de pólizas con pagos pendientes.';
     }
 
+    register(): void {
+        // Este comando no registra handlers automáticamente
+        // Se ejecuta mediante llamadas específicas desde otros comandos
+        this.logInfo(`Comando ${this.getCommandName()} cargado correctamente`);
+    }
     /**
      * Calcula el día anterior del mismo número de mes
      * Ej: emisión 5 enero → pago requerido 4 febrero
@@ -378,7 +383,7 @@ class PaymentReportPDFCommand extends BaseCommand {
      * @param doc - Documento PDF
      * @param stats - Estadísticas del reporte
      */
-    addCorporateHeader(doc: PDFDocument, stats: ReportStats): void {
+    addCorporateHeader(doc: InstanceType<typeof PDFDocument>, stats: ReportStats): void {
         const { margin, headerHeight } = this.layout;
 
         // Fondo con gradiente corporativo
@@ -412,7 +417,7 @@ class PaymentReportPDFCommand extends BaseCommand {
      * @param doc - Documento PDF
      * @param urgencyData - Datos de urgencia
      */
-    addUrgencyChart(doc: PDFDocument, urgencyData: UrgencyData): void {
+    addUrgencyChart(doc: InstanceType<typeof PDFDocument>, urgencyData: UrgencyData): void {
         const chartY = doc.y + this.layout.sectionSpacing;
         const chartWidth = 400;
         const chartHeight = 80;
@@ -457,7 +462,7 @@ class PaymentReportPDFCommand extends BaseCommand {
      * @param doc - Documento PDF
      * @param stats - Estadísticas calculadas
      */
-    addKPISection(doc: PDFDocument, stats: ReportStats): void {
+    addKPISection(doc: InstanceType<typeof PDFDocument>, stats: ReportStats): void {
         const kpiY = doc.y + this.layout.sectionSpacing;
 
         doc.fontSize(12)
@@ -529,7 +534,7 @@ class PaymentReportPDFCommand extends BaseCommand {
      * @param pageNumber - Número de página
      * @param metadata - Metadatos del reporte
      */
-    addOptimizedFooter(doc: PDFDocument, pageNumber: number, metadata: ReportMetadata): void {
+    addOptimizedFooter(doc: InstanceType<typeof PDFDocument>, pageNumber: number, metadata: ReportMetadata): void {
         const footerY = doc.page.height - this.layout.footerHeight;
 
         // Línea separadora
@@ -966,7 +971,7 @@ class PaymentReportPDFCommand extends BaseCommand {
             const pdfBuffer = await this.generatePDF(pendingPolicies);
 
             // Generar Excel usando el comando Excel
-            const PaymentReportExcelCommand = require('./PaymentReportExcelCommand');
+            const PaymentReportExcelCommand = require('./PaymentReportExcelCommand').default;
             const excelCommand = new PaymentReportExcelCommand(this.handler);
             const excelBuffer = await excelCommand.generateExcel(pendingPolicies);
 
@@ -1028,7 +1033,7 @@ class PaymentReportPDFCommand extends BaseCommand {
                 `• 📄 PDF optimizado con diseño corporativo\n` +
                 `• 📊 Excel multi-hoja con análisis avanzado`;
 
-            await this.replyWithNavigation(ctx, message);
+            await this.replyWithNavigation(ctx as any, message);
 
             // Limpiar archivos temporales
             await fs.unlink(pdfFilePath);

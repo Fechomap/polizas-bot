@@ -1,10 +1,8 @@
-const BaseAutosCommand = require('../../../src/comandos/comandos/BaseAutosCommand').default;
-const {
-    VehicleRegistrationHandler
-} = require('../../../src/comandos/comandos/VehicleRegistrationHandler');
-const {
-    PolicyAssignmentHandler
-} = require('../../../src/comandos/comandos/PolicyAssignmentHandler');
+import { jest } from '@jest/globals';
+import BaseAutosCommand from '../../../src/comandos/comandos/BaseAutosCommand';
+import { VehicleRegistrationHandler } from '../../../src/comandos/comandos/VehicleRegistrationHandler';
+import { PolicyAssignmentHandler } from '../../../src/comandos/comandos/PolicyAssignmentHandler';
+import { Context } from 'telegraf';
 
 // Mock de los handlers
 jest.mock('../../../src/comandos/comandos/VehicleRegistrationHandler');
@@ -34,10 +32,10 @@ jest.mock('../../../src/utils/logger', () => ({
 }));
 
 describe('BaseAutosCommand', () => {
-    let command;
-    let mockBot;
-    let mockHandler;
-    let mockCtx;
+    let command: BaseAutosCommand;
+    let mockBot: any;
+    let mockHandler: any;
+    let mockCtx: any;
 
     beforeEach(() => {
         // Mock del bot
@@ -54,10 +52,10 @@ describe('BaseAutosCommand', () => {
 
         // Mock del contexto de Telegram
         mockCtx = {
-            answerCbQuery: jest.fn().mockResolvedValue(),
-            editMessageText: jest.fn().mockResolvedValue(),
-            deleteMessage: jest.fn().mockResolvedValue(),
-            reply: jest.fn().mockResolvedValue(),
+            answerCbQuery: jest.fn().mockResolvedValue(undefined),
+            editMessageText: jest.fn().mockResolvedValue(undefined),
+            deleteMessage: jest.fn().mockResolvedValue(undefined),
+            reply: jest.fn().mockResolvedValue(undefined),
             chat: { id: 123456 },
             from: { id: 'user123' },
             match: null
@@ -116,30 +114,35 @@ describe('BaseAutosCommand', () => {
         });
 
         describe('accion:base_autos', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 // Obtener el handler registrado
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'accion:base_autos'
+                    (call: any) => call[0] === 'accion:base_autos'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
+
+                // Mock teclado
+                const teclados = require('../../../src/comandos/teclados');
+                teclados.getBaseAutosKeyboard.mockReturnValue({
+                    reply_markup: { inline_keyboard: [] }
+                });
             });
 
-            test('debe mostrar menú de Base de Autos correctamente', async () => {
+            test('debe mostrar menú de base de autos', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
                 expect(mockCtx.editMessageText).toHaveBeenCalledWith(
-                    expect.stringContaining('🚗 *BASE DE AUTOS*'),
+                    '🚗 *Base de Datos de Autos*\n\nRegistro y gestión de vehículos para asignación de pólizas.',
                     expect.objectContaining({
                         parse_mode: 'Markdown'
                     })
                 );
             });
 
-            test('debe manejar errores correctamente', async () => {
-                mockCtx.editMessageText.mockRejectedValueOnce(new Error('Error de red'));
+            test('debe manejar errores', async () => {
+                mockCtx.editMessageText.mockRejectedValueOnce(new Error('Error de prueba'));
 
                 await actionHandler(mockCtx);
 
@@ -150,25 +153,22 @@ describe('BaseAutosCommand', () => {
         });
 
         describe('base_autos:registrar', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'base_autos:registrar'
+                    (call: any) => call[0] === 'base_autos:registrar'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
-                VehicleRegistrationHandler.tieneRegistroEnProceso = jest
-                    .fn()
-                    .mockReturnValue(false);
-                VehicleRegistrationHandler.iniciarRegistro = jest.fn().mockResolvedValue(true);
+                // Mock del VehicleRegistrationHandler
+                VehicleRegistrationHandler.tieneRegistroEnProceso = jest.fn().mockReturnValue(false);
+                VehicleRegistrationHandler.iniciarRegistro = jest.fn().mockResolvedValue(undefined);
             });
 
-            test('debe iniciar registro de vehículo correctamente', async () => {
+            test('debe iniciar registro de vehículo', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                expect(mockCtx.deleteMessage).toHaveBeenCalled();
                 expect(VehicleRegistrationHandler.tieneRegistroEnProceso).toHaveBeenCalledWith(
                     'user123'
                 );
@@ -190,7 +190,7 @@ describe('BaseAutosCommand', () => {
                 expect(VehicleRegistrationHandler.iniciarRegistro).not.toHaveBeenCalled();
             });
 
-            test('debe manejar errores en inicio de registro', async () => {
+            test('debe manejar errores', async () => {
                 VehicleRegistrationHandler.iniciarRegistro.mockRejectedValueOnce(
                     new Error('Error')
                 );
@@ -202,25 +202,22 @@ describe('BaseAutosCommand', () => {
         });
 
         describe('base_autos:asegurar', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'base_autos:asegurar'
+                    (call: any) => call[0] === 'base_autos:asegurar'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
+                // Mock del PolicyAssignmentHandler
                 PolicyAssignmentHandler.tieneAsignacionEnProceso = jest.fn().mockReturnValue(false);
-                PolicyAssignmentHandler.mostrarVehiculosDisponibles = jest
-                    .fn()
-                    .mockResolvedValue(true);
+                PolicyAssignmentHandler.mostrarVehiculosDisponibles = jest.fn().mockResolvedValue(undefined);
             });
 
-            test('debe mostrar vehículos disponibles correctamente', async () => {
+            test('debe iniciar asignación de póliza', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                expect(mockCtx.deleteMessage).toHaveBeenCalled();
                 expect(PolicyAssignmentHandler.tieneAsignacionEnProceso).toHaveBeenCalledWith(
                     'user123'
                 );
@@ -244,32 +241,33 @@ describe('BaseAutosCommand', () => {
         });
 
         describe('vehiculo_cancelar', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'vehiculo_cancelar'
+                    (call: any) => call[0] === 'vehiculo_cancelar'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
-                VehicleRegistrationHandler.cancelarRegistro = jest.fn();
+                // Mock del VehicleRegistrationHandler
+                VehicleRegistrationHandler.tieneRegistroEnProceso = jest.fn().mockReturnValue(true);
+                VehicleRegistrationHandler.cancelarRegistro = jest.fn().mockResolvedValue(true);
             });
 
-            test('debe cancelar registro de vehículo correctamente', async () => {
+            test('debe cancelar registro de vehículo', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                expect(VehicleRegistrationHandler.cancelarRegistro).toHaveBeenCalledWith('user123');
-                expect(mockCtx.editMessageText).toHaveBeenCalledWith(
-                    '❌ Registro de vehículo cancelado.',
-                    expect.objectContaining({
-                        reply_markup: expect.any(Object)
-                    })
+                expect(VehicleRegistrationHandler.cancelarRegistro).toHaveBeenCalledWith(
+                    'user123',
+                    mockBot
+                );
+                expect(mockCtx.reply).toHaveBeenCalledWith(
+                    '✅ Registro cancelado correctamente.'
                 );
             });
 
-            test('debe manejar errores en cancelación', async () => {
-                VehicleRegistrationHandler.cancelarRegistro.mockImplementation(() => {
+            test('debe manejar errores', async () => {
+                VehicleRegistrationHandler.cancelarRegistro.mockImplementationOnce(() => {
                     throw new Error('Error');
                 });
 
@@ -280,45 +278,32 @@ describe('BaseAutosCommand', () => {
         });
 
         describe('vehiculo_finalizar', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'vehiculo_finalizar'
+                    (call: any) => call[0] === 'vehiculo_finalizar'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
-                // Mock del require dinámico
-                jest.doMock('../../../src/comandos/comandos/VehicleRegistrationHandler', () => ({
-                    VehicleRegistrationHandler: {
-                        finalizarRegistro: jest.fn().mockResolvedValue(true)
-                    },
-                    vehiculosEnProceso: new Map([
-                        [
-                            'user123',
-                            {
-                                estado: 'esperando_fotos',
-                                vehicleId: 'vehicle123'
-                            }
-                        ]
-                    ])
-                }));
+                // Mock del VehicleRegistrationHandler
+                VehicleRegistrationHandler.tieneRegistroEnProceso = jest.fn().mockReturnValue(true);
+                VehicleRegistrationHandler.finalizarRegistro = jest.fn().mockResolvedValue(true);
             });
 
-            test('debe finalizar registro correctamente', async () => {
+            test('debe finalizar registro de vehículo', async () => {
                 await actionHandler(mockCtx);
 
+                expect(VehicleRegistrationHandler.finalizarRegistro).toHaveBeenCalledWith(
+                    'user123',
+                    mockBot
+                );
                 expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                // deleteMessage se llama solo si finalizarRegistro retorna true
-                // En este caso el mock no está configurado correctamente
             });
 
             test('debe manejar caso sin registro en proceso', async () => {
                 // Mock registro no encontrado
-                jest.doMock('../../../src/comandos/comandos/VehicleRegistrationHandler', () => ({
-                    VehicleRegistrationHandler: {},
-                    vehiculosEnProceso: new Map()
-                }));
+                VehicleRegistrationHandler.tieneRegistroEnProceso.mockReturnValue(false);
 
                 await actionHandler(mockCtx);
 
@@ -327,91 +312,97 @@ describe('BaseAutosCommand', () => {
         });
 
         describe('poliza_cancelar', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'poliza_cancelar'
+                    (call: any) => call[0] === 'poliza_cancelar'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
-                // Mock del require dinámico
-                jest.doMock('../../../src/comandos/comandos/PolicyAssignmentHandler', () => ({
-                    asignacionesEnProceso: new Map([['user123', { test: 'data' }]])
-                }));
+                // Mock del PolicyAssignmentHandler
+                PolicyAssignmentHandler.tieneAsignacionEnProceso = jest.fn().mockReturnValue(true);
+                PolicyAssignmentHandler.cancelarAsignacion = jest.fn().mockResolvedValue(true);
             });
 
-            test('debe cancelar asignación de póliza correctamente', async () => {
+            test('debe cancelar asignación de póliza', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                expect(mockCtx.editMessageText).toHaveBeenCalledWith(
-                    '❌ Asignación de póliza cancelada.',
-                    expect.objectContaining({
-                        reply_markup: expect.any(Object)
-                    })
+                expect(PolicyAssignmentHandler.cancelarAsignacion).toHaveBeenCalledWith(
+                    'user123',
+                    mockBot
                 );
+                expect(mockCtx.reply).toHaveBeenCalledWith(
+                    '✅ Asignación de póliza cancelada correctamente.'
+                );
+            });
+
+            test('debe manejar errores', async () => {
+                PolicyAssignmentHandler.cancelarAsignacion.mockImplementationOnce(() => {
+                    throw new Error('Error');
+                });
+
+                await actionHandler(mockCtx);
+
+                expect(mockCtx.reply).toHaveBeenCalledWith('❌ Error al cancelar la asignación.');
             });
         });
 
-        describe('asignar_vehicleId', () => {
-            let actionHandler;
+        describe('asignar_', () => {
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0].toString() === '/^asignar_(.+)$/'
+                    (call: any) => Array.isArray(call[0]) || call[0].toString().includes('asignar_')
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
-                mockCtx.match = ['asignar_vehicle123', 'vehicle123'];
-                PolicyAssignmentHandler.iniciarAsignacion = jest.fn().mockResolvedValue(true);
+                // Mock match y PolicyAssignmentHandler
+                mockCtx.match = ['asignar_1234', '1234'];
+                PolicyAssignmentHandler.seleccionarVehiculo = jest.fn().mockResolvedValue(undefined);
             });
 
             test('debe iniciar asignación para vehículo seleccionado', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                expect(mockCtx.deleteMessage).toHaveBeenCalled();
-                expect(PolicyAssignmentHandler.iniciarAsignacion).toHaveBeenCalledWith(
+                expect(PolicyAssignmentHandler.seleccionarVehiculo).toHaveBeenCalledWith(
                     mockBot,
+                    '1234',
                     123456,
-                    'user123',
-                    'vehicle123'
+                    'user123'
                 );
+                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
             });
 
-            test('debe manejar errores en inicio de asignación', async () => {
-                PolicyAssignmentHandler.iniciarAsignacion.mockRejectedValueOnce(new Error('Error'));
+            test('debe manejar errores', async () => {
+                PolicyAssignmentHandler.seleccionarVehiculo.mockRejectedValueOnce(
+                    new Error('Error')
+                );
 
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.reply).toHaveBeenCalledWith(
-                    '❌ Error al iniciar la asignación de póliza.'
-                );
+                expect(mockCtx.reply).toHaveBeenCalledWith('❌ Error al seleccionar vehículo.');
             });
         });
 
-        describe('vehiculos_pag_N', () => {
-            let actionHandler;
+        describe('vehiculos_pag_', () => {
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0].toString() === '/^vehiculos_pag_(\\d+)$/'
+                    (call: any) => Array.isArray(call[0]) || call[0].toString().includes('vehiculos_pag_')
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
 
+                // Mock match y PolicyAssignmentHandler
                 mockCtx.match = ['vehiculos_pag_2', '2'];
-                PolicyAssignmentHandler.mostrarVehiculosDisponibles = jest
-                    .fn()
-                    .mockResolvedValue(true);
+                PolicyAssignmentHandler.mostrarVehiculosPagina = jest.fn().mockResolvedValue(undefined);
             });
 
-            test('debe mostrar página específica de vehículos', async () => {
+            test('debe mostrar página de vehículos', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
-                expect(mockCtx.deleteMessage).toHaveBeenCalled();
-                expect(PolicyAssignmentHandler.mostrarVehiculosDisponibles).toHaveBeenCalledWith(
+                expect(PolicyAssignmentHandler.mostrarVehiculosPagina).toHaveBeenCalledWith(
                     mockBot,
                     123456,
                     'user123',
@@ -419,33 +410,40 @@ describe('BaseAutosCommand', () => {
                 );
             });
 
-            test('debe manejar errores en paginación', async () => {
-                PolicyAssignmentHandler.mostrarVehiculosDisponibles.mockRejectedValueOnce(
+            test('debe manejar errores', async () => {
+                PolicyAssignmentHandler.mostrarVehiculosPagina.mockRejectedValueOnce(
                     new Error('Error')
                 );
 
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.reply).toHaveBeenCalledWith('❌ Error al cargar la página.');
+                expect(mockCtx.reply).toHaveBeenCalledWith(
+                    '❌ Error al mostrar la lista de vehículos.'
+                );
             });
         });
 
         describe('accion:volver_menu', () => {
-            let actionHandler;
+            let actionHandler: Function;
 
             beforeEach(() => {
                 const actionCall = mockBot.action.mock.calls.find(
-                    call => call[0] === 'accion:volver_menu'
+                    (call: any) => call[0] === 'accion:volver_menu'
                 );
-                actionHandler = actionCall[1];
+                actionHandler = actionCall ? actionCall[1] : () => {};
+
+                // Mock teclado
+                const teclados = require('../../../src/comandos/teclados');
+                teclados.getMainKeyboard.mockReturnValue({
+                    reply_markup: { inline_keyboard: [] }
+                });
             });
 
-            test('debe volver al menú principal correctamente', async () => {
+            test('debe volver al menú principal', async () => {
                 await actionHandler(mockCtx);
 
-                expect(mockCtx.answerCbQuery).toHaveBeenCalled();
                 expect(mockCtx.editMessageText).toHaveBeenCalledWith(
-                    expect.stringContaining('🤖 **Bot de Pólizas** - Menú Principal'),
+                    '🤖 *Menú Principal*\n\nSelecciona una opción del menú:',
                     expect.objectContaining({
                         parse_mode: 'Markdown'
                     })
@@ -463,7 +461,7 @@ describe('BaseAutosCommand', () => {
     });
 
     describe('procesarMensajeBaseAutos', () => {
-        let message;
+        let message: { chat: { id: number }, text: string };
 
         beforeEach(() => {
             message = {

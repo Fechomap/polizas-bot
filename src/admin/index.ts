@@ -461,7 +461,8 @@ class AdminModule {
 
             try {
                 // Verificar estado admin actual
-                const adminState = require('./utils/adminStates').getAdminState(
+                const adminStateManager = require('./utils/adminStates').default;
+                const adminState = adminStateManager.getAdminState(
                     ctx.from!.id,
                     ctx.chat!.id
                 );

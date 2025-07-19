@@ -47,7 +47,7 @@ interface ISavedState {
 
 interface IHandleServiceDataContext {
     awaitingServiceData: {
-        get(chatId: number, threadId?: string): string | IPolicyData | null;
+        get(chatId: number, threadIdStr?: string): string | IPolicyData | null;
     };
 }
 
@@ -62,14 +62,15 @@ async function handleServiceData(
         return null;
     }
 
-    const threadId = StateKeyManager.getThreadId(ctx);
+    const threadIdRaw = StateKeyManager.getThreadId(ctx);
+    const threadId = threadIdRaw ? String(threadIdRaw) : undefined;
     try {
         // Obtener la data guardada (puede ser string o objeto)
         const policyData = this.awaitingServiceData.get(chatId, threadId);
 
         if (!policyData) {
             logger.warn(
-                `Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}, threadId: ${threadId || 'ninguno'}`
+                `Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}, threadId: ${threadIdRaw || 'ninguno'}`
             );
             await ctx.reply(
                 '❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.'
@@ -82,7 +83,7 @@ async function handleServiceData(
 
         logger.info(`Procesando datos de servicio para póliza: ${numeroPoliza}`, {
             chatId,
-            threadId: threadId || 'ninguno'
+            threadId: threadIdRaw || 'ninguno'
         });
         const origenDestinoGuardado =
             typeof policyData === 'object' ? policyData.origenDestino : null;
@@ -139,7 +140,7 @@ async function handleServiceData(
 
             logger.info(
                 `Guardando número de expediente: ${expediente} para póliza: ${numeroPoliza}`,
-                { chatId, threadId }
+                { chatId, threadId: threadIdRaw }
             );
 
             // Recuperar datos de coordenadas desde FlowStateManager si están disponibles
@@ -155,7 +156,11 @@ async function handleServiceData(
             if (savedState?.googleMapsUrl && rutaInfo) {
                 rutaInfo = { ...rutaInfo, googleMapsUrl: savedState.googleMapsUrl };
             } else if (savedState?.googleMapsUrl && !rutaInfo) {
-                rutaInfo = { googleMapsUrl: savedState.googleMapsUrl };
+                rutaInfo = { 
+                    distanciaKm: 0, 
+                    tiempoMinutos: 0, 
+                    googleMapsUrl: savedState.googleMapsUrl 
+                };
             }
 
             // Llamar la función para añadir el REGISTRO (no servicio aún) con datos de coordenadas
@@ -281,7 +286,11 @@ async function handleServiceData(
             if (savedState?.googleMapsUrl && rutaInfo) {
                 rutaInfo = { ...rutaInfo, googleMapsUrl: savedState.googleMapsUrl };
             } else if (savedState?.googleMapsUrl && !rutaInfo) {
-                rutaInfo = { googleMapsUrl: savedState.googleMapsUrl };
+                rutaInfo = { 
+                    distanciaKm: 0, 
+                    tiempoMinutos: 0, 
+                    googleMapsUrl: savedState.googleMapsUrl 
+                };
             }
 
             // Llamar la función para añadir el REGISTRO (no servicio aún) con datos de coordenadas

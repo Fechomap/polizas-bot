@@ -60,7 +60,7 @@ class GetCommand extends BaseCommand {
                 await ctx.reply(`❌ No se encontró ninguna póliza con el número: ${numeroPoliza}`);
             } else {
                 // Guardar en FlowStateManager con threadId
-                const flowStateManager = require('../../utils/FlowStateManager');
+                const flowStateManager = require('../../utils/FlowStateManager').default;
                 flowStateManager.saveState(
                     chatId,
                     numeroPoliza,
@@ -140,7 +140,8 @@ ${serviciosInfo}
         } finally {
             if (chatId) {
                 // Limpiar el estado con threadId
-                this.awaitingGetPolicyNumber.delete(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : '';
+                this.awaitingGetPolicyNumber.delete(chatId, threadIdStr);
             }
         }
     }

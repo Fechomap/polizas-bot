@@ -2,12 +2,13 @@
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "../dist/tests",
-    "rootDir": "./",
+    "rootDir": "../",
     "types": ["jest", "node"],
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noEmit": true
   },
   "include": [
     "**/*.test.ts",

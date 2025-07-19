@@ -39,7 +39,7 @@ class FlowStateManager implements IStateProvider {
 
         // Registrar en el servicio de limpieza si está disponible
         try {
-            const stateCleanupService = require('./StateCleanupService');
+            const stateCleanupService = require('./StateCleanupService').default;
             stateCleanupService.registerStateProvider(this, 'FlowStateManager');
         } catch (error: any) {
             logger.warn('No se pudo registrar en StateCleanupService:', error.message);

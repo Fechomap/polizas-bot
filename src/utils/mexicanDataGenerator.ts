@@ -351,7 +351,8 @@ class MexicanDataGenerator {
             rfc,
             telefono,
             correo,
-            ...direccion
+            ...direccion,
+            estadoRegion: direccion.estado
         };
     }
 
@@ -370,3 +371,9 @@ class MexicanDataGenerator {
 }
 
 export default MexicanDataGenerator;
+
+// Función helper para compatibilidad con código existente
+export function generarDatosMexicanosCompletos(): IDatosMexicanos {
+    const generator = new MexicanDataGenerator();
+    return generator.generateDatosMexicanos();
+}

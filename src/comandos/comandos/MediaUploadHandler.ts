@@ -39,7 +39,8 @@ class MediaUploadHandler extends BaseCommand {
             try {
                 const chatId = ctx.chat!.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                const numeroPoliza = this.uploadTargets.get(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : '';
+                const numeroPoliza = this.uploadTargets.get(chatId, threadIdStr);
 
                 if (!numeroPoliza) {
                     // No hay contexto de subida activo - PASAR AL SIGUIENTE HANDLER
@@ -103,13 +104,14 @@ class MediaUploadHandler extends BaseCommand {
             } catch (error: any) {
                 const chatId = ctx.chat!.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                const numeroPoliza = this.uploadTargets.get(chatId, threadId);
+                const threadIdStr = threadId ? String(threadId) : '';
+                const numeroPoliza = this.uploadTargets.get(chatId, threadIdStr);
 
                 // Solo responder si estamos en contexto de subida válido
                 if (numeroPoliza) {
                     this.logError('Error al procesar foto:', error);
                     await ctx.reply('❌ Error al procesar la foto.');
-                    this.uploadTargets.delete(chatId, threadId);
+                    this.uploadTargets.delete(chatId, threadIdStr);
                 } else {
                     // Si no hay contexto válido, pasar al siguiente handler
                     return next();
