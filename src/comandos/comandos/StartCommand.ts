@@ -1,6 +1,5 @@
-import { Markup } from 'telegraf';
 import BaseCommand, { NavigationContext, IBaseHandler } from './BaseCommand';
-import type { Context } from 'telegraf';
+import StateKeyManager from '../../utils/StateKeyManager';
 
 // Import AdminStateManager
 const AdminStateManager = require('../../admin/utils/adminStates').default;
@@ -22,17 +21,31 @@ class StartCommand extends BaseCommand {
         // Comando /start con navegación persistente
         this.bot.command(this.getCommandName(), async (ctx: NavigationContext) => {
             try {
-                // SOLO limpiar estados admin problemáticos, NO toda la navegación
+                const chatId = ctx.chat?.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                
+                // Limpiar estados admin problemáticos
                 AdminStateManager.clearAdminState(ctx.from?.id, ctx.chat?.id);
                 this.logInfo('Estados admin limpiados al ejecutar /start', {
                     userId: ctx.from?.id,
-                    chatId: ctx.chat?.id
+                    chatId: ctx.chat?.id,
+                    threadId: threadId
                 });
+
+                // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO
+                if (chatId && this.handler.clearChatState) {
+                    this.handler.clearChatState(chatId, threadId);
+                    this.logInfo('🧹 Todos los procesos del hilo limpiados completamente', {
+                        chatId: chatId,
+                        threadId: threadId || 'ninguno'
+                    });
+                }
 
                 // Usar el nuevo sistema de navegación persistente
                 await this.showMainMenu(ctx);
                 this.logInfo('Menú principal mostrado vía /start con navegación persistente', {
-                    chatId: ctx.chat?.id
+                    chatId: ctx.chat?.id,
+                    threadId: threadId
                 });
             } catch (error: any) {
                 this.logError('Error en comando start al mostrar menú:', error);

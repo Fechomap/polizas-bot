@@ -539,6 +539,48 @@ class CommandHandler {
             }
         });
 
+        // ✅ AGREGAR SERVICIO - Manejador faltante implementado
+        this.bot.action('accion:addservice', async (ctx: ChatContext) => {
+            try {
+                await ctx.answerCbQuery();
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(chatId, threadId);
+                this.awaitingServicePolicyNumber.set(chatId, true, threadId);
+                await ctx.reply(
+                    '🚗 **AÑADIR SERVICIO**\n\nPor favor, envía el número de póliza para agregar un servicio:',
+                    { parse_mode: 'Markdown' }
+                );
+            } catch (error: any) {
+                logger.error('Error en accion:addservice:', error);
+                await ctx.reply('❌ Error al iniciar el registro de servicio.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
+        // ✅ SUBIR ARCHIVOS - Manejador faltante implementado
+        this.bot.action('accion:upload', async (ctx: ChatContext) => {
+            try {
+                await ctx.answerCbQuery();
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(chatId, threadId);
+                this.uploadTargets.set(chatId, true, threadId);
+                await ctx.reply(
+                    '📁 **SUBIR ARCHIVOS**\n\nPor favor, envía el número de póliza para subir archivos:',
+                    { parse_mode: 'Markdown' }
+                );
+            } catch (error: any) {
+                logger.error('Error en accion:upload:', error);
+                await ctx.reply('❌ Error al iniciar la subida de archivos.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
         // Continuar con el resto de handlers...
         // (Por brevedad, continuaré con los métodos más importantes)
     }
@@ -868,10 +910,13 @@ class CommandHandler {
             this.awaitingPhoneNumber.delete(chatId, threadId);
             this.awaitingOrigenDestino.delete(chatId, threadId);
             this.awaitingDeleteReason.delete(chatId, threadId);
+            this.awaitingOrigen.delete(chatId, threadId);
+            this.awaitingDestino.delete(chatId, threadId);
 
             const flowStateManager = require('../utils/FlowStateManager').default;
             flowStateManager.clearAllStates(chatId, threadId);
 
+            logger.debug(`🧹 Estados de hilo específico limpiados para chatId=${chatId}, threadId=${threadId}`);
             return;
         }
 
@@ -887,6 +932,8 @@ class CommandHandler {
         this.awaitingPhoneNumber.deleteAll(chatId);
         this.awaitingOrigenDestino.deleteAll(chatId);
         this.awaitingDeleteReason.deleteAll(chatId);
+        this.awaitingOrigen.deleteAll(chatId);
+        this.awaitingDestino.deleteAll(chatId);
 
         const flowStateManager = require('../utils/FlowStateManager').default;
         flowStateManager.clearAllStates(chatId);
