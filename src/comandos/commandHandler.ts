@@ -599,12 +599,6 @@ class CommandHandler {
                         ...Markup.inlineKeyboard([
                             [
                                 Markup.button.callback(
-                                    '💰 Pagos Pendientes (Lista)',
-                                    'accion:reportPayment'
-                                )
-                            ],
-                            [
-                                Markup.button.callback(
                                     '📄 Pagos Pendientes (PDF)',
                                     'accion:reportPaymentPDF'
                                 )
@@ -672,44 +666,6 @@ class CommandHandler {
                     await ctx.answerCbQuery('Error');
                 } catch {}
                 await ctx.reply('❌ Error al generar el reporte de pólizas prioritarias.');
-            }
-        });
-
-        // Acción para reportes de pago (lista)
-        this.bot.action('accion:reportPayment', async (ctx: ChatContext) => {
-            try {
-                await ctx.answerCbQuery();
-                const { getSusceptiblePolicies } = require('../controllers/policyController');
-                const susceptiblePolicies = await getSusceptiblePolicies();
-
-                if (susceptiblePolicies.length === 0) {
-                    await ctx.reply('✅ No hay pólizas con pagos pendientes.');
-                    return;
-                }
-
-                const reportText = susceptiblePolicies
-                    .slice(0, 10) // Limitar a primeras 10
-                    .map(
-                        (policy: any, index: number) =>
-                            `${index + 1}. ${policy.numeroPoliza} - ${policy.titular}`
-                    )
-                    .join('\n');
-
-                await ctx.reply(
-                    `💰 **Pólizas con Pagos Pendientes** (${susceptiblePolicies.length})\n\n${reportText}${susceptiblePolicies.length > 10 ? '\n\n...y más' : ''}`,
-                    {
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback('⬅️ Volver a Reportes', 'accion:reportes')]
-                        ])
-                    }
-                );
-            } catch (error: any) {
-                logger.error('Error en accion:reportPayment:', error);
-                try {
-                    await ctx.answerCbQuery('Error');
-                } catch {}
-                await ctx.reply('❌ Error al generar el reporte de pagos pendientes.');
             }
         });
 

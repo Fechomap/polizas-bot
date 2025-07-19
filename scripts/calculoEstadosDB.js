@@ -11,7 +11,9 @@ const path = require('path');
 const fs = require('fs').promises;
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-const Policy = require('../src/models/policy');
+// Registrar ts-node para poder importar TypeScript directamente
+require('ts-node/register');
+const Policy = require('../src/models/policy').default;
 
 // Ruta para guardar un registro de ejecución
 const logDir = path.join(__dirname, 'logs');

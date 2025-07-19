@@ -8,6 +8,9 @@ polizas_backup.xlsx
 backup/
 **/.DS_Store
 
+# Build output (TypeScript compilation)
+dist/
+
 # Testing
 coverage/
 
