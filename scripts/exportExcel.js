@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs').promises;
 require('dotenv').config();
 
-const Policy = require('../src/models/policy'); // Asegúrate de la ruta correcta a tu modelo
+const Policy = require('./models/policy'); // Wrapper para el modelo TypeScript
 
 // Conecta a la DB
 async function connectDB() {

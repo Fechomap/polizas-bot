@@ -746,6 +746,26 @@ class CommandHandler {
 
     // Método para configurar callback handlers adicionales
     private setupCallbackHandlers(): void {
+        // Handler para botón de ayuda
+        this.bot.action('accion:help', async (ctx: ChatContext) => {
+            try {
+                await ctx.answerCbQuery();
+                const helpCmd = this.registry.getCommand('help');
+                if (helpCmd && typeof helpCmd.sendHelpMessage === 'function') {
+                    await helpCmd.sendHelpMessage(ctx);
+                } else {
+                    logger.warn('No se encontró el comando help o su método sendHelpMessage');
+                    await ctx.reply('❌ Sistema de ayuda no disponible en este momento.');
+                }
+            } catch (error: any) {
+                logger.error('Error en accion:help:', error);
+                await ctx.reply('❌ Error al mostrar la ayuda.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
         // Ocupar Póliza: acción principal para el botón "Ocupar Póliza"
         this.bot.action(/ocuparPoliza:(.+)/, async (ctx: ChatContext) => {
             try {

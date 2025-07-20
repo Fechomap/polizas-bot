@@ -679,18 +679,188 @@ Selecciona una póliza:
     }
 
     static async handleTextMessage(ctx: Context): Promise<boolean> {
-        // TODO: Implement text message handling
-        return false;
+        try {
+            const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
+            
+            if (!adminState) {
+                return false; // No hay estado admin activo
+            }
+
+            const messageText = (ctx.message as any).text.trim();
+            
+            // Verificar si estamos en búsqueda de póliza para editar
+            if (adminState.operation === 'policy_search_for_edit') {
+                await this.handlePolicySearch(ctx, messageText);
+                return true; // Mensaje procesado
+            }
+
+            // Verificar si estamos en búsqueda de póliza para eliminar
+            if (adminState.operation === 'policy_search_for_delete') {
+                await this.searchPolicyForDelete(ctx, messageText);
+                return true; // Mensaje procesado
+            }
+
+            // Verificar si estamos en búsqueda de póliza para restaurar
+            if (adminState.operation === 'policy_search_for_restore') {
+                await this.searchPolicyForRestore(ctx, messageText);
+                return true; // Mensaje procesado
+            }
+
+            return false; // Estado no reconocido
+        } catch (error) {
+            logger.error('Error en handleTextMessage de PolicyHandler:', error);
+            await ctx.reply('❌ Error al procesar la búsqueda. Intenta nuevamente.');
+            return false;
+        }
+    }
+
+    static async searchPolicyForDelete(ctx: Context, searchTerm: string): Promise<void> {
+        try {
+            const searchResults = await this.searchPolicies(searchTerm);
+
+            if (searchResults.length === 0) {
+                const noResultsText = `
+❌ *SIN RESULTADOS PARA ELIMINAR*
+━━━━━━━━━━━━━━━━━━━━━━
+
+No se encontraron pólizas con: "${searchTerm}"
+
+_Intenta con otro término de búsqueda._
+                `.trim();
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_delete')],
+                    [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
+                ]);
+
+                await ctx.editMessageText(noResultsText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+                return;
+            }
+
+            await this.showDeleteSearchResults(ctx, searchResults, searchTerm);
+        } catch (error) {
+            logger.error('Error en searchPolicyForDelete:', error);
+            await ctx.reply('❌ Error al buscar pólizas para eliminar.');
+        }
+    }
+
+    static async searchPolicyForRestore(ctx: Context, searchTerm: string): Promise<void> {
+        try {
+            // Buscar solo pólizas eliminadas
+            const searchResults = await this.searchPolicies(searchTerm, true); // true = solo eliminadas
+
+            if (searchResults.length === 0) {
+                const noResultsText = `
+❌ *SIN RESULTADOS PARA RESTAURAR*
+━━━━━━━━━━━━━━━━━━━━━━
+
+No se encontraron pólizas eliminadas con: "${searchTerm}"
+
+_Intenta con otro término de búsqueda._
+                `.trim();
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_restore')],
+                    [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
+                ]);
+
+                await ctx.editMessageText(noResultsText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+                return;
+            }
+
+            await this.showRestoreSearchResults(ctx, searchResults, searchTerm);
+        } catch (error) {
+            logger.error('Error en searchPolicyForRestore:', error);
+            await ctx.reply('❌ Error al buscar pólizas para restaurar.');
+        }
     }
 
     static async handlePolicyDelete(ctx: Context): Promise<void> {
-        // TODO: Implement policy delete handling
-        await ctx.reply('Manejo de eliminación de póliza en desarrollo');
+        try {
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_search_for_delete'
+            );
+
+            const searchText = `
+🗑️ *BUSCAR PÓLIZA PARA ELIMINAR*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Escribe uno de los siguientes datos para buscar:
+
+📝 *Número de póliza* - Ejemplo: ABC123456
+👤 *Nombre del titular* - Ejemplo: Juan Pérez
+🆔 *RFC* - Ejemplo: JURP850101XXX
+
+⚠️ *ADVERTENCIA: Esta acción eliminará la póliza permanentemente.*
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]
+            ]);
+
+            await ctx.editMessageText(searchText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            await AuditLogger.log(ctx, 'policy_search_initiated', {
+                module: 'policy',
+                metadata: { operation: 'search_for_delete' }
+            });
+        } catch (error) {
+            logger.error('Error al iniciar búsqueda de póliza para eliminar:', error);
+            await ctx.reply('❌ Error al iniciar la búsqueda. Intenta nuevamente.');
+        }
     }
 
     static async handlePolicyRestore(ctx: Context): Promise<void> {
-        // TODO: Implement policy restore handling
-        await ctx.reply('Manejo de restauración de póliza en desarrollo');
+        try {
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_search_for_restore'
+            );
+
+            const searchText = `
+♻️ *BUSCAR PÓLIZA PARA RESTAURAR*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Escribe uno de los siguientes datos para buscar:
+
+📝 *Número de póliza* - Ejemplo: ABC123456
+👤 *Nombre del titular* - Ejemplo: Juan Pérez
+🆔 *RFC* - Ejemplo: JURP850101XXX
+
+ℹ️ *Solo se mostrarán pólizas que hayan sido eliminadas.*
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]
+            ]);
+
+            await ctx.editMessageText(searchText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            await AuditLogger.log(ctx, 'policy_search_initiated', {
+                module: 'policy',
+                metadata: { operation: 'search_for_restore' }
+            });
+        } catch (error) {
+            logger.error('Error al iniciar búsqueda de póliza para restaurar:', error);
+            await ctx.reply('❌ Error al iniciar la búsqueda. Intenta nuevamente.');
+        }
     }
 
     static async handleStats(ctx: Context): Promise<void> {

@@ -427,7 +427,34 @@ class AdminModule {
             }
         });
 
-        // Continue with other database callbacks...
+        // Callback para auto-cleanup
+        this.bot.action('admin_database_autocleanup', adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                await this.handlers.scripts.handleAutoCleanup(ctx);
+            } catch (error) {
+                logger.error('Error en auto-cleanup:', error);
+                await ctx.answerCbQuery('Error en limpieza automática', { show_alert: true });
+            }
+        });
+
+        // Callbacks para confirmación de auto-cleanup
+        this.bot.action('admin_autocleanup_confirm', adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                await this.handlers.scripts.executeAutoCleanupConfirmed(ctx);
+            } catch (error) {
+                logger.error('Error ejecutando auto-cleanup:', error);
+                await ctx.answerCbQuery('Error ejecutando limpieza', { show_alert: true });
+            }
+        });
+
+        this.bot.action('admin_autocleanup_cancel', adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                await this.handlers.scripts.cancelAutoCleanup(ctx);
+            } catch (error) {
+                logger.error('Error cancelando auto-cleanup:', error);
+                await ctx.answerCbQuery('Error cancelando limpieza', { show_alert: true });
+            }
+        });
     }
 
     private registerGenericCallbacks(): void {

@@ -59,7 +59,6 @@ Selecciona la operación a realizar:
 ✏️ *Editar Póliza* - Modificar datos existentes
 🗑️ *Eliminar Póliza* - Marcar como eliminada
 🔄 *Restaurar Póliza* - Recuperar póliza eliminada
-📊 *Ver Estadísticas* - Resumen de pólizas
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
@@ -68,8 +67,7 @@ Selecciona la operación a realizar:
                 Markup.button.callback('🗑️ Eliminar Póliza', 'admin_policy_delete')
             ],
             [
-                Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore'),
-                Markup.button.callback('📊 Ver Estadísticas', 'admin_policy_stats')
+                Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore')
             ],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
