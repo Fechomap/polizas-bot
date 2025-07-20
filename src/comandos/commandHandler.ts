@@ -1383,11 +1383,9 @@ ${serviciosInfo}
                 // Indicamos qué datos requerimos
                 await ctx.reply(
                     `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
-                        '💰 *Ingresa el pago en este formato (2 líneas):*\n' +
-                        '1️⃣ Monto del pago (ejemplo: 345.00)\n' +
-                        '2️⃣ Fecha de pago (DD/MM/YYYY)\n\n' +
-                        '📝 Ejemplo:\n\n' +
-                        '345.00\n12/01/2024',
+                        '💰 *Ingresa el monto del pago:*\n' +
+                        '📝 Ejemplo: 345.00\n\n' +
+                        '📅 *Nota:* La fecha se registrará automáticamente.',
                     { parse_mode: 'Markdown' }
                 );
                 // Ya no esperamos la póliza, ahora esperamos los datos
@@ -1419,38 +1417,24 @@ ${serviciosInfo}
                 return;
             }
 
-            // Separar las líneas
-            const lines = messageText
-                .split('\n')
-                .map(l => l.trim())
-                .filter(Boolean);
-            if (lines.length < 2) {
+            // Obtener solo el monto (ya no requerimos fecha)
+            const montoStr = messageText.trim();
+            if (!montoStr) {
                 await ctx.reply(
-                    '❌ Formato inválido. Debes ingresar 2 líneas: Monto y Fecha (DD/MM/YYYY)'
+                    '❌ Formato inválido. Debes ingresar el monto del pago.'
                 );
+                return;
             }
-
-            const montoStr = lines[0];
-            const fechaStr = lines[1];
 
             // Validar y parsear monto
             const monto = parseFloat(montoStr.replace(',', '.')); // soportar "345,00"
             if (isNaN(monto) || monto <= 0) {
                 await ctx.reply('❌ Monto inválido. Ingresa un número mayor a 0.');
+                return;
             }
 
-            // Validar y parsear fecha
-            const [dia, mes, anio] = fechaStr.split(/[/-]/);
-            if (!dia || !mes || !anio) {
-                await ctx.reply('❌ Fecha inválida. Usa el formato DD/MM/YYYY');
-            }
-
-            const fechaJS = new Date(`${anio}-${mes}-${dia}`);
-            if (isNaN(fechaJS.getTime())) {
-                await ctx.reply(
-                    '❌ Fecha inválida. Verifica que sea un día, mes y año correctos.'
-                );
-            }
+            // Usar fecha actual automáticamente
+            const fechaJS = new Date();
 
             // Llamar la función del controlador
             const { addPaymentToPolicy } = require('../controllers/policyController');
@@ -1462,8 +1446,13 @@ ${serviciosInfo}
             }
 
             // Responder éxito
+            const fechaFormateada = fechaJS.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: '2-digit', 
+                year: 'numeric'
+            });
             await ctx.reply(
-                `✅ Se ha registrado un pago de $${monto.toFixed(2)} con fecha ${fechaStr} en la póliza *${numeroPoliza}*.`,
+                `✅ Se ha registrado un pago de $${monto.toFixed(2)} con fecha ${fechaFormateada} en la póliza *${numeroPoliza}*.`,
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([

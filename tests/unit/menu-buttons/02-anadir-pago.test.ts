@@ -109,7 +109,6 @@ describe('💰 Botón AÑADIR PAGO - Flujo Completo', () => {
 
         const mockPaymentData = {
             cantidad: 500,
-            fecha: '2024-01-15',
             concepto: 'Prima mensual'
         };
 
@@ -122,9 +121,9 @@ describe('💰 Botón AÑADIR PAGO - Flujo Completo', () => {
         console.log('   2. Bot solicita número de póliza');
         console.log('   3. Usuario envía "POL001"');
         console.log('   4. Sistema verifica póliza existe');
-        console.log('   5. Bot solicita datos del pago');
-        console.log('   6. Usuario envía datos de pago');
-        console.log('   7. Sistema guarda pago en BD');
+        console.log('   5. Bot solicita SOLO el monto (fecha automática)');
+        console.log('   6. Usuario envía solo el monto');
+        console.log('   7. Sistema guarda pago con fecha actual');
         console.log('   8. Bot confirma pago agregado');
 
         // Verificar mocks
@@ -169,9 +168,9 @@ describe('💰 Botón AÑADIR PAGO - Flujo Completo', () => {
             paso6: 'Usuario envía número (ej: POL001)',
             paso7: 'handleAddPaymentPolicyNumber() verifica póliza',
             paso8: 'awaitingPaymentData.set() activa espera de datos',
-            paso9: 'Bot solicita datos del pago',
-            paso10: 'Usuario envía datos de pago',
-            paso11: 'handlePaymentData() procesa y guarda',
+            paso9: 'Bot solicita SOLO el monto (fecha automática)',
+            paso10: 'Usuario envía solo el monto',
+            paso11: 'handlePaymentData() procesa con fecha actual',
             paso12: 'addPaymentToPolicy() guarda en BD',
             paso13: 'Bot confirma pago agregado exitosamente'
         };
