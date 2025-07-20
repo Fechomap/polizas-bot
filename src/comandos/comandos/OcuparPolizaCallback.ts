@@ -1,6 +1,7 @@
 import { Context, Markup } from 'telegraf';
 import { Message } from 'telegraf/typings/core/types/typegram';
 import { BaseCommand, IBaseHandler } from './BaseCommand';
+import logger from '../../utils/logger';
 import {
     getPolicyByNumber,
     convertirRegistroAServicio,
@@ -12,6 +13,7 @@ import { getInstance } from '../../services/NotificationManager';
 import HereMapsService from '../../services/HereMapsService';
 import { IPolicy } from '../../types/database';
 import type { IThreadSafeStateMap } from '../../utils/StateKeyManager';
+import flowStateManager from '../../utils/FlowStateManager';
 
 interface IScheduledServiceInfo {
     numeroPoliza: string;
@@ -89,7 +91,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const chatId = ctx.chat!.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                this.logInfo(`[keepPhone] Iniciando callback para póliza ${numeroPoliza}`, {
+                logger.info(`[keepPhone] Iniciando callback para póliza ${numeroPoliza}`, {
                     chatId,
                     threadId
                 });
@@ -118,7 +120,7 @@ class OcuparPolizaCallback extends BaseCommand {
                         ])
                     );
 
-                    this.logInfo(`Mostrando opciones de teléfono para póliza ${numeroPoliza}`, {
+                    logger.info(`Mostrando opciones de teléfono para póliza ${numeroPoliza}`, {
                         chatId,
                         threadId,
                         telefonoActual: policy.telefono
@@ -129,7 +131,7 @@ class OcuparPolizaCallback extends BaseCommand {
                         numeroPoliza,
                         threadId
                     );
-                    this.logInfo(
+                    logger.info(
                         `Estado de espera de teléfono guardado para nuevo teléfono: ${phoneSetResult ? 'OK' : 'FALLO'}`,
                         {
                             chatId,
@@ -137,7 +139,7 @@ class OcuparPolizaCallback extends BaseCommand {
                         }
                     );
                     const phoneHasResult = this.awaitingPhoneNumber.has(chatId, threadId);
-                    this.logInfo(
+                    logger.info(
                         `Verificación inmediata de estado teléfono (nuevo): ${phoneHasResult ? 'OK' : 'FALLO'}`
                     );
                     await ctx.reply(
@@ -147,12 +149,12 @@ class OcuparPolizaCallback extends BaseCommand {
                     );
                 }
 
-                this.logInfo(`Esperando teléfono para póliza ${numeroPoliza}`, {
+                logger.info(`Esperando teléfono para póliza ${numeroPoliza}`, {
                     chatId: ctx.chat!.id,
                     threadId
                 });
             } catch (error) {
-                this.logError('Error en callback ocuparPoliza:', error);
+                logger.error('Error en callback ocuparPoliza:', error);
                 await ctx.reply('❌ Error al procesar ocupación de póliza.');
             } finally {
                 await ctx.answerCbQuery();
@@ -168,9 +170,9 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 try {
                     await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
-                    this.logInfo('[keepPhone] Botones removidos del mensaje original');
+                    logger.info('[keepPhone] Botones removidos del mensaje original');
                 } catch (editError) {
-                    this.logInfo(
+                    logger.info(
                         '[keepPhone] No se pudo editar mensaje original:',
                         { error: (editError as Error).message }
                     );
@@ -182,32 +184,32 @@ class OcuparPolizaCallback extends BaseCommand {
                     return;
                 }
 
-                this.logInfo('[keepPhone] Intentando eliminar estado awaitingPhoneNumber', {
+                logger.info('[keepPhone] Intentando eliminar estado awaitingPhoneNumber', {
                     chatId,
                     threadId
                 });
                 const deleteResult = this.awaitingPhoneNumber.delete(chatId, threadId);
-                this.logInfo(
+                logger.info(
                     `[keepPhone] Resultado de delete awaitingPhoneNumber: ${deleteResult}`,
                     { chatId, threadId }
                 );
                 const hasAfterDelete = this.awaitingPhoneNumber.has(chatId, threadId);
-                this.logInfo(
+                logger.info(
                     `[keepPhone] Verificación inmediata awaitingPhoneNumber.has: ${hasAfterDelete}`,
                     { chatId, threadId }
                 );
 
-                this.logInfo('[keepPhone] Intentando establecer estado awaitingOrigen', {
+                logger.info('[keepPhone] Intentando establecer estado awaitingOrigen', {
                     chatId,
                     threadId
                 });
                 const setResult = this.awaitingOrigen.set(chatId, numeroPoliza, threadId);
-                this.logInfo(`[keepPhone] Resultado de set awaitingOrigen: ${setResult}`, {
+                logger.info(`[keepPhone] Resultado de set awaitingOrigen: ${setResult}`, {
                     chatId,
                     threadId
                 });
                 const hasAfterSet = this.awaitingOrigen.has(chatId, threadId);
-                this.logInfo(
+                logger.info(
                     `[keepPhone] Verificación inmediata awaitingOrigen.has: ${hasAfterSet}`,
                     { chatId, threadId }
                 );
@@ -217,7 +219,7 @@ class OcuparPolizaCallback extends BaseCommand {
                     { parse_mode: 'Markdown' }
                 );
             } catch (error) {
-                this.logError('Error en callback keepPhone:', error);
+                logger.error('Error en callback keepPhone:', error);
                 await ctx.reply('❌ Error al procesar la acción.');
             } finally {
                 await ctx.answerCbQuery();
@@ -227,6 +229,7 @@ class OcuparPolizaCallback extends BaseCommand {
         // Register additional callbacks (abbreviated for brevity)
         this.registerChangePhoneCallback();
         this.registerServiceCallbacks();
+        this.registerAssignmentCallbacks();
         this.registerDaySelectionCallbacks();
     }
 
@@ -239,21 +242,21 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 try {
                     await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
-                    this.logInfo('[changePhone] Botones removidos del mensaje original');
+                    logger.info('[changePhone] Botones removidos del mensaje original');
                 } catch (editError) {
-                    this.logInfo(
+                    logger.info(
                         '[changePhone] No se pudo editar mensaje original:',
                         { error: (editError as Error).message }
                     );
                 }
 
-                this.logInfo(
+                logger.info(
                     `[changePhone] Iniciando cambio de teléfono para póliza ${numeroPoliza}`,
                     { chatId, threadId }
                 );
 
                 const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
-                this.logInfo(
+                logger.info(
                     `[changePhone] Estado de espera de teléfono guardado: ${phoneSetResult ? 'OK' : 'FALLO'}`,
                     {
                         chatId,
@@ -267,12 +270,12 @@ class OcuparPolizaCallback extends BaseCommand {
                     { parse_mode: 'Markdown' }
                 );
 
-                this.logInfo(`[changePhone] Esperando nuevo teléfono para póliza ${numeroPoliza}`, {
+                logger.info(`[changePhone] Esperando nuevo teléfono para póliza ${numeroPoliza}`, {
                     chatId,
                     threadId
                 });
             } catch (error) {
-                this.logError('Error en callback changePhone:', error);
+                logger.error('Error en callback changePhone:', error);
                 await ctx.reply('❌ Error al procesar el cambio de teléfono.');
             } finally {
                 await ctx.answerCbQuery();
@@ -288,16 +291,16 @@ class OcuparPolizaCallback extends BaseCommand {
                 const chatId = ctx.chat!.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                this.logInfo(`Iniciando registro de servicio para póliza: ${numeroPoliza}`, {
+                logger.info(`Iniciando registro de servicio para póliza: ${numeroPoliza}`, {
                     chatId,
                     threadId
                 });
 
                 try {
                     await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
-                    this.logInfo('Botones removidos del mensaje original');
+                    logger.info('Botones removidos del mensaje original');
                 } catch (editError) {
-                    this.logInfo(
+                    logger.info(
                         'No se pudo editar mensaje original (probablemente ya fue editado):',
                         { error: (editError as Error).message }
                     );
@@ -308,13 +311,13 @@ class OcuparPolizaCallback extends BaseCommand {
                 });
 
                 (this.handler as any).awaitingServiceData.set(chatId, numeroPoliza, threadId);
-                this.logInfo(
+                logger.info(
                     `Estado establecido para esperar datos del servicio para ${numeroPoliza}`
                 );
 
                 // Additional service registration logic would go here
             } catch (error) {
-                this.logError('Error en callback registrarServicio:', error);
+                logger.error('Error en callback registrarServicio:', error);
                 await ctx.reply('❌ Error al iniciar el registro del servicio.');
             } finally {
                 await ctx.answerCbQuery();
@@ -327,16 +330,16 @@ class OcuparPolizaCallback extends BaseCommand {
                 const chatId = ctx.chat!.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                this.logInfo(`No registrar servicio para póliza: ${numeroPoliza}`, {
+                logger.info(`No registrar servicio para póliza: ${numeroPoliza}`, {
                     chatId,
                     threadId
                 });
 
                 try {
                     await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
-                    this.logInfo('Botones removidos del mensaje original');
+                    logger.info('Botones removidos del mensaje original');
                 } catch (editError) {
-                    this.logInfo(
+                    logger.info(
                         'No se pudo editar mensaje original (probablemente ya fue editado):',
                         { error: (editError as Error).message }
                     );
@@ -352,8 +355,335 @@ class OcuparPolizaCallback extends BaseCommand {
                 const threadIdStr = threadId ? String(threadId) : null;
                 this.cleanupAllStates(chatId, threadIdStr);
             } catch (error) {
-                this.logError('Error en callback noRegistrar:', error);
+                logger.error('Error en callback noRegistrar:', error);
                 await ctx.reply('❌ Error al finalizar el proceso.');
+            } finally {
+                await ctx.answerCbQuery();
+            }
+        });
+    }
+
+    private registerAssignmentCallbacks(): void {
+        // Register callback for "Asignado" button
+        this.handler.registry.registerCallback(/asig_yes_(.+)_(.+)/, async (ctx: Context) => {
+            try {
+                const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
+                const numeroRegistro = parseInt((ctx.match as RegExpMatchArray)[2]);
+                const chatId = ctx.chat!.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+
+                // PROTECCIÓN ANTI-DOBLE-CLIC: Verificar si ya se está procesando
+                const processingKey = `${chatId}_${numeroPoliza}_${numeroRegistro}`;
+                if (
+                    (this.handler as any).processingCallbacks &&
+                    (this.handler as any).processingCallbacks.has(processingKey)
+                ) {
+                    logger.warn(
+                        `[ANTI-DUPLICATE] Callback asig_yes ya procesándose para ${processingKey}, ignorando`
+                    );
+                    await ctx.answerCbQuery('⚠️ Procesando... espera un momento');
+                    return;
+                }
+
+                // Marcar como procesándose
+                if (!(this.handler as any).processingCallbacks) {
+                    (this.handler as any).processingCallbacks = new Set();
+                }
+                (this.handler as any).processingCallbacks.add(processingKey);
+
+                logger.info(
+                    `Registro ${numeroRegistro} marcado como ASIGNADO para póliza: ${numeroPoliza}`,
+                    { chatId, threadId }
+                );
+
+                // Edit the original message to remove buttons
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    logger.info('Botones ASIGNADO/NO ASIGNADO removidos del mensaje original');
+                } catch (editError) {
+                    logger.info(
+                        'No se pudo editar mensaje original (probablemente ya fue editado):',
+                        { error: (editError as Error).message }
+                    );
+                }
+
+                // Obtener la póliza para extraer datos del registro
+                const policy = await getPolicyByNumber(numeroPoliza) as IPolicy;
+                if (!policy) {
+                    await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                    return;
+                }
+
+                // Buscar el registro específico
+                const registro = policy.registros.find((r: any) => r.numeroRegistro === numeroRegistro);
+                if (!registro) {
+                    await ctx.reply(
+                        `❌ Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}.`
+                    );
+                    return;
+                }
+
+                // Calcular horas automáticas (fecha base = ahora)
+                const fechaBase = new Date();
+                const tiempoTrayecto = registro.rutaInfo?.tiempoMinutos || 0;
+                const horasCalculadas = calcularHorasAutomaticas(fechaBase, tiempoTrayecto);
+
+                logger.info('Horas calculadas automáticamente:', {
+                    contacto: horasCalculadas.fechaContactoProgramada,
+                    termino: horasCalculadas.fechaTerminoProgramada,
+                    minutosContacto: horasCalculadas.minutosContacto,
+                    minutosTermino: horasCalculadas.minutosTermino
+                });
+
+                // Convertir registro a servicio confirmado
+                const resultado = await convertirRegistroAServicio(
+                    numeroPoliza,
+                    numeroRegistro,
+                    horasCalculadas.fechaContactoProgramada,
+                    horasCalculadas.fechaTerminoProgramada
+                );
+
+                if (!resultado) {
+                    await ctx.reply(`❌ Error al convertir registro ${numeroRegistro} a servicio.`);
+                    return;
+                }
+
+                const { numeroServicio } = resultado;
+
+                // Formatear fechas para mostrar
+                const fechaContactoStr = horasCalculadas.fechaContactoProgramada.toLocaleString(
+                    'es-MX',
+                    {
+                        timeZone: 'America/Mexico_City',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }
+                );
+
+                const fechaTerminoStr = horasCalculadas.fechaTerminoProgramada.toLocaleString(
+                    'es-MX',
+                    {
+                        timeZone: 'America/Mexico_City',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }
+                );
+
+                // Confirmar conversión con detalles automáticos
+                await ctx.reply(
+                    `✅ *Registro convertido a Servicio #${numeroServicio}*\n\n` +
+                        '✨Los cálculos fueron realizados✨\n\n' +
+                        '⏰ *Programación:*\n' +
+                        `📞 Contacto: ${fechaContactoStr}\n` +
+                        `🏁 Término: ${fechaTerminoStr}\n\n` +
+                        '🤖 Las notificaciones se enviarán automáticamente.',
+                    { parse_mode: 'Markdown' }
+                );
+
+                // Programar notificaciones automáticas usando el sistema existente
+                try {
+                    const notificationManager = getInstance();
+
+                    if (!notificationManager || !notificationManager.isInitialized) {
+                        logger.error(
+                            'NotificationManager no está inicializado para notificaciones automáticas'
+                        );
+                    } else {
+                        // Formatear horas para notificaciones (HH:mm formato)
+                        const contactTimeStr =
+                            horasCalculadas.fechaContactoProgramada.toLocaleTimeString('es-MX', {
+                                timeZone: 'America/Mexico_City',
+                                hour12: false,
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+
+                        const terminoTimeStr =
+                            horasCalculadas.fechaTerminoProgramada.toLocaleTimeString('es-MX', {
+                                timeZone: 'America/Mexico_City',
+                                hour12: false,
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            });
+
+                        // Obtener datos del registro para notificaciones
+                        const origenDestino = registro.origenDestino || 'Origen - Destino';
+                        const marcaModelo = `${policy.marca} ${policy.submarca} (${policy.año})`;
+
+                        logger.info('Programando notificaciones automáticas:', {
+                            expediente: registro.numeroExpediente,
+                            contacto: contactTimeStr,
+                            termino: terminoTimeStr,
+                            fechaContacto: horasCalculadas.fechaContactoProgramada.toISOString(),
+                            fechaTermino: horasCalculadas.fechaTerminoProgramada.toISOString()
+                        });
+
+                        // PROGRAMACIÓN SECUENCIAL DE NOTIFICACIONES (ANTI-DUPLICADOS)
+                        const results: Array<
+                            { status: 'fulfilled'; value: any } | { status: 'rejected'; reason: any }
+                        > = [{ status: 'rejected', reason: null }, { status: 'rejected', reason: null }];
+
+                        try {
+                            // 1. Programar notificación de CONTACTO primero
+                            const notifContacto = await notificationManager.scheduleNotification({
+                                numeroPoliza: numeroPoliza,
+                                targetGroupId: -1002212807945,
+                                contactTime: contactTimeStr,
+                                expedienteNum: registro.numeroExpediente,
+                                origenDestino: origenDestino,
+                                marcaModelo: marcaModelo,
+                                colorVehiculo: policy.color,
+                                placas: policy.placas,
+                                telefono: policy.telefono,
+                                scheduledDate: horasCalculadas.fechaContactoProgramada,
+                                tipoNotificacion: 'CONTACTO'
+                            });
+                            results[0] = { status: 'fulfilled', value: notifContacto };
+                        } catch (contactoError) {
+                            results[0] = { status: 'rejected', reason: contactoError };
+                            logger.error(
+                                'Error programando notificación de CONTACTO:',
+                                contactoError
+                            );
+                        }
+
+                        try {
+                            // 2. Programar notificación de TÉRMINO después
+                            const notifTermino = await notificationManager.scheduleNotification({
+                                numeroPoliza: numeroPoliza,
+                                targetGroupId: -1002212807945,
+                                contactTime: terminoTimeStr,
+                                expedienteNum: registro.numeroExpediente,
+                                origenDestino: origenDestino,
+                                marcaModelo: marcaModelo,
+                                colorVehiculo: policy.color,
+                                placas: policy.placas,
+                                telefono: policy.telefono,
+                                scheduledDate: horasCalculadas.fechaTerminoProgramada,
+                                tipoNotificacion: 'TERMINO'
+                            });
+                            results[1] = { status: 'fulfilled', value: notifTermino };
+                        } catch (terminoError) {
+                            results[1] = { status: 'rejected', reason: terminoError };
+                            logger.error(
+                                'Error programando notificación de TÉRMINO:',
+                                terminoError
+                            );
+                        }
+
+                        // Procesar resultados
+                        const notificationContacto =
+                            results[0].status === 'fulfilled' ? results[0].value : null;
+                        const notificationTermino =
+                            results[1].status === 'fulfilled' ? results[1].value : null;
+
+                        if (notificationContacto) {
+                            logger.info(
+                                `✅ Notificación de CONTACTO programada ID: ${notificationContacto._id} para ${contactTimeStr}`
+                            );
+                        } else {
+                            logger.error(
+                                'Error programando notificación de CONTACTO:',
+                                results[0].status === 'rejected' ? results[0].reason : 'Error desconocido'
+                            );
+                        }
+
+                        if (notificationTermino) {
+                            logger.info(
+                                `✅ Notificación de TÉRMINO programada ID: ${notificationTermino._id} para ${terminoTimeStr}`
+                            );
+                        } else {
+                            logger.error(
+                                'Error programando notificación de TÉRMINO:',
+                                results[1].status === 'rejected' ? results[1].reason : 'Error desconocido'
+                            );
+                        }
+
+                        // Validar que al menos una notificación se haya programado exitosamente
+                        if (!notificationContacto && !notificationTermino) {
+                            throw new Error('No se pudo programar ninguna notificación automática');
+                        }
+                    }
+                } catch (notifyError) {
+                    logger.error('Error al programar notificaciones automáticas:', notifyError);
+                    // Continuar a pesar del error, no es crítico para el flujo principal
+                }
+
+                logger.info(
+                    `Servicio #${numeroServicio} confirmado y programado para póliza ${numeroPoliza}`
+                );
+            } catch (error) {
+                logger.error('Error en callback assignedService:', error);
+                await ctx.reply('❌ Error al procesar la asignación del servicio.');
+                const threadId = StateKeyManager.getThreadId(ctx);
+                const threadIdStr = threadId ? String(threadId) : null;
+                this.cleanupAllStates(ctx.chat!.id, threadIdStr);
+            } finally {
+                // LIMPIAR ESTADO DE PROCESAMIENTO
+                const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
+                const numeroRegistro = parseInt((ctx.match as RegExpMatchArray)[2]);
+                const processingKey = `${ctx.chat!.id}_${numeroPoliza}_${numeroRegistro}`;
+                if ((this.handler as any).processingCallbacks) {
+                    (this.handler as any).processingCallbacks.delete(processingKey);
+                    logger.info(
+                        `[ANTI-DUPLICATE] Estado de procesamiento limpiado para ${processingKey}`
+                    );
+                }
+                await ctx.answerCbQuery();
+            }
+        });
+
+        // Register callback for "No asignado" button
+        this.handler.registry.registerCallback(/asig_no_(.+)_(.+)/, async (ctx: Context) => {
+            try {
+                const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
+                const numeroRegistro = parseInt((ctx.match as RegExpMatchArray)[2]);
+                const chatId = ctx.chat!.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+
+                logger.info(
+                    `Registro ${numeroRegistro} marcado como NO ASIGNADO para póliza: ${numeroPoliza}`,
+                    { chatId, threadId }
+                );
+
+                // Edit the original message to remove buttons
+                try {
+                    await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
+                    logger.info('Botones ASIGNADO/NO ASIGNADO removidos del mensaje original');
+                } catch (editError) {
+                    logger.info(
+                        'No se pudo editar mensaje original (probablemente ya fue editado):',
+                        { error: (editError as Error).message }
+                    );
+                }
+
+                // Marcar registro como no asignado en la base de datos
+                const resultado = await marcarRegistroNoAsignado(numeroPoliza, numeroRegistro);
+
+                if (resultado) {
+                    await ctx.reply(
+                        `✅ Registro ${numeroRegistro} marcado como *NO ASIGNADO* para póliza ${numeroPoliza}.\n\n` +
+                            '📝 El registro permanecerá en la base de datos pero no se programará ningún servicio.',
+                        { parse_mode: 'Markdown' }
+                    );
+                } else {
+                    await ctx.reply(
+                        `❌ Error al marcar registro ${numeroRegistro} como NO ASIGNADO.`
+                    );
+                }
+
+                logger.info(
+                    `Registro ${numeroRegistro} procesado como NO ASIGNADO para póliza ${numeroPoliza}`
+                );
+            } catch (error) {
+                logger.error('Error en callback noAssignedService:', error);
+                await ctx.reply('❌ Error al procesar la NO asignación del servicio.');
             } finally {
                 await ctx.answerCbQuery();
             }
@@ -368,7 +698,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 const chatId = ctx.chat!.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                this.logInfo(`Selección de día: offset=${daysOffset}, póliza=${numeroPoliza}`, {
+                logger.info(`Selección de día: offset=${daysOffset}, póliza=${numeroPoliza}`, {
                     chatId,
                     threadId
                 });
@@ -377,14 +707,14 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);
                 if (!serviceInfo?.contactTime) {
-                    this.logError('No se encontró info de servicio o falta hora de contacto');
+                    logger.error('No se encontró info de servicio o falta hora de contacto');
                     await ctx.reply(
                         '❌ Error: No se encontró la información de la hora de contacto.'
                     );
                     return;
                 }
 
-                this.logInfo(
+                logger.info(
                     `Recuperada info de servicio: contactTime=${serviceInfo.contactTime}, origen=${serviceInfo.origin}, destino=${serviceInfo.destination}`
                 );
 
@@ -399,7 +729,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 serviceInfo.scheduledDate = scheduledDateJS;
                 const serviceStore = this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
 
-                this.logInfo(
+                logger.info(
                     `Info de servicio actualizada con fecha=${scheduledMoment.format()}: ${serviceStore ? 'OK' : 'FALLO'}`
                 );
 
@@ -423,13 +753,13 @@ class OcuparPolizaCallback extends BaseCommand {
                     }
                 );
 
-                this.logInfo(
+                logger.info(
                     `Limpiando estados para chatId=${chatId}, threadId=${threadId} después de completar flujo.`
                 );
                 const threadIdStr = threadId ? String(threadId) : null;
                 this.cleanupAllStates(chatId, threadIdStr);
             } catch (error) {
-                this.logError('Error al procesar selección de día:', error);
+                logger.error('Error al procesar selección de día:', error);
                 await ctx.reply('❌ Error al procesar la selección de día. Operación cancelada.');
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const threadIdStr = threadId ? String(threadId) : null;
@@ -461,7 +791,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 policy = cachedData.policy;
             } else {
                 if (!numeroPoliza) {
-                    this.logError(`Número de póliza no encontrado en handlePhoneNumber`);
+                    logger.error(`Número de póliza no encontrado en handlePhoneNumber`);
                     this.awaitingPhoneNumber.delete(chatId, threadId);
                     await ctx.reply('❌ Error: Número de póliza no encontrado. Operación cancelada.');
                     return true;
@@ -470,7 +800,7 @@ class OcuparPolizaCallback extends BaseCommand {
             }
 
             if (!policy) {
-                this.logError(`Póliza no encontrada en handlePhoneNumber: ${numeroPoliza}`);
+                logger.error(`Póliza no encontrada en handlePhoneNumber: ${numeroPoliza}`);
                 this.awaitingPhoneNumber.delete(chatId, threadId);
                 await ctx.reply(
                     `❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`
@@ -495,19 +825,19 @@ class OcuparPolizaCallback extends BaseCommand {
             this.awaitingPhoneNumber.delete(chatId, threadId);
 
             const origenResult = this.awaitingOrigen.set(chatId, numeroPoliza || '', threadId);
-            this.logInfo(`Estado de espera de origen guardado: ${origenResult ? 'OK' : 'FALLO'}`, {
+            logger.info(`Estado de espera de origen guardado: ${origenResult ? 'OK' : 'FALLO'}`, {
                 chatId,
                 threadId: threadId || 'ninguno'
             });
 
             const origenHasResult = this.awaitingOrigen.has(chatId, threadId);
-            this.logInfo(
+            logger.info(
                 `Verificación inmediata de estado origen-destino: ${origenHasResult ? 'OK' : 'FALLO'}`
             );
 
             return true;
         } catch (error) {
-            this.logError(`Error guardando teléfono para póliza ${numeroPoliza}:`, error);
+            logger.error(`Error guardando teléfono para póliza ${numeroPoliza}:`, error);
             this.awaitingPhoneNumber.delete(chatId, threadId);
             await ctx.reply('❌ Error al guardar el teléfono. Operación cancelada.');
             return true;
@@ -519,11 +849,11 @@ class OcuparPolizaCallback extends BaseCommand {
         const numeroPoliza = this.awaitingOrigen.get(chatId, threadId);
 
         if (!numeroPoliza) {
-            this.logError('No se encontró número de póliza para origen');
+            logger.error('No se encontró número de póliza para origen');
             return false;
         }
 
-        this.logInfo(`Procesando ubicación de origen para póliza ${numeroPoliza}`, {
+        logger.info(`Procesando ubicación de origen para póliza ${numeroPoliza}`, {
             chatId,
             threadId: threadId || 'ninguno',
             inputType: typeof input === 'object' ? 'location' : 'text'
@@ -537,7 +867,7 @@ class OcuparPolizaCallback extends BaseCommand {
                     lat: input.location.latitude,
                     lng: input.location.longitude
                 };
-                this.logInfo(
+                logger.info(
                     'Coordenadas de origen extraídas de ubicación de Telegram',
                     coordenadas
                 );
@@ -549,10 +879,20 @@ class OcuparPolizaCallback extends BaseCommand {
                     });
                     return false;
                 }
-                this.logInfo('Coordenadas de origen extraídas de texto', coordenadas);
+                logger.info('Coordenadas de origen extraídas de texto', coordenadas);
             } else {
                 await ctx.reply('❌ Formato de entrada no válido para el origen.');
                 return false;
+            }
+
+            // Guardar coordenadas de origen en FlowStateManager
+            flowStateManager.saveState(chatId, numeroPoliza, { origenCoords: coordenadas }, threadId);
+
+            // También almacenar en caché local para compatibilidad
+            const cachedData = this.polizaCache.get(chatId, threadId);
+            if (cachedData) {
+                cachedData.origenCoords = coordenadas;
+                this.polizaCache.set(chatId, cachedData, threadId);
             }
 
             this.awaitingOrigen.delete(chatId, threadId);
@@ -566,7 +906,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             return true;
         } catch (error) {
-            this.logError('Error procesando origen:', error);
+            logger.error('Error procesando origen:', error);
             await ctx.reply('❌ Error al procesar la ubicación del origen.');
             return false;
         }
@@ -577,8 +917,273 @@ class OcuparPolizaCallback extends BaseCommand {
         input: any,
         threadId: string | null = null
     ): Promise<boolean> {
-        // Implementation similar to handleOrigen but for destination
-        return true;
+        const chatId = ctx.chat!.id;
+        const numeroPoliza = this.awaitingDestino.get(chatId, threadId);
+
+        if (!numeroPoliza) {
+            logger.error('No se encontró número de póliza para destino');
+            return false;
+        }
+
+        logger.info(`Procesando ubicación de destino para póliza ${numeroPoliza}`, {
+            chatId,
+            threadId: threadId || 'ninguno',
+            inputType: typeof input === 'object' ? 'location' : 'text'
+        });
+
+        try {
+            let coordenadas = null;
+
+            if (input && input.location) {
+                coordenadas = {
+                    lat: input.location.latitude,
+                    lng: input.location.longitude
+                };
+                logger.info('Coordenadas de destino extraídas de ubicación de Telegram', coordenadas);
+            } else if (typeof input === 'string') {
+                coordenadas = this.hereMapsService.parseCoordinates(input);
+                if (!coordenadas) {
+                    await ctx.reply('❌ Formato inválido. 📍indica *DESTINO*', {
+                        parse_mode: 'Markdown'
+                    });
+                    return false;
+                }
+                logger.info('Coordenadas de destino extraídas de texto', coordenadas);
+            } else {
+                await ctx.reply('❌ Formato de entrada no válido para el destino.');
+                return false;
+            }
+
+            // Recuperar coordenadas de origen desde FlowStateManager
+            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+            const origenCoords = savedState?.origenCoords;
+
+            if (!origenCoords) {
+                logger.error('No se encontraron coordenadas de origen guardadas');
+                await ctx.reply('❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.');
+                this.awaitingDestino.delete(chatId, threadId);
+                return false;
+            }
+
+            // Calcular ruta con HERE Maps API
+            logger.info('Calculando ruta con HERE Maps API');
+            const rutaInfo = await this.hereMapsService.calculateRoute(origenCoords, coordenadas);
+
+            // Obtener póliza desde caché o BD
+            const policyCacheData = this.polizaCache.get(chatId, threadId);
+            const policy = policyCacheData?.policy || (await getPolicyByNumber(numeroPoliza)) as IPolicy;
+            if (!policy) {
+                await ctx.reply('❌ Error: Póliza no encontrada.');
+                this.awaitingDestino.delete(chatId, threadId);
+                return false;
+            }
+
+            // Generar leyenda mejorada con geocoding
+            const enhancedData = await this.generateEnhancedLegend(
+                policy,
+                origenCoords,
+                coordenadas,
+                rutaInfo
+            );
+            const leyenda = enhancedData.leyenda;
+
+            // Guardar datos completos en FlowStateManager
+            const saveData: any = {
+                origenCoords,
+                destinoCoords: coordenadas,
+                coordenadas: {
+                    origen: origenCoords,
+                    destino: coordenadas
+                },
+                rutaInfo,
+                origenDestino: `${origenCoords.lat},${origenCoords.lng} - ${coordenadas.lat},${coordenadas.lng}`
+            };
+
+            // Agregar información de geocoding si está disponible
+            if (enhancedData) {
+                saveData.geocoding = {
+                    origen: enhancedData.origenGeo,
+                    destino: enhancedData.destinoGeo
+                };
+                saveData.googleMapsUrl = enhancedData.googleMapsUrl;
+                saveData.origenDestino = `${enhancedData.origenGeo.ubicacionCorta} - ${enhancedData.destinoGeo.ubicacionCorta}`;
+            }
+
+            flowStateManager.saveState(chatId, numeroPoliza, saveData, threadId);
+
+            // Actualizar caché de póliza
+            if (policyCacheData) {
+                policyCacheData.destinoCoords = coordenadas;
+                policyCacheData.coordenadas = { origen: origenCoords, destino: coordenadas };
+                policyCacheData.rutaInfo = rutaInfo;
+                this.polizaCache.set(chatId, policyCacheData, threadId);
+            }
+
+            // Guardar leyenda para envío
+            this.pendingLeyendas.set(chatId, leyenda, threadId);
+
+            // Crear mensaje de respuesta con info de ruta
+            let responseMessage = `✅ Destino registrado: ${coordenadas.lat}, ${coordenadas.lng}\n\n`;
+
+            if (rutaInfo) {
+                responseMessage +=
+                    '🗺️ *Información de ruta:*\n' +
+                    `📏 Distancia: ${rutaInfo.distanciaKm} km\n` +
+                    `⏱️ Tiempo estimado: ${rutaInfo.tiempoMinutos} minutos`;
+                if (rutaInfo.aproximado) {
+                    responseMessage += ' (aproximado)';
+                }
+                responseMessage += `\n🔗 [Ver ruta en Google Maps](${rutaInfo.googleMapsUrl})\n\n`;
+            }
+
+            // Envío automático de leyenda al grupo
+            const targetGroupId = -1002212807945;
+
+            try {
+                logger.info(`Enviando leyenda automáticamente al grupo ${targetGroupId}`);
+                const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
+                logger.info(`Leyenda enviada automáticamente al grupo: ${targetGroupId}, messageId=${sentMsg.message_id}`);
+
+                // Enviar mensaje de confirmación con opciones de servicio
+                await ctx.reply(
+                    responseMessage +
+                        '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
+                        '🚗 ¿Deseas registrar un servicio?',
+                    {
+                        parse_mode: 'Markdown',
+                        link_preview_options: { is_disabled: true },
+                        ...Markup.inlineKeyboard([
+                            [
+                                Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
+                                Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
+                            ]
+                        ])
+                    }
+                );
+
+                logger.info('Flujo automático de leyenda completado exitosamente');
+            } catch (sendError) {
+                logger.error('Error al enviar leyenda automáticamente al grupo:', sendError);
+
+                // Fallback: mostrar botones manuales si falla envío automático
+                responseMessage +=
+                    `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
+                    '❌ Error enviando automáticamente. ¿Enviar manualmente?';
+
+                const sentMessage = await ctx.reply(responseMessage, {
+                    parse_mode: 'Markdown',
+                    link_preview_options: { is_disabled: true },
+                    reply_markup: {
+                        remove_keyboard: true,
+                        inline_keyboard: [
+                            [
+                                { text: '📤 Enviar', callback_data: `sendLeyenda:${numeroPoliza}` },
+                                { text: '❌ Cancelar', callback_data: `cancelLeyenda:${numeroPoliza}` }
+                            ]
+                        ]
+                    }
+                });
+
+                if (sentMessage) {
+                    this.messageIds.set(chatId, sentMessage.message_id, threadId);
+                }
+            }
+
+            // Limpieza de estados
+            this.pendingLeyendas.delete(chatId, threadId);
+            this.awaitingDestino.delete(chatId, threadId);
+            return true;
+
+        } catch (error) {
+            logger.error('Error procesando destino:', error);
+            await ctx.reply('❌ Error al procesar la ubicación del destino.');
+            this.awaitingDestino.delete(chatId, threadId);
+            return false;
+        }
+    }
+
+    async generateEnhancedLegend(
+        policy: IPolicy,
+        origenCoords: { lat: number; lng: number },
+        destinoCoords: { lat: number; lng: number },
+        rutaInfo: any
+    ): Promise<{
+        leyenda: string;
+        origenGeo: any;
+        destinoGeo: any;
+        googleMapsUrl: string;
+    }> {
+        try {
+            // Realizar geocoding reverso para origen y destino
+            const [origenGeo, destinoGeo] = await Promise.all([
+                this.hereMapsService.reverseGeocode(origenCoords.lat, origenCoords.lng),
+                this.hereMapsService.reverseGeocode(destinoCoords.lat, destinoCoords.lng)
+            ]);
+
+            // Generar URL de Google Maps
+            const googleMapsUrl = this.hereMapsService.generateGoogleMapsUrl(
+                origenCoords,
+                destinoCoords
+            );
+
+            // Formato de ubicación simplificado: "Colonia - Municipio"
+            const origenTexto = origenGeo.ubicacionCorta.toUpperCase();
+            const destinoTexto = destinoGeo.ubicacionCorta.toUpperCase();
+
+            // Nuevo formato de leyenda con diseño visual llamativo
+            const leyenda =
+                '⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n' +
+                `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n' +
+                `🚗 ${policy.marca} - ${policy.submarca} - ${policy.año}\n\n` +
+                `🔸 ORIGEN: ${origenTexto}\n` +
+                `🔸 DESTINO: ${destinoTexto}\n\n` +
+                `🗺️ ${googleMapsUrl}\n\n` +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n' +
+                '🌟 S E R V I C I O     A C T I V O 🌟\n' +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀';
+
+            logger.info(`Nueva leyenda generada: ${leyenda}`);
+
+            return {
+                leyenda,
+                origenGeo,
+                destinoGeo,
+                googleMapsUrl
+            };
+        } catch (error) {
+            logger.error('Error generando leyenda mejorada:', error);
+
+            // Fallback: usar coordenadas directas con diseño visual llamativo
+            const googleMapsUrl = this.hereMapsService.generateGoogleMapsUrl(
+                origenCoords,
+                destinoCoords
+            );
+            const leyenda =
+                '⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n' +
+                `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n' +
+                `🚗 ${policy.marca} - ${policy.submarca} - ${policy.año}\n\n` +
+                `🔸 ORIGEN: ${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)}\n` +
+                `🔸 DESTINO: ${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}\n\n` +
+                `🗺️ ${googleMapsUrl}\n\n` +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n' +
+                '🌟 S E R V I C I O     A C T I V O 🌟\n' +
+                '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀';
+
+            return {
+                leyenda,
+                origenGeo: {
+                    ubicacionCorta: `${origenCoords.lat.toFixed(4)}, ${origenCoords.lng.toFixed(4)}`,
+                    fallback: true
+                },
+                destinoGeo: {
+                    ubicacionCorta: `${destinoCoords.lat.toFixed(4)}, ${destinoCoords.lng.toFixed(4)}`,
+                    fallback: true
+                },
+                googleMapsUrl
+            };
+        }
     }
 
     async handleContactTime(
@@ -589,7 +1194,7 @@ class OcuparPolizaCallback extends BaseCommand {
         const chatId = ctx.chat!.id;
         const numeroPoliza = this.awaitingContactTime.get(chatId, threadId);
 
-        this.logInfo(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, {
+        logger.info(`Procesando hora de contacto: ${messageText} para póliza: ${numeroPoliza}`, {
             chatId,
             threadId
         });
@@ -606,14 +1211,14 @@ class OcuparPolizaCallback extends BaseCommand {
         try {
             const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);
             if (!serviceInfo) {
-                this.logError(`No se encontró info de servicio para póliza: ${numeroPoliza}`);
+                logger.error(`No se encontró info de servicio para póliza: ${numeroPoliza}`);
                 this.awaitingContactTime.delete(chatId, threadId);
                 await ctx.reply('❌ Error al procesar la hora. Operación cancelada.');
                 return false;
             }
 
             if (!serviceInfo.expediente) {
-                this.logInfo(
+                logger.info(
                     'No se encontró expediente para la notificación, generando uno genérico'
                 );
                 serviceInfo.expediente = `EXP-${new Date().toISOString().slice(0, 10)}`;
@@ -621,7 +1226,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
             serviceInfo.contactTime = messageText;
             const serviceStore = this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
-            this.logInfo(
+            logger.info(
                 `Info de servicio actualizada con hora=${messageText}: ${serviceStore ? 'OK' : 'FALLO'}`
             );
 
@@ -679,14 +1284,14 @@ class OcuparPolizaCallback extends BaseCommand {
 
             return true;
         } catch (error) {
-            this.logError(`Error al procesar hora de contacto para póliza ${numeroPoliza}:`, error);
+            logger.error(`Error al procesar hora de contacto para póliza ${numeroPoliza}:`, error);
             this.awaitingContactTime.delete(chatId, threadId);
             await ctx.reply('❌ Error al procesar la hora de contacto. Operación cancelada.');
             return true;
         }
     }
 
-    private cleanupAllStates(chatId: number, threadId: string | null = null): void {
+    public cleanupAllStates(chatId: number, threadId: string | null = null): void {
         if (threadId) {
             this.pendingLeyendas.delete(chatId, threadId);
             this.polizaCache.delete(chatId, threadId);
@@ -696,14 +1301,17 @@ class OcuparPolizaCallback extends BaseCommand {
             this.awaitingContactTime.delete(chatId, threadId);
             this.scheduledServiceInfo.delete(chatId, threadId);
 
+            // También limpiar en FlowStateManager
+            flowStateManager.clearAllStates(chatId, threadId);
+
             if (this.handler && typeof this.handler.clearChatState === 'function') {
-                this.logInfo(
+                logger.info(
                     'Llamando a CommandHandler.clearChatState desde OcuparPolizaCallback.cleanupAllStates',
                     { chatId, threadId }
                 );
                 this.handler.clearChatState(chatId, threadId);
             } else {
-                this.logError(
+                logger.error(
                     'No se pudo llamar a CommandHandler.clearChatState desde OcuparPolizaCallback'
                 );
             }
@@ -716,14 +1324,17 @@ class OcuparPolizaCallback extends BaseCommand {
             this.awaitingContactTime.deleteAll(chatId);
             this.scheduledServiceInfo.deleteAll(chatId);
 
+            // También limpiar en FlowStateManager
+            flowStateManager.clearAllStates(chatId, null);
+
             if (this.handler && typeof this.handler.clearChatState === 'function') {
-                this.logInfo(
+                logger.info(
                     'Llamando a CommandHandler.clearChatState desde OcuparPolizaCallback.cleanupAllStates (sin threadId)',
                     { chatId }
                 );
                 this.handler.clearChatState(chatId, null);
             } else {
-                this.logError(
+                logger.error(
                     'No se pudo llamar a CommandHandler.clearChatState desde OcuparPolizaCallback (sin threadId)'
                 );
             }

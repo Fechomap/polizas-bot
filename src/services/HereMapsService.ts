@@ -251,7 +251,7 @@ class HereMapsService {
      * @param {Object} destino - {lat, lng}
      * @returns {string} - URL de Google Maps
      */
-    private generateGoogleMapsUrl(origen: ICoordinates, destino: ICoordinates): string {
+    public generateGoogleMapsUrl(origen: ICoordinates, destino: ICoordinates): string {
         return `https://www.google.com/maps/dir/${origen.lat},${origen.lng}/${destino.lat},${destino.lng}`;
     }
 
