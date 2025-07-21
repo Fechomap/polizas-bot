@@ -90,7 +90,6 @@ class NotificationCommand extends BaseCommand {
                             ],
                             [Markup.button.callback('⏰ Ver próximas hoy', 'notification:today')],
                             [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')],
-                            [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
                         ])
                     }
                 );
@@ -136,7 +135,6 @@ class NotificationCommand extends BaseCommand {
                         await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
                             ...Markup.inlineKeyboard([
                                 [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                                [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                             ])
                         });
                         return;
@@ -184,13 +182,7 @@ class NotificationCommand extends BaseCommand {
                             await ctx.reply(message, {
                                 parse_mode: 'Markdown',
                                 ...Markup.inlineKeyboard([
-                                    [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                                    [
-                                        Markup.button.callback(
-                                            '⬅️ Menú Principal',
-                                            'accion:volver_menu'
-                                        )
-                                    ]
+                                    [Markup.button.callback('⬅️ Volver', 'notification:back')]
                                 ])
                             });
                         } else {
@@ -242,7 +234,6 @@ class NotificationCommand extends BaseCommand {
                         await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
                             ...Markup.inlineKeyboard([
                                 [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                                [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                             ])
                         });
                         return;
@@ -278,7 +269,6 @@ class NotificationCommand extends BaseCommand {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
                             [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                            [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                         ])
                     });
                     return;
@@ -358,7 +348,6 @@ class NotificationCommand extends BaseCommand {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
                             [Markup.button.callback('⬅️ Volver', 'notification:back')],
-                            [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
                         ])
                     });
                 } catch (error: any) {
@@ -403,8 +392,7 @@ class NotificationCommand extends BaseCommand {
                                         'notification:stats'
                                     )
                                 ],
-                                [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
-                            ])
+                                ])
                         }
                     );
                 } catch (error: any) {

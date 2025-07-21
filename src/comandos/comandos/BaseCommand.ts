@@ -23,7 +23,7 @@ type NavigationContext = Context & {
         isError?: boolean;
         [key: string]: any;
     };
-}
+};
 
 interface ReplyOptions {
     parse_mode?: ParseMode;
@@ -139,6 +139,7 @@ abstract class BaseCommand {
             const menuData = this.navManager.getMainMenu(userId);
             markNavigationHandled(ctx);
 
+
             if (ctx.callbackQuery) {
                 await ctx.editMessageText(menuData.text, {
                     parse_mode: menuData.parseMode,
@@ -146,6 +147,7 @@ abstract class BaseCommand {
                 });
                 await ctx.answerCbQuery();
             } else {
+                // Enviar solo el menú inline
                 await ctx.reply(menuData.text, {
                     parse_mode: menuData.parseMode,
                     ...menuData.markup
@@ -176,6 +178,7 @@ abstract class BaseCommand {
             const menuData = this.navManager.getReportsMenu(userId);
             markNavigationHandled(ctx);
 
+
             if (ctx.callbackQuery) {
                 await ctx.editMessageText(menuData.text, {
                     parse_mode: menuData.parseMode,
@@ -183,6 +186,7 @@ abstract class BaseCommand {
                 });
                 await ctx.answerCbQuery();
             } else {
+                // Enviar el menú inline
                 await ctx.reply(menuData.text, {
                     parse_mode: menuData.parseMode,
                     ...menuData.markup

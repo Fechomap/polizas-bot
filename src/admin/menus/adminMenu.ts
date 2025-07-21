@@ -30,7 +30,6 @@ _Solo usuarios administradores pueden acceder a estas funciones._
                 Markup.button.callback('📊 Reportes PDF', 'admin_reports_menu'),
                 Markup.button.callback('💾 Gestión Base de Datos', 'admin_database_menu')
             ],
-            [Markup.button.callback('⬅️ Volver al Menú Principal', 'accion:volver_menu')]
         ]);
 
         if (ctx.callbackQuery) {

@@ -55,11 +55,11 @@ class NavigationManager {
                 subtitle: 'Selecciona una categoría:',
                 buttons: [
                     [
-                        { text: '📋 PÓLIZAS', callback: 'accion:polizas' },
+                        { text: '📋   PÓLIZAS   ', callback: 'accion:polizas' },
                         { text: '🔧 ADMINISTRACIÓN', callback: 'accion:administracion' }
                     ],
                     [
-                        { text: '📊 REPORTES', callback: 'accion:reportes' },
+                        { text: '📊  REPORTES  ', callback: 'accion:reportes' },
                         { text: '🚗 BASE DE AUTOS', callback: 'accion:base_autos' }
                     ],
                     [{ text: '❓ AYUDA', callback: 'accion:help' }]
@@ -142,7 +142,8 @@ class NavigationManager {
     }
 
     /**
-     * 🧭 Agrega botón "Volver al Menú" a cualquier respuesta
+     * 🧭 Agrega botón "Menú Principal" PERSISTENTE a cualquier respuesta
+     * Este botón reemplaza la funcionalidad de /start y limpia todos los estados
      * @param originalText - Texto original del mensaje
      * @param userId - ID del usuario
      * @param options - Opciones adicionales
@@ -157,8 +158,9 @@ class NavigationManager {
             const context = this.getCurrentContext(userId);
             const navigationButtons: NavigationButton[][] = [];
 
-            // Botón principal siempre presente
-            navigationButtons.push([{ text: '🏠 Menú Principal', callback: 'accion:volver_menu' }]);
+            // Botón principal SIEMPRE presente - reemplaza /start
+            // Este botón limpia TODOS los estados del thread específico
+            navigationButtons.push([{ text: '🏠 MENÚ PRINCIPAL', callback: 'accion:volver_menu' }]);
 
             // Botón contextual si hay parent
             if (context?.parent) {

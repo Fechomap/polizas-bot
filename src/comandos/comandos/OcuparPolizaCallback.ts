@@ -309,7 +309,8 @@ class OcuparPolizaCallback extends BaseCommand {
                 // Obtener datos de la póliza y geocoding para enviar leyenda azul de forma asíncrona
                 setImmediate(async () => {
                     try {
-                        const flowState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+                        const threadIdStr = threadId ? String(threadId) : null;
+                        const flowState = flowStateManager.getState(chatId, numeroPoliza, threadIdStr);
                         const policy = await getPolicyByNumber(numeroPoliza);
                         
                         if (flowState && policy && flowState.geocoding) {
@@ -987,7 +988,8 @@ class OcuparPolizaCallback extends BaseCommand {
             }
 
             // Recuperar coordenadas de origen desde FlowStateManager
-            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+            const threadIdStr = threadId ? String(threadId) : null;
+            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadIdStr);
             const origenCoords = savedState?.origenCoords;
 
             if (!origenCoords) {

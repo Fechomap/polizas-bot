@@ -273,6 +273,47 @@ export class TextMessageHandler extends BaseCommand {
                     return next();
                 }
 
+                // 🏠 MENÚ PRINCIPAL PERSISTENTE - Manejo del botón de teclado
+                if (
+                    messageText === '🏠 MENÚ PRINCIPAL' ||
+                    messageText === 'MENÚ PRINCIPAL' ||
+                    messageText === 'Menu Principal'
+                ) {
+                    this.logInfo('🏠 Botón MENÚ PRINCIPAL presionado desde teclado persistente', {
+                        chatId,
+                        threadId: threadId || 'ninguno',
+                        userId: ctx.from?.id
+                    });
+
+                    // LIMPIAR ESTADOS ADMIN PROBLEMÁTICOS (igual que /start)
+                    try {
+                        const AdminStateManager = require('../../admin/utils/adminStates').default;
+                        AdminStateManager.clearAdminState(ctx.from?.id, chatId);
+                        this.logInfo('✅ Estados admin limpiados desde botón teclado persistente');
+                    } catch (error) {
+                        this.logInfo('Módulo admin no disponible para limpieza de estado');
+                    }
+
+                    // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO (igual que /start)
+                    if (chatId && this.handler.clearChatState) {
+                        this.handler.clearChatState(chatId, threadId);
+                        this.logInfo(
+                            '🧹 Todos los procesos limpiados desde botón teclado persistente',
+                            {
+                                chatId: chatId,
+                                threadId: threadId || 'ninguno'
+                            }
+                        );
+                    }
+
+                    // Mostrar menú principal inline
+                    await this.showMainMenu(ctx as NavigationContext);
+                    this.logInfo(
+                        '✅ Menú principal mostrado vía teclado persistente (equivalente a /start)'
+                    );
+                    return;
+                }
+
                 // Check for Base de Autos active flows
                 const baseAutosCommand = this.handler.registry
                     .getAllCommands()
@@ -886,7 +927,6 @@ export class TextMessageHandler extends BaseCommand {
                         await ctx.replyWithMarkdown(
                             mensajeResultado,
                             Markup.inlineKeyboard([
-                                Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                             ])
                         );
                     } catch (error) {
@@ -895,7 +935,6 @@ export class TextMessageHandler extends BaseCommand {
                         await ctx.reply(
                             '❌ Hubo un error al marcar las pólizas como eliminadas. Intenta nuevamente.',
                             Markup.inlineKeyboard([
-                                Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                             ])
                         );
                     } finally {

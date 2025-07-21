@@ -119,7 +119,7 @@ class CalculationScheduler {
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    '🔄 *Cálculo Estados Automático*\n\n⏳ Actualizando estados de pólizas...',
+                    '🔄 *Cálculo Estados Automático*\n\n⏳ Actualizando estados de pólizas\\.\\.\\.',
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -143,7 +143,7 @@ class CalculationScheduler {
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    `❌ *Error en Cálculo Estados*\n\n🔥 ${(error as Error).message}\n\n📋 Revisar logs para más detalles`,
+                    `❌ *Error en Cálculo Estados*\n\n🔥 ${(error as Error).message.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&')}\n\n📋 Revisar logs para más detalles`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -199,7 +199,7 @@ class CalculationScheduler {
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    '🧹 *Limpieza Automática de Pólizas*\n\n⏳ Iniciando eliminación automática...',
+                    '🧹 *Limpieza Automática de Pólizas*\n\n⏳ Iniciando eliminación automática\\.\\.\\.',
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -234,7 +234,7 @@ class CalculationScheduler {
                 if (this.adminChatId) {
                     await this.bot.telegram.sendMessage(
                         this.adminChatId,
-                        `❌ *Error en Limpieza Automática*\n\n🔥 ${result.error}\n\n📋 Revisar logs para más detalles`,
+                        `❌ *Error en Limpieza Automática*\n\n🔥 ${result.error?.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&')}\n\n📋 Revisar logs para más detalles`,
                         { parse_mode: 'MarkdownV2' }
                     );
                 }
@@ -245,7 +245,7 @@ class CalculationScheduler {
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    `❌ *Error Crítico en Limpieza Automática*\n\n🔥 ${(error as Error).message}\n\n📋 Revisar logs inmediatamente`,
+                    `❌ *Error Crítico en Limpieza Automática*\n\n🔥 ${(error as Error).message.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&')}\n\n📋 Revisar logs inmediatamente`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }

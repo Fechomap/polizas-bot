@@ -310,7 +310,6 @@ class CommandHandler {
                     [Markup.button.callback('💰 Añadir Pago', 'accion:addpayment')],
                     [Markup.button.callback('🚗 Añadir Servicio', 'accion:addservice')],
                     [Markup.button.callback('📁 Subir Archivos', 'accion:upload')],
-                    [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
                 ]);
 
                 await ctx.editMessageText(
@@ -332,7 +331,6 @@ class CommandHandler {
                 await ctx.answerCbQuery();
                 const adminMenu = Markup.inlineKeyboard([
                     [Markup.button.callback('🔧 Panel de Administración', 'admin_menu')],
-                    [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
                 ]);
 
                 await ctx.editMessageText(
@@ -386,7 +384,6 @@ class CommandHandler {
                                         'accion:administracion'
                                     )
                                 ],
-                                [Markup.button.callback('🏠 Menú Principal', 'accion:volver_menu')]
                             ])
                         }
                     );
@@ -609,8 +606,7 @@ class CommandHandler {
                                     'accion:reportUsed'
                                 )
                             ],
-                            [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
-                        ])
+                                ])
                     }
                 );
             } catch (error: any) {
@@ -822,7 +818,6 @@ class CommandHandler {
                 await ctx.reply(
                     'Acciones adicionales:',
                     Markup.inlineKeyboard([
-                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                     ])
                 );
 
@@ -1125,7 +1120,6 @@ ${serviciosInfo}
                                 `ocuparPoliza:${policy.numeroPoliza}`
                             )
                         ],
-                        [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')] // Añadir botón volver
                     ])
                 );
                 logger.info('Información de póliza enviada', { numeroPoliza, chatId, threadId });
@@ -1242,7 +1236,6 @@ ${serviciosInfo}
                 '✅ Póliza guardada exitosamente:\n' + `Número: ${savedPolicy.numeroPoliza}`,
                 Markup.inlineKeyboard([
                     // Botón para volver al menú
-                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                 ])
             );
         } catch (error: any) {
@@ -1456,7 +1449,6 @@ ${serviciosInfo}
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
-                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                     ])
                 }
             );
@@ -1685,8 +1677,7 @@ ${serviciosInfo}
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                        ])
+                            ])
                     }
                 );
             } else {
@@ -1762,8 +1753,7 @@ ${serviciosInfo}
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                        ])
+                            ])
                     }
                 );
             }
@@ -1822,7 +1812,6 @@ ${serviciosInfo}
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
-                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                     ])
                 }
             );

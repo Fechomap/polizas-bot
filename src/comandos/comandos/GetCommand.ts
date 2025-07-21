@@ -126,7 +126,6 @@ ${serviciosInfo}
                                 `ocuparPoliza:${policy.numeroPoliza}`
                             )
                         ],
-                        [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
                     ])
                 );
                 this.logInfo('Información de póliza enviada', {

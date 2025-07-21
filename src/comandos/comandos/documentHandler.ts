@@ -207,7 +207,6 @@ class DocumentHandler {
             await ctx.reply(
                 'Selecciona una opción:',
                 Markup.inlineKeyboard([
-                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu'),
                     Markup.button.callback('📊 Registrar otro Excel', 'accion:registrar')
                 ])
             );

@@ -292,7 +292,6 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
             await ctx.reply(
                 '✅ Se han mostrado las pólizas prioritarias según su calificación actual.',
                 Markup.inlineKeyboard([
-                    Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
                 ])
             );
             this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
@@ -358,15 +357,13 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
                     await ctx.reply(
                         '⚠️ Proceso completado con errores.',
                         Markup.inlineKeyboard([
-                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                        ])
+                                ])
                     );
                 } else {
                     await ctx.reply(
                         '❌ No se pudieron obtener las pólizas de respaldo.',
                         Markup.inlineKeyboard([
-                            Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                        ])
+                                ])
                     );
                 }
             } catch (fallbackError: unknown) {
@@ -376,8 +373,7 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
                 await ctx.reply(
                     '❌ Error crítico.',
                     Markup.inlineKeyboard([
-                        Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')
-                    ])
+                        ])
                 );
             }
         }

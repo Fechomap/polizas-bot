@@ -1,5 +1,6 @@
 import BaseCommand, { NavigationContext, IBaseHandler } from './BaseCommand';
 import StateKeyManager from '../../utils/StateKeyManager';
+import { getPersistentMenuKeyboard } from '../teclados';
 
 // Import AdminStateManager
 const AdminStateManager = require('../../admin/utils/adminStates').default;
@@ -40,6 +41,13 @@ class StartCommand extends BaseCommand {
                         threadId: threadId || 'ninguno'
                     });
                 }
+
+                // Configurar teclado persistente primero
+                const persistentKeyboard = getPersistentMenuKeyboard();
+                await ctx.reply('🤖 *Bot de Pólizas iniciado*', {
+                    parse_mode: 'Markdown',
+                    reply_markup: persistentKeyboard
+                });
 
                 // Usar el nuevo sistema de navegación persistente
                 await this.showMainMenu(ctx);

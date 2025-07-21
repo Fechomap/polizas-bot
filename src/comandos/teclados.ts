@@ -28,7 +28,6 @@ function getBaseAutosKeyboard() {
     return Markup.inlineKeyboard([
         [Markup.button.callback('🚗 Registrar Auto', 'base_autos:registrar')],
         [Markup.button.callback('📄 Asegurar Auto', 'base_autos:asegurar')],
-        [Markup.button.callback('⬅️ Menú Principal', 'accion:volver_menu')]
     ]);
 }
 
@@ -54,4 +53,23 @@ function getFinalizarKeyboard() {
     };
 }
 
-export { getMainKeyboard, getBaseAutosKeyboard, getCancelKeyboard, getFinalizarKeyboard };
+/**
+ * 🏠 TECLADO PERSISTENTE - Botón que siempre está visible
+ * Reemplaza la necesidad de escribir /start
+ */
+function getPersistentMenuKeyboard() {
+    return {
+        keyboard: [['🏠 MENÚ PRINCIPAL']],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+        persistent: true
+    };
+}
+
+export {
+    getMainKeyboard,
+    getBaseAutosKeyboard,
+    getCancelKeyboard,
+    getFinalizarKeyboard,
+    getPersistentMenuKeyboard
+};
