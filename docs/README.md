@@ -28,6 +28,46 @@
 - **Funcionalidades:** Lógica multi-factor, reportes Excel/PDF, mejoras notificaciones
 - **Duración estimada:** 10 días hábiles
 
+#### [04-sistema-bd-autos.md](./04-sistema-bd-autos.md)
+**Sistema de Base de Datos de Autos**
+- **Estado:** ✅ COMPLETADO - Sistema implementado
+- **Fecha:** 2025-07-19
+- **Descripción:** Implementación completa del sistema de registro y asignación de vehículos
+- **Funcionalidades:** Registro de autos, asignación de pólizas, gestión dual de usuarios
+- **Progreso:** Sistema completo en producción
+
+#### [05-resumen-final-bd-autos.md](./05-resumen-final-bd-autos.md)
+**Resumen Final - Base de Datos de Autos**
+- **Estado:** ✅ COMPLETADO - Documentación consolidada
+- **Fecha:** 2025-07-19
+- **Descripción:** Resumen ejecutivo y documentación final del sistema BD Autos
+- **Funcionalidades:** Flujos completos, manejo de estados, validaciones
+- **Resultado:** Sistema robusto y funcional
+
+#### [06-investigacion-correcion-archivos-bd-autos.md](./06-investigacion-correcion-archivos-bd-autos.md)
+**Investigación y Corrección - Archivos BD Autos**
+- **Estado:** ✅ COMPLETADO - Issues resueltos
+- **Fecha:** 2025-07-19
+- **Descripción:** Investigación y corrección de problemas en archivos del sistema
+- **Funcionalidades:** Debugging, corrección de errores, optimización
+- **Resultado:** Sistema estabilizado y optimizado
+
+#### [07-estado-actual-navegacion.md](./07-estado-actual-navegacion.md)
+**Estado Actual del Sistema de Navegación**
+- **Estado:** ✅ COMPLETADO - Navegación optimizada
+- **Fecha:** 2025-07-21
+- **Descripción:** Análisis y optimización del sistema de navegación del bot
+- **Funcionalidades:** Menús persistentes, navegación directa, UX mejorada
+- **Resultado:** Navegación más intuitiva y eficiente
+
+#### [08-typescript-migration-roadmap.md](./08-typescript-migration-roadmap.md)
+**Roadmap de Migración a TypeScript**
+- **Estado:** ✅ COMPLETADO - Migración finalizada
+- **Fecha:** 2025-07-21
+- **Descripción:** Plan y ejecución de la migración completa del proyecto a TypeScript
+- **Funcionalidades:** Tipado estático, mejor IDE support, refactoring seguro
+- **Resultado:** Proyecto 100% migrado con mejor mantenibilidad
+
 ---
 
 ## 🎯 ESTADO GENERAL DEL PROYECTO
