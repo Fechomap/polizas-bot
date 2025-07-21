@@ -397,7 +397,7 @@ class MexicanDataGenerator {
      * Genera un correo electrónico
      */
     generateCorreo(nombre: string): string {
-        const dominios = ['gmail.com', 'hotmail.com', 'yahoo.com.mx', 'outlook.com', 'live.com.mx'];
+        const dominios = ['gmail.com', 'hotmail.com', 'outlook.com'];
         const dominio = this.randomFromArray(dominios);
 
         // Limpiar nombre para email

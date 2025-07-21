@@ -117,7 +117,7 @@ describe('MexicanDataGenerator', () => {
             const correo = generator.generateCorreo(nombre);
 
             expect(typeof correo).toBe('string');
-            expect(correo).toMatch(/^[a-z0-9]+@[a-z]+\.(com|com\.mx)$/);
+            expect(correo).toMatch(/^[a-z0-9]+@[a-z]+\.com$/);
             expect(correo).toContain('@');
         });
 
@@ -130,8 +130,8 @@ describe('MexicanDataGenerator', () => {
             expect(parteLocal).toMatch(/^[a-z0-9]+$/);
         });
 
-        test('debe usar dominios mexicanos válidos', () => {
-            const dominiosValidos = ['gmail.com', 'hotmail.com', 'yahoo.com.mx', 'outlook.com', 'live.com.mx'];
+        test('debe usar dominios válidos', () => {
+            const dominiosValidos = ['gmail.com', 'hotmail.com', 'outlook.com'];
             const correo = generator.generateCorreo('Test Usuario');
             const dominio = correo.split('@')[1];
 

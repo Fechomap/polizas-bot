@@ -314,10 +314,14 @@ export class PolicyAssignmentHandler {
                 '*Datos temporales del titular:*\n' +
                 `👤 ${vehiculo.titular}\n` +
                 `🆔 RFC: ${vehiculo.rfc}\n` +
-                `📱 ${vehiculo.telefono}\n\n` +
+                `📧 ${vehiculo.correo || 'Sin correo'}\n\n` +
+                '*Domicilio:*\n' +
+                `🏠 ${vehiculo.calle || 'Sin calle'}\n` +
+                `🏘️ ${vehiculo.colonia || 'Sin colonia'}\n` +
+                `🏙️ ${vehiculo.municipio || 'Sin municipio'}, ${vehiculo.estadoRegion || 'Sin estado'}\n` +
+                `📮 CP: ${vehiculo.cp || 'Sin código postal'}\n\n` +
                 '💼 *INICIAR ASIGNACIÓN DE PÓLIZA*\n\n' +
-                '*Paso 1/5:* Ingresa el *número de póliza*\n' +
-                '📝 Puedes escribir cualquier número o código';
+                '*Paso 1/5:* Ingresa el *número de póliza*';
 
             const sendOptions: any = {
                 parse_mode: 'Markdown',
