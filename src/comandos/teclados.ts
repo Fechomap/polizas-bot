@@ -16,8 +16,7 @@ function getMainKeyboard() {
         [
             Markup.button.callback('📊 REPORTES', 'accion:reportes'),
             Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
-        ],
-        [Markup.button.callback('❓ AYUDA', 'accion:help')]
+        ]
     ]);
 }
 
@@ -26,8 +25,9 @@ function getMainKeyboard() {
  */
 function getBaseAutosKeyboard() {
     return Markup.inlineKeyboard([
-        [Markup.button.callback('🚗 Registrar Auto', 'base_autos:registrar')],
-        [Markup.button.callback('📄 Asegurar Auto', 'base_autos:asegurar')],
+        [Markup.button.callback('🚗 REGISTRAR AUTO', 'base_autos:registrar')],
+        [Markup.button.callback('📄 ASEGURAR AUTO', 'base_autos:asegurar')],
+        [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')],
     ]);
 }
 

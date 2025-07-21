@@ -5,7 +5,6 @@ export { default as GetCommand } from './GetCommand';
 export { default as ViewFilesCallbacks } from './ViewFilesCallbacks';
 export { default as TextMessageHandler } from './TextMessageHandler';
 export { default as MediaUploadHandler } from './MediaUploadHandler';
-export { default as HelpCommand } from './HelpCommand';
 export { default as OcuparPolizaCallback } from './OcuparPolizaCallback';
 export { default as TestCommand } from './TestCommand';
 export { default as AddPaymentCommand } from './AddPaymentCommand';

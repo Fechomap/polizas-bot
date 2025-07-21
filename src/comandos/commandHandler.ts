@@ -35,7 +35,6 @@ import {
     ViewFilesCallbacks,
     TextMessageHandler,
     MediaUploadHandler,
-    HelpCommand,
     OcuparPolizaCallback,
     TestCommand,
     ExcelUploadHandler,
@@ -132,7 +131,6 @@ class CommandHandler {
 
     // Store instances of commands needed for actions
     private startCommandInstance: any;
-    private helpCommandInstance: any;
 
     constructor(bot: any) {
         if (!bot) {
@@ -166,7 +164,6 @@ class CommandHandler {
 
         // Store instances of commands needed for actions
         this.startCommandInstance = null;
-        this.helpCommandInstance = null;
 
         // Setup group restriction
         // Register thread validator middleware
@@ -197,9 +194,6 @@ class CommandHandler {
         this.registry.registerCommand(mediaCmd);
         mediaCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-        this.helpCommandInstance = new HelpCommand(this); // Store instance
-        this.registry.registerCommand(this.helpCommandInstance);
-        this.helpCommandInstance.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
         const ocuparCmd = new OcuparPolizaCallback(this as any);
         this.registry.registerCommand(ocuparCmd);
@@ -310,6 +304,7 @@ class CommandHandler {
                     [Markup.button.callback('💰 Añadir Pago', 'accion:addpayment')],
                     [Markup.button.callback('🚗 Añadir Servicio', 'accion:addservice')],
                     [Markup.button.callback('📁 Subir Archivos', 'accion:upload')],
+                    [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')],
                 ]);
 
                 await ctx.editMessageText(
@@ -325,20 +320,35 @@ class CommandHandler {
             }
         });
 
-        // NUEVO: Submenú ADMINISTRACIÓN
+        // NUEVO: Submenú ADMINISTRACIÓN - Conexión directa al panel admin
         this.bot.action('accion:administracion', async (ctx: ChatContext) => {
             try {
                 await ctx.answerCbQuery();
-                const adminMenu = Markup.inlineKeyboard([
-                    [Markup.button.callback('🔧 Panel de Administración', 'admin_menu')],
-                ]);
-
-                await ctx.editMessageText(
-                    '🔧 **ADMINISTRACIÓN**\n\n' +
-                        'Accede al sistema completo de administración para gestionar pólizas, servicios y base de datos.\n\n' +
-                        '🔒 *Requiere permisos de administrador.*',
-                    { parse_mode: 'Markdown', ...adminMenu }
-                );
+                
+                // Importar AdminAuth y adminMenu aquí para verificar permisos
+                const { default: AdminAuth } = require('../admin/middleware/adminAuth');
+                const { default: adminMenu } = require('../admin/menus/adminMenu');
+                
+                // Verificar permisos de admin
+                const isAdmin = await AdminAuth.isAdmin(ctx);
+                if (!isAdmin) {
+                    await ctx.editMessageText(
+                        '🔒 **ACCESO DENEGADO**\n\n' +
+                            'Solo los administradores pueden acceder a esta sección.\n\n' +
+                            'Si necesitas permisos de administrador, contacta al administrador del sistema.',
+                        { 
+                            parse_mode: 'Markdown',
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
+                            ])
+                        }
+                    );
+                    return;
+                }
+                
+                // Si es admin, mostrar directamente el menú principal de administración
+                await adminMenu.showMainMenu(ctx);
+                
             } catch (error: any) {
                 logger.error('Error en accion:administracion:', error);
                 await ctx.reply('❌ Error al mostrar el menú de administración.');
@@ -596,16 +606,17 @@ class CommandHandler {
                         ...Markup.inlineKeyboard([
                             [
                                 Markup.button.callback(
-                                    '📄 Pagos Pendientes (PDF)',
+                                    '📄 PAGOS PENDIENTES',
                                     'accion:reportPaymentPDF'
                                 )
                             ],
                             [
                                 Markup.button.callback(
-                                    '🚗 Pólizas sin Servicios Recientes',
+                                    '🚗 PÓLIZAS A MANDAR',
                                     'accion:reportUsed'
                                 )
                             ],
+                            [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')]
                                 ])
                     }
                 );
@@ -718,49 +729,11 @@ class CommandHandler {
             }
         });
 
-        // Base de Autos handler
-        this.bot.action('accion:base_autos', async (ctx: ChatContext) => {
-            try {
-                await ctx.answerCbQuery();
-                // Buscar la instancia del comando BaseAutosCommand
-                const baseAutosCmd = this.registry.getCommand('baseAutos');
-                if (baseAutosCmd && typeof baseAutosCmd.showMenu === 'function') {
-                    await baseAutosCmd.showMenu(ctx);
-                } else {
-                    logger.warn('No se encontró el comando baseAutos o su método showMenu');
-                    await ctx.reply('❌ Base de Autos no disponible en este momento.');
-                }
-            } catch (error: any) {
-                logger.error('Error en accion:base_autos:', error);
-                try {
-                    await ctx.answerCbQuery('Error');
-                } catch {}
-                await ctx.reply('❌ Error al mostrar la Base de Autos.');
-            }
-        });
+        // Base de Autos handler - Manejado por BaseAutosCommand.register()
     }
 
     // Método para configurar callback handlers adicionales
     private setupCallbackHandlers(): void {
-        // Handler para botón de ayuda
-        this.bot.action('accion:help', async (ctx: ChatContext) => {
-            try {
-                await ctx.answerCbQuery();
-                const helpCmd = this.registry.getCommand('help');
-                if (helpCmd && typeof helpCmd.sendHelpMessage === 'function') {
-                    await helpCmd.sendHelpMessage(ctx);
-                } else {
-                    logger.warn('No se encontró el comando help o su método sendHelpMessage');
-                    await ctx.reply('❌ Sistema de ayuda no disponible en este momento.');
-                }
-            } catch (error: any) {
-                logger.error('Error en accion:help:', error);
-                await ctx.reply('❌ Error al mostrar la ayuda.');
-                try {
-                    await ctx.answerCbQuery('Error');
-                } catch {}
-            }
-        });
 
         // Ocupar Póliza: acción principal para el botón "Ocupar Póliza"
         this.bot.action(/ocuparPoliza:(.+)/, async (ctx: ChatContext) => {

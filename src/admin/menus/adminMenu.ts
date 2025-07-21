@@ -13,22 +13,22 @@ class AdminMenu {
 
 Selecciona una opción para gestionar:
 
-📝 *Pólizas* - Editar, eliminar, restaurar
-🚗 *Servicios* - Gestionar servicios y registros
-📊 *Reportes* - Estadísticas visuales en PDF
-💾 *Base de Datos* - Scripts y mantenimiento
+📝 *PÓLIZAS* - Editar, eliminar, restaurar
+🚗 *EXPEDIENTES* - Gestionar servicios y registros
+📊 *REPORTES PDF* - Estadísticas visuales en PDF
+💾 *BASE DE DATOS* - Scripts y mantenimiento
 
 _Solo usuarios administradores pueden acceder a estas funciones._
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('📝 Gestión de Pólizas', 'admin_policy_menu'),
-                Markup.button.callback('🚗 Gestión de Servicios', 'admin_service_menu')
+                Markup.button.callback('📝 PÓLIZAS', 'admin_policy_menu'),
+                Markup.button.callback('🚗 EXPEDIENTES', 'admin_service_menu')
             ],
             [
-                Markup.button.callback('📊 Reportes PDF', 'admin_reports_menu'),
-                Markup.button.callback('💾 Gestión Base de Datos', 'admin_database_menu')
+                Markup.button.callback('📊 REPORTES PDF', 'admin_reports_menu'),
+                Markup.button.callback('💾 BASE DE DATOS', 'admin_database_menu')
             ],
         ]);
 

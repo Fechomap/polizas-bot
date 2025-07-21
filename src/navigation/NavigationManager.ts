@@ -61,8 +61,7 @@ class NavigationManager {
                     [
                         { text: '📊  REPORTES  ', callback: 'accion:reportes' },
                         { text: '🚗 BASE DE AUTOS', callback: 'accion:base_autos' }
-                    ],
-                    [{ text: '❓ AYUDA', callback: 'accion:help' }]
+                    ]
                 ]
             },
 
@@ -324,8 +323,7 @@ class NavigationManager {
             reportes: 'Reportes',
             polizas: 'Pólizas',
             administracion: 'Administración',
-            base_autos: 'Base de Autos',
-            help: 'Ayuda'
+            base_autos: 'Base de Autos'
         };
         return labels[menuKey] || menuKey;
     }
