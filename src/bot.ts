@@ -39,12 +39,12 @@ async function initializeBot(): Promise<Telegraf> {
         );
         logger.info('✅ Servicio de limpieza de estados iniciado');
 
-        // Configurar agente HTTPS con timeouts mejorados
+        // Configurar agente HTTPS con timeouts mejorados para alertas rápidas
         const httpsAgent = new https.Agent({
             keepAlive: true,
             keepAliveMsecs: 10000,
-            timeout: 30000, // 30 segundos para conexiones
-            maxSockets: 1
+            timeout: 10000, // 10 segundos para conexiones (reducido para alertas)
+            maxSockets: 10  // Permitir múltiples conexiones simultáneas para alertas
         });
 
         const bot = new Telegraf(config.telegram.token, {

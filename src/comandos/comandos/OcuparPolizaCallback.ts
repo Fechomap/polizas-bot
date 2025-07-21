@@ -306,6 +306,39 @@ class OcuparPolizaCallback extends BaseCommand {
                     );
                 }
 
+                // Obtener datos de la póliza y geocoding para enviar leyenda azul de forma asíncrona
+                setImmediate(async () => {
+                    try {
+                        const flowState = flowStateManager.getState(chatId, numeroPoliza, threadId);
+                        const policy = await getPolicyByNumber(numeroPoliza);
+                        
+                        if (flowState && policy && flowState.geocoding) {
+                            const enhancedData = {
+                                origenGeo: flowState.geocoding.origen,
+                                destinoGeo: flowState.geocoding.destino,
+                                googleMapsUrl: flowState.googleMapsUrl || flowState.rutaInfo?.googleMapsUrl,
+                                leyenda: '' // No usado en la versión azul
+                            };
+
+                            const targetGroupId = -1002212807945;
+                            logger.info(`Enviando leyenda azul al grupo ${targetGroupId} para registro de servicio`);
+                            
+                            // Enviar leyenda azul de forma asíncrona y rápida
+                            this.enviarLeyendaConEfectoTypingAzul(ctx.telegram, targetGroupId, policy, enhancedData).catch(error => {
+                                logger.error('Error enviando leyenda azul:', error);
+                            });
+                        } else {
+                            logger.warn('No se pudo obtener datos completos para leyenda azul', {
+                                hasFlowState: !!flowState,
+                                hasPolicy: !!policy,
+                                hasGeocoding: !!(flowState?.geocoding)
+                            });
+                        }
+                    } catch (error) {
+                        logger.error('Error al obtener datos para leyenda azul:', error);
+                    }
+                });
+
                 await ctx.reply('🚗 **INGRESA EL NÚMERO DE EXPEDIENTE:**', {
                     parse_mode: 'Markdown'
                 });
@@ -315,7 +348,6 @@ class OcuparPolizaCallback extends BaseCommand {
                     `Estado establecido para esperar datos del servicio para ${numeroPoliza}`
                 );
 
-                // Additional service registration logic would go here
             } catch (error) {
                 logger.error('Error en callback registrarServicio:', error);
                 await ctx.reply('❌ Error al iniciar el registro del servicio.');
@@ -1036,58 +1068,38 @@ class OcuparPolizaCallback extends BaseCommand {
                 responseMessage += `\n🔗 [Ver ruta en Google Maps](${rutaInfo.googleMapsUrl})\n\n`;
             }
 
-            // Envío automático de leyenda al grupo
+            // Envío automático de leyenda al grupo con efecto typing (asíncrono)
             const targetGroupId = -1002212807945;
 
-            try {
-                logger.info(`Enviando leyenda automáticamente al grupo ${targetGroupId}`);
-                const sentMsg = await ctx.telegram.sendMessage(targetGroupId, leyenda);
-                logger.info(`Leyenda enviada automáticamente al grupo: ${targetGroupId}, messageId=${sentMsg.message_id}`);
+            // Enviar leyenda en background sin bloquear al usuario
+            setImmediate(async () => {
+                try {
+                    logger.info(`Enviando leyenda automáticamente al grupo ${targetGroupId} con efecto typing`);
+                    await this.enviarLeyendaConEfectoTyping(ctx.telegram, targetGroupId, policy, enhancedData);
+                    logger.info(`Leyenda con efecto typing enviada al grupo: ${targetGroupId}`);
+                } catch (sendError) {
+                    logger.error('Error al enviar leyenda automáticamente al grupo:', sendError);
+                }
+            });
 
-                // Enviar mensaje de confirmación con opciones de servicio
-                await ctx.reply(
-                    responseMessage +
-                        '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
-                        '🚗 ¿Deseas registrar un servicio?',
-                    {
-                        parse_mode: 'Markdown',
-                        link_preview_options: { is_disabled: true },
-                        ...Markup.inlineKeyboard([
-                            [
-                                Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
-                                Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
-                            ]
-                        ])
-                    }
-                );
-
-                logger.info('Flujo automático de leyenda completado exitosamente');
-            } catch (sendError) {
-                logger.error('Error al enviar leyenda automáticamente al grupo:', sendError);
-
-                // Fallback: mostrar botones manuales si falla envío automático
-                responseMessage +=
-                    `📋 Leyenda del servicio:\n\`\`\`${leyenda}\`\`\`\n\n` +
-                    '❌ Error enviando automáticamente. ¿Enviar manualmente?';
-
-                const sentMessage = await ctx.reply(responseMessage, {
+            // Enviar mensaje de confirmación con opciones de servicio inmediatamente
+            await ctx.reply(
+                responseMessage +
+                    '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
+                    '🚗 ¿Deseas registrar un servicio?',
+                {
                     parse_mode: 'Markdown',
                     link_preview_options: { is_disabled: true },
-                    reply_markup: {
-                        remove_keyboard: true,
-                        inline_keyboard: [
-                            [
-                                { text: '📤 Enviar', callback_data: `sendLeyenda:${numeroPoliza}` },
-                                { text: '❌ Cancelar', callback_data: `cancelLeyenda:${numeroPoliza}` }
-                            ]
+                    ...Markup.inlineKeyboard([
+                        [
+                            Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
+                            Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
                         ]
-                    }
-                });
-
-                if (sentMessage) {
-                    this.messageIds.set(chatId, sentMessage.message_id, threadId);
+                    ])
                 }
-            }
+            );
+
+            logger.info('Flujo automático completado - respuesta inmediata al usuario');
 
             // Limpieza de estados
             this.pendingLeyendas.delete(chatId, threadId);
@@ -1183,6 +1195,120 @@ class OcuparPolizaCallback extends BaseCommand {
                 },
                 googleMapsUrl
             };
+        }
+    }
+
+    /**
+     * Envía una leyenda al grupo con efecto typing usando múltiples mensajes secuenciales
+     */
+    async enviarLeyendaConEfectoTyping(
+        telegram: any,
+        targetGroupId: number,
+        policy: any,
+        enhancedData: any
+    ): Promise<void> {
+        try {
+            const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+            // Secuencia de mensajes para crear efecto typing
+            const mensajes = [
+                '🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣',
+                '🔥 PENDIENTES',
+                `🔥 **ALERTA ${policy.aseguradora}**`,
+                `🔥 **${policy.marca} - ${policy.submarca} - ${policy.año}**`,
+                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta.toUpperCase()}`,
+                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta.toUpperCase()}`
+            ];
+
+            // Enviar cada mensaje con delay
+            for (let i = 0; i < mensajes.length; i++) {
+                await telegram.sendMessage(targetGroupId, mensajes[i], { parse_mode: 'Markdown' });
+                logger.info(`Mensaje ${i + 1}/${mensajes.length} enviado: ${mensajes[i]}`);
+                
+                // Delay entre mensajes (menos en el último) - 4 mensajes por segundo
+                if (i < mensajes.length - 1) {
+                    await delay(250); // 250ms entre mensajes = 4 por segundo
+                }
+            }
+
+            // Mensaje con URL de Google Maps
+            const mensajeUrl = `🗺️ ${enhancedData.googleMapsUrl}`;
+
+            await delay(250); // Delay antes del mensaje con URL - 4 por segundo
+            await telegram.sendMessage(targetGroupId, mensajeUrl);
+            
+            await delay(250); // Delay antes del mensaje de cierre - 4 por segundo
+            
+            // Mensaje de cierre morado separado
+            const mensajeCierre = '🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣';
+            await telegram.sendMessage(targetGroupId, mensajeCierre);
+            
+            logger.info('Secuencia de leyenda con efecto typing completada exitosamente');
+            
+        } catch (error) {
+            logger.error('Error enviando leyenda con efecto typing:', error);
+            
+            // Fallback: enviar leyenda original en caso de error
+            const leyendaFallback = enhancedData.leyenda;
+            await telegram.sendMessage(targetGroupId, leyendaFallback);
+            logger.info('Enviada leyenda fallback por error en efecto typing');
+        }
+    }
+
+    /**
+     * Envía una leyenda al grupo con efecto typing usando múltiples mensajes secuenciales (versión azul para registro de servicio)
+     */
+    async enviarLeyendaConEfectoTypingAzul(
+        telegram: any,
+        targetGroupId: number,
+        policy: any,
+        enhancedData: any
+    ): Promise<void> {
+        try {
+            const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+            // Secuencia de mensajes para crear efecto typing en azul
+            const mensajes = [
+                '🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵',
+                '🔥 PENDIENTES',
+                `🔥 **ALERTA ${policy.aseguradora}**`,
+                `🔥 **${policy.marca} - ${policy.submarca} - ${policy.año}**`,
+                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta.toUpperCase()}`,
+                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta.toUpperCase()}`
+            ];
+
+            // Enviar cada mensaje con delay
+            for (let i = 0; i < mensajes.length; i++) {
+                await telegram.sendMessage(targetGroupId, mensajes[i], { parse_mode: 'Markdown' });
+                logger.info(`Mensaje azul ${i + 1}/${mensajes.length} enviado: ${mensajes[i]}`);
+                
+                // Delay entre mensajes azules - mismo ritmo que morado (4 por segundo)
+                if (i < mensajes.length - 1) {
+                    await delay(250); // 250ms entre mensajes = 4 por segundo
+                }
+            }
+
+            // Mensaje con URL de Google Maps
+            const mensajeUrl = `🗺️ ${enhancedData.googleMapsUrl}`;
+
+            await delay(250); // Delay antes del mensaje con URL azul - 4 por segundo
+            await telegram.sendMessage(targetGroupId, mensajeUrl);
+            
+            await delay(250); // Delay antes del mensaje de cierre azul - 4 por segundo
+            
+            // Mensaje de cierre azul separado
+            const mensajeCierre = '🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵';
+            await telegram.sendMessage(targetGroupId, mensajeCierre);
+            
+            logger.info('Secuencia de leyenda azul con efecto typing completada exitosamente');
+            
+        } catch (error) {
+            logger.error('Error enviando leyenda azul con efecto typing:', error);
+            
+            // Fallback: enviar leyenda original en caso de error
+            const leyendaFallback = enhancedData.leyenda;
+            await telegram.sendMessage(targetGroupId, leyendaFallback);
+            logger.info('Enviada leyenda fallback por error en efecto typing azul');
         }
     }
 
