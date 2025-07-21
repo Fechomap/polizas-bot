@@ -153,6 +153,7 @@ Exportación y limpieza de datos:
 
 📊 *Exportar Excel* - Descarga completa de pólizas
 🧹 *Limpieza Automática* - Eliminar pólizas con ≥2 servicios
+📋 *Validación Archivos* - Verificar fotos y PDFs faltantes
 
 🤖 *Sistema automático*:
 • Cálculo diario: 3:00 AM
@@ -163,6 +164,7 @@ Exportación y limpieza de datos:
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('📊 Exportar Excel', 'admin_database_export')],
             [Markup.button.callback('🧹 Limpieza Automática', 'admin_database_autocleanup')],
+            [Markup.button.callback('📋 Validación Archivos', 'admin_database_file_validation')],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 

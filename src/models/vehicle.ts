@@ -1,6 +1,6 @@
 // src/models/vehicle.ts
-import mongoose, { Schema, Document, Model } from 'mongoose';
-import { IVehicle, IFile, IR2File } from '../../types';
+import mongoose, { Schema, Model } from 'mongoose';
+import { IVehicle } from '../../types';
 
 // Esquema para archivos (reutilizado del modelo Policy)
 const fileSchema = new Schema(
@@ -133,7 +133,7 @@ const vehicleSchema = new Schema({
     // Estado del vehículo en el proceso OBD
     estado: {
         type: String,
-        enum: ['SIN_POLIZA', 'CON_POLIZA', 'ELIMINADO'],
+        enum: ['SIN_POLIZA', 'CON_POLIZA', 'ELIMINADO', 'CONVERTIDO_NIV'],
         default: 'SIN_POLIZA'
     },
 

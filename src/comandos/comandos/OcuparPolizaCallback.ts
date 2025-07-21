@@ -12,6 +12,8 @@ import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/NotificationManager';
 import HereMapsService from '../../services/HereMapsService';
 import { IPolicy } from '../../types/database';
+import Policy from '../../models/policy';
+import Vehicle from '../../models/vehicle';
 import type { IThreadSafeStateMap } from '../../utils/StateKeyManager';
 import flowStateManager from '../../utils/FlowStateManager';
 
@@ -482,6 +484,47 @@ class OcuparPolizaCallback extends BaseCommand {
                 }
 
                 const { numeroServicio } = resultado;
+
+                // ✅ NUEVA LÓGICA: Detectar y eliminar NIVs automáticamente
+                try {
+                    const policy = await Policy.findOne({ numeroPoliza });
+                    if (policy && policy.tipoPoliza === 'NIV' && policy.totalServicios >= 1) {
+                        logger.info(`Detectado NIV utilizado: ${numeroPoliza}. Iniciando eliminación automática.`);
+                        
+                        // Marcar póliza NIV como eliminada
+                        await Policy.findByIdAndUpdate(policy._id, {
+                            estado: 'ELIMINADO',
+                            fechaEliminacion: new Date(),
+                            motivoEliminacion: 'NIV utilizado - Eliminación automática'
+                        });
+                        
+                        // Marcar vehículo asociado como eliminado
+                        if (policy.vehicleId) {
+                            await Vehicle.findByIdAndUpdate(policy.vehicleId, {
+                                estado: 'ELIMINADO'
+                            });
+                            logger.info(`Vehículo ${policy.vehicleId} marcado como eliminado (NIV consumido)`);
+                        }
+                        
+                        // Log de auditoría
+                        logger.info(`NIV ${numeroPoliza} eliminado automáticamente tras conversión a servicio ${numeroServicio}`);
+                        
+                        // Mensaje adicional al usuario sobre el NIV consumido
+                        await ctx.reply(
+                            '⚡ *NIV CONSUMIDO*\n\n' +
+                            `El NIV \`${numeroPoliza}\` ha sido utilizado y se ha eliminado automáticamente del sistema.\n` +
+                            'Ya no aparecerá en reportes futuros.',
+                            { parse_mode: 'Markdown' }
+                        );
+                    }
+                } catch (nivError: any) {
+                    logger.error('Error procesando eliminación automática de NIV:', {
+                        error: nivError.message,
+                        numeroPoliza,
+                        numeroServicio
+                    });
+                    // No fallar todo el proceso por esto, solo logar el error
+                }
 
                 // Formatear fechas para mostrar
                 const fechaContactoStr = horasCalculadas.fechaContactoProgramada.toLocaleString(
@@ -1212,20 +1255,39 @@ class OcuparPolizaCallback extends BaseCommand {
         try {
             const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+            // Validar datos antes de generar mensajes
+            if (!policy || !enhancedData || !enhancedData.origenGeo || !enhancedData.destinoGeo) {
+                logger.error('Datos insuficientes para leyenda con efecto typing', {
+                    hasPolicy: !!policy,
+                    hasEnhancedData: !!enhancedData,
+                    hasOrigenGeo: !!(enhancedData?.origenGeo),
+                    hasDestinoGeo: !!(enhancedData?.destinoGeo)
+                });
+                throw new Error('Datos insuficientes para generar leyenda');
+            }
+
             // Secuencia de mensajes para crear efecto typing
             const mensajes = [
                 '🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣',
                 '🔥 PENDIENTES',
-                `🔥 **ALERTA ${policy.aseguradora}**`,
-                `🔥 **${policy.marca} - ${policy.submarca} - ${policy.año}**`,
-                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta.toUpperCase()}`,
-                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta.toUpperCase()}`
+                `🔥 ALERTA ${policy.aseguradora || 'DESCONOCIDA'}`,
+                `🔥 ${policy.marca || 'MARCA'} - ${policy.submarca || 'SUBMARCA'} - ${policy.año || 'AÑO'}`,
+                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta?.toUpperCase() || 'ORIGEN DESCONOCIDO'}`,
+                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta?.toUpperCase() || 'DESTINO DESCONOCIDO'}`
             ];
 
             // Enviar cada mensaje con delay
             for (let i = 0; i < mensajes.length; i++) {
-                await telegram.sendMessage(targetGroupId, mensajes[i], { parse_mode: 'Markdown' });
-                logger.info(`Mensaje ${i + 1}/${mensajes.length} enviado: ${mensajes[i]}`);
+                const mensaje = mensajes[i];
+                
+                // Validar que el mensaje no esté vacío
+                if (!mensaje || mensaje.trim().length === 0) {
+                    logger.warn(`Mensaje ${i + 1} está vacío, saltando envío`);
+                    continue;
+                }
+                
+                await telegram.sendMessage(targetGroupId, mensaje);
+                logger.info(`Mensaje ${i + 1}/${mensajes.length} enviado: ${mensaje}`);
                 
                 // Delay entre mensajes (menos en el último) - 4 mensajes por segundo
                 if (i < mensajes.length - 1) {
@@ -1234,7 +1296,7 @@ class OcuparPolizaCallback extends BaseCommand {
             }
 
             // Mensaje con URL de Google Maps
-            const mensajeUrl = `🗺️ ${enhancedData.googleMapsUrl}`;
+            const mensajeUrl = `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`;
 
             await delay(250); // Delay antes del mensaje con URL - 4 por segundo
             await telegram.sendMessage(targetGroupId, mensajeUrl);
@@ -1269,20 +1331,39 @@ class OcuparPolizaCallback extends BaseCommand {
         try {
             const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+            // Validar datos antes de generar mensajes azules
+            if (!policy || !enhancedData || !enhancedData.origenGeo || !enhancedData.destinoGeo) {
+                logger.error('Datos insuficientes para leyenda azul con efecto typing', {
+                    hasPolicy: !!policy,
+                    hasEnhancedData: !!enhancedData,
+                    hasOrigenGeo: !!(enhancedData?.origenGeo),
+                    hasDestinoGeo: !!(enhancedData?.destinoGeo)
+                });
+                throw new Error('Datos insuficientes para generar leyenda azul');
+            }
+
             // Secuencia de mensajes para crear efecto typing en azul
             const mensajes = [
                 '🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵',
                 '🔥 PENDIENTES',
-                `🔥 **ALERTA ${policy.aseguradora}**`,
-                `🔥 **${policy.marca} - ${policy.submarca} - ${policy.año}**`,
-                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta.toUpperCase()}`,
-                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta.toUpperCase()}`
+                `🔥 ALERTA ${policy.aseguradora || 'DESCONOCIDA'}`,
+                `🔥 ${policy.marca || 'MARCA'} - ${policy.submarca || 'SUBMARCA'} - ${policy.año || 'AÑO'}`,
+                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta?.toUpperCase() || 'ORIGEN DESCONOCIDO'}`,
+                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta?.toUpperCase() || 'DESTINO DESCONOCIDO'}`
             ];
 
             // Enviar cada mensaje con delay
             for (let i = 0; i < mensajes.length; i++) {
-                await telegram.sendMessage(targetGroupId, mensajes[i], { parse_mode: 'Markdown' });
-                logger.info(`Mensaje azul ${i + 1}/${mensajes.length} enviado: ${mensajes[i]}`);
+                const mensaje = mensajes[i];
+                
+                // Validar que el mensaje no esté vacío
+                if (!mensaje || mensaje.trim().length === 0) {
+                    logger.warn(`Mensaje azul ${i + 1} está vacío, saltando envío`);
+                    continue;
+                }
+                
+                await telegram.sendMessage(targetGroupId, mensaje);
+                logger.info(`Mensaje azul ${i + 1}/${mensajes.length} enviado: ${mensaje}`);
                 
                 // Delay entre mensajes azules - mismo ritmo que morado (4 por segundo)
                 if (i < mensajes.length - 1) {
@@ -1291,7 +1372,7 @@ class OcuparPolizaCallback extends BaseCommand {
             }
 
             // Mensaje con URL de Google Maps
-            const mensajeUrl = `🗺️ ${enhancedData.googleMapsUrl}`;
+            const mensajeUrl = `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`;
 
             await delay(250); // Delay antes del mensaje con URL azul - 4 por segundo
             await telegram.sendMessage(targetGroupId, mensajeUrl);

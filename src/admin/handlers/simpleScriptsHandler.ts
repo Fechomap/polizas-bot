@@ -469,6 +469,162 @@ class SimpleScriptsHandler {
         }
     }
 
+    /**
+     * Maneja la ejecución de validación de archivos
+     */
+    async handleFileValidation(ctx: Context): Promise<void> {
+        const userId = ctx.from!.id;
+
+        // Verificar si ya hay un script corriendo para este usuario
+        if (this.runningScripts.has(userId)) {
+            await ctx.answerCbQuery('⏳ Ya tienes un proceso en ejecución', { show_alert: true });
+            return;
+        }
+
+        await ctx.answerCbQuery();
+
+        try {
+            const loadingMessage = await ctx.editMessageText(
+                '🔄 *Iniciando Validación de Archivos*\n\n' +
+                '📋 Analizando todas las pólizas...\n' +
+                '📊 Verificando fotos y PDFs...\n' +
+                '⏱️ Este proceso puede tardar varios minutos.',
+                { parse_mode: 'Markdown' }
+            );
+
+            // Registrar script en ejecución
+            this.runningScripts.set(userId, {
+                scriptName: 'fileValidationReport.js',
+                startTime: Date.now(),
+                messageId: typeof loadingMessage === 'object' ? loadingMessage.message_id : 0
+            });
+
+            // Ejecutar script de validación
+            await this.executeFileValidationScript(ctx, userId);
+        } catch (error) {
+            console.error('Error iniciando validación de archivos:', error);
+            await ctx.editMessageText(
+                '❌ *Error*\n\nNo se pudo iniciar la validación de archivos: ' + (error as Error).message,
+                { parse_mode: 'Markdown' }
+            );
+            this.runningScripts.delete(userId);
+        }
+    }
+
+    /**
+     * Ejecuta el script de validación de archivos
+     */
+    private async executeFileValidationScript(ctx: Context, userId: number): Promise<void> {
+        const scriptPath = path.join(this.scriptsPath, 'fileValidationReport.js');
+
+        return new Promise((resolve, reject) => {
+            const child = spawn('node', [scriptPath], {
+                cwd: this.scriptsPath,
+                stdio: ['ignore', 'pipe', 'pipe']
+            });
+
+            let stdout = '';
+            let stderr = '';
+
+            child.stdout?.on('data', (data) => {
+                stdout += data.toString();
+            });
+
+            child.stderr?.on('data', (data) => {
+                stderr += data.toString();
+            });
+
+            child.on('close', async (code) => {
+                this.runningScripts.delete(userId);
+
+                if (code === 0) {
+                    await this.sendFileValidationReport(ctx);
+                    resolve();
+                } else {
+                    console.error('Script de validación falló:', stderr);
+                    await ctx.editMessageText(
+                        `❌ *Error en Validación*\n\nCódigo de salida: ${code}\n\`\`\`\n${stderr}\n\`\`\``,
+                        { parse_mode: 'Markdown' }
+                    );
+                    reject(new Error(`Script falló con código ${code}`));
+                }
+            });
+
+            child.on('error', async (error) => {
+                this.runningScripts.delete(userId);
+                console.error('Error ejecutando script de validación:', error);
+                await ctx.editMessageText(
+                    '❌ *Error Crítico*\n\nNo se pudo ejecutar el script de validación.',
+                    { parse_mode: 'Markdown' }
+                );
+                reject(error);
+            });
+
+            // Timeout de 10 minutos
+            setTimeout(() => {
+                if (!child.killed) {
+                    child.kill();
+                    reject(new Error('Timeout en script de validación'));
+                }
+            }, 600000);
+        });
+    }
+
+    /**
+     * Envía el archivo Excel generado por la validación
+     */
+    private async sendFileValidationReport(ctx: Context): Promise<void> {
+        try {
+            const excelPath = path.join(this.scriptsPath, 'file-validation-report.xlsx');
+
+            // Verificar que el archivo existe
+            await fs.access(excelPath);
+
+            await ctx.editMessageText(
+                '✅ *Validación Completada*\n\n📎 Enviando reporte de archivos...',
+                { parse_mode: 'Markdown' }
+            );
+
+            // Leer el archivo
+            const fileBuffer = await fs.readFile(excelPath);
+            const fileName = `validacion-archivos-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+            // Enviar archivo
+            await ctx.replyWithDocument(
+                {
+                    source: fileBuffer,
+                    filename: fileName
+                },
+                {
+                    caption: 
+                        '📋 *REPORTE DE VALIDACIÓN DE ARCHIVOS*\n\n' +
+                        '📊 **Columnas del reporte:**\n' +
+                        '• NUMERO_POLIZA\n' +
+                        '• FOTOS_COUNT (Total de fotos)\n' +
+                        '• PDFS_COUNT (Total de PDFs)\n' +
+                        '• VALIDATION_STATUS (OK/ERROR)\n' +
+                        '• VALIDATION_ERRORS (Detalles de errores)\n\n' +
+                        '⚠️ **Solo se muestran pólizas con problemas:**\n' +
+                        '• Menos de 2 fotos\n' +
+                        '• Sin PDF\n' +
+                        '• Archivos corruptos o inaccesibles\n\n' +
+                        `📅 Generado: ${new Date().toLocaleString('es-MX')}`,
+                    parse_mode: 'Markdown'
+                }
+            );
+
+            // Limpiar archivo temporal
+            await fs.unlink(excelPath).catch(() => {});
+
+        } catch (error) {
+            console.error('Error enviando reporte de validación:', error);
+            await ctx.editMessageText(
+                '❌ *Error*\n\nNo se pudo enviar el reporte de validación: ' + (error as Error).message,
+                { parse_mode: 'Markdown' }
+            );
+        }
+    }
+
     async handleAction(ctx: Context, action: string): Promise<void> {
         // Método requerido por la interfaz pero no implementado específicamente
         await ctx.answerCbQuery('Acción no implementada', { show_alert: true });

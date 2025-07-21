@@ -167,6 +167,11 @@ export interface IPolicy extends Document {
     creadoViaOBD: boolean;
     asignadoPor?: string;
 
+    // Sistema NIV (2023-2026)
+    esNIV?: boolean;
+    tipoPoliza?: 'REGULAR' | 'NIV';
+    fechaConversionNIV?: Date;
+
     // Timestamps
     createdAt: Date;
     updatedAt: Date;
@@ -235,7 +240,7 @@ export interface IVehicle extends Document {
     };
 
     // Estado
-    estado: 'SIN_POLIZA' | 'CON_POLIZA' | 'ELIMINADO';
+    estado: 'SIN_POLIZA' | 'CON_POLIZA' | 'ELIMINADO' | 'CONVERTIDO_NIV';
 
     // Metadatos
     creadoPor: string;

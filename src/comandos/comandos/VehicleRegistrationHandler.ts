@@ -4,9 +4,13 @@ import { getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/CloudflareStorage';
 import { generarDatosMexicanosReales } from '../../utils/mexicanDataGenerator';
+import Policy from '../../models/policy';
+import Vehicle from '../../models/vehicle';
+import mongoose from 'mongoose';
+import logger from '../../utils/logger';
 import type { Telegraf } from 'telegraf';
 import type { Message } from 'telegraf/typings/core/types/typegram';
-import type { IUploadResult, IR2File } from '../../../types/index';
+import type { IUploadResult, IR2File, IPolicy } from '../../../types/index';
 
 /**
  * Estados del flujo de registro de vehículos
@@ -660,11 +664,23 @@ export class VehicleRegistrationHandler {
                                 keyboard
                             );
                         } catch (editError) {
-                            // Si falla editar, enviar mensaje nuevo
+                            // ✅ CORRECCIÓN: Limpiar mensaje anterior antes de crear nuevo
                             console.warn(
                                 'No se pudo editar mensaje de fotos, enviando nuevo:',
                                 (editError as Error).message
                             );
+                            
+                            // Intentar eliminar el mensaje anterior para evitar duplicados
+                            if (registro.mensajeFotosId) {
+                                try {
+                                    await bot.telegram.deleteMessage(chatId, registro.mensajeFotosId);
+                                    logger.debug('Mensaje anterior eliminado para evitar duplicados');
+                                } catch (deleteError) {
+                                    // Ignorar error si el mensaje ya no existe
+                                    logger.debug('No se pudo eliminar mensaje anterior (posiblemente ya eliminado)');
+                                }
+                            }
+                            
                             const sendOptions: any = { ...keyboard };
                             if (registro.threadId) {
                                 sendOptions.message_thread_id = parseInt(registro.threadId);
@@ -747,13 +763,21 @@ export class VehicleRegistrationHandler {
                 return false;
             }
 
-            // AHORA SÍ crear el vehículo en la base de datos
-            // Combinar datos del vehículo con datos del titular generados
-            const datosCompletos = {
-                ...registro.datos,
-                ...registro.datosGenerados
-            };
-            const resultado = await VehicleController.registrarVehiculo(datosCompletos, String(userId));
+            // ✅ NUEVA LÓGICA: Detectar vehículos NIV (2023-2026)
+            const añoVehiculo = parseInt(String(registro.datos.año));
+            const esVehiculoNIV = añoVehiculo >= 2023 && añoVehiculo <= 2026;
+            
+            if (esVehiculoNIV) {
+                // FLUJO NIV: Conversión automática a póliza
+                return await this.convertirANIV(bot, chatId, userId, registro, stateKey);
+            } else {
+                // FLUJO REGULAR: Crear vehículo normal
+                // Combinar datos del vehículo con datos del titular generados
+                const datosCompletos = {
+                    ...registro.datos,
+                    ...registro.datosGenerados
+                };
+                const resultado = await VehicleController.registrarVehiculo(datosCompletos, String(userId));
 
             if (!resultado.success) {
                 const sendOptions: ISendOptions = {};
@@ -807,10 +831,11 @@ export class VehicleRegistrationHandler {
 
             await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
 
-            // Limpiar el registro del proceso
-            vehiculosEnProceso.delete(stateKey);
+                // Limpiar el registro del proceso
+                vehiculosEnProceso.delete(stateKey);
 
-            return true;
+                return true;
+            } // Cierre del bloque else (flujo regular)
         } catch (error) {
             console.error('Error finalizando registro:', error);
 
@@ -825,6 +850,182 @@ export class VehicleRegistrationHandler {
                 sendOptions
             );
             return false;
+        }
+    }
+
+    /**
+     * ⚡ NUEVO: Convierte vehículo 2023-2026 en NIV automático
+     * Crea tanto el vehículo como la póliza NIV en una transacción atómica
+     */
+    private static async convertirANIV(
+        bot: Telegraf,
+        chatId: number,
+        userId: number,
+        registro: IVehicleRegistrationData,
+        stateKey: string
+    ): Promise<boolean> {
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        try {
+            logger.info(`Iniciando conversión NIV para vehículo ${registro.datos.serie}, año ${registro.datos.año}`);
+
+            // ✅ CORRECCIÓN: Validar serie duplicada DENTRO de la transacción
+            const existeVehiculo = await Vehicle.findOne({ 
+                serie: registro.datos.serie 
+            }).session(session);
+            
+            if (existeVehiculo) {
+                throw new Error(`Ya existe un vehículo registrado con la serie: ${registro.datos.serie}`);
+            }
+
+            // ✅ CORRECCIÓN: Crear vehículo DENTRO de la transacción
+            const vehiculoData = {
+                ...registro.datos,
+                ...registro.datosGenerados,
+                creadoPor: String(userId),
+                creadoVia: 'TELEGRAM_BOT' as const,
+                estado: 'CONVERTIDO_NIV' as const
+            };
+
+            const vehiculoCreado = await Vehicle.create([vehiculoData], { session });
+            const vehiculo = vehiculoCreado[0];
+
+            logger.info(`Vehículo NIV creado en transacción: ${vehiculo._id}`);
+
+            // 2. Crear póliza NIV automáticamente
+            const polizaNIV: Partial<IPolicy> = {
+                // Datos del titular
+                titular: registro.datosGenerados.titular,
+                rfc: registro.datosGenerados.rfc,
+                telefono: registro.datosGenerados.telefono,
+                correo: registro.datosGenerados.correo,
+                
+                // Dirección
+                calle: registro.datosGenerados.calle,
+                colonia: registro.datosGenerados.colonia,
+                municipio: registro.datosGenerados.municipio,
+                estadoRegion: registro.datosGenerados.estadoRegion,
+                cp: registro.datosGenerados.cp,
+                
+                // Datos del vehículo
+                marca: String(registro.datos.marca),
+                submarca: String(registro.datos.submarca),
+                año: Number(registro.datos.año),
+                color: String(registro.datos.color),
+                serie: String(registro.datos.serie),
+                placas: String(registro.datos.placas || 'SIN PLACAS'),
+                
+                // Datos de póliza NIV
+                numeroPoliza: String(registro.datos.serie), // NIV = Serie del vehículo
+                fechaEmision: new Date(),
+                aseguradora: 'NIV_AUTOMATICO',
+                agenteCotizador: 'SISTEMA_AUTOMATIZADO',
+                
+                // Sin pagos iniciales
+                pagos: [],
+                registros: [],
+                servicios: [],
+                
+                // Contadores iniciales
+                calificacion: 0,
+                totalServicios: 0,
+                servicioCounter: 0,
+                registroCounter: 0,
+                diasRestantesCobertura: 0,
+                diasRestantesGracia: 0,
+                
+                // Marcadores especiales NIV
+                creadoViaOBD: true,
+                esNIV: true,
+                tipoPoliza: 'NIV' as const,
+                fechaConversionNIV: new Date(),
+                vehicleId: vehiculo._id,
+                
+                // Estados
+                estado: 'ACTIVO' as const,
+                estadoPoliza: 'VIGENTE',
+                
+                // Archivos vacíos inicialmente
+                archivos: {
+                    fotos: [],
+                    pdfs: [],
+                    r2Files: {
+                        fotos: [],
+                        pdfs: []
+                    }
+                }
+            };
+
+            const polizaCreada = await Policy.create([polizaNIV], { session });
+            logger.info(`Póliza NIV creada: ${polizaCreada[0].numeroPoliza}`);
+
+            // ✅ CORRECCIÓN: Actualizar vehículo con referencia a póliza DENTRO de la transacción
+            await Vehicle.findByIdAndUpdate(
+                vehiculo._id,
+                { policyId: polizaCreada[0]._id },
+                { session }
+            );
+
+            // ✅ OPTIMIZACIÓN: Confirmar transacción ANTES de operaciones lentas
+            await session.commitTransaction();
+            
+            logger.info(`Conversión NIV completada exitosamente: ${registro.datos.serie}`);
+
+            // ✅ MEJORA: Vincular fotos DESPUÉS de la transacción (asíncrono)
+            if (registro.fotos && registro.fotos.length > 0) {
+                // Procesar fotos en background para no bloquear la respuesta
+                this.procesarFotosNIVAsync(vehiculo._id, registro.fotos);
+            }
+
+            // ✅ OPTIMIZACIÓN: Mensaje de confirmación más conciso
+            const mensaje = 
+                '🎉 *VEHÍCULO NIV REGISTRADO*\n\n' +
+                '⚡ *CONVERSIÓN AUTOMÁTICA APLICADA*\n' +
+                `${registro.datos.marca} ${registro.datos.submarca} ${registro.datos.año}\n\n` +
+                `🆔 *NIV:* \`${registro.datos.serie}\`\n` +
+                `👤 ${registro.datosGenerados.titular}\n\n` +
+                '✅ *ACTIVO* - Disponible en reportes\n' +
+                '🔄 Se elimina automáticamente al usarlo';
+
+            const sendOptions: ISendOptions = {
+                parse_mode: 'Markdown',
+                reply_markup: getMainKeyboard()
+            };
+            if (registro.threadId) {
+                sendOptions.message_thread_id = parseInt(registro.threadId);
+            }
+
+            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
+
+            // Limpiar el registro del proceso
+            vehiculosEnProceso.delete(stateKey);
+
+            logger.info(`Conversión NIV completada exitosamente: ${registro.datos.serie}`);
+            return true;
+
+        } catch (error: any) {
+            await session.abortTransaction();
+            logger.error('Error en conversión NIV:', {
+                error: error.message,
+                serie: registro.datos.serie,
+                año: registro.datos.año
+            });
+
+            const sendOptions: ISendOptions = {};
+            if (registro.threadId) {
+                sendOptions.message_thread_id = parseInt(registro.threadId);
+            }
+
+            await bot.telegram.sendMessage(
+                chatId,
+                '❌ Error al crear NIV automático. Se intentará registro normal.',
+                sendOptions
+            );
+            return false;
+
+        } finally {
+            session.endSession();
         }
     }
 
@@ -846,6 +1047,29 @@ export class VehicleRegistrationHandler {
     static cancelarRegistro(userId: number, chatId: number, threadId: string | null = null): void {
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
         vehiculosEnProceso.delete(stateKey);
+    }
+
+    /**
+     * ✅ NUEVO: Procesamiento asíncrono de fotos para NIVs
+     * No bloquea la respuesta principal, procesa en background
+     */
+    private static async procesarFotosNIVAsync(vehicleId: any, fotos: any[]): Promise<void> {
+        try {
+            logger.info(`Iniciando procesamiento asíncrono de fotos para vehículo NIV: ${vehicleId}`);
+            
+            const resultadoFotos = await VehicleController.vincularFotosCloudflare(
+                String(vehicleId),
+                fotos
+            );
+            
+            if (resultadoFotos.success) {
+                logger.info(`Fotos vinculadas exitosamente para vehículo NIV: ${vehicleId}`);
+            } else {
+                logger.warn(`Error al vincular fotos para vehículo NIV ${vehicleId}:`, resultadoFotos.error);
+            }
+        } catch (error: any) {
+            logger.error(`Error crítico procesando fotos asíncronas para vehículo ${vehicleId}:`, error.message);
+        }
     }
 
     /**

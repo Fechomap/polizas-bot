@@ -1,6 +1,6 @@
 // src/models/policy.ts
-import mongoose, { Schema, Document, Model } from 'mongoose';
-import { IPolicy, IFile, IR2File, IPago, IServicio } from '../../types';
+import mongoose, { Schema, Model } from 'mongoose';
+import { IPolicy, IFile, IR2File } from '../../types';
 
 // Esquema para archivos sin _id (compatibilidad con archivos binarios legacy)
 const fileSchema = new Schema<IFile>(
@@ -316,6 +316,21 @@ const policySchema = new Schema(
         },
         asignadoPor: {
             type: String,
+            default: null
+        },
+
+        // Campos para sistema NIV (2023-2026)
+        esNIV: {
+            type: Boolean,
+            default: false
+        },
+        tipoPoliza: {
+            type: String,
+            enum: ['REGULAR', 'NIV'],
+            default: 'REGULAR'
+        },
+        fechaConversionNIV: {
+            type: Date,
             default: null
         }
     },

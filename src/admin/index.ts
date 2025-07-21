@@ -104,6 +104,7 @@ interface ISimpleScriptsHandler extends IAdminHandler {
     handleAutoCleanup(ctx: Context): Promise<void>;
     executeAutoCleanupConfirmed(ctx: Context): Promise<void>;
     cancelAutoCleanup(ctx: Context): Promise<void>;
+    handleFileValidation(ctx: Context): Promise<void>;
 }
 
 class AdminModule {
@@ -485,6 +486,16 @@ class AdminModule {
             } catch (error) {
                 logger.error('Error en auto-cleanup:', error);
                 await ctx.answerCbQuery('Error en limpieza automática', { show_alert: true });
+            }
+        });
+
+        // Callback para validación de archivos
+        this.bot.action('admin_database_file_validation', adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                await this.handlers.scripts.handleFileValidation(ctx);
+            } catch (error) {
+                logger.error('Error en validación de archivos:', error);
+                await ctx.answerCbQuery('Error en validación de archivos', { show_alert: true });
             }
         });
 

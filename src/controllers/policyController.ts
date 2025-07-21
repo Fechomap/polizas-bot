@@ -507,28 +507,37 @@ export const getDetailedPaymentInfo = async (
 };
 
 /**
- * Retorna las 10 pólizas con mayor prioridad de uso.
- * Prioridad:
- *   1) Pólizas sin servicios (y mayores de 26 días de emisión si deseas).
+ * ✅ ACTUALIZADO: Retorna las 10 pólizas regulares + hasta 4 NIVs disponibles
+ * Prioridad pólizas regulares:
+ *   1) Pólizas sin servicios (y mayores de 26 días de emisión).
  *   2) Luego pólizas con servicios, ordenadas por fecha del último servicio (más antiguo primero).
  *   3) Orden secundario por fechaEmision más antigua.
+ * 
+ * NIVs:
+ *   - Solo NIVs sin usar (totalServicios: 0)
+ *   - Ordenados por fecha de creación (más recientes primero)
+ *   - Máximo 4 NIVs en el reporte
  */
-export const getOldUnusedPolicies = async (): Promise<IPolicy[]> => {
-    const now = new Date();
-    const THRESHOLD_DIAS_MINIMO = 26; // Si deseas descartar pólizas que tengan < 26 días de emisión
+export const getOldUnusedPolicies = async (): Promise<any[]> => {
+    try {
+        const now = new Date();
+        const THRESHOLD_DIAS_MINIMO = 26;
 
-    // 1) Obtenemos todas las pólizas ACTIVAS
-    const allPolicies = await Policy.find({ estado: 'ACTIVO' }).lean();
+        // 1) Obtener pólizas regulares (excluyendo NIVs)
+        const regularPolicies = await Policy.find({ 
+            estado: 'ACTIVO',
+            tipoPoliza: { $ne: 'NIV' } // Excluir NIVs del top regular
+        }).lean();
 
-    // 2) Armamos un array con datos calculados
-    interface PolicyWithFields {
-        pol: IPolicy;
-        priorityGroup: number;
-        lastServiceDate: Date | null;
-        diasDesdeEmision: number;
-    }
+        // 2) Procesar pólizas regulares con lógica existente
+        interface PolicyWithFields {
+            pol: IPolicy;
+            priorityGroup: number;
+            lastServiceDate: Date | null;
+            diasDesdeEmision: number;
+        }
 
-    const polConCampos: PolicyWithFields[] = allPolicies.map(pol => {
+        const polConCampos: PolicyWithFields[] = regularPolicies.map(pol => {
         const msDesdeEmision = now.getTime() - pol.fechaEmision.getTime();
         const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
 
@@ -595,9 +604,42 @@ export const getOldUnusedPolicies = async (): Promise<IPolicy[]> => {
         return b.diasDesdeEmision - a.diasDesdeEmision;
     });
 
-    // 5) Tomar top 10
-    const top10 = polFiltradas.slice(0, 10).map(x => x.pol);
-    return top10;
+        // 5) Tomar top 10 pólizas regulares
+        const top10Regulares = polFiltradas.slice(0, 10).map(x => x.pol);
+
+        // 6) ✅ NUEVO: Obtener hasta 4 NIVs disponibles
+        const nips = await Policy.find({
+            estado: 'ACTIVO',
+            tipoPoliza: 'NIV',
+            totalServicios: 0 // Solo NIVs sin usar
+        })
+        .sort({ createdAt: -1 }) // Más recientes primero
+        .limit(4)
+        .lean();
+
+        // 7) Combinar resultados y agregar metadatos
+        const todasLasPolizas = [
+            ...top10Regulares.map((policy, index) => ({
+                ...policy,
+                posicion: index + 1,
+                tipoReporte: 'REGULAR' as const,
+                mensajeEspecial: null
+            })),
+            ...nips.map((nip, index) => ({
+                ...nip,
+                posicion: top10Regulares.length + index + 1,
+                tipoReporte: 'NIV' as const,
+                mensajeEspecial: '⚡ NIV DISPONIBLE'
+            }))
+        ];
+
+        logger.info(`Reporte generado: ${top10Regulares.length} pólizas regulares + ${nips.length} NIVs`);
+        return todasLasPolizas;
+
+    } catch (error: any) {
+        logger.error('Error obteniendo pólizas prioritarias y NIVs:', error);
+        throw error;
+    }
 };
 
 /**

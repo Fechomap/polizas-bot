@@ -5,6 +5,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { Markup, Context } from 'telegraf';
 import Policy from '../../models/policy';
+import { getOldUnusedPolicies } from '../../controllers/policyController';
 
 // Interfaces for type safety
 interface PolicyDocument {
@@ -225,20 +226,35 @@ class ReportUsedCommand extends BaseCommand {
             // Pequeña pausa
             await new Promise<void>(resolve => setTimeout(resolve, 2000));
 
-            // Buscar el top 10 de pólizas
-            const topPolicies: PolicyDocument[] = (await Policy.find({ estado: 'ACTIVO' })
-                .sort({ calificacion: -1 })
-                .limit(10)
-                .lean()) as PolicyDocument[];
+            // ✅ ACTUALIZADO: Usar nueva función que incluye NIVs
+            const todasLasPolizas = await getOldUnusedPolicies();
 
-            if (!topPolicies.length) {
-                await ctx.reply('✅ No hay pólizas prioritarias que mostrar.');
+            if (!todasLasPolizas.length) {
+                await ctx.reply('✅ No hay pólizas prioritarias ni NIVs que mostrar.');
                 return;
             }
 
-            await ctx.reply('📊 TOP 10 PÓLIZAS POR PRIORIDAD:');
+            // Separar regulares y NIVs
+            const regulares = todasLasPolizas.filter(p => p.tipoReporte !== 'NIV');
+            const nivs = todasLasPolizas.filter(p => p.tipoReporte === 'NIV');
 
-            for (const pol of topPolicies) {
+            // Mostrar cabecera general
+            let cabecera = '📊 *PÓLIZAS PRIORITARIAS Y NIVs*\n\n';
+            if (regulares.length > 0 && nivs.length > 0) {
+                cabecera += `📋 ${regulares.length} pólizas regulares + ⚡ ${nivs.length} NIVs disponibles\n\n`;
+            } else if (regulares.length > 0) {
+                cabecera += `📋 ${regulares.length} pólizas regulares encontradas\n\n`;
+            } else {
+                cabecera += `⚡ ${nivs.length} NIVs disponibles\n\n`;
+            }
+
+            await ctx.reply(cabecera, { parse_mode: 'Markdown' });
+
+            // Mostrar pólizas regulares
+            if (regulares.length > 0) {
+                await ctx.reply('📋 *TOP PÓLIZAS REGULARES:*', { parse_mode: 'Markdown' });
+                
+                for (const pol of regulares) {
                 const fEmision: string = pol.fechaEmision
                     ? new Date(pol.fechaEmision).toISOString().split('T')[0]
                     : 'No disponible';
@@ -286,13 +302,65 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
                     );
                     await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`); // Fallback
                 }
+                }
             }
 
-            // Añadir botón para volver al menú principal
+            // ✅ NUEVO: Mostrar NIVs disponibles
+            if (nivs.length > 0) {
+                await ctx.reply('⚡ *NIVs DISPONIBLES (2023-2026):*', { parse_mode: 'Markdown' });
+                
+                for (const niv of nivs) {
+                    const fEmision: string = niv.fechaEmision
+                        ? new Date(niv.fechaEmision).toISOString().split('T')[0]
+                        : 'No disponible';
+                    
+                    const msg: string = `
+⚡ *${niv.mensajeEspecial}*
+🆔 *NIV:* \`${niv.numeroPoliza}\`
+🚗 *Vehículo:* ${niv.marca || 'N/A'} ${niv.submarca || 'N/A'} ${niv.año || 'N/A'}
+🎨 *Color:* ${niv.color || 'N/A'}
+🏷️ *Placas:* ${niv.placas || 'Sin placas'}
+📅 *Creado:* ${fEmision}
+👤 *Titular:* ${niv.titular || 'N/A'}
+📧 *Correo:* ${niv.correo || 'Sin correo'}
+📍 *Ubicación:* ${niv.municipio || 'N/A'}, ${niv.estadoRegion || 'N/A'}
+📊 *Estado:* ACTIVO - Listo para usar`.trim();
+
+                    const inlineKeyboard = [
+                        [
+                            Markup.button.callback(
+                                `👀 Consultar NIV ${niv.numeroPoliza}`,
+                                `getPoliza:${niv.numeroPoliza}`
+                            )
+                        ]
+                    ];
+
+                    try {
+                        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                        await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
+                    } catch (sendError: unknown) {
+                        this.logError(
+                            `Error al enviar mensaje para NIV ${niv.numeroPoliza}:`,
+                            sendError as Error
+                        );
+                        await ctx.reply(`Error al mostrar detalles de NIV ${niv.numeroPoliza}`); // Fallback
+                    }
+                }
+            }
+
+            // Mensaje final actualizado
+            let mensajeFinal = '✅ Reporte completado.\n\n';
+            if (regulares.length > 0 && nivs.length > 0) {
+                mensajeFinal += `📊 Se mostraron ${regulares.length} pólizas regulares y ${nivs.length} NIVs disponibles.`;
+            } else if (regulares.length > 0) {
+                mensajeFinal += `📊 Se mostraron ${regulares.length} pólizas regulares prioritarias.`;
+            } else if (nivs.length > 0) {
+                mensajeFinal += `⚡ Se mostraron ${nivs.length} NIVs disponibles para uso inmediato.`;
+            }
+
             await ctx.reply(
-                '✅ Se han mostrado las pólizas prioritarias según su calificación actual.',
-                Markup.inlineKeyboard([
-                ])
+                mensajeFinal,
+                Markup.inlineKeyboard([])
             );
             this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
         } catch (error: unknown) {
