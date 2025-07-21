@@ -253,11 +253,11 @@ _Intenta con otro término de búsqueda._
         }
     }
 
-    static async searchPolicies(searchTerm: string): Promise<IPolicySearchResult[]> {
+    static async searchPolicies(searchTerm: string, onlyDeleted: boolean = false): Promise<IPolicySearchResult[]> {
         const cleanTerm = searchTerm.trim();
 
-        const searchQuery = {
-            estado: { $ne: 'ELIMINADO' },
+        const searchQuery: any = {
+            estado: onlyDeleted ? 'ELIMINADO' : { $ne: 'ELIMINADO' },
             $or: [
                 { numeroPoliza: { $regex: cleanTerm, $options: 'i' } },
                 { titular: { $regex: cleanTerm, $options: 'i' } },
@@ -540,9 +540,92 @@ Selecciona una póliza:
         await ctx.reply('Funcionalidad de restauración en desarrollo');
     }
 
-    static async showPolicyDetails(ctx: Context, policy: IPolicySearchResult): Promise<void> {
-        // TODO: Implement policy details view
-        await ctx.reply('Vista de detalles de póliza en desarrollo');
+    static async showPolicyDetails(ctx: Context, policy: any): Promise<void> {
+        const formatDate = (date: Date | string | null | undefined): string => {
+            if (!date) return 'No definida';
+            return new Date(date).toLocaleDateString('es-MX');
+        };
+
+        const formatPhone = (phone: string | null | undefined): string => {
+            if (!phone) return 'No definido';
+            // Formatear teléfono mexicano: 5526538255 -> (55) 2653-8255
+            if (phone.length === 10) {
+                return `(${phone.slice(0, 2)}) ${phone.slice(2, 6)}-${phone.slice(6)}`;
+            }
+            return phone;
+        };
+
+        // Calcular servicios y registros reales
+        const serviciosReales = policy.servicios?.length || 0;
+        const registrosReales = policy.registros?.length || 0;
+
+        const detailsText = `
+📋 *DETALLES DE PÓLIZA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**INFORMACIÓN BÁSICA**
+🔖 Número: ${policy.numeroPoliza}
+👤 Titular: ${policy.titular}
+🆔 RFC: ${policy.rfc}
+📧 Email: ${policy.correo || 'No definido'}
+📞 Teléfono: ${formatPhone(policy.telefono)}
+
+**DOMICILIO**
+🏠 ${policy.calle || 'Sin calle'}, ${policy.colonia || 'Sin colonia'}
+📍 ${policy.municipio || 'Sin municipio'}, ${policy.estadoRegion || 'Sin estado'}
+📮 CP: ${policy.codigoPostal || 'Sin CP'}
+
+**VEHÍCULO**
+🚗 ${policy.marca || 'Sin marca'} ${policy.modelo || 'Sin modelo'} ${policy.año || 'Sin año'}
+🏷️ Placas: ${policy.placas || 'Sin placas'}
+🔢 Serie: ${policy.numeroSerie || 'Sin serie'}
+🎨 Color: ${policy.color || 'Sin color'}
+
+**PÓLIZA**
+📅 Emisión: ${formatDate(policy.fechaEmision)}
+📅 Vencimiento: ${formatDate(policy.fechaVencimiento)}
+🛡️ Cobertura: ${policy.tipoCobertura || 'Sin definir'}
+💰 Prima Total: $${policy.primaTotal || 0}
+
+**SERVICIOS Y REGISTROS**
+🚗 Servicios: ${serviciosReales}
+📋 Registros: ${registrosReales}
+
+¿Qué deseas hacer?
+        `.trim();
+
+        const buttons = [
+            [
+                Markup.button.callback('🚗 Ver Servicios', `admin_service_select:${policy._id}`),
+                Markup.button.callback('✏️ Editar Póliza', `admin_policy_edit_categories:${policy._id}`)
+            ],
+            [
+                Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_edit'),
+                Markup.button.callback('⬅️ Volver', 'admin_policy_menu')
+            ]
+        ];
+
+        const keyboard = Markup.inlineKeyboard(buttons);
+
+        try {
+            await ctx.editMessageText(detailsText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            await ctx.reply(detailsText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        }
+
+        await AuditLogger.log(ctx, 'policy_viewed', {
+            module: 'policy',
+            metadata: {
+                policyId: policy._id.toString(),
+                policyNumber: policy.numeroPoliza
+            }
+        });
     }
 
     static async showSearchResults(
@@ -555,8 +638,19 @@ Selecciona una póliza:
     }
 
     static async handlePolicySelection(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement policy selection
-        await ctx.reply('Selección de póliza en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            await this.showPolicyDetails(ctx, policy);
+        } catch (error) {
+            logger.error('Error al seleccionar póliza:', error);
+            await ctx.reply('❌ Error al cargar la póliza.');
+        }
     }
 
     static async handleDeleteConfirmation(ctx: Context, policyId: string): Promise<void> {
@@ -575,38 +669,405 @@ Selecciona una póliza:
     }
 
     static async showEditCategoriesMenu(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement edit categories menu
-        await ctx.reply('Menú de categorías de edición en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const menuText = `
+✏️ *EDITAR PÓLIZA: ${policy.numeroPoliza}*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Selecciona la categoría a editar:
+
+📱 **Datos Personales**
+   Titular, RFC, Email, Teléfono
+
+🏠 **Domicilio**  
+   Dirección completa
+
+🚗 **Vehículo**
+   Marca, modelo, placas, etc.
+
+📄 **Datos de Póliza**
+   Aseguradora, agente, fechas
+
+💰 **Información Financiera**
+   Calificación, estado cobertura
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback(
+                        '📱 Datos Personales',
+                        `admin_edit_personal:${policyId}`
+                    ),
+                    Markup.button.callback('🏠 Domicilio', `admin_edit_address:${policyId}`)
+                ],
+                [
+                    Markup.button.callback('🚗 Vehículo', `admin_edit_vehicle:${policyId}`),
+                    Markup.button.callback('📄 Datos Póliza', `admin_edit_policy:${policyId}`)
+                ],
+                [Markup.button.callback('💰 Info Financiera', `admin_edit_financial:${policyId}`)],
+                [Markup.button.callback('⬅️ Volver a Detalles', `admin_policy_select:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            await AuditLogger.log(ctx, 'policy_categories_menu_shown', {
+                module: 'policy',
+                metadata: {
+                    policyId: policyId,
+                    policyNumber: policy.numeroPoliza
+                }
+            });
+        } catch (error) {
+            logger.error('Error al mostrar menú de categorías:', error);
+            await ctx.reply('❌ Error al cargar el menú de categorías.');
+        }
     }
 
     static async showPersonalDataEdit(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement personal data edit
-        await ctx.reply('Edición de datos personales en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const menuText = `
+📱 *EDITAR DATOS PERSONALES*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policy.numeroPoliza}
+
+**Valores actuales:**
+👤 Titular: ${policy.titular}
+🆔 RFC: ${policy.rfc}
+📧 Email: ${policy.correo || 'No definido'}
+📞 Teléfono: ${policy.telefono || 'No definido'}
+🔑 Contraseña: ${policy.contraseña || 'No definida'}
+
+Selecciona el campo a editar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('👤 Titular', `admin_edit_field:titular:${policyId}`),
+                    Markup.button.callback('🆔 RFC', `admin_edit_field:rfc:${policyId}`)
+                ],
+                [
+                    Markup.button.callback('📧 Email', `admin_edit_field:correo:${policyId}`),
+                    Markup.button.callback('📞 Teléfono', `admin_edit_field:telefono:${policyId}`)
+                ],
+                [
+                    Markup.button.callback(
+                        '🔑 Contraseña',
+                        `admin_edit_field:contraseña:${policyId}`
+                    )
+                ],
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            logger.error('Error al mostrar datos personales:', error);
+            await ctx.reply('❌ Error al cargar los datos personales.');
+        }
     }
 
     static async showAddressEdit(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement address edit
-        await ctx.reply('Edición de dirección en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const menuText = `
+🏠 *EDITAR DOMICILIO*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policy.numeroPoliza}
+
+**Dirección actual:**
+🏠 Calle: ${policy.calle || 'No definida'}
+🏘️ Colonia: ${policy.colonia || 'No definida'}
+🏙️ Municipio: ${policy.municipio || 'No definido'}
+🗺️ Estado: ${policy.estadoRegion || 'No definido'}
+📮 CP: ${policy.cp || 'No definido'}
+
+Selecciona el campo a editar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('🏠 Calle', `admin_edit_field:calle:${policyId}`),
+                    Markup.button.callback('🏘️ Colonia', `admin_edit_field:colonia:${policyId}`)
+                ],
+                [
+                    Markup.button.callback('🏙️ Municipio', `admin_edit_field:municipio:${policyId}`),
+                    Markup.button.callback('🗺️ Estado', `admin_edit_field:estadoRegion:${policyId}`)
+                ],
+                [
+                    Markup.button.callback('📮 CP', `admin_edit_field:cp:${policyId}`)
+                ],
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            logger.error('Error al mostrar datos de domicilio:', error);
+            await ctx.reply('❌ Error al cargar los datos de domicilio.');
+        }
     }
 
     static async showVehicleEdit(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement vehicle edit
-        await ctx.reply('Edición de vehículo en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const menuText = `
+🚗 *EDITAR VEHÍCULO*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policy.numeroPoliza}
+
+**Datos actuales:**
+🚗 Marca: ${policy.marca || 'No definida'}
+🚙 Submarca: ${policy.submarca || 'No definida'}
+📅 Año: ${policy.año || 'No definido'}
+🎨 Color: ${policy.color || 'No definido'}
+🔢 Serie: ${policy.serie || 'No definida'}
+🚙 Placas: ${policy.placas || 'No definidas'}
+
+Selecciona el campo a editar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('🚗 Marca', `admin_edit_field:marca:${policyId}`),
+                    Markup.button.callback('🚙 Submarca', `admin_edit_field:submarca:${policyId}`)
+                ],
+                [
+                    Markup.button.callback('📅 Año', `admin_edit_field:año:${policyId}`),
+                    Markup.button.callback('🎨 Color', `admin_edit_field:color:${policyId}`)
+                ],
+                [
+                    Markup.button.callback('🔢 Serie', `admin_edit_field:serie:${policyId}`),
+                    Markup.button.callback('🚙 Placas', `admin_edit_field:placas:${policyId}`)
+                ],
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            logger.error('Error al mostrar datos del vehículo:', error);
+            await ctx.reply('❌ Error al cargar los datos del vehículo.');
+        }
     }
 
     static async showPolicyDataEdit(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement policy data edit
-        await ctx.reply('Edición de datos de póliza en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const formatDate = (date: Date | string | null | undefined): string => {
+                if (!date) return 'No definida';
+                return new Date(date).toLocaleDateString('es-MX');
+            };
+
+            const menuText = `
+📄 *EDITAR DATOS DE PÓLIZA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policy.numeroPoliza}
+
+**Datos actuales:**
+🏢 Aseguradora: ${policy.aseguradora || 'No definida'}
+👨‍💼 Agente: ${policy.agenteCotizador || 'No definido'}
+📅 Emisión: ${formatDate(policy.fechaEmision)}
+📊 Estado Póliza: ${policy.estadoPoliza || 'No definido'}
+🗓️ Fin Cobertura: ${formatDate(policy.fechaFinCobertura)}
+🗓️ Fin Gracia: ${formatDate(policy.fechaFinGracia)}
+
+Selecciona el campo a editar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback(
+                        '🏢 Aseguradora',
+                        `admin_edit_field:aseguradora:${policyId}`
+                    ),
+                    Markup.button.callback(
+                        '👨‍💼 Agente',
+                        `admin_edit_field:agenteCotizador:${policyId}`
+                    )
+                ],
+                [
+                    Markup.button.callback(
+                        '📅 Emisión',
+                        `admin_edit_field:fechaEmision:${policyId}`
+                    ),
+                    Markup.button.callback('📊 Estado', `admin_edit_field:estadoPoliza:${policyId}`)
+                ],
+                [
+                    Markup.button.callback(
+                        '🗓️ Fin Cobertura',
+                        `admin_edit_field:fechaFinCobertura:${policyId}`
+                    ),
+                    Markup.button.callback(
+                        '🗓️ Fin Gracia',
+                        `admin_edit_field:fechaFinGracia:${policyId}`
+                    )
+                ],
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            logger.error('Error al mostrar datos de póliza:', error);
+            await ctx.reply('❌ Error al cargar los datos de póliza.');
+        }
     }
 
     static async showFinancialEdit(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement financial edit
-        await ctx.reply('Edición de datos financieros en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const menuText = `
+💰 *EDITAR INFORMACIÓN FINANCIERA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policy.numeroPoliza}
+
+**Datos actuales:**
+⭐ Calificación: ${policy.calificacion || 0}/100
+📊 Estado Sistema: ${policy.estado}
+🔢 Total Servicios: ${policy.totalServicios || 0}
+
+Selecciona el campo a editar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback(
+                        '⭐ Calificación',
+                        `admin_edit_field:calificacion:${policyId}`
+                    ),
+                    Markup.button.callback('📊 Estado', `admin_edit_field:estado:${policyId}`)
+                ],
+                [
+                    Markup.button.callback(
+                        '🔢 Total Servicios',
+                        `admin_edit_field:totalServicios:${policyId}`
+                    )
+                ],
+                [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(menuText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            logger.error('Error al mostrar información financiera:', error);
+            await ctx.reply('❌ Error al cargar la información financiera.');
+        }
     }
 
     static async startFieldEdit(ctx: Context, fieldName: string, policyId: string): Promise<void> {
-        // TODO: Implement field edit start
-        await ctx.reply('Inicio de edición de campo en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const currentValue = (policy as any)[fieldName];
+            const fieldInfo = this.getFieldInfo(fieldName);
+
+            const editText = `
+✏️ *EDITAR ${fieldInfo.displayName.toUpperCase()}*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policy.numeroPoliza}
+
+**Valor actual:** ${currentValue || 'No definido'}
+
+**Instrucciones:**
+${fieldInfo.instructions}
+
+${fieldInfo.validation ? `**Formato:** ${fieldInfo.validation}` : ''}
+
+Escribe el nuevo valor o presiona Cancelar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [Markup.button.callback('❌ Cancelar', `admin_policy_edit_categories:${policyId}`)]
+            ]);
+
+            await ctx.editMessageText(editText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            // Configurar estado para edición de campo
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_field_editing', {
+                policyId: policyId,
+                fieldName,
+                currentValue,
+                fieldInfo
+            });
+
+            await AuditLogger.log(ctx, 'field_edit_started', {
+                module: 'policy',
+                metadata: {
+                    policyId,
+                    fieldName,
+                    currentValue
+                }
+            });
+        } catch (error) {
+            logger.error('Error al iniciar edición de campo:', error);
+            await ctx.reply('❌ Error al iniciar la edición.');
+        }
     }
 
     static async executeFieldChange(
@@ -614,8 +1075,338 @@ Selecciona una póliza:
         policyId: string,
         fieldName: string
     ): Promise<void> {
-        // TODO: Implement field change execution
-        await ctx.reply('Ejecución de cambio de campo en desarrollo');
+        try {
+            const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
+
+            if (!adminState || adminState.operation !== 'policy_field_confirmation') {
+                await ctx.reply('❌ Error: No se encontró la confirmación pendiente.');
+                return;
+            }
+
+            const { oldValue, newValue, fieldInfo } = adminState.data;
+
+            // Actualizar en la base de datos
+            const updateData: any = {};
+            updateData[fieldName] = newValue;
+
+            const updatedPolicy = await Policy.findByIdAndUpdate(policyId, updateData, {
+                new: true,
+                runValidators: true
+            });
+
+            if (!updatedPolicy) {
+                await ctx.reply('❌ Error: No se pudo actualizar la póliza.');
+                return;
+            }
+
+            const successText = `
+✅ *CAMPO ACTUALIZADO*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${updatedPolicy.numeroPoliza}
+**Campo:** ${fieldInfo.displayName}
+**Actualizado:** ${new Date().toLocaleString('es-MX')}
+
+El cambio se ha guardado exitosamente.
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback(
+                        '✏️ Editar Otro Campo',
+                        `admin_policy_edit_categories:${policyId}`
+                    ),
+                    Markup.button.callback('👁️ Ver Detalles', `admin_policy_select:${policyId}`)
+                ]
+            ]);
+
+            await ctx.editMessageText(successText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            // Log de auditoría
+            await AuditLogger.log(ctx, 'field_updated', {
+                module: 'policy',
+                entityType: 'policy',
+                entityId: policyId,
+                changes: {
+                    before: { [fieldName]: oldValue },
+                    after: { [fieldName]: newValue }
+                },
+                metadata: {
+                    policyId,
+                    policyNumber: updatedPolicy.numeroPoliza,
+                    fieldName,
+                    oldValue,
+                    newValue
+                }
+            });
+
+            // Limpiar estado
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+        } catch (error) {
+            logger.error('Error al ejecutar cambio:', error);
+            await ctx.reply('❌ Error al guardar el cambio en la base de datos.');
+        }
+    }
+
+    static getFieldInfo(fieldName: string): any {
+        const fieldInfoMap: { [key: string]: any } = {
+            // Datos Personales
+            titular: {
+                displayName: 'Titular',
+                instructions: 'Escribe el nombre completo del titular',
+                validation: 'Texto libre, mínimo 3 caracteres',
+                type: 'string'
+            },
+            rfc: {
+                displayName: 'RFC',
+                instructions: 'Escribe el RFC de 13 caracteres',
+                validation: 'Formato: XXXX######XXX (13 caracteres)',
+                type: 'rfc'
+            },
+            correo: {
+                displayName: 'Email',
+                instructions: 'Escribe la dirección de correo electrónico',
+                validation: 'Formato: ejemplo@dominio.com',
+                type: 'email'
+            },
+            telefono: {
+                displayName: 'Teléfono',
+                instructions: 'Escribe el número de teléfono a 10 dígitos',
+                validation: 'Formato: 5512345678 (10 dígitos)',
+                type: 'phone'
+            },
+            contraseña: {
+                displayName: 'Contraseña',
+                instructions: 'Escribe la nueva contraseña',
+                validation: 'Texto libre, mínimo 4 caracteres',
+                type: 'string'
+            },
+            // Domicilio
+            calle: {
+                displayName: 'Calle',
+                instructions: 'Escribe la dirección completa (calle y número)',
+                validation: 'Texto libre',
+                type: 'string'
+            },
+            colonia: {
+                displayName: 'Colonia',
+                instructions: 'Escribe el nombre de la colonia',
+                validation: 'Texto libre',
+                type: 'string'
+            },
+            municipio: {
+                displayName: 'Municipio',
+                instructions: 'Escribe el nombre del municipio',
+                validation: 'Texto libre',
+                type: 'string'
+            },
+            estadoRegion: {
+                displayName: 'Estado',
+                instructions: 'Escribe el nombre del estado',
+                validation: 'Texto libre (ej: CDMX, EDOMEX)',
+                type: 'string'
+            },
+            cp: {
+                displayName: 'Código Postal',
+                instructions: 'Escribe el código postal de 5 dígitos',
+                validation: 'Formato: 12345 (5 dígitos)',
+                type: 'string'
+            },
+            // Vehículo
+            marca: {
+                displayName: 'Marca',
+                instructions: 'Escribe la marca del vehículo',
+                validation: 'Texto libre (ej: NISSAN, CHEVROLET)',
+                type: 'string'
+            },
+            submarca: {
+                displayName: 'Submarca',
+                instructions: 'Escribe el modelo del vehículo',
+                validation: 'Texto libre (ej: SENTRA, AVEO)',
+                type: 'string'
+            },
+            año: {
+                displayName: 'Año',
+                instructions: 'Escribe el año del vehículo',
+                validation: 'Formato: AAAA (4 dígitos)',
+                type: 'string'
+            },
+            color: {
+                displayName: 'Color',
+                instructions: 'Escribe el color del vehículo',
+                validation: 'Texto libre (ej: BLANCO, AZUL)',
+                type: 'string'
+            },
+            serie: {
+                displayName: 'Serie',
+                instructions: 'Escribe el número de serie del vehículo',
+                validation: 'Texto libre',
+                type: 'string'
+            },
+            placas: {
+                displayName: 'Placas',
+                instructions: 'Escribe las placas del vehículo',
+                validation: 'Formato: ABC1234 o similar',
+                type: 'string'
+            },
+            // Póliza
+            aseguradora: {
+                displayName: 'Aseguradora',
+                instructions: 'Escribe el nombre de la aseguradora',
+                validation: 'Texto libre',
+                type: 'string'
+            },
+            agenteCotizador: {
+                displayName: 'Agente Cotizador',
+                instructions: 'Escribe el nombre del agente',
+                validation: 'Texto libre',
+                type: 'string'
+            },
+            fechaEmision: {
+                displayName: 'Fecha de Emisión',
+                instructions: 'Escribe la fecha de emisión',
+                validation: 'Formato: DD/MM/AAAA',
+                type: 'date'
+            },
+            estadoPoliza: {
+                displayName: 'Estado de Póliza',
+                instructions: 'Escribe el estado de la póliza',
+                validation: 'Texto libre (ej: ACTIVA, VENCIDA)',
+                type: 'string'
+            },
+            fechaFinCobertura: {
+                displayName: 'Fecha Fin Cobertura',
+                instructions: 'Escribe la fecha de fin de cobertura',
+                validation: 'Formato: DD/MM/AAAA',
+                type: 'date'
+            },
+            fechaFinGracia: {
+                displayName: 'Fecha Fin Gracia',
+                instructions: 'Escribe la fecha de fin del período de gracia',
+                validation: 'Formato: DD/MM/AAAA',
+                type: 'date'
+            },
+            // Financiero
+            calificacion: {
+                displayName: 'Calificación',
+                instructions: 'Escribe la calificación (0-100)',
+                validation: 'Número entre 0 y 100',
+                type: 'number'
+            },
+            estado: {
+                displayName: 'Estado del Sistema',
+                instructions: 'Escribe el estado del sistema',
+                validation: 'Texto libre (ej: ACTIVO, INACTIVO)',
+                type: 'string'
+            },
+            totalServicios: {
+                displayName: 'Total de Servicios',
+                instructions: 'Escribe el total de servicios',
+                validation: 'Número entero positivo',
+                type: 'number'
+            }
+        };
+
+        return fieldInfoMap[fieldName] || {
+            displayName: fieldName,
+            instructions: 'Escribe el nuevo valor',
+            validation: 'Texto libre',
+            type: 'string'
+        };
+    }
+
+    static async handleFieldEditInput(ctx: Context, newValue: string): Promise<void> {
+        try {
+            const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
+
+            if (!adminState?.data) {
+                await ctx.reply('❌ Error: Sesión expirada. Intenta nuevamente.');
+                return;
+            }
+
+            const { policyId, fieldName, currentValue, fieldInfo } = adminState.data;
+
+            // Validar el nuevo valor según el tipo de campo
+            let validatedValue: any = newValue.trim();
+
+            if (fieldInfo.type === 'date') {
+                // Validar formato de fecha DD/MM/AAAA
+                const dateMatch = newValue.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if (!dateMatch) {
+                    await ctx.reply('❌ Error: Formato de fecha inválido. Usa DD/MM/AAAA.');
+                    return;
+                }
+                const [, day, month, year] = dateMatch;
+                validatedValue = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            } else if (fieldInfo.type === 'number') {
+                validatedValue = parseFloat(newValue);
+                if (isNaN(validatedValue)) {
+                    await ctx.reply('❌ Error: El valor debe ser un número válido.');
+                    return;
+                }
+            } else if (fieldInfo.type === 'rfc') {
+                if (newValue.length !== 13) {
+                    await ctx.reply('❌ Error: El RFC debe tener exactamente 13 caracteres.');
+                    return;
+                }
+                validatedValue = newValue.toUpperCase();
+            } else if (fieldInfo.type === 'phone') {
+                const cleanPhone = newValue.replace(/\D/g, '');
+                if (cleanPhone.length !== 10) {
+                    await ctx.reply('❌ Error: El teléfono debe tener exactamente 10 dígitos.');
+                    return;
+                }
+                validatedValue = cleanPhone;
+            } else if (fieldInfo.type === 'email') {
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(newValue)) {
+                    await ctx.reply('❌ Error: El formato del email es inválido.');
+                    return;
+                }
+                validatedValue = newValue.toLowerCase();
+            }
+
+            // Mostrar confirmación
+            const confirmText = `
+🔄 *CONFIRMAR CAMBIO*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Campo:** ${fieldInfo.displayName}
+**Valor anterior:** ${currentValue || 'No definido'}
+**Valor nuevo:** ${validatedValue}
+
+¿Confirmas este cambio?
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('✅ Confirmar', `admin_confirm_edit:${policyId}:${fieldName}`),
+                    Markup.button.callback('❌ Cancelar', `admin_policy_edit_categories:${policyId}`)
+                ]
+            ]);
+
+            await ctx.reply(confirmText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            // Actualizar estado para confirmación
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_field_confirmation', {
+                policyId,
+                fieldName,
+                oldValue: currentValue,
+                newValue: validatedValue,
+                fieldInfo
+            });
+
+        } catch (error) {
+            logger.error('Error al procesar entrada de campo:', error);
+            await ctx.reply('❌ Error al procesar el valor. Intenta nuevamente.');
+        }
     }
 
     static async cancelMassDeletion(ctx: Context): Promise<void> {
@@ -706,6 +1497,12 @@ Selecciona una póliza:
                 return true; // Mensaje procesado
             }
 
+            // Verificar si estamos editando un campo de póliza
+            if (adminState.operation === 'policy_field_editing') {
+                await this.handleFieldEditInput(ctx, messageText);
+                return true; // Mensaje procesado
+            }
+
             return false; // Estado no reconocido
         } catch (error) {
             logger.error('Error en handleTextMessage de PolicyHandler:', error);
@@ -740,7 +1537,7 @@ _Intenta con otro término de búsqueda._
                 return;
             }
 
-            await this.showDeleteSearchResults(ctx, searchResults, searchTerm);
+            await this.showSearchResultsForDelete(ctx, searchResults, searchTerm);
         } catch (error) {
             logger.error('Error en searchPolicyForDelete:', error);
             await ctx.reply('❌ Error al buscar pólizas para eliminar.');
@@ -774,7 +1571,7 @@ _Intenta con otro término de búsqueda._
                 return;
             }
 
-            await this.showRestoreSearchResults(ctx, searchResults, searchTerm);
+            await this.showSearchResultsForRestore(ctx, searchResults, searchTerm);
         } catch (error) {
             logger.error('Error en searchPolicyForRestore:', error);
             await ctx.reply('❌ Error al buscar pólizas para restaurar.');
@@ -866,6 +1663,16 @@ Escribe uno de los siguientes datos para buscar:
     static async handleStats(ctx: Context): Promise<void> {
         // TODO: Implement stats handling
         await ctx.reply('Manejo de estadísticas en desarrollo');
+    }
+
+    static async showSearchResultsForDelete(ctx: Context, results: IPolicySearchResult[], searchTerm: string): Promise<void> {
+        // Basic implementation - can be enhanced later
+        await this.showSearchResults(ctx, results, searchTerm);
+    }
+
+    static async showSearchResultsForRestore(ctx: Context, results: IPolicySearchResult[], searchTerm: string): Promise<void> {
+        // Basic implementation - can be enhanced later  
+        await this.showSearchResults(ctx, results, searchTerm);
     }
 }
 
