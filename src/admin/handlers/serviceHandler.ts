@@ -143,7 +143,7 @@ _El sistema encontrará el servicio específico para editar._
                     s => s.numeroExpediente === servicio.numeroExpediente
                 );
                 results.push({
-                    policyId: policy._id,
+                    policyId: policy._id.toString(),
                     numeroPoliza: policy.numeroPoliza,
                     titular: policy.titular,
                     type: 'servicio',
@@ -166,7 +166,7 @@ _El sistema encontrará el servicio específico para editar._
                     r => r.numeroExpediente === registro.numeroExpediente
                 );
                 results.push({
-                    policyId: policy._id,
+                    policyId: policy._id.toString(),
                     numeroPoliza: policy.numeroPoliza,
                     titular: policy.titular,
                     type: 'registro',
@@ -254,21 +254,24 @@ Selecciona el que deseas editar:
         results.forEach((result, index) => {
             const item = result.item;
             const expediente = item.numeroExpediente;
-            const tipo = result.type === 'servicio' ? '🔧' : '📋';
+            const tipoEmoji = result.type === 'servicio' ? '🔧' : '📋';
+            const tipoTexto = result.type === 'servicio' ? 'SERVICIO' : 'REGISTRO';
             const fecha =
                 result.type === 'servicio'
                     ? (item as IServiceData).fechaServicio
                     : (item as IRegistroData).fechaRegistro;
 
-            resultText += `${index + 1}. ${tipo} **${expediente}**\n`;
+            resultText += `${index + 1}. ${tipoEmoji} **${tipoTexto}** - **${expediente}**\n`;
             resultText += `   Póliza: ${result.numeroPoliza}\n`;
             resultText += `   Titular: ${result.titular}\n`;
             resultText += `   Fecha: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}\n\n`;
 
+            const shortId = result.policyId.slice(-8);
+            const typeCode = result.type === 'servicio' ? 's' : 'r';
             buttons.push([
                 Markup.button.callback(
-                    `${index + 1}. ${tipo} ${expediente}`,
-                    `admin_service_edit_direct:${result.policyId}:${result.type}:${result.itemIndex}`
+                    `${index + 1}. ${tipoEmoji} ${tipoTexto} - ${expediente}`,
+                    `ase:${shortId}:${typeCode}:${result.itemIndex}`
                 )
             ]);
         });
@@ -299,101 +302,90 @@ Selecciona el que deseas editar:
         const expediente = item.numeroExpediente;
         const tipo = isServicio ? '🔧 Servicio' : '📋 Registro';
 
+        const escapedTitular = result.titular.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+        const escapedPoliza = result.numeroPoliza.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+        const escapedExpediente = expediente.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+
         let detailsText = `
 ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📄 **Expediente:** ${expediente}
-📅 **Póliza:** ${result.numeroPoliza}
-👤 **Titular:** ${result.titular}
+📄 *Expediente:* ${escapedExpediente}
+📅 *Póliza:* ${escapedPoliza}
+👤 *Titular:* ${escapedTitular}
 
-**DETALLES ACTUALES:**
+*DETALLES ACTUALES:*
 `;
 
         if (isServicio) {
             const servicio = item as IServiceData;
-            detailsText += `• Fecha: ${servicio.fechaServicio ? new Date(servicio.fechaServicio).toLocaleDateString('es-ES') : 'N/A'}\n`;
-            detailsText += `• Tipo: ${servicio.tipoServicio || 'N/A'}\n`;
-            detailsText += `• Descripción: ${servicio.descripcion || 'N/A'}\n`;
-            detailsText += `• Costo: $${servicio.costo || 0}\n`;
-            detailsText += `• Estado: ${servicio.estado || 'N/A'}\n`;
-            detailsText += `• Proveedor: ${servicio.proveedor || 'N/A'}\n`;
+            const fecha = servicio.fechaServicio ? new Date(servicio.fechaServicio).toLocaleDateString('es-ES') : 'N/A';
+            const tipoServ = servicio.tipoServicio || 'N/A';
+            const desc = servicio.descripcion || 'N/A';
+            const costo = servicio.costo || 0;
+            const estado = servicio.estado || 'N/A';
+            const proveedor = servicio.proveedor || 'N/A';
+            
+            detailsText += `• Fecha: ${fecha}\n`;
+            detailsText += `• Tipo: ${tipoServ}\n`;
+            detailsText += `• Descripción: ${desc}\n`;
+            detailsText += `• Costo: $${costo}\n`;
+            detailsText += `• Estado: ${estado}\n`;
+            detailsText += `• Proveedor: ${proveedor}\n`;
         } else {
             const registro = item as IRegistroData;
-            detailsText += `• Fecha: ${registro.fechaRegistro ? new Date(registro.fechaRegistro).toLocaleDateString('es-ES') : 'N/A'}\n`;
-            detailsText += `• Tipo: ${registro.tipoRegistro || 'N/A'}\n`;
-            detailsText += `• Descripción: ${registro.descripcion || 'N/A'}\n`;
-            detailsText += `• Estado: ${registro.estado || 'N/A'}\n`;
+            const fecha = registro.fechaRegistro ? new Date(registro.fechaRegistro).toLocaleDateString('es-ES') : 'N/A';
+            const tipoReg = registro.tipoRegistro || 'N/A';
+            const desc = registro.descripcion || 'N/A';
+            const estado = registro.estado || 'N/A';
+            
+            detailsText += `• Fecha: ${fecha}\n`;
+            detailsText += `• Tipo: ${tipoReg}\n`;
+            detailsText += `• Descripción: ${desc}\n`;
+            detailsText += `• Estado: ${estado}\n`;
         }
 
         detailsText += '\n¿Qué deseas editar?';
 
         const buttons: any[] = [];
 
+        // Create short ID for callback data
+        const shortId = result.policyId.slice(-8); // Use last 8 characters
+        
         if (isServicio) {
             buttons.push(
                 [
-                    Markup.button.callback(
-                        '📅 Fecha',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:fechaServicio`
-                    )
+                    Markup.button.callback('📅 Fecha', `asf:${shortId}:s:${result.itemIndex}:fS`)
                 ],
                 [
-                    Markup.button.callback(
-                        '🏷️ Tipo',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:tipoServicio`
-                    )
+                    Markup.button.callback('🏷️ Tipo', `asf:${shortId}:s:${result.itemIndex}:tS`)
                 ],
                 [
-                    Markup.button.callback(
-                        '📝 Descripción',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:descripcion`
-                    )
+                    Markup.button.callback('📝 Descripción', `asf:${shortId}:s:${result.itemIndex}:d`)
                 ],
                 [
-                    Markup.button.callback(
-                        '💰 Costo',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:costo`
-                    )
+                    Markup.button.callback('💰 Costo', `asf:${shortId}:s:${result.itemIndex}:c`)
                 ],
                 [
-                    Markup.button.callback(
-                        '📊 Estado',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:estado`
-                    )
+                    Markup.button.callback('📊 Estado', `asf:${shortId}:s:${result.itemIndex}:e`)
                 ],
                 [
-                    Markup.button.callback(
-                        '🏢 Proveedor',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:proveedor`
-                    )
+                    Markup.button.callback('🏢 Proveedor', `asf:${shortId}:s:${result.itemIndex}:p`)
                 ]
             );
         } else {
             buttons.push(
                 [
-                    Markup.button.callback(
-                        '📅 Fecha',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:fechaRegistro`
-                    )
+                    Markup.button.callback('📅 Fecha', `asf:${shortId}:r:${result.itemIndex}:fR`)
                 ],
                 [
-                    Markup.button.callback(
-                        '🏷️ Tipo',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:tipoRegistro`
-                    )
+                    Markup.button.callback('🏷️ Tipo', `asf:${shortId}:r:${result.itemIndex}:tR`)
                 ],
                 [
-                    Markup.button.callback(
-                        '📝 Descripción',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:descripcion`
-                    )
+                    Markup.button.callback('📝 Descripción', `asf:${shortId}:r:${result.itemIndex}:d`)
                 ],
                 [
-                    Markup.button.callback(
-                        '📊 Estado',
-                        `admin_service_edit_field:${result.policyId}:${result.type}:${result.itemIndex}:estado`
-                    )
+                    Markup.button.callback('📊 Estado', `asf:${shortId}:r:${result.itemIndex}:e`)
                 ]
             );
         }
@@ -437,11 +429,44 @@ ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
 
     static async showServiceDirectEditShort(
         ctx: Context,
-        shortId: string,
+        policyId: string,
         type: string,
         itemIndex: number
     ): Promise<void> {
-        await ctx.reply('Edición directa de servicio en desarrollo.');
+        try {
+            // Find the policy
+            const policy = await Policy.findById(policyId);
+            if (!policy) {
+                await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
+                return;
+            }
+
+            let item: IServiceData | IRegistroData | undefined;
+            if (type === 'servicio') {
+                item = policy.servicios?.[itemIndex];
+            } else {
+                item = policy.registros?.[itemIndex];
+            }
+
+            if (!item) {
+                await ctx.answerCbQuery('❌ Elemento no encontrado', { show_alert: true });
+                return;
+            }
+
+            const result: IServiceSearchResult = {
+                policyId: policy._id.toString(),
+                numeroPoliza: policy.numeroPoliza,
+                titular: policy.titular,
+                type: type as 'servicio' | 'registro',
+                item,
+                itemIndex
+            };
+
+            await this.showServiceDirectEdit(ctx, result);
+        } catch (error) {
+            logger.error('Error en showServiceDirectEditShort:', error);
+            await ctx.answerCbQuery('❌ Error al cargar la edición', { show_alert: true });
+        }
     }
 
     static async startFieldEdit(
@@ -491,11 +516,13 @@ Escribe el nuevo valor para este campo:
 _Escribe el nuevo valor y se actualizará automáticamente._
             `.trim();
 
+            const shortId = policyId.slice(-8);
+            const typeCode = type === 'servicio' ? 's' : 'r';
             const keyboard = Markup.inlineKeyboard([
                 [
                     Markup.button.callback(
                         '❌ Cancelar',
-                        `admin_service_edit_direct:${policyId}:${type}:${itemIndex}`
+                        `ase:${shortId}:${typeCode}:${itemIndex}`
                     )
                 ]
             ]);
@@ -520,15 +547,61 @@ _Escribe el nuevo valor y se actualizará automáticamente._
         }
     }
 
-    static async handleFieldValueShort(
+    static async handleServiceDirectEditShort(
+        ctx: Context,
+        shortId: string,
+        type: string,
+        itemIndex: number
+    ): Promise<void> {
+        try {
+            // Find all policies and filter by shortId using JavaScript
+            const policies = await Policy.find({
+                estado: { $ne: 'ELIMINADO' }
+            }).select('_id numeroPoliza titular servicios registros');
+            
+            const policy = policies.find(p => 
+                p._id.toString().slice(-8) === shortId
+            );
+            
+            if (!policy) {
+                await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
+                return;
+            }
+
+            await this.showServiceDirectEditShort(ctx, policy._id.toString(), type, itemIndex);
+        } catch (error) {
+            logger.error('Error en handleServiceDirectEditShort:', error);
+            await ctx.answerCbQuery('❌ Error al cargar la edición', { show_alert: true });
+        }
+    }
+
+    static async handleServiceFieldEditShort(
         ctx: Context,
         shortId: string,
         type: string,
         itemIndex: number,
-        fieldName: string,
-        value: string
+        fieldName: string
     ): Promise<void> {
-        await ctx.reply('Manejo de valor de campo en desarrollo.');
+        try {
+            // Find all policies and filter by shortId using JavaScript
+            const policies = await Policy.find({
+                estado: { $ne: 'ELIMINADO' }
+            }).select('_id numeroPoliza titular servicios registros');
+            
+            const policy = policies.find(p => 
+                p._id.toString().slice(-8) === shortId
+            );
+            
+            if (!policy) {
+                await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
+                return;
+            }
+
+            await this.startFieldEdit(ctx, policy._id.toString(), type, itemIndex, fieldName);
+        } catch (error) {
+            logger.error('Error en handleServiceFieldEditShort:', error);
+            await ctx.answerCbQuery('❌ Error al iniciar edición', { show_alert: true });
+        }
     }
 
     static async handleTextMessage(ctx: Context): Promise<boolean> {

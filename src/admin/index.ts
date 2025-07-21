@@ -56,19 +56,24 @@ interface IServiceHandler extends IAdminHandler {
         itemIndex: number,
         fieldName: string
     ): Promise<void>;
-    handleFieldValueShort(
-        ctx: Context,
-        shortId: string,
-        type: string,
-        itemIndex: number,
-        fieldName: string,
-        value: string
-    ): Promise<void>;
     showServiceDirectEditShort(
+        ctx: Context,
+        policyId: string,
+        type: string,
+        itemIndex: number
+    ): Promise<void>;
+    handleServiceDirectEditShort(
         ctx: Context,
         shortId: string,
         type: string,
         itemIndex: number
+    ): Promise<void>;
+    handleServiceFieldEditShort(
+        ctx: Context,
+        shortId: string,
+        type: string,
+        itemIndex: number,
+        fieldName: string
     ): Promise<void>;
     handleTextMessage(ctx: Context): Promise<boolean>;
 }
@@ -385,7 +390,53 @@ class AdminModule {
             }
         );
 
-        // Continue with other service callbacks...
+        // Callback para edición directa de servicios (formato corto: ase:shortId:type:index)
+        this.bot.action(
+            /^ase:([^:]+):([^:]+):(.+)$/,
+            adminAuth.requireAdmin,
+            async (ctx: Context) => {
+                const shortId = (ctx.match as RegExpMatchArray)[1];
+                const typeCode = (ctx.match as RegExpMatchArray)[2];
+                const itemIndex = parseInt((ctx.match as RegExpMatchArray)[3]);
+                try {
+                    const type = typeCode === 's' ? 'servicio' : 'registro';
+                    await this.handlers.service.handleServiceDirectEditShort(ctx, shortId, type, itemIndex);
+                } catch (error) {
+                    logger.error('Error al mostrar edición directa de servicio:', error);
+                    await ctx.answerCbQuery('Error al cargar la edición', { show_alert: true });
+                }
+            }
+        );
+
+        // Callback para edición de campos específicos de servicios (formato corto: asf:shortId:type:index:field)
+        this.bot.action(
+            /^asf:([^:]+):([^:]+):([^:]+):(.+)$/,
+            adminAuth.requireAdmin,
+            async (ctx: Context) => {
+                const shortId = (ctx.match as RegExpMatchArray)[1];
+                const typeCode = (ctx.match as RegExpMatchArray)[2];
+                const itemIndex = parseInt((ctx.match as RegExpMatchArray)[3]);
+                const fieldCode = (ctx.match as RegExpMatchArray)[4];
+                try {
+                    const type = typeCode === 's' ? 'servicio' : 'registro';
+                    const fieldMap: { [key: string]: string } = {
+                        'fS': 'fechaServicio',
+                        'tS': 'tipoServicio',
+                        'd': 'descripcion',
+                        'c': 'costo',
+                        'e': 'estado',
+                        'p': 'proveedor',
+                        'fR': 'fechaRegistro',
+                        'tR': 'tipoRegistro'
+                    };
+                    const fieldName = fieldMap[fieldCode] || fieldCode;
+                    await this.handlers.service.handleServiceFieldEditShort(ctx, shortId, type, itemIndex, fieldName);
+                } catch (error) {
+                    logger.error('Error al iniciar edición de campo de servicio:', error);
+                    await ctx.answerCbQuery('Error al iniciar edición', { show_alert: true });
+                }
+            }
+        );
     }
 
     private registerReportsCallbacks(): void {
