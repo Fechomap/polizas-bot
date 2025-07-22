@@ -55,6 +55,7 @@ class CalculationScheduler {
         logger.info('🔄 Inicializando sistema de cálculo automático');
 
         this.scheduleDailyCalculation();
+        this.scheduleNIVCleanup(); // NUEVO: Limpieza NIVs usados
         this.scheduleAutoCleanup();
         this.scheduleWeeklyCleanup();
 
@@ -93,6 +94,23 @@ class CalculationScheduler {
 
         this.jobs.set('autoCleanup', autoCleanupJob);
         logger.info('📅 Limpieza automática de pólizas programada para las 3:30 AM');
+    }
+
+    private scheduleNIVCleanup(): void {
+        const nivCleanupJob = cron.schedule(
+            '15 3 * * *',
+            async () => {
+                logger.info('🧹 Iniciando limpieza automática de NIVs usados');
+                await this.executeNIVCleanup();
+            },
+            {
+                scheduled: true,
+                timezone: 'America/Mexico_City'
+            }
+        );
+
+        this.jobs.set('nivCleanup', nivCleanupJob);
+        logger.info('📅 Limpieza de NIVs usados programada para las 3:15 AM');
     }
 
     private scheduleWeeklyCleanup(): void {
@@ -186,6 +204,53 @@ class CalculationScheduler {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
                     `❌ *Error en Limpieza Semanal*\n\n🔥 ${(error as Error).message}\n\n📋 Revisar logs para más detalles`,
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+        }
+    }
+
+    private async executeNIVCleanup(): Promise<void> {
+        const startTime = Date.now();
+
+        try {
+            if (this.adminChatId) {
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    '🧹 *Limpieza Automática NIVs Usados*\\n\\n⏳ Eliminando NIVs con servicios\\.\\.\\.',
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+
+            const output = await this.executeScript('cleanup-nivs-usados.js');
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+            // Parsear resultado básico del output
+            const successMatch = output.match(/NIVs eliminados exitosamente: (\d+)/);
+            const eliminados = successMatch ? parseInt(successMatch[1]) : 0;
+
+            if (this.adminChatId) {
+                let message = '✅ *Limpieza NIVs Completada*\\n\\n';
+                message += `⏱️ Tiempo: ${elapsed}s\\n`;
+                message += `🗑️ NIVs eliminados: ${eliminados}\\n`;
+                message += '✨ NIVs usados limpiados correctamente';
+
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    message,
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+
+            logger.info(`✅ Limpieza de NIVs completada en ${elapsed}s - ${eliminados} NIVs eliminados`);
+
+        } catch (error) {
+            logger.error('❌ Error en limpieza de NIVs:', error);
+
+            if (this.adminChatId) {
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    `❌ *Error en Limpieza NIVs*\\n\\n🔥 ${(error as Error).message.replace(/[_*\\[\\]()~`>#+\\-=|{}.!]/g, '\\\\$&')}\\n\\n📋 Revisar logs para más detalles`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -414,6 +479,11 @@ class CalculationScheduler {
     async executeManualAutoCleanup(): Promise<void> {
         logger.info('🧹 Ejecutando limpieza automática manual');
         await this.executeAutoCleanup();
+    }
+
+    async executeManualNIVCleanup(): Promise<void> {
+        logger.info('🧹 Ejecutando limpieza de NIVs manual');
+        await this.executeNIVCleanup();
     }
 }
 
