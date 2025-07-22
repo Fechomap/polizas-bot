@@ -14,8 +14,8 @@ const ExcelJS = require('exceljs');
 const path = require('path');
 require('dotenv').config();
 
-// Importar modelos
-const Policy = require('../src/models/policy');
+// Importar modelos usando el wrapper
+const Policy = require('./models/policy');
 
 /**
  * Configuración de validación
@@ -30,11 +30,13 @@ const VALIDATION_RULES = {
  */
 async function connectDB() {
     try {
-        const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/polizas';
+        // Usar MONGO_URI como variable principal, MONGODB_URI como fallback
+        const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI || 'mongodb://localhost:27017/polizas';
         await mongoose.connect(mongoUri);
         console.log('✅ Conectado a MongoDB');
     } catch (error) {
         console.error('❌ Error conectando a MongoDB:', error);
+        console.error('URI utilizada:', process.env.MONGO_URI || process.env.MONGODB_URI || 'localhost');
         process.exit(1);
     }
 }
@@ -64,61 +66,66 @@ function contarArchivos(poliza) {
 }
 
 /**
- * Validar archivos de una póliza
+ * Validar archivos de una póliza (versión simplificada)
  */
 function validarArchivos(poliza) {
     const conteos = contarArchivos(poliza);
-    const errores = [];
     
-    // Validar fotos mínimas
-    if (conteos.totalFotos < VALIDATION_RULES.MIN_FOTOS) {
-        errores.push(`Solo ${conteos.totalFotos} foto(s), mínimo ${VALIDATION_RULES.MIN_FOTOS}`);
-    }
+    // Solo verificar si tiene al menos 1 foto y 1 PDF
+    const tieneFotos = conteos.totalFotos > 0;
+    const tienePdf = conteos.totalPdfs > 0;
     
-    // Validar PDF mínimo
-    if (conteos.totalPdfs < VALIDATION_RULES.MIN_PDFS) {
-        errores.push(`Solo ${conteos.totalPdfs} PDF(s), mínimo ${VALIDATION_RULES.MIN_PDFS}`);
-    }
-    
-    // Validar integridad de archivos legacy
-    if (poliza.archivos?.fotos) {
-        poliza.archivos.fotos.forEach((foto, index) => {
-            if (!foto.data || !Buffer.isBuffer(foto.data) || foto.data.length === 0) {
-                errores.push(`Foto legacy ${index + 1} corrupta`);
-            }
-        });
-    }
-    
-    if (poliza.archivos?.pdfs) {
-        poliza.archivos.pdfs.forEach((pdf, index) => {
-            if (!pdf.data || !Buffer.isBuffer(pdf.data) || pdf.data.length === 0) {
-                errores.push(`PDF legacy ${index + 1} corrupto`);
-            }
-        });
-    }
-    
-    // Validar URLs R2
-    if (poliza.archivos?.r2Files?.fotos) {
-        poliza.archivos.r2Files.fotos.forEach((foto, index) => {
-            if (!foto.url || !foto.key) {
-                errores.push(`Foto R2 ${index + 1} sin URL/key`);
-            }
-        });
-    }
-    
-    if (poliza.archivos?.r2Files?.pdfs) {
-        poliza.archivos.r2Files.pdfs.forEach((pdf, index) => {
-            if (!pdf.url || !pdf.key) {
-                errores.push(`PDF R2 ${index + 1} sin URL/key`);
-            }
-        });
+    // Si tiene al menos 1 foto, no debe aparecer en el reporte
+    if (tieneFotos) {
+        return { 
+            ...conteos,
+            tieneFotos,
+            tienePdf,
+            debeIncluirse: false // NO incluir en reporte
+        };
     }
     
     return {
         ...conteos,
-        valido: errores.length === 0,
-        errores: errores.join('; ')
+        tieneFotos,
+        tienePdf,
+        debeIncluirse: true // SÍ incluir en reporte
     };
+}
+
+/**
+ * Procesar lote de pólizas de forma asíncrona
+ */
+async function procesarLotePolizas(lote) {
+    const polizasConProblemas = [];
+    
+    // Procesar todas las pólizas del lote en paralelo
+    const resultados = await Promise.all(
+        lote.map(async (poliza) => {
+            try {
+                const validacion = validarArchivos(poliza);
+                
+                // Solo incluir si debe aparecer en el reporte
+                if (validacion.debeIncluirse) {
+                    return {
+                        numeroPoliza: poliza.numeroPoliza,
+                        tieneFotos: validacion.tieneFotos ? '✓' : 'X',
+                        tienePdf: validacion.tienePdf ? '✓' : 'X',
+                        
+                        // Determinar severidad para colores
+                        severidad: (!validacion.tieneFotos && !validacion.tienePdf) ? 'CRITICO' : 'PARCIAL'
+                    };
+                }
+                return null;
+            } catch (error) {
+                console.error(`Error procesando póliza ${poliza.numeroPoliza}:`, error);
+                return null;
+            }
+        })
+    );
+    
+    // Filtrar resultados nulos
+    return resultados.filter(resultado => resultado !== null);
 }
 
 /**
@@ -130,65 +137,45 @@ async function procesarPolizas() {
     const totalPolizas = await Policy.countDocuments({ estado: 'ACTIVO' });
     console.log(`📊 Total de pólizas activas: ${totalPolizas}`);
     
+    if (totalPolizas === 0) {
+        console.log('⚠️ No se encontraron pólizas activas');
+        return [];
+    }
+    
     const polizasConProblemas = [];
     let procesadas = 0;
-    let conProblemas = 0;
     
-    // Procesar en lotes para eficiencia
-    const BATCH_SIZE = 100;
+    // Procesar en lotes optimizados para eficiencia
+    const BATCH_SIZE = 50; // Reducido para mejor performance
     
     for (let offset = 0; offset < totalPolizas; offset += BATCH_SIZE) {
-        const lote = await Policy.find({ estado: 'ACTIVO' })
-            .select('numeroPoliza titular aseguradora tipoPoliza esNIP archivos createdAt')
-            .skip(offset)
-            .limit(BATCH_SIZE)
-            .lean();
-        
-        for (const poliza of lote) {
-            procesadas++;
+        try {
+            console.log(`📈 Procesando lote ${Math.floor(offset/BATCH_SIZE) + 1}/${Math.ceil(totalPolizas/BATCH_SIZE)}...`);
             
-            const validacion = validarArchivos(poliza);
+            const lote = await Policy.find({ estado: 'ACTIVO' })
+                .select('numeroPoliza titular aseguradora tipoPoliza esNIP archivos createdAt')
+                .skip(offset)
+                .limit(BATCH_SIZE)
+                .lean();
             
-            if (!validacion.valido) {
-                conProblemas++;
-                
-                polizasConProblemas.push({
-                    numeroPoliza: poliza.numeroPoliza,
-                    titular: poliza.titular || 'Sin titular',
-                    aseguradora: poliza.aseguradora || 'Sin aseguradora',
-                    tipoPoliza: poliza.tipoPoliza || 'REGULAR',
-                    esNIP: poliza.esNIP ? 'SÍ' : 'NO',
-                    
-                    // Conteos detallados
-                    fotosLegacy: validacion.legacyFotos,
-                    pdfsLegacy: validacion.legacyPdfs,
-                    fotosR2: validacion.r2Fotos,
-                    pdfsR2: validacion.r2Pdfs,
-                    
-                    // Totales
-                    totalFotos: validacion.totalFotos,
-                    totalPdfs: validacion.totalPdfs,
-                    
-                    // Estado de validación
-                    estado: 'ERROR',
-                    errores: validacion.errores,
-                    
-                    // Metadatos
-                    fechaCreacion: poliza.createdAt ? new Date(poliza.createdAt).toISOString().split('T')[0] : 'Desconocida'
-                });
-            }
-        }
-        
-        // Mostrar progreso
-        if (procesadas % 500 === 0 || procesadas === totalPolizas) {
-            console.log(`📈 Progreso: ${procesadas}/${totalPolizas} (${conProblemas} con problemas)`);
+            // Procesar lote en paralelo
+            const problemasLote = await procesarLotePolizas(lote);
+            polizasConProblemas.push(...problemasLote);
+            
+            procesadas += lote.length;
+            
+            // Mostrar progreso cada lote
+            console.log(`📈 Progreso: ${procesadas}/${totalPolizas} (${polizasConProblemas.length} SIN fotos)`);
+            
+        } catch (error) {
+            console.error(`Error procesando lote en offset ${offset}:`, error);
         }
     }
     
     console.log(`\n✅ Análisis completado:`);
     console.log(`📊 Total procesadas: ${procesadas}`);
-    console.log(`⚠️ Con problemas: ${conProblemas}`);
-    console.log(`✅ Sin problemas: ${procesadas - conProblemas}`);
+    console.log(`⚠️ SIN FOTOS: ${polizasConProblemas.length}`);
+    console.log(`✅ CON FOTOS: ${procesadas - polizasConProblemas.length}`);
     
     return polizasConProblemas;
 }
@@ -202,22 +189,11 @@ async function generarExcel(polizasConProblemas) {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Validación de Archivos');
     
-    // Configurar columnas
+    // Configurar columnas (solo 3 columnas necesarias)
     worksheet.columns = [
         { header: 'NUMERO_POLIZA', key: 'numeroPoliza', width: 20 },
-        { header: 'TITULAR', key: 'titular', width: 25 },
-        { header: 'ASEGURADORA', key: 'aseguradora', width: 20 },
-        { header: 'TIPO_POLIZA', key: 'tipoPoliza', width: 12 },
-        { header: 'ES_NIP', key: 'esNIP', width: 8 },
-        { header: 'FOTOS_LEGACY', key: 'fotosLegacy', width: 12 },
-        { header: 'PDFS_LEGACY', key: 'pdfsLegacy', width: 11 },
-        { header: 'FOTOS_R2', key: 'fotosR2', width: 10 },
-        { header: 'PDFS_R2', key: 'pdfsR2', width: 9 },
-        { header: 'TOTAL_FOTOS', key: 'totalFotos', width: 12 },
-        { header: 'TOTAL_PDFS', key: 'totalPdfs', width: 11 },
-        { header: 'ESTADO', key: 'estado', width: 10 },
-        { header: 'ERRORES', key: 'errores', width: 50 },
-        { header: 'FECHA_CREACION', key: 'fechaCreacion', width: 15 }
+        { header: 'FOTOS', key: 'tieneFotos', width: 10 },
+        { header: 'PDF', key: 'tienePdf', width: 10 }
     ];
     
     // Estilo del encabezado
@@ -228,24 +204,24 @@ async function generarExcel(polizasConProblemas) {
         fgColor: { argb: 'FFE6E6FA' }
     };
     
-    // Agregar datos
+    // Agregar datos con sistema de semáforo
     polizasConProblemas.forEach(poliza => {
         const row = worksheet.addRow(poliza);
         
-        // Colorear filas según severidad
-        if (poliza.totalFotos === 0 && poliza.totalPdfs === 0) {
-            // Sin archivos - Rojo
+        // Sistema de colores tipo semáforo
+        if (poliza.severidad === 'CRITICO') {
+            // Sin fotos Y sin PDF - Rojo
             row.fill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: 'FFFFE6E6' }
+                fgColor: { argb: 'FFFF6B6B' } // Rojo suave
             };
-        } else if (poliza.totalFotos < VALIDATION_RULES.MIN_FOTOS || poliza.totalPdfs < VALIDATION_RULES.MIN_PDFS) {
-            // Faltan archivos - Amarillo
+        } else if (poliza.severidad === 'PARCIAL') {
+            // Solo tiene uno de los dos - Naranja
             row.fill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: 'FFFFFF99' }
+                fgColor: { argb: 'FFFFA726' } // Naranja
             };
         }
     });
@@ -256,9 +232,9 @@ async function generarExcel(polizasConProblemas) {
     resumenRow.getCell(1).font = { bold: true };
     
     const estadisticasRow = worksheet.addRow({
-        numeroPoliza: `Total con problemas: ${polizasConProblemas.length}`,
-        titular: `Fecha: ${new Date().toLocaleDateString('es-MX')}`,
-        aseguradora: 'Criterios: ≥2 fotos, ≥1 PDF'
+        numeroPoliza: `Total SIN fotos: ${polizasConProblemas.length}`,
+        tieneFotos: `Fecha: ${new Date().toLocaleDateString('es-MX')}`,
+        tienePdf: 'Solo pólizas sin fotos'
     });
     estadisticasRow.font = { bold: true };
     
@@ -282,14 +258,14 @@ async function main() {
         const polizasConProblemas = await procesarPolizas();
         
         if (polizasConProblemas.length === 0) {
-            console.log('\n🎉 ¡Excelente! Todas las pólizas activas tienen sus archivos completos.');
+            console.log('\n🎉 ¡Excelente! Todas las pólizas activas tienen al menos 1 foto.');
             
             // Crear Excel vacío con mensaje
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Sin Problemas');
-            worksheet.addRow(['✅ TODAS LAS PÓLIZAS TIENEN SUS ARCHIVOS COMPLETOS']);
+            worksheet.addRow(['✅ TODAS LAS PÓLIZAS TIENEN AL MENOS 1 FOTO']);
             worksheet.addRow([`Fecha de verificación: ${new Date().toLocaleString('es-MX')}`]);
-            worksheet.addRow(['Criterios: Mínimo 2 fotos y 1 PDF por póliza']);
+            worksheet.addRow(['Criterio: Al menos 1 foto por póliza activa']);
             
             const excelPath = path.join(__dirname, 'file-validation-report.xlsx');
             await workbook.xlsx.writeFile(excelPath);

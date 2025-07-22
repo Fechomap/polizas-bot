@@ -597,17 +597,15 @@ class SimpleScriptsHandler {
                 },
                 {
                     caption: 
-                        '📋 *REPORTE DE VALIDACIÓN DE ARCHIVOS*\n\n' +
-                        '📊 **Columnas del reporte:**\n' +
-                        '• NUMERO_POLIZA\n' +
-                        '• FOTOS_COUNT (Total de fotos)\n' +
-                        '• PDFS_COUNT (Total de PDFs)\n' +
-                        '• VALIDATION_STATUS (OK/ERROR)\n' +
-                        '• VALIDATION_ERRORS (Detalles de errores)\n\n' +
-                        '⚠️ **Solo se muestran pólizas con problemas:**\n' +
-                        '• Menos de 2 fotos\n' +
-                        '• Sin PDF\n' +
-                        '• Archivos corruptos o inaccesibles\n\n' +
+                        '📋 *REPORTE SIMPLIFICADO - PÓLIZAS SIN FOTOS*\n\n' +
+                        '📊 *Columnas del reporte:*\n' +
+                        '• NUMERO\\_POLIZA\n' +
+                        '• FOTOS \\(X = Sin fotos, ✓ = Con fotos\\)\n' +
+                        '• PDF \\(X = Sin PDF, ✓ = Con PDF\\)\n\n' +
+                        '🎯 *Solo aparecen pólizas SIN FOTOS:*\n' +
+                        '🔴 Rojo: Sin fotos Y sin PDF\n' +
+                        '🟠 Naranja: Sin fotos pero con PDF\n\n' +
+                        '💡 *Objetivo: Saber exactamente qué pólizas necesitan fotos*\n\n' +
                         `📅 Generado: ${new Date().toLocaleString('es-MX')}`,
                     parse_mode: 'Markdown'
                 }

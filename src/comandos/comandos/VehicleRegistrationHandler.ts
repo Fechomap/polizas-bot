@@ -972,10 +972,10 @@ export class VehicleRegistrationHandler {
             
             logger.info(`Conversión NIV completada exitosamente: ${registro.datos.serie}`);
 
-            // ✅ MEJORA: Vincular fotos DESPUÉS de la transacción (asíncrono)
+            // ✅ CORRECCIÓN: Vincular fotos directamente a la PÓLIZA NIV (no al vehículo)
             if (registro.fotos && registro.fotos.length > 0) {
-                // Procesar fotos en background para no bloquear la respuesta
-                this.procesarFotosNIVAsync(vehiculo._id, registro.fotos);
+                // Procesar fotos en background para la póliza NIV
+                this.procesarFotosPolizaNIVAsync(polizaCreada[0]._id, polizaCreada[0].numeroPoliza, registro.fotos);
             }
 
             // ✅ OPTIMIZACIÓN: Mensaje de confirmación más conciso
@@ -1069,6 +1069,57 @@ export class VehicleRegistrationHandler {
             }
         } catch (error: any) {
             logger.error(`Error crítico procesando fotos asíncronas para vehículo ${vehicleId}:`, error.message);
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Procesar fotos para pólizas NIV
+     */
+    private static async procesarFotosPolizaNIVAsync(policyId: any, policyNumber: string, fotos: any[]): Promise<void> {
+        try {
+            logger.info(`Iniciando procesamiento de fotos para póliza NIV: ${policyNumber}`);
+            
+            const cloudflareStorage = getInstance();
+            const Policy = require('../../models/policy').default;
+            
+            const fotosR2: any[] = [];
+            
+            // Subir cada foto a R2
+            for (const foto of fotos) {
+                try {
+                    const fileInfo = await cloudflareStorage.uploadPolicyPhoto(
+                        foto.buffer,
+                        policyNumber,
+                        foto.originalName || 'foto-niv.jpg'
+                    );
+                    
+                    fotosR2.push({
+                        url: fileInfo.url,
+                        key: fileInfo.key,
+                        size: fileInfo.size,
+                        contentType: fileInfo.contentType,
+                        uploadDate: new Date(),
+                        originalName: foto.originalName || 'foto-niv.jpg',
+                        fuenteOriginal: 'REGISTRO_VEHICULO_NIV'
+                    });
+                    
+                    logger.info(`Foto NIV subida: ${fileInfo.key}`);
+                } catch (error: any) {
+                    logger.error(`Error subiendo foto NIV ${foto.originalName}:`, error.message);
+                }
+            }
+            
+            // Actualizar la póliza con las fotos
+            if (fotosR2.length > 0) {
+                await Policy.findByIdAndUpdate(policyId, {
+                    $push: { 'archivos.r2Files.fotos': { $each: fotosR2 } }
+                });
+                
+                logger.info(`${fotosR2.length} fotos vinculadas a póliza NIV: ${policyNumber}`);
+            }
+            
+        } catch (error: any) {
+            logger.error(`Error crítico procesando fotos póliza NIV ${policyNumber}:`, error.message);
         }
     }
 
