@@ -50,24 +50,27 @@ _Solo usuarios administradores pueden acceder a estas funciones._
     }
 
     /**
-     * Muestra el submenú de gestión de pólizas
+     * Muestra el submenú de gestión de pólizas con flujo unificado
      */
     static async showPolicyMenu(ctx: Context): Promise<void> {
         const menuText = `
 📝 *GESTIÓN DE PÓLIZAS*
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Selecciona la operación a realizar:
+Flujo intuitivo: Busca primero, luego elige la acción
 
-✏️ *Editar Póliza* - Modificar datos existentes
-🗑️ *Eliminar Póliza* - Marcar como eliminada
+🔍 *Buscar Póliza* - Encuentra por nombre, póliza o RFC
+   Después podrás: Editar, Eliminar, Ver servicios
+
 🔄 *Restaurar Póliza* - Recuperar póliza eliminada
+   Búsqueda especial en pólizas eliminadas
+
+_Primero ubica la póliza, luego decide qué hacer con ella._
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('✏️ Editar Póliza', 'admin_policy_edit'),
-                Markup.button.callback('🗑️ Eliminar Póliza', 'admin_policy_delete')
+                Markup.button.callback('🔍 Buscar Póliza', 'admin_policy_search')
             ],
             [
                 Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore')

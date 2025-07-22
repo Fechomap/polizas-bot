@@ -18,6 +18,7 @@ interface IAdminHandler {
 
 interface IPolicyHandler extends IAdminHandler {
     handlePolicySelection(ctx: Context, policyId: string): Promise<void>;
+    handleUnifiedPolicySearch(ctx: Context): Promise<void>;
     handleDeleteConfirmation(ctx: Context, policyId: string): Promise<void>;
     handleRestoreConfirmation(ctx: Context, policyId: string): Promise<void>;
     handleRestoreExecution(ctx: Context, policyId: string): Promise<void>;
@@ -150,6 +151,21 @@ class AdminModule {
         // Callback para abrir menú admin
         this.bot.action('admin_menu', adminAuth.requireAdmin, (ctx: Context) => {
             return adminMenu.showMainMenu(ctx);
+        });
+
+        // Callback para menú de pólizas
+        this.bot.action('admin_policy_menu', adminAuth.requireAdmin, (ctx: Context) => {
+            return adminMenu.showPolicyMenu(ctx);
+        });
+
+        // Callback para búsqueda unificada de pólizas (NUEVO FLUJO)
+        this.bot.action('admin_policy_search', adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                await this.handlers.policy.handleUnifiedPolicySearch(ctx);
+            } catch (error) {
+                logger.error('Error en búsqueda unificada:', error);
+                await ctx.answerCbQuery('Error al iniciar búsqueda', { show_alert: true });
+            }
         });
 
         // Callbacks específicos para selección de pólizas

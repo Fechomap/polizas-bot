@@ -63,11 +63,8 @@ class PolicyHandler {
                 case 'menu':
                     return await AdminMenu.showPolicyMenu(ctx);
 
-                case 'edit':
-                    return await this.handlePolicyEdit(ctx);
-
-                case 'delete':
-                    return await this.handlePolicyDelete(ctx);
+                case 'search':
+                    return await this.handleUnifiedPolicySearch(ctx);
 
                 case 'restore':
                     return await this.handlePolicyRestore(ctx);
@@ -75,12 +72,230 @@ class PolicyHandler {
                 case 'stats':
                     return await this.handleStats(ctx);
 
+                // DEPRECATED - mantener por compatibilidad temporal
+                case 'edit':
+                    return await this.handlePolicyEdit(ctx);
+                case 'delete':
+                    return await this.handlePolicyDelete(ctx);
+
                 default:
                     await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
         } catch (error) {
             logger.error('Error en PolicyHandler:', error);
             await ctx.answerCbQuery('Error al procesar la solicitud', { show_alert: true });
+        }
+    }
+
+    /**
+     * Búsqueda unificada de pólizas - Nuevo flujo intuitivo
+     */
+    static async handleUnifiedPolicySearch(ctx: Context): Promise<void> {
+        try {
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_unified_search'
+            );
+
+            const searchText = `
+🔍 *BUSCAR PÓLIZA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Escribe uno de los siguientes datos para buscar:
+
+📝 *Número de póliza* - Ejemplo: ABC123456
+👤 *Nombre del titular* - Ejemplo: Juan Pérez  
+🆔 *RFC* - Ejemplo: JURP850101XXX
+
+Una vez encontrada, podrás elegir:
+✏️ Editar • 🗑️ Eliminar • 📊 Ver servicios
+
+_Búsqueda inteligente en pólizas activas._
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]
+            ]);
+
+            await ctx.editMessageText(searchText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            await AuditLogger.log(ctx, 'policy_unified_search_initiated', {
+                module: 'policy',
+                metadata: { operation: 'unified_search' }
+            });
+        } catch (error) {
+            logger.error('Error al iniciar búsqueda unificada de póliza:', error);
+            await ctx.reply('❌ Error al iniciar la búsqueda. Intenta nuevamente.');
+        }
+    }
+
+    /**
+     * Maneja los resultados de la búsqueda unificada
+     */
+    static async handleUnifiedPolicySearchResults(ctx: Context, searchTerm: string): Promise<void> {
+        try {
+            // Usar la función de búsqueda existente pero solo en pólizas activas
+            const searchResults = await this.searchPolicies(searchTerm, false); // false = no incluir eliminadas
+
+            if (searchResults.length === 0) {
+                const noResultsText = `
+❌ *SIN RESULTADOS*
+━━━━━━━━━━━━━━━━━━━━━━
+
+No se encontraron pólizas con: "${searchTerm}"
+
+Verifica que:
+• El término sea correcto
+• La póliza esté activa (no eliminada)
+• No tenga espacios adicionales
+
+_¿La póliza está eliminada? Usa "🔄 Restaurar Póliza"_
+                `.trim();
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_search')],
+                    [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
+                ]);
+
+                await ctx.editMessageText(noResultsText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+                return;
+            }
+
+            if (searchResults.length === 1) {
+                // Un resultado: ir directo a detalles con abanico de opciones
+                await this.showUnifiedPolicyDetails(ctx, searchResults[0]._id.toString());
+            } else {
+                // Múltiples resultados: mostrar lista para seleccionar
+                await this.showSearchResults(ctx, searchResults, searchTerm);
+            }
+
+            await AuditLogger.log(ctx, 'policy_unified_search_completed', {
+                module: 'policy',
+                metadata: {
+                    searchTerm,
+                    resultsCount: searchResults.length
+                }
+            });
+        } catch (error) {
+            logger.error('Error en búsqueda unificada:', error);
+            await ctx.reply('❌ Error en la búsqueda. Intenta nuevamente.');
+        }
+    }
+
+    /**
+     * Muestra detalles de póliza con abanico completo de opciones (NUEVO FLUJO)
+     */
+    static async showUnifiedPolicyDetails(ctx: Context, policyId: string): Promise<void> {
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const formatDate = (date: Date | string | null | undefined): string => {
+                if (!date) return 'No definida';
+                return new Date(date).toLocaleDateString('es-MX');
+            };
+
+            const formatPhone = (phone: string | null | undefined): string => {
+                if (!phone) return 'No definido';
+                if (phone.length === 10) {
+                    return `(${phone.slice(0, 2)}) ${phone.slice(2, 6)}-${phone.slice(6)}`;
+                }
+                return phone;
+            };
+
+            const serviciosReales = policy.servicios?.length || 0;
+            const registrosReales = policy.registros?.length || 0;
+
+            const detailsText = `
+📋 *DETALLES DE PÓLIZA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**INFORMACIÓN BÁSICA**
+🔖 Número: ${policy.numeroPoliza}
+👤 Titular: ${policy.titular}
+🆔 RFC: ${policy.rfc}
+📧 Email: ${policy.correo || 'No definido'}
+📞 Teléfono: ${formatPhone(policy.telefono)}
+
+**DOMICILIO**
+🏠 ${policy.calle || 'Sin calle'}, ${policy.colonia || 'Sin colonia'}
+📍 ${policy.municipio || 'Sin municipio'}, ${policy.estadoRegion || 'Sin estado'}
+📮 CP: ${policy.cp || 'Sin CP'}
+
+**VEHÍCULO**
+🚗 ${policy.marca || 'Sin marca'} ${policy.submarca || 'Sin submarca'} ${policy.año || 'Sin año'}
+🏷️ Placas: ${policy.placas || 'Sin placas'}
+🔢 Serie: ${policy.serie || 'Sin serie'}
+🎨 Color: ${policy.color || 'Sin color'}
+
+**PÓLIZA**
+📅 Emisión: ${formatDate(policy.fechaEmision)}
+📅 Fin Cobertura: ${formatDate(policy.fechaFinCobertura)}
+🛡️ Estado: ${policy.estadoPoliza || 'Sin definir'}
+🏢 Aseguradora: ${policy.aseguradora || 'Sin aseguradora'}
+
+**SERVICIOS Y REGISTROS**
+🚗 Servicios: ${serviciosReales}
+📋 Registros: ${registrosReales}
+
+🎯 **¿Qué deseas hacer con esta póliza?**
+            `.trim();
+
+            // ABANICO DE OPCIONES COMPLETO
+            const buttons = [
+                [
+                    Markup.button.callback('✏️ Editar Póliza', `admin_policy_edit_categories:${policy._id}`),
+                    Markup.button.callback('🗑️ Eliminar Póliza', `admin_policy_delete_confirm:${policy._id}`)
+                ],
+                [
+                    Markup.button.callback('🚗 Ver Servicios', `admin_service_select:${policy._id}`),
+                    Markup.button.callback('📊 Ver Estadísticas', `admin_policy_stats:${policy._id}`)
+                ],
+                [
+                    Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_search'),
+                    Markup.button.callback('⬅️ Volver', 'admin_policy_menu')
+                ]
+            ];
+
+            const keyboard = Markup.inlineKeyboard(buttons);
+
+            try {
+                await ctx.editMessageText(detailsText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+            } catch (error) {
+                await ctx.reply(detailsText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+            }
+
+            // Limpiar estado de búsqueda
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+
+            await AuditLogger.log(ctx, 'policy_unified_view', {
+                module: 'policy',
+                metadata: {
+                    policyId: policy._id.toString(),
+                    policyNumber: policy.numeroPoliza
+                }
+            });
+        } catch (error) {
+            logger.error('Error al mostrar detalles unificados:', error);
+            await ctx.reply('❌ Error al cargar los detalles de la póliza.');
         }
     }
 
@@ -633,8 +848,54 @@ Selecciona una póliza:
         results: IPolicySearchResult[],
         searchTerm: string
     ): Promise<void> {
-        // TODO: Implement search results view
-        await ctx.reply('Vista de resultados de búsqueda en desarrollo');
+        let resultText = `
+🔍 *RESULTADOS DE BÚSQUEDA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Búsqueda: "${searchTerm}"
+Encontradas: ${results.length} pólizas
+
+Selecciona una póliza:
+
+`;
+
+        const buttons: any[] = [];
+        results.forEach((policy, index) => {
+            const policyInfo = `${policy.numeroPoliza} - ${policy.titular}`;
+            resultText += `${index + 1}. ${policyInfo}\n`;
+
+            buttons.push([
+                Markup.button.callback(
+                    `${index + 1}. ${policy.numeroPoliza}`,
+                    `admin_policy_select:${policy._id}`
+                )
+            ]);
+        });
+
+        buttons.push([
+            Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_edit'),
+            Markup.button.callback('⬅️ Volver', 'admin_policy_menu')
+        ]);
+
+        const keyboard = Markup.inlineKeyboard(buttons);
+
+        try {
+            await ctx.editMessageText(resultText.trim(), {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        } catch (error) {
+            await ctx.reply(resultText.trim(), {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+        }
+
+        // Actualizar estado admin con resultados de búsqueda
+        adminStateManager.updateAdminState(ctx.from!.id, ctx.chat!.id, {
+            searchResults: results.map(p => p._id.toString()),
+            searchTerm
+        });
     }
 
     static async handlePolicySelection(ctx: Context, policyId: string): Promise<void> {
@@ -646,7 +907,16 @@ Selecciona una póliza:
                 return;
             }
 
-            await this.showPolicyDetails(ctx, policy);
+            // Verificar si viene del nuevo flujo unificado
+            const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
+            
+            if (adminState && adminState.operation === 'policy_unified_search') {
+                // Nuevo flujo: mostrar abanico completo de opciones
+                await this.showUnifiedPolicyDetails(ctx, policyId);
+            } else {
+                // Flujo legacy: mostrar detalles tradicionales
+                await this.showPolicyDetails(ctx, policy);
+            }
         } catch (error) {
             logger.error('Error al seleccionar póliza:', error);
             await ctx.reply('❌ Error al cargar la póliza.');
@@ -654,8 +924,124 @@ Selecciona una póliza:
     }
 
     static async handleDeleteConfirmation(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement delete confirmation
-        await ctx.reply('Confirmación de eliminación en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+
+            if (!policy) {
+                await ctx.reply('❌ Póliza no encontrada.');
+                return;
+            }
+
+            const confirmText = `
+⚠️ *CONFIRMAR ELIMINACIÓN*
+━━━━━━━━━━━━━━━━━━━━━━
+
+¿Estás seguro de eliminar esta póliza?
+
+**Póliza:** ${policy.numeroPoliza}
+**Titular:** ${policy.titular}
+
+⚠️ Esta acción es **reversible** (eliminación lógica)
+✅ Los archivos y servicios se conservarán
+🔄 Se puede restaurar posteriormente
+
+Escribe el motivo de eliminación o presiona Cancelar:
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]
+            ]);
+
+            await ctx.editMessageText(confirmText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+            // Cambiar estado para esperar el motivo
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_deletion_reason', {
+                policyId,
+                policyNumber: policy.numeroPoliza
+            });
+
+            await AuditLogger.log(ctx, 'policy_deletion_confirmation_requested', {
+                module: 'policy',
+                entityType: 'policy',
+                entityId: policyId,
+                metadata: {
+                    policyNumber: policy.numeroPoliza
+                }
+            });
+        } catch (error) {
+            logger.error('Error en confirmación de eliminación:', error);
+            await ctx.reply('❌ Error al procesar la solicitud.');
+        }
+    }
+
+    static async handleDeletionReason(ctx: Context, reason: string): Promise<boolean> {
+        try {
+            const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
+
+            if (!adminState || adminState.operation !== 'policy_deletion_reason') {
+                return false;
+            }
+
+            const { policyNumber } = adminState.data;
+
+            // Ejecutar eliminación lógica
+            const result = await markPolicyAsDeleted(policyNumber, reason);
+
+            if (result) {
+                const successText = `
+✅ *PÓLIZA ELIMINADA*
+━━━━━━━━━━━━━━━━━━━━━━
+
+**Póliza:** ${policyNumber}
+**Motivo:** ${reason}
+**Fecha:** ${new Date().toLocaleDateString('es-MX')}
+
+La póliza ha sido marcada como ELIMINADA.
+Se puede restaurar desde "Restaurar Póliza".
+                `.trim();
+
+                await ctx.reply(successText, {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '⬅️ Volver al Menú', callback_data: 'admin_policy_menu' }]
+                        ]
+                    }
+                });
+
+                // Log de auditoría
+                await AuditLogger.log(ctx, 'policy_deleted', {
+                    module: 'policy',
+                    entityType: 'policy',
+                    entityId: policyNumber,
+                    changes: {
+                        before: { estado: 'ACTIVA' },
+                        after: { estado: 'ELIMINADO' }
+                    },
+                    metadata: {
+                        policyNumber,
+                        reason,
+                        result: 'success'
+                    }
+                });
+            } else {
+                await ctx.reply(
+                    '❌ Error: No se pudo eliminar la póliza. Verifica que esté activa.'
+                );
+            }
+
+            // Limpiar estado
+            adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+            return true;
+        } catch (error) {
+            logger.error('Error al ejecutar eliminación:', error);
+            await ctx.reply('❌ Error al eliminar la póliza.');
+            return false;
+        }
     }
 
     static async handleRestoreConfirmation(ctx: Context, policyId: string): Promise<void> {
@@ -1479,7 +1865,13 @@ El cambio se ha guardado exitosamente.
 
             const messageText = (ctx.message as any).text.trim();
             
-            // Verificar si estamos en búsqueda de póliza para editar
+            // Verificar si estamos en búsqueda unificada (NUEVO FLUJO)
+            if (adminState.operation === 'policy_unified_search') {
+                await this.handleUnifiedPolicySearchResults(ctx, messageText);
+                return true; // Mensaje procesado
+            }
+
+            // Verificar si estamos en búsqueda de póliza para editar (LEGACY)
             if (adminState.operation === 'policy_search_for_edit') {
                 await this.handlePolicySearch(ctx, messageText);
                 return true; // Mensaje procesado
@@ -1500,6 +1892,16 @@ El cambio se ha guardado exitosamente.
             // Verificar si estamos editando un campo de póliza
             if (adminState.operation === 'policy_field_editing') {
                 await this.handleFieldEditInput(ctx, messageText);
+                return true; // Mensaje procesado
+            }
+
+            // Verificar si estamos esperando el motivo de eliminación
+            if (adminState.operation === 'policy_deletion_reason') {
+                if (messageText.length < 3) {
+                    await ctx.reply('❌ El motivo debe tener al menos 3 caracteres.');
+                    return true;
+                }
+                await this.handleDeletionReason(ctx, messageText);
                 return true; // Mensaje procesado
             }
 
