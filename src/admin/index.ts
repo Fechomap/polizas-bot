@@ -8,6 +8,7 @@ import policyHandler from './handlers/policyHandler';
 import serviceHandler from './handlers/serviceHandler';
 import databaseHandler from './handlers/databaseHandler';
 import reportsHandler from './handlers/reportsHandler';
+import notificationsHandler from './handlers/notificationsHandler';
 import SimpleScriptsHandler from './handlers/simpleScriptsHandler';
 
 interface IAdminHandler {
@@ -114,6 +115,7 @@ class AdminModule {
         service: IServiceHandler;
         database: IAdminHandler;
         reports: IReportsHandler;
+        notifications: IAdminHandler;
         scripts: ISimpleScriptsHandler;
     };
 
@@ -124,6 +126,7 @@ class AdminModule {
             service: serviceHandler as IServiceHandler,
             database: databaseHandler as IAdminHandler,
             reports: reportsHandler as IReportsHandler,
+            notifications: new notificationsHandler() as IAdminHandler,
             scripts: new SimpleScriptsHandler() as ISimpleScriptsHandler
         };
     }

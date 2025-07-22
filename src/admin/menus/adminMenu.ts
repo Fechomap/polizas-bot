@@ -17,6 +17,7 @@ Selecciona una opción para gestionar:
 🚗 *EXPEDIENTES* - Gestionar servicios y registros
 📊 *REPORTES PDF* - Estadísticas visuales en PDF
 💾 *BASE DE DATOS* - Scripts y mantenimiento
+📱 *NOTIFICACIONES* - Gestión de avisos programados
 
 _Solo usuarios administradores pueden acceder a estas funciones._
     `.trim();
@@ -30,6 +31,9 @@ _Solo usuarios administradores pueden acceder a estas funciones._
                 Markup.button.callback('📊 REPORTES PDF', 'admin_reports_menu'),
                 Markup.button.callback('💾 BASE DE DATOS', 'admin_database_menu')
             ],
+            [
+                Markup.button.callback('📱 NOTIFICACIONES', 'admin_notifications_menu')
+            ]
         ]);
 
         if (ctx.callbackQuery) {
@@ -165,6 +169,40 @@ Exportación y limpieza de datos:
             [Markup.button.callback('📊 Exportar Excel', 'admin_database_export')],
             [Markup.button.callback('🧹 Limpieza Automática', 'admin_database_autocleanup')],
             [Markup.button.callback('📋 Validación Archivos', 'admin_database_file_validation')],
+            [Markup.button.callback('⬅️ Volver', 'admin_menu')]
+        ]);
+
+        await ctx.editMessageText(menuText, {
+            parse_mode: 'Markdown',
+            ...keyboard
+        });
+    }
+
+    /**
+     * Muestra el submenú de gestión de notificaciones
+     */
+    static async showNotificationsMenu(ctx: Context): Promise<void> {
+        const menuText = `
+📱 *GESTIÓN DE NOTIFICACIONES*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Administra notificaciones programadas del sistema:
+
+📋 *Ver Notificaciones del Día* - Lista completa de hoy
+⏰ *Ver Próximas Hoy* - Pendientes para hoy
+✏️ *Editar Notificaciones* - Reprogramar fechas y horas
+
+_Gestiona todas las notificaciones de contacto y término automáticas._
+        `.trim();
+
+        const keyboard = Markup.inlineKeyboard([
+            [
+                Markup.button.callback('📋 Ver del Día', 'admin_notifications_list'),
+                Markup.button.callback('⏰ Ver Próximas', 'admin_notifications_today')
+            ],
+            [
+                Markup.button.callback('✏️ Editar Notificaciones', 'admin_notifications_edit')
+            ],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
