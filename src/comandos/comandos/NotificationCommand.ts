@@ -4,7 +4,6 @@ import { Markup } from 'telegraf';
 import { getInstance as getNotificationManager } from '../../services/NotificationManager';
 import moment from 'moment-timezone';
 import type { IBaseHandler, NavigationContext } from './BaseCommand';
-import type { NotificationManager } from '../../services/NotificationManager';
 import type { IScheduledNotification } from '../../types/database';
 
 // Interfaces
@@ -159,14 +158,20 @@ class NotificationCommand extends BaseCommand {
                             // Emoji según el estado
                             const statusEmoji: Record<string, string> = {
                                 PENDING: '⏳',
+                                SCHEDULED: '🕒',
+                                PROCESSING: '⚡',
                                 SENT: '✅',
                                 FAILED: '❌',
                                 CANCELLED: '🚫'
                             };
 
+                            // Emoji según el tipo de notificación
+                            const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
+                                            notification.tipoNotificacion === 'TERMINO' ? '🟩' : '';
+
                             const emoji = statusEmoji[notification.status] || '❓';
 
-                            message += `${emoji} *${formattedTime}* - ${notification.status}\n`;
+                            message += `${emoji}${tipoEmoji} *${formattedTime}* - ${notification.tipoNotificacion || 'MANUAL'}\n`;
                             message += `📝 Póliza: ${notification.numeroPoliza}\n`;
                             message += `📄 Exp: ${notification.expedienteNum}\n`;
 
@@ -255,8 +260,13 @@ class NotificationCommand extends BaseCommand {
                         );
                         const formattedTime = scheduledMoment.format('HH:mm');
 
-                        message += `🔹 *${formattedTime}* - ${notification.expedienteNum}\n`;
+                        // Emoji según el tipo de notificación
+                        const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
+                                        notification.tipoNotificacion === 'TERMINO' ? '🟩' : '';
+
+                        message += `🔹${tipoEmoji} *${formattedTime}* - ${notification.expedienteNum}\n`;
                         message += `📝 Póliza: ${notification.numeroPoliza}\n`;
+                        message += `📋 Tipo: ${notification.tipoNotificacion || 'MANUAL'}\n`;
 
                         if (notification.marcaModelo) {
                             message += `🚗 ${notification.marcaModelo}\n`;

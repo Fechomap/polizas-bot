@@ -4,7 +4,7 @@ import ScheduledNotification from '../models/scheduledNotification';
 import { getPolicyByNumber } from '../controllers/policyController';
 import moment from 'moment-timezone';
 import { Telegraf } from 'telegraf';
-import { IScheduledNotification, IPolicy } from '../../types';
+import { IScheduledNotification } from '../../types';
 
 moment.tz.setDefault('America/Mexico_City');
 
@@ -27,10 +27,6 @@ interface IPolicyData {
     telefono?: string;
 }
 
-interface IActiveTimer {
-    timerId: NodeJS.Timeout;
-    notificationId: string;
-}
 
 interface INotificationStats {
     activeTimers: number;
@@ -447,6 +443,97 @@ class NotificationManager {
     }
 
     /**
+     * Envía fotos del vehículo para notificaciones de contacto
+     */
+    async sendVehiclePhotos(notification: IScheduledNotification): Promise<void> {
+        try {
+            if (!notification.numeroPoliza) {
+                logger.warn(`[PHOTOS] No se puede obtener fotos sin número de póliza para ${notification._id}`);
+                return;
+            }
+
+            // Obtener datos de la póliza
+            const policy = await getPolicyByNumber(notification.numeroPoliza);
+            if (!policy) {
+                logger.warn(`[PHOTOS] Póliza no encontrada: ${notification.numeroPoliza}`);
+                return;
+            }
+
+            // Verificar si hay fotos disponibles
+            const fotos = policy.archivos?.r2Files?.fotos || [];
+            if (fotos.length === 0) {
+                logger.info(`[PHOTOS] No hay fotos disponibles para póliza ${notification.numeroPoliza}`);
+                return;
+            }
+
+            // Tomar máximo 2 fotos
+            const fotosAEnviar = fotos.slice(0, 2);
+            logger.info(`[PHOTOS] Enviando ${fotosAEnviar.length} foto(s) del vehículo ${notification.numeroPoliza}`);
+
+            // Enviar fotos una por una con caption
+            for (let i = 0; i < fotosAEnviar.length; i++) {
+                const foto = fotosAEnviar[i];
+                const caption = `📸 ${notification.numeroPoliza} - ${notification.marcaModelo || 'Vehículo'} (${i + 1}/${fotosAEnviar.length})`;
+
+                try {
+                    await this.sendPhotoWithTimeout(
+                        notification.targetGroupId,
+                        foto.url,
+                        { caption },
+                        30000 // 30 segundos timeout
+                    );
+
+                    // Pequeña pausa entre fotos para evitar flood
+                    if (i < fotosAEnviar.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000)); // 1 segundo
+                    }
+                } catch (photoError: any) {
+                    logger.error(`Error enviando foto ${i + 1} para ${notification.numeroPoliza}:`, photoError);
+                    // Continuar con la siguiente foto si una falla
+                }
+            }
+
+            logger.info(`[PHOTOS] Fotos enviadas exitosamente para ${notification.numeroPoliza}`);
+        } catch (error: any) {
+            logger.error(`Error general enviando fotos para ${notification.numeroPoliza}:`, error);
+            // No lanzar error para que la notificación siga su curso
+        }
+    }
+
+    /**
+     * Envía foto con timeout personalizado
+     */
+    async sendPhotoWithTimeout(
+        chatId: number,
+        photoUrl: string,
+        options: any,
+        timeout: number
+    ): Promise<any> {
+        return new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+                reject(new Error(`Timeout enviando foto después de ${timeout}ms`));
+            }, timeout);
+
+            if (!this.bot) {
+                clearTimeout(timeoutId);
+                reject(new Error('Bot no disponible'));
+                return;
+            }
+
+            this.bot.telegram
+                .sendPhoto(chatId, photoUrl, options)
+                .then((result: any) => {
+                    clearTimeout(timeoutId);
+                    resolve(result);
+                })
+                .catch((error: any) => {
+                    clearTimeout(timeoutId);
+                    reject(error);
+                });
+        });
+    }
+
+    /**
      * Envía una notificación con verificación de estado
      */
     async sendNotification(notificationId: string): Promise<void> {
@@ -471,6 +558,13 @@ class NotificationManager {
             if (!notification) {
                 logger.warn(`[SEND_BLOCKED] ${notificationId} no está disponible para envío`);
                 return;
+            }
+
+            // Si es notificación de CONTACTO, enviar fotos primero
+            if (notification.tipoNotificacion === 'CONTACTO') {
+                await this.sendVehiclePhotos(notification);
+                // Pausa breve antes del mensaje principal
+                await new Promise(resolve => setTimeout(resolve, 2000)); // 2 segundos
             }
 
             // Construir el mensaje según el tipo de notificación
@@ -860,7 +954,7 @@ class NotificationManager {
         }
 
         // Limpiar todos los timers
-        for (const [id, timerId] of this.activeTimers.entries()) {
+        for (const [, timerId] of this.activeTimers.entries()) {
             clearTimeout(timerId);
         }
 
