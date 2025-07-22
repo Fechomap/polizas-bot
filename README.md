@@ -9,12 +9,15 @@ Bot para gestión de pólizas de seguros a través de Telegram. Permite registra
 - **Cálculos automáticos**: Costo, fecha, origen/destino y horarios de contacto/término
 - **Integración HERE Maps**: Geocoding reverso, cálculo de rutas y tiempos con fallback Haversine
 - **Programación automática**: Notificaciones de contacto (22-39 min aleatorios) y término (ruta + 40 min)
+- **Sistema NIV Automático**: Conversión automática de vehículos 2023-2026 a NIVs (Números de Identificación Vehicular)
+- **Base de Datos de Autos**: Registro dual de vehículos con flujos de asignación de pólizas
 - Gestión de pagos y servicios con seguimiento completo
 - Carga de fotos y documentos PDF con almacenamiento en Cloudflare R2
 - Reportes de estado y alertas automáticas
 - Almacenamiento de datos en MongoDB con esquemas optimizados
 - Borrado lógico de pólizas
 - Exportación e importación en formato Excel
+- **Migración completa a TypeScript**: Mayor mantenibilidad y tipado estático
 
 ## Requisitos
 
@@ -79,6 +82,7 @@ SESSION_TIMEOUT=1800000
 | **💰 Añadir Pago** | `/addpayment` | Registra pagos realizados para una póliza |
 | **🚗 Añadir Servicio** | `/addservice` | **Sistema automatizado** de registro de servicios |
 | **📁 Subir Archivos** | `/upload` | Adjunta fotos y PDFs a pólizas existentes |
+| **🚙 Base de Datos de Autos** | `/basedatos` | **Sistema dual** de registro de vehículos y asignación de pólizas |
 
 ### 🔧 Funciones Administrativas
 
@@ -108,31 +112,50 @@ SESSION_TIMEOUT=1800000
 - **SERVICIOS**: Solo confirmados como "Asignados"
 - **NOTIFICACIONES**: Contacto (22-39 min) y Término (ruta + 1.6×)
 
+### 🚙 Sistema de Base de Datos de Autos
+
+#### **Flujo Dual de Gestión de Vehículos**
+1. **Persona 1 - Registro de Vehículo**: Captura serie (VIN), marca, submarca, año, color, placas, fotos
+2. **Persona 2 - Asignación de Póliza**: Asigna póliza con PDF, datos de aseguradora y pagos
+3. **Sistema NIV Automático**: Vehículos 2023-2026 se convierten automáticamente en NIVs
+4. **Reportes Integrados**: NIVs aparecen en reportes prioritarios con eliminación automática al usar
+
+#### **Características del Sistema NIV**
+- **Detección Automática**: Años 2023, 2024, 2025 y 2026
+- **Conversión Directa**: Vehículo → Póliza NIV sin intervención manual
+- **Número de Póliza = Serie del Vehículo**: Sin pagos ni PDF requeridos
+- **Eliminación al Usar**: Se elimina automáticamente después del primer servicio
+
 ## Estructura del Proyecto
 
 ```
 polizas-bot/
-├── src/
-│   ├── bot.js             # Punto de entrada principal
-│   ├── config.js          # Configuración general
-│   ├── database.js        # Conexión a MongoDB
+├── src/                   # **MIGRADO COMPLETAMENTE A TYPESCRIPT**
+│   ├── bot.ts             # Punto de entrada principal
+│   ├── config.ts          # Configuración general
+│   ├── database.ts        # Conexión a MongoDB
 │   ├── comandos/
-│   │   ├── commandHandler.js     # Manejo de comandos del bot
-│   │   ├── handleServiceData.js  # Procesamiento automático de servicios
+│   │   ├── commandHandler.ts     # Manejo de comandos del bot
+│   │   ├── handleServiceData.ts  # Procesamiento automático de servicios
 │   │   └── comandos/
-│   │       └── OcuparPolizaCallback.js # Manejo de callbacks y automatización
+│   │       └── OcuparPolizaCallback.ts # Manejo de callbacks y automatización
 │   ├── controllers/
-│   │   └── policyController.js   # Lógica de negocio con registros vs servicios
+│   │   ├── policyController.ts   # Lógica de negocio con registros vs servicios
+│   │   └── vehicleController.ts  # **NUEVO**: Gestión completa de vehículos
+│   ├── handlers/
+│   │   ├── VehicleRegistrationHandler.ts # **NUEVO**: Registro de vehículos con NIV automático
+│   │   └── PolicyAssignmentHandler.ts    # **NUEVO**: Asignación de pólizas a vehículos
 │   ├── middleware/
-│   │   └── groupHandler.js       # Validación de grupos
+│   │   └── groupHandler.ts       # Validación de grupos
 │   ├── models/
-│   │   └── policy.js            # Modelo con esquemas de registros y servicios
+│   │   ├── policy.ts            # Modelo con esquemas de registros y servicios + campos NIV
+│   │   └── vehicle.ts           # **NUEVO**: Modelo completo de vehículos
 │   ├── services/
-│   │   └── HereMapsService.js   # Integración con HERE Maps API
+│   │   └── HereMapsService.ts   # Integración con HERE Maps API
 │   └── utils/
-│       ├── fileHandler.js       # Manejo de archivos
-│       ├── FlowStateManager.js  # Gestión de estados de flujo
-│       └── logger.js           # Sistema de logs
+│       ├── fileHandler.ts       # Manejo de archivos
+│       ├── FlowStateManager.ts  # Gestión de estados de flujo
+│       └── logger.ts           # Sistema de logs
 ├── scripts/
 │   ├── backup/            # Directorio para respaldos
 │   ├── debug/             # Scripts de depuración para HERE Maps
@@ -144,8 +167,23 @@ polizas-bot/
 │   ├── exportExcel.js     # Exportación solo a Excel
 │   ├── import.js          # Importación completa
 │   └── importExcel.js     # Importación solo desde Excel
-├── tests/                 # Tests unitarios
-│   └── services/          # Tests de servicios
+├── docs/                  # **NUEVA**: Documentación completa del proyecto
+│   ├── 01-solucion-duplicacion-alertas.md
+│   ├── 02-roadmap-sistema-crud.md
+│   ├── 03-requerimiento-sistema-calificacion.md
+│   ├── 04-sistema-bd-autos.md
+│   ├── 05-resumen-final-bd-autos.md
+│   ├── 06-investigacion-correcion-archivos-bd-autos.md
+│   ├── 07-estado-actual-navegacion.md
+│   ├── 08-typescript-migration-roadmap.md
+│   ├── 09-navegacion-persistente-y-reportes.md
+│   ├── 10-roadmap-navegacion-y-reportes.md
+│   ├── 11-roadmap-visual-sistema-niv-automatico.md # **NUEVO**: Sistema NIV
+│   ├── 12-sistema-vehiculos-nips-2024-2026.md      # **NUEVO**: Requerimientos NIV
+│   └── README.md
+├── tests/                 # Tests unitarios (migrados a TypeScript)
+│   ├── services/          # Tests de servicios
+│   └── handlers/          # **NUEVO**: Tests para handlers de vehículos
 └── logs/                  # Directorio para logs
 ```
 
@@ -319,6 +357,9 @@ railway connect mongodb
 - **HERE Maps**: La API key debe tener permisos de geocoding y routing
 - **Registros vs Servicios**: Los registros persisten todos los intentos, servicios solo los confirmados
 - **Automatización**: El sistema calcula horarios automáticamente, reduciendo error humano
+- **Sistema NIV**: Vehículos 2023-2026 se convierten automáticamente en pólizas sin intervención manual
+- **Base de Datos de Autos**: Flujo dual para registro y asignación de vehículos
+- **TypeScript**: Proyecto completamente migrado para mejor mantenibilidad y desarrollo
 
 ## Licencia
 
