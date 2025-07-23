@@ -149,7 +149,7 @@ async function exportExcelStream() {
         for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
             try {
                 processedCount++;
-                
+
                 if (processedCount % 100 === 0) {
                     console.log(`📊 Procesadas ${processedCount}/${totalPolicies} pólizas...`);
                 }

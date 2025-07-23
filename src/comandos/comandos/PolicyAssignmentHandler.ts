@@ -1161,7 +1161,7 @@ export class PolicyAssignmentHandler {
                     // Actualizar la póliza con la referencia a R2
                     if (uploadResult?.url) {
                         const polizaActualizada = await Policy.findById(polizaGuardada._id);
-                        
+
                         if (!polizaActualizada) {
                             console.error('No se pudo encontrar la póliza para actualizar con R2');
                             return false;

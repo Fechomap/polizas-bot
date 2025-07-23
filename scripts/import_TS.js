@@ -54,7 +54,7 @@ const findLatestExport = async backupDir => {
         const latestExportDir = exportDirs[0];
         const exportDirPath = path.join(backupDir, latestExportDir);
         const excelPath = path.join(exportDirPath, 'polizas_backup.xlsx');
-        
+
         try {
             await fs.access(excelPath);
             return {
@@ -81,18 +81,18 @@ const convertirFecha = fecha => {
             const date = new Date(fecha);
             return !isNaN(date.getTime()) ? date : null;
         }
-        
+
         // Fecha ya es objeto Date
         if (fecha instanceof Date) {
             return !isNaN(fecha.getTime()) ? fecha : null;
         }
-        
+
         // Fecha como número de serie de Excel
         if (typeof fecha === 'number') {
             const date = new Date(Math.round((fecha - 25569) * 86400 * 1000));
             return !isNaN(date.getTime()) ? date : null;
         }
-        
+
         // Fecha como string en formato dd/mm/yyyy
         if (typeof fecha === 'string' && fecha.includes('/')) {
             const partes = fecha.split('/');
@@ -130,13 +130,13 @@ const importData = async () => {
     try {
         const backupDir = path.join(__dirname, 'backup');
         const { excelPath, exportDir, exportDirName } = await findLatestExport(backupDir);
-        
+
         console.log(`🔍 Usando la exportación más reciente: ${exportDirName}`);
         console.log(`📄 Leyendo archivo Excel: ${excelPath}`);
-        
+
         const filesDir = path.join(exportDir, 'files');
         console.log(`🗂️ Directorio de archivos: ${filesDir}`);
-        
+
         try {
             await fs.access(filesDir);
             console.log('✅ Directorio de archivos encontrado');
@@ -146,7 +146,7 @@ const importData = async () => {
 
         // Leer archivo Excel con validación
         const workbook = XLSX.readFile(excelPath);
-        
+
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
             throw new Error('El archivo Excel no contiene hojas de trabajo');
         }
@@ -154,7 +154,7 @@ const importData = async () => {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const data = XLSX.utils.sheet_to_json(sheet, { defval: null });
-        
+
         console.log(`📊 Datos leídos desde Excel: ${data.length} registros de la hoja: ${sheetName}`);
 
         if (data.length === 0) {
@@ -186,7 +186,7 @@ const importData = async () => {
         for (const item of data) {
             try {
                 processedCount++;
-                
+
                 if (processedCount % 25 === 0) {
                     console.log(`📊 Procesando registro ${processedCount}/${data.length}`);
                 }
@@ -202,7 +202,7 @@ const importData = async () => {
                 for (let i = 1; i <= 12; i++) {
                     const monto = item[`PAGO${i}_MONTO`];
                     const fecha = item[`PAGO${i}_FECHA`];
-                    
+
                     if (monto || fecha) {
                         const pagoData = {
                             numeroMembresia: i,
@@ -211,7 +211,7 @@ const importData = async () => {
                             estado: 'REALIZADO', // Asumimos que los pagos importados están realizados
                             metodoPago: 'IMPORTADO'
                         };
-                        
+
                         // Solo agregar si tiene monto válido
                         if (pagoData.monto > 0) {
                             pagos.push(pagoData);
@@ -226,7 +226,7 @@ const importData = async () => {
                     const fecha = item[`SERVICIO${i}_FECHA`];
                     const expediente = item[`SERVICIO${i}_EXPEDIENTE`];
                     const origenDestino = item[`SERVICIO${i}_ORIGEN_DESTINO`];
-                    
+
                     if (costo || fecha || expediente || origenDestino) {
                         const servicioData = {
                             numeroServicio: i,
@@ -236,7 +236,7 @@ const importData = async () => {
                             origenDestino: toUpperIfExists(origenDestino),
                             estado: 'COMPLETADO'
                         };
-                        
+
                         // Solo agregar si tiene información relevante
                         if (servicioData.costo > 0 || servicioData.numeroExpediente || servicioData.origenDestino) {
                             servicios.push(servicioData);
@@ -247,16 +247,16 @@ const importData = async () => {
                 // Procesar archivos con manejo de errores mejorado
                 const archivos = { fotos: [], pdfs: [] };
                 const policyDir = path.join(filesDir, numeroPoliza);
-                
+
                 try {
                     await fs.access(policyDir);
                     const files = await fs.readdir(policyDir);
-                    
+
                     for (const file of files) {
                         try {
                             const filePath = path.join(policyDir, file);
                             const fileData = await fs.readFile(filePath);
-                            
+
                             if (file.startsWith('foto_') && file.endsWith('.jpg')) {
                                 archivos.fotos.push({
                                     data: fileData,
@@ -346,7 +346,7 @@ const importData = async () => {
 
                 // Insertar o actualizar la póliza
                 const existingPolicy = await Policy.findOne({ numeroPoliza: numeroPoliza });
-                
+
                 const result = await Policy.findOneAndUpdate(
                     { numeroPoliza: numeroPoliza },
                     { $set: policyData },

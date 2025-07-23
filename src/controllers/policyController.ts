@@ -512,7 +512,7 @@ export const getDetailedPaymentInfo = async (
  *   1) Pólizas sin servicios (y mayores de 26 días de emisión).
  *   2) Luego pólizas con servicios, ordenadas por fecha del último servicio (más antiguo primero).
  *   3) Orden secundario por fechaEmision más antigua.
- * 
+ *
  * NIVs:
  *   - Solo NIVs sin usar (totalServicios: 0)
  *   - Ordenados por fecha de creación (más recientes primero)
@@ -524,7 +524,7 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
         const THRESHOLD_DIAS_MINIMO = 26;
 
         // 1) Obtener pólizas regulares (excluyendo NIVs)
-        const regularPolicies = await Policy.find({ 
+        const regularPolicies = await Policy.find({
             estado: 'ACTIVO',
             tipoPoliza: { $ne: 'NIV' } // Excluir NIVs del top regular
         }).lean();
@@ -538,71 +538,71 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
         }
 
         const polConCampos: PolicyWithFields[] = regularPolicies.map(pol => {
-        const msDesdeEmision = now.getTime() - pol.fechaEmision.getTime();
-        const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
+            const msDesdeEmision = now.getTime() - pol.fechaEmision.getTime();
+            const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
 
-        const servicios = pol.servicios || [];
-        if (servicios.length === 0) {
-            // Sin servicios
-            return {
-                pol,
-                priorityGroup: 1, // Mayor prioridad
-                lastServiceDate: null, // no existe
-                diasDesdeEmision
-            };
-        } else {
-            // Con servicios => calculamos fecha del último
-            let ultimoServicio: Date | null = null;
-            for (const s of servicios) {
-                if (!ultimoServicio || s.fechaServicio < ultimoServicio) {
-                    ultimoServicio = s.fechaServicio;
+            const servicios = pol.servicios || [];
+            if (servicios.length === 0) {
+                // Sin servicios
+                return {
+                    pol,
+                    priorityGroup: 1, // Mayor prioridad
+                    lastServiceDate: null, // no existe
+                    diasDesdeEmision
+                };
+            } else {
+                // Con servicios => calculamos fecha del último
+                let ultimoServicio: Date | null = null;
+                for (const s of servicios) {
+                    if (!ultimoServicio || s.fechaServicio < ultimoServicio) {
+                        ultimoServicio = s.fechaServicio;
+                    }
                 }
+                return {
+                    pol,
+                    priorityGroup: 2,
+                    lastServiceDate: ultimoServicio,
+                    diasDesdeEmision
+                };
             }
-            return {
-                pol,
-                priorityGroup: 2,
-                lastServiceDate: ultimoServicio,
-                diasDesdeEmision
-            };
-        }
-    });
+        });
 
-    // 3) Filtrar las pólizas muy recientes (si se desea)
-    const polFiltradas = polConCampos.filter(({ diasDesdeEmision }) => {
-        // Ej.: descartar si la póliza se emitió hace menos de 26 días
-        return diasDesdeEmision >= THRESHOLD_DIAS_MINIMO;
-    });
+        // 3) Filtrar las pólizas muy recientes (si se desea)
+        const polFiltradas = polConCampos.filter(({ diasDesdeEmision }) => {
+            // Ej.: descartar si la póliza se emitió hace menos de 26 días
+            return diasDesdeEmision >= THRESHOLD_DIAS_MINIMO;
+        });
 
-    // 4) Ordenar:
-    //    - primero por priorityGroup asc (1 sin servicios, 2 con servicios)
-    //    - dentro de priorityGroup=1, por diasDesdeEmision desc (más antigua primero)
-    //    - para priorityGroup=2, ordenamos por lastServiceDate asc (más antiguo primero),
-    //      y secundario diasDesdeEmision desc (más antigua primero)
-    polFiltradas.sort((a, b) => {
-        // Comparar por priorityGroup
-        if (a.priorityGroup !== b.priorityGroup) {
-            return a.priorityGroup - b.priorityGroup;
-        }
+        // 4) Ordenar:
+        //    - primero por priorityGroup asc (1 sin servicios, 2 con servicios)
+        //    - dentro de priorityGroup=1, por diasDesdeEmision desc (más antigua primero)
+        //    - para priorityGroup=2, ordenamos por lastServiceDate asc (más antiguo primero),
+        //      y secundario diasDesdeEmision desc (más antigua primero)
+        polFiltradas.sort((a, b) => {
+            // Comparar por priorityGroup
+            if (a.priorityGroup !== b.priorityGroup) {
+                return a.priorityGroup - b.priorityGroup;
+            }
 
-        // Ambos en priorityGroup=1 => ordenamos por diasDesdeEmision desc
-        if (a.priorityGroup === 1) {
+            // Ambos en priorityGroup=1 => ordenamos por diasDesdeEmision desc
+            if (a.priorityGroup === 1) {
+                return b.diasDesdeEmision - a.diasDesdeEmision;
+            }
+
+            // Ambos en priorityGroup=2 => comparamos lastServiceDate asc
+            if (a.lastServiceDate && b.lastServiceDate) {
+                const diff = a.lastServiceDate.getTime() - b.lastServiceDate.getTime();
+                if (diff !== 0) return diff;
+            } else if (a.lastServiceDate && !b.lastServiceDate) {
+                // si uno no tiene lastServiceDate, lo ponemos después
+                return -1;
+            } else if (!a.lastServiceDate && b.lastServiceDate) {
+                return 1;
+            }
+
+            // si lastServiceDate es igual o ambos nulos, desempatar con diasDesdeEmision desc
             return b.diasDesdeEmision - a.diasDesdeEmision;
-        }
-
-        // Ambos en priorityGroup=2 => comparamos lastServiceDate asc
-        if (a.lastServiceDate && b.lastServiceDate) {
-            const diff = a.lastServiceDate.getTime() - b.lastServiceDate.getTime();
-            if (diff !== 0) return diff;
-        } else if (a.lastServiceDate && !b.lastServiceDate) {
-            // si uno no tiene lastServiceDate, lo ponemos después
-            return -1;
-        } else if (!a.lastServiceDate && b.lastServiceDate) {
-            return 1;
-        }
-
-        // si lastServiceDate es igual o ambos nulos, desempatar con diasDesdeEmision desc
-        return b.diasDesdeEmision - a.diasDesdeEmision;
-    });
+        });
 
         // 5) Tomar top 10 pólizas regulares
         const top10Regulares = polFiltradas.slice(0, 10).map(x => x.pol);
@@ -613,9 +613,9 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
             tipoPoliza: 'NIV',
             totalServicios: 0 // Solo NIVs sin usar
         })
-        .sort({ createdAt: -1 }) // Más recientes primero
-        .limit(4)
-        .lean();
+            .sort({ createdAt: -1 }) // Más recientes primero
+            .limit(4)
+            .lean();
 
         // 7) Combinar resultados y agregar metadatos
         const todasLasPolizas = [
@@ -633,9 +633,10 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
             }))
         ];
 
-        logger.info(`Reporte generado: ${top10Regulares.length} pólizas regulares + ${nips.length} NIVs`);
+        logger.info(
+            `Reporte generado: ${top10Regulares.length} pólizas regulares + ${nips.length} NIVs`
+        );
         return todasLasPolizas;
-
     } catch (error: any) {
         logger.error('Error obteniendo pólizas prioritarias y NIVs:', error);
         throw error;

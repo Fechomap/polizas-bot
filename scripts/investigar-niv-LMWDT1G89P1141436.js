@@ -51,10 +51,10 @@ async function investigarNIVDodge() {
 
         console.log('📋 2. ESTADO ACTUAL EN BASE DE DATOS:');
         console.log('-'.repeat(50));
-        
+
         // Buscar vehículo
-        const vehiculos = await Vehicle.find({ 
-            serie: SERIE_INVESTIGAR 
+        const vehiculos = await Vehicle.find({
+            serie: SERIE_INVESTIGAR
         }).lean();
 
         if (vehiculos.length === 0) {
@@ -72,7 +72,7 @@ async function investigarNIVDodge() {
                 console.log(`   • PolicyId: ${v.policyId || 'null'}`);
                 console.log(`   • CreadoPor: ${v.creadoPor}`);
                 console.log(`   • FechaCreación: ${v.createdAt}`);
-                
+
                 // Verificar fotos
                 if (v.archivos?.r2Files?.fotos) {
                     console.log(`   • Fotos R2: ${v.archivos.r2Files.fotos.length}`);
@@ -86,9 +86,9 @@ async function investigarNIVDodge() {
         // Buscar póliza
         console.log('\n📋 3. BÚSQUEDA DE PÓLIZA NIV:');
         console.log('-'.repeat(50));
-        
-        const polizas = await Policy.find({ 
-            numeroPoliza: SERIE_INVESTIGAR 
+
+        const polizas = await Policy.find({
+            numeroPoliza: SERIE_INVESTIGAR
         }).lean();
 
         if (polizas.length === 0) {
@@ -111,21 +111,21 @@ async function investigarNIVDodge() {
 
         console.log('\n📋 4. ANÁLISIS DE DETECCIÓN NIV:');
         console.log('-'.repeat(50));
-        
+
         const añoVehiculo = 2023;
         const esVehiculoNIV = añoVehiculo >= 2023 && añoVehiculo <= 2026;
-        
+
         console.log(`• Año del vehículo: ${añoVehiculo}`);
         console.log(`• ¿Es candidato NIV?: ${esVehiculoNIV ? '✅ SÍ' : '❌ NO'}`);
-        console.log(`• Rango NIV: 2023-2026`);
-        
+        console.log('• Rango NIV: 2023-2026');
+
         if (esVehiculoNIV) {
             console.log('✅ Este vehículo DEBE haberse convertido a NIV automáticamente');
         }
 
         console.log('\n📋 5. VERIFICACIÓN DE CORRECCIONES APLICADAS:');
         console.log('-'.repeat(50));
-        
+
         // Verificar si existen vehículos huérfanos recientes
         const vehiculosHuerfanos = await Vehicle.find({
             createdAt: { $gte: new Date('2025-07-21T20:50:00.000Z') },
@@ -144,22 +144,22 @@ async function investigarNIVDodge() {
 
         console.log('\n📋 6. QUERY DE REPORTES NIV:');
         console.log('-'.repeat(50));
-        
+
         const nivsDisponibles = await Policy.find({
             estado: 'ACTIVO',
             tipoPoliza: 'NIV',
             totalServicios: 0
         })
-        .sort({ createdAt: -1 })
-        .limit(4)
-        .lean();
+            .sort({ createdAt: -1 })
+            .limit(4)
+            .lean();
 
         console.log(`📊 NIVs disponibles para reportes: ${nivsDisponibles.length}`);
         if (nivsDisponibles.length > 0) {
             nivsDisponibles.forEach((niv, index) => {
                 console.log(`   ${index + 1}. ${niv.numeroPoliza} - ${niv.marca} ${niv.año}`);
             });
-            
+
             const nuestroNIV = nivsDisponibles.find(n => n.numeroPoliza === SERIE_INVESTIGAR);
             if (nuestroNIV) {
                 console.log(`✅ El NIV ${SERIE_INVESTIGAR} aparece en reportes`);
@@ -170,10 +170,10 @@ async function investigarNIVDodge() {
 
         console.log('\n📋 7. DIAGNÓSTICO FINAL:');
         console.log('═'.repeat(80));
-        
+
         const vehiculoEncontrado = vehiculos.length > 0;
         const polizaEncontrada = polizas.length > 0;
-        
+
         if (!vehiculoEncontrado && !polizaEncontrada) {
             console.log('❌ FALLO TOTAL: No se creó nada');
             console.log('🔍 Causa probable: Error antes de iniciar transacción');
@@ -188,12 +188,12 @@ async function investigarNIVDodge() {
             const vehiculo = vehiculos[0];
             const poliza = polizas[0];
             console.log('✅ CREACIÓN EXITOSA: Ambos registros existen');
-            
+
             const vinculacionCorrecta = vehiculo.policyId?.toString() === poliza._id.toString() &&
                                        poliza.vehicleId?.toString() === vehiculo._id.toString();
-            
+
             console.log(`🔗 Vinculación: ${vinculacionCorrecta ? '✅ CORRECTA' : '❌ INCORRECTA'}`);
-            
+
             if (poliza.tipoPoliza === 'NIV' && vehiculo.estado === 'CONVERTIDO_NIV') {
                 console.log('🎉 CONVERSIÓN NIV: ✅ EXITOSA');
             } else {

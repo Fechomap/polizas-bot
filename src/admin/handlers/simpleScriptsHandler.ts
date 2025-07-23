@@ -486,9 +486,9 @@ class SimpleScriptsHandler {
         try {
             const loadingMessage = await ctx.editMessageText(
                 '🔄 *Iniciando Validación de Archivos*\n\n' +
-                '📋 Analizando todas las pólizas...\n' +
-                '📊 Verificando fotos y PDFs...\n' +
-                '⏱️ Este proceso puede tardar varios minutos.',
+                    '📋 Analizando todas las pólizas...\n' +
+                    '📊 Verificando fotos y PDFs...\n' +
+                    '⏱️ Este proceso puede tardar varios minutos.',
                 { parse_mode: 'Markdown' }
             );
 
@@ -504,7 +504,8 @@ class SimpleScriptsHandler {
         } catch (error) {
             console.error('Error iniciando validación de archivos:', error);
             await ctx.editMessageText(
-                '❌ *Error*\n\nNo se pudo iniciar la validación de archivos: ' + (error as Error).message,
+                '❌ *Error*\n\nNo se pudo iniciar la validación de archivos: ' +
+                    (error as Error).message,
                 { parse_mode: 'Markdown' }
             );
             this.runningScripts.delete(userId);
@@ -526,15 +527,15 @@ class SimpleScriptsHandler {
             let stdout = '';
             let stderr = '';
 
-            child.stdout?.on('data', (data) => {
+            child.stdout?.on('data', data => {
                 stdout += data.toString();
             });
 
-            child.stderr?.on('data', (data) => {
+            child.stderr?.on('data', data => {
                 stderr += data.toString();
             });
 
-            child.on('close', async (code) => {
+            child.on('close', async code => {
                 this.runningScripts.delete(userId);
 
                 if (code === 0) {
@@ -550,7 +551,7 @@ class SimpleScriptsHandler {
                 }
             });
 
-            child.on('error', async (error) => {
+            child.on('error', async error => {
                 this.runningScripts.delete(userId);
                 console.error('Error ejecutando script de validación:', error);
                 await ctx.editMessageText(
@@ -596,7 +597,7 @@ class SimpleScriptsHandler {
                     filename: fileName
                 },
                 {
-                    caption: 
+                    caption:
                         '📋 *REPORTE SIMPLIFICADO - PÓLIZAS SIN FOTOS*\n\n' +
                         '📊 *Columnas del reporte:*\n' +
                         '• NUMERO\\_POLIZA\n' +
@@ -613,11 +614,11 @@ class SimpleScriptsHandler {
 
             // Limpiar archivo temporal
             await fs.unlink(excelPath).catch(() => {});
-
         } catch (error) {
             console.error('Error enviando reporte de validación:', error);
             await ctx.editMessageText(
-                '❌ *Error*\n\nNo se pudo enviar el reporte de validación: ' + (error as Error).message,
+                '❌ *Error*\n\nNo se pudo enviar el reporte de validación: ' +
+                    (error as Error).message,
                 { parse_mode: 'Markdown' }
             );
         }

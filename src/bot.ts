@@ -44,7 +44,7 @@ async function initializeBot(): Promise<Telegraf> {
             keepAlive: true,
             keepAliveMsecs: 10000,
             timeout: 10000, // 10 segundos para conexiones (reducido para alertas)
-            maxSockets: 10  // Permitir múltiples conexiones simultáneas para alertas
+            maxSockets: 10 // Permitir múltiples conexiones simultáneas para alertas
         });
 
         const bot = new Telegraf(config.telegram.token, {

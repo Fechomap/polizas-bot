@@ -43,10 +43,10 @@ async function investigarFalloReportes() {
 
         console.log('📋 1. ESTADO ACTUAL DE LA PÓLIZA JOURNEY NIV:');
         console.log('-'.repeat(60));
-        
+
         // Buscar póliza Journey específica
-        const polizaJourney = await Policy.findOne({ 
-            numeroPoliza: SERIE_JOURNEY 
+        const polizaJourney = await Policy.findOne({
+            numeroPoliza: SERIE_JOURNEY
         }).lean();
 
         if (!polizaJourney) {
@@ -63,7 +63,7 @@ async function investigarFalloReportes() {
             console.log(`   • servicioCounter: ${polizaJourney.servicioCounter}`);
             console.log(`   • fechaCreacion: ${polizaJourney.createdAt}`);
             console.log(`   • fechaActualización: ${polizaJourney.updatedAt}`);
-            
+
             if (polizaJourney.fechaEliminacion) {
                 console.log(`   🚨 fechaEliminacion: ${polizaJourney.fechaEliminacion}`);
                 console.log(`   🚨 motivoEliminacion: ${polizaJourney.motivoEliminacion}`);
@@ -83,24 +83,24 @@ async function investigarFalloReportes() {
 
         console.log('\n📋 2. SIMULACIÓN DEL QUERY DE REPORTES:');
         console.log('-'.repeat(60));
-        
+
         // Simular exactamente el query que usa getOldUnusedPolicies para NIVs
         const queryNIVs = {
             estado: 'ACTIVO',
             tipoPoliza: 'NIV',
             totalServicios: 0
         };
-        
+
         console.log('🔍 Query utilizado para NIVs:');
         console.log(`   ${JSON.stringify(queryNIVs, null, 2)}`);
-        
+
         const nivsEncontrados = await Policy.find(queryNIVs)
             .sort({ createdAt: -1 })
             .limit(4)
             .lean();
 
         console.log(`\n📊 RESULTADO: ${nivsEncontrados.length} NIVs encontrados`);
-        
+
         if (nivsEncontrados.length === 0) {
             console.log('❌ NO SE ENCONTRARON NIVs - EXPLICACIÓN DEL FALLO');
         } else {
@@ -111,16 +111,16 @@ async function investigarFalloReportes() {
                 console.log(`      • TotalServicios: ${niv.totalServicios}`);
                 console.log(`      • Marca: ${niv.marca} ${niv.submarca} ${niv.año}`);
                 console.log(`      • Creado: ${niv.createdAt}`);
-                
+
                 if (niv.numeroPoliza === SERIE_JOURNEY) {
-                    console.log(`      🎯 ¡ESTE ES EL JOURNEY!`);
+                    console.log('      🎯 ¡ESTE ES EL JOURNEY!');
                 }
             });
         }
 
         console.log('\n📋 3. ANÁLISIS DETALLADO DE CAMPOS CRÍTICOS:');
         console.log('-'.repeat(60));
-        
+
         if (polizaJourney) {
             // Verificar cada condición del query individualmente
             const condiciones = {
@@ -129,13 +129,13 @@ async function investigarFalloReportes() {
                 'totalServicios === 0': polizaJourney.totalServicios === 0,
                 'servicios.length === 0': !polizaJourney.servicios || polizaJourney.servicios.length === 0
             };
-            
+
             console.log('🧪 VERIFICACIÓN DE CONDICIONES:');
             Object.entries(condiciones).forEach(([condicion, cumple]) => {
                 const estado = cumple ? '✅' : '❌';
                 console.log(`   ${estado} ${condicion}: ${cumple}`);
             });
-            
+
             // Detectar la condición que está fallando
             const condicionFallida = Object.entries(condiciones).find(([_, cumple]) => !cumple);
             if (condicionFallida) {
@@ -148,19 +148,19 @@ async function investigarFalloReportes() {
 
         console.log('\n📋 4. INVESTIGACIÓN DE CAMBIOS RECIENTES:');
         console.log('-'.repeat(60));
-        
+
         // Buscar todas las pólizas que fueron actualizadas hoy
         const hoy = new Date();
         hoy.setHours(0, 0, 0, 0);
-        
+
         const polizasModificadasHoy = await Policy.find({
             updatedAt: { $gte: hoy }
         }).lean();
 
         console.log(`📊 Pólizas modificadas hoy: ${polizasModificadasHoy.length}`);
-        
+
         // Filtrar las que están relacionadas con Journey o son NIVs
-        const polizasRelevantes = polizasModificadasHoy.filter(p => 
+        const polizasRelevantes = polizasModificadasHoy.filter(p =>
             p.numeroPoliza === SERIE_JOURNEY || p.tipoPoliza === 'NIV'
         );
 
@@ -171,7 +171,7 @@ async function investigarFalloReportes() {
                 console.log(`      • Estado: ${pol.estado}`);
                 console.log(`      • TotalServicios: ${pol.totalServicios}`);
                 console.log(`      • Actualizado: ${pol.updatedAt}`);
-                
+
                 if (pol.fechaEliminacion) {
                     console.log(`      🚨 Eliminado: ${pol.fechaEliminacion}`);
                     console.log(`      🚨 Motivo: ${pol.motivoEliminacion}`);
@@ -181,7 +181,7 @@ async function investigarFalloReportes() {
 
         console.log('\n📋 5. DIAGNÓSTICO FINAL:');
         console.log('═'.repeat(80));
-        
+
         if (!polizaJourney) {
             console.log('🚨 DIAGNÓSTICO: PÓLIZA ELIMINADA');
             console.log('   La póliza Journey fue completamente eliminada de la base de datos');

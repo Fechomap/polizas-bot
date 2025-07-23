@@ -33,11 +33,11 @@ console.log('\n🏛️  ESTADOS CONFIGURADOS:');
 Object.keys(estadosCount).sort().forEach(estado => {
     const count = estadosCount[estado];
     const porcentaje = ((count / registros.length) * 100).toFixed(1);
-    
+
     // Marcar estados que deben eliminarse
     const debeEliminar = ['Oaxaca', 'Chiapas'].includes(estado);
     const status = debeEliminar ? '❌ ELIMINAR' : '✅ MANTENER';
-    
+
     console.log(`   ${status} ${estado}: ${count} (${porcentaje}%)`);
 });
 
@@ -70,7 +70,7 @@ const zonasProhibidas = ['Oaxaca', 'Chiapas'];
 Object.keys(zonasRequeridas).forEach(zona => {
     const estadosZona = zonasRequeridas[zona];
     const encontrados = estadosZona.filter(estado => Object.keys(estadosCount).includes(estado));
-    
+
     if (encontrados.length > 0) {
         console.log(`✅ ${zona}: ${encontrados.join(', ')}`);
     } else {
@@ -160,7 +160,7 @@ if (Object.keys(estadosCount).includes('Chiapas')) {
 
 // Verificar municipios incorrectos para zonas específicas
 const municipiosActuales = Object.keys(municipiosCount);
-const municipiosJalisco = municipiosActuales.filter(m => 
+const municipiosJalisco = municipiosActuales.filter(m =>
     ['Guadalajara', 'Zapopan', 'Tlaquepaque', 'Tonalá'].includes(m)
 );
 

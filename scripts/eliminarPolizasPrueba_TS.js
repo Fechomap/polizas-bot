@@ -54,13 +54,13 @@ async function eliminarPolizasPrueba() {
             console.log('   🚗 Buscando vehículos relacionados...');
 
             const vehiculosEncontrados = [];
-            
+
             // Buscar por serie si existe
             if (policy.serie) {
                 const vehicleBySerie = await Vehicle.findOne({ serie: policy.serie });
                 if (vehicleBySerie) vehiculosEncontrados.push(vehicleBySerie);
             }
-            
+
             // Buscar por vehicleId si existe
             if (policy.vehicleId) {
                 const vehicleById = await Vehicle.findById(policy.vehicleId);
@@ -68,7 +68,7 @@ async function eliminarPolizasPrueba() {
                     vehiculosEncontrados.push(vehicleById);
                 }
             }
-            
+
             // Buscar por policyId
             const vehicleByPolicyId = await Vehicle.findOne({ policyId: policy._id });
             if (vehicleByPolicyId && !vehiculosEncontrados.find(v => v._id.equals(vehicleByPolicyId._id))) {
@@ -184,7 +184,7 @@ async function eliminarPolizasPrueba() {
         }
 
         // Verificar que no haya vehículos BD AUTOS huérfanos
-        const vehiculosOBD = await Vehicle.find({ 
+        const vehiculosOBD = await Vehicle.find({
             $or: [
                 { creadoViaOBD: true },
                 { creadoVia: 'TELEGRAM_BOT' }
@@ -215,7 +215,7 @@ async function eliminarPolizasPrueba() {
         const totalPoliciesDB = await Policy.countDocuments();
         const totalVehiclesDB = await Vehicle.countDocuments();
         const bdAutosPolicies = await Policy.countDocuments({ creadoViaOBD: true });
-        const bdAutosVehicles = await Vehicle.countDocuments({ 
+        const bdAutosVehicles = await Vehicle.countDocuments({
             $or: [
                 { creadoViaOBD: true },
                 { creadoVia: 'TELEGRAM_BOT' }
@@ -226,7 +226,7 @@ async function eliminarPolizasPrueba() {
         console.log(`   - Total vehículos en DB: ${totalVehiclesDB}`);
         console.log(`   - Pólizas BD AUTOS: ${bdAutosPolicies}`);
         console.log(`   - Vehículos BD AUTOS: ${bdAutosVehicles}`);
-        
+
     } catch (error) {
         console.error('\n❌ ERROR:', error);
     } finally {

@@ -139,7 +139,6 @@ abstract class BaseCommand {
             const menuData = this.navManager.getMainMenu(userId);
             markNavigationHandled(ctx);
 
-
             if (ctx.callbackQuery) {
                 await ctx.editMessageText(menuData.text, {
                     parse_mode: menuData.parseMode,
@@ -177,7 +176,6 @@ abstract class BaseCommand {
 
             const menuData = this.navManager.getReportsMenu(userId);
             markNavigationHandled(ctx);
-
 
             if (ctx.callbackQuery) {
                 await ctx.editMessageText(menuData.text, {

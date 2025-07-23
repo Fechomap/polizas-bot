@@ -924,18 +924,13 @@ export class TextMessageHandler extends BaseCommand {
                         }
 
                         // Add "Volver al Menú" button
-                        await ctx.replyWithMarkdown(
-                            mensajeResultado,
-                            Markup.inlineKeyboard([
-                            ])
-                        );
+                        await ctx.replyWithMarkdown(mensajeResultado, Markup.inlineKeyboard([]));
                     } catch (error) {
                         this.logError('Error general al marcar pólizas como eliminadas:', error);
                         // Add "Volver al Menú" button even on error
                         await ctx.reply(
                             '❌ Hubo un error al marcar las pólizas como eliminadas. Intenta nuevamente.',
-                            Markup.inlineKeyboard([
-                            ])
+                            Markup.inlineKeyboard([])
                         );
                     } finally {
                         // Clean up the waiting state

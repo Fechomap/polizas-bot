@@ -87,7 +87,9 @@ class BaseAutosCommand extends BaseCommand {
                 const threadIdStr = threadId ? String(threadId) : null;
 
                 // Verificar si ya tiene un registro en proceso
-                if (VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)) {
+                if (
+                    VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)
+                ) {
                     await ctx.reply(
                         '⚠️ Ya tienes un registro en proceso. Completalo o cancelalo primero.'
                     );
@@ -133,7 +135,9 @@ class BaseAutosCommand extends BaseCommand {
                 const userIdStr = String(userId);
 
                 // Verificar si ya tiene una asignación en proceso
-                if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userIdStr, chatId, threadIdNum)) {
+                if (
+                    PolicyAssignmentHandler.tieneAsignacionEnProceso(userIdStr, chatId, threadIdNum)
+                ) {
                     await ctx.reply(
                         '⚠️ Ya tienes una asignación en proceso. Completala o cancelala primero.'
                     );
@@ -199,7 +203,7 @@ class BaseAutosCommand extends BaseCommand {
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const threadIdNum = typeof threadId === 'number' ? threadId : null;
                 const userIdStr = String(userId);
-                
+
                 await PolicyAssignmentHandler.iniciarAsignacion(
                     this.bot,
                     chatId,
@@ -239,7 +243,7 @@ class BaseAutosCommand extends BaseCommand {
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const threadIdNum = typeof threadId === 'number' ? threadId : null;
                 const userIdStr = String(userId);
-                
+
                 await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
                     this.bot,
                     chatId,
@@ -413,7 +417,8 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarMensajeBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            const chatId = typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
+            const chatId =
+                typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
             const threadId = message.message_thread_id || null;
             const threadIdStr = threadId ? String(threadId) : null;
             const threadIdNum = typeof threadId === 'number' ? threadId : null;
@@ -469,7 +474,8 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarDocumentoBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            const chatId = typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
+            const chatId =
+                typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
             const threadId = message.message_thread_id || null;
             const threadIdNum = typeof threadId === 'number' ? threadId : null;
 

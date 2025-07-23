@@ -253,26 +253,26 @@ class ReportUsedCommand extends BaseCommand {
             // Mostrar pólizas regulares
             if (regulares.length > 0) {
                 await ctx.reply('📋 *TOP PÓLIZAS REGULARES:*', { parse_mode: 'Markdown' });
-                
+
                 for (const pol of regulares) {
-                const fEmision: string = pol.fechaEmision
-                    ? new Date(pol.fechaEmision).toISOString().split('T')[0]
-                    : 'No disponible';
-                const fechaFinCobertura: string = pol.fechaFinCobertura
-                    ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0]
-                    : 'No disponible';
-                const fechaFinGracia: string = pol.fechaFinGracia
-                    ? new Date(pol.fechaFinGracia).toISOString().split('T')[0]
-                    : 'No disponible';
-                const totalServicios: number = (pol.servicios || []).length;
-                const totalPagos: number = (pol.pagos || []).length;
+                    const fEmision: string = pol.fechaEmision
+                        ? new Date(pol.fechaEmision).toISOString().split('T')[0]
+                        : 'No disponible';
+                    const fechaFinCobertura: string = pol.fechaFinCobertura
+                        ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0]
+                        : 'No disponible';
+                    const fechaFinGracia: string = pol.fechaFinGracia
+                        ? new Date(pol.fechaFinGracia).toISOString().split('T')[0]
+                        : 'No disponible';
+                    const totalServicios: number = (pol.servicios || []).length;
+                    const totalPagos: number = (pol.pagos || []).length;
 
-                let alertaPrioridad = '';
-                const calificacion: number = pol.calificacion || 0;
-                if (calificacion >= 80) alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                else if (calificacion >= 60) alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
+                    let alertaPrioridad = '';
+                    const calificacion: number = pol.calificacion || 0;
+                    if (calificacion >= 80) alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
+                    else if (calificacion >= 60) alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
 
-                const msg: string = `
+                    const msg: string = `
 ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
 🔍 *Póliza:* ${pol.numeroPoliza}
 📅 *Emisión:* ${fEmision}
@@ -283,37 +283,37 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
 🔧 *Servicios:* ${totalServicios}
 💰 *Pagos:* ${totalPagos}`.trim();
 
-                const inlineKeyboard = [
-                    [
-                        Markup.button.callback(
-                            `👀 Consultar ${pol.numeroPoliza}`,
-                            `getPoliza:${pol.numeroPoliza}`
-                        )
-                    ]
-                ];
+                    const inlineKeyboard = [
+                        [
+                            Markup.button.callback(
+                                `👀 Consultar ${pol.numeroPoliza}`,
+                                `getPoliza:${pol.numeroPoliza}`
+                            )
+                        ]
+                    ];
 
-                try {
-                    await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                    await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
-                } catch (sendError: unknown) {
-                    this.logError(
-                        `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
-                        sendError as Error
-                    );
-                    await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`); // Fallback
-                }
+                    try {
+                        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                        await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
+                    } catch (sendError: unknown) {
+                        this.logError(
+                            `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
+                            sendError as Error
+                        );
+                        await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`); // Fallback
+                    }
                 }
             }
 
             // ✅ NUEVO: Mostrar NIVs disponibles
             if (nivs.length > 0) {
                 await ctx.reply('⚡ *NIVs DISPONIBLES (2023-2026):*', { parse_mode: 'Markdown' });
-                
+
                 for (const niv of nivs) {
                     const fEmision: string = niv.fechaEmision
                         ? new Date(niv.fechaEmision).toISOString().split('T')[0]
                         : 'No disponible';
-                    
+
                     const msg: string = `
 ⚡ *${niv.mensajeEspecial}*
 🆔 *NIV:* \`${niv.numeroPoliza}\`
@@ -358,10 +358,7 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
                 mensajeFinal += `⚡ Se mostraron ${nivs.length} NIVs disponibles para uso inmediato.`;
             }
 
-            await ctx.reply(
-                mensajeFinal,
-                Markup.inlineKeyboard([])
-            );
+            await ctx.reply(mensajeFinal, Markup.inlineKeyboard([]));
             this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
         } catch (error: unknown) {
             // Ensure interval is cleared on error
@@ -424,25 +421,19 @@ ${alertaPrioridad}🏆 *Calificación: ${calificacion}*
                     // Añadir botón para volver al menú principal incluso en caso de error
                     await ctx.reply(
                         '⚠️ Proceso completado con errores.',
-                        Markup.inlineKeyboard([
-                                ])
+                        Markup.inlineKeyboard([])
                     );
                 } else {
                     await ctx.reply(
                         '❌ No se pudieron obtener las pólizas de respaldo.',
-                        Markup.inlineKeyboard([
-                                ])
+                        Markup.inlineKeyboard([])
                     );
                 }
             } catch (fallbackError: unknown) {
                 this.logError('Error al obtener pólizas de respaldo:', fallbackError as Error);
                 await this.replyError(ctx, 'Error crítico al intentar obtener pólizas.');
                 // Añadir botón para volver al menú principal incluso en caso de error crítico
-                await ctx.reply(
-                    '❌ Error crítico.',
-                    Markup.inlineKeyboard([
-                        ])
-                );
+                await ctx.reply('❌ Error crítico.', Markup.inlineKeyboard([]));
             }
         }
     }

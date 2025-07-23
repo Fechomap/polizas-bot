@@ -27,7 +27,7 @@ function getBaseAutosKeyboard() {
     return Markup.inlineKeyboard([
         [Markup.button.callback('🚗 REGISTRAR AUTO', 'base_autos:registrar')],
         [Markup.button.callback('📄 ASEGURAR AUTO', 'base_autos:asegurar')],
-        [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')],
+        [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')]
     ]);
 }
 

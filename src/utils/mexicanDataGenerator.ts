@@ -183,7 +183,7 @@ const MUNICIPIOS: string[] = [
     'Tlalpan',
     'Venustiano Carranza',
     'Xochimilco',
-    
+
     // ZMVM - Estado de México
     'Naucalpan de Juárez',
     'Nezahualcóyotl',
@@ -196,24 +196,24 @@ const MUNICIPIOS: string[] = [
     'Coacalco de Berriozábal',
     'Huixquilucan',
     'Nicolás Romero',
-    
+
     // Toluca y zona
     'Toluca',
     'Zinacantepec',
     'Metepec',
     'Lerma',
-    
+
     // Pachuca - Hidalgo
     'Pachuca de Soto',
     'Mineral de la Reforma',
     'Zempoala',
-    
+
     // Morelos
     'Cuernavaca',
     'Cuautla',
     'Jiutepec',
     'Temixco',
-    
+
     // Puebla
     'Puebla',
     'Cholula',
@@ -221,94 +221,88 @@ const MUNICIPIOS: string[] = [
     'Atlixco'
 ];
 
-const ESTADOS: string[] = [
-    'Ciudad de México',
-    'México',
-    'Hidalgo',
-    'Morelos',
-    'Puebla'
-];
+const ESTADOS: string[] = ['Ciudad de México', 'México', 'Hidalgo', 'Morelos', 'Puebla'];
 
 // Coordenadas válidas de la Zona Metropolitana del Valle de México (ZMVM)
 // Incluye CDMX, Estado de México y zonas conurbadas
 const COORDENADAS_ZMVM: { lat: number; lng: number }[] = [
     // CDMX - Centro
     { lat: 19.4326, lng: -99.1332 },
-    { lat: 19.4200, lng: -99.1467 },
+    { lat: 19.42, lng: -99.1467 },
     { lat: 19.4284, lng: -99.1276 },
-    
+
     // CDMX - Zona Norte
     { lat: 19.4889, lng: -99.1279 },
     { lat: 19.5124, lng: -99.1567 },
     { lat: 19.4751, lng: -99.1139 },
-    
+
     // CDMX - Zona Sur
     { lat: 19.3844, lng: -99.1413 },
     { lat: 19.3479, lng: -99.1636 },
-    { lat: 19.3210, lng: -99.1546 },
-    
+    { lat: 19.321, lng: -99.1546 },
+
     // CDMX - Zona Oriente
     { lat: 19.4091, lng: -99.0731 },
-    { lat: 19.3570, lng: -99.0559 },
+    { lat: 19.357, lng: -99.0559 },
     { lat: 19.4142, lng: -99.0328 },
-    
+
     // CDMX - Zona Poniente
     { lat: 19.4003, lng: -99.2619 },
     { lat: 19.4267, lng: -99.2019 },
     { lat: 19.3736, lng: -99.2587 },
-    
+
     // Estado de México - Naucalpan
     { lat: 19.4737, lng: -99.2394 },
     { lat: 19.4885, lng: -99.2269 },
-    
+
     // Estado de México - Tlalnepantla
     { lat: 19.5408, lng: -99.1951 },
     { lat: 19.5287, lng: -99.1874 },
-    
+
     // Estado de México - Ecatepec
-    { lat: 19.6010, lng: -99.0537 },
+    { lat: 19.601, lng: -99.0537 },
     { lat: 19.5843, lng: -99.0324 },
-    
+
     // Estado de México - Nezahualcóyotl
     { lat: 19.4003, lng: -99.0145 },
     { lat: 19.4142, lng: -99.0047 },
-    
+
     // Estado de México - Atizapán
     { lat: 19.5811, lng: -99.2547 },
     { lat: 19.5692, lng: -99.2389 },
-    
+
     // Estado de México - Tultitlán
-    { lat: 19.6450, lng: -99.1374 },
+    { lat: 19.645, lng: -99.1374 },
     { lat: 19.6328, lng: -99.1256 },
-    
+
     // Estado de México - Coacalco
     { lat: 19.6255, lng: -99.1069 },
     { lat: 19.6143, lng: -99.0987 },
-    
+
     // Estado de México - Cuautitlán Izcalli
     { lat: 19.6459, lng: -99.2359 },
     { lat: 19.6287, lng: -99.2187 },
-    
+
     // Estado de México - Huixquilucan
     { lat: 19.3642, lng: -99.3508 },
     { lat: 19.3789, lng: -99.3287 },
-    
+
     // Toluca y zona metropolitana
     { lat: 19.2926, lng: -99.6568 },
     { lat: 19.3017, lng: -99.6789 },
     { lat: 19.2834, lng: -99.6432 },
-    
+
     // Pachuca - Hidalgo
     { lat: 20.1011, lng: -98.7624 },
     { lat: 20.0897, lng: -98.7456 },
-    
+
     // Cuernavaca - Morelos
     { lat: 18.9261, lng: -99.2319 },
     { lat: 18.9134, lng: -99.2156 },
-    
+
     // Puebla
     { lat: 19.0414, lng: -98.2063 },
-    { lat: 19.0320, lng: -98.1889 }
+    { lat: 19.032, lng: -98.1889 }
 ];
 
 class MexicanDataGenerator {
@@ -430,11 +424,11 @@ class MexicanDataGenerator {
         try {
             // Seleccionar coordenadas aleatorias de la ZMVM
             const coordenadas = this.randomFromArray(COORDENADAS_ZMVM);
-            
+
             // Agregar pequeña variación para obtener direcciones más específicas
             const variacionLat = (Math.random() - 0.5) * 0.01; // ±0.005 grados (~500m)
             const variacionLng = (Math.random() - 0.5) * 0.01;
-            
+
             const coordenadasFinales = {
                 lat: coordenadas.lat + variacionLat,
                 lng: coordenadas.lng + variacionLng
@@ -453,12 +447,12 @@ class MexicanDataGenerator {
 
             // Procesar resultado del geocoding
             let calle = geocodeResult.direccionCompleta;
-            
+
             // Extraer y limpiar la dirección
             if (calle.includes(',')) {
                 calle = calle.split(',')[0].trim();
             }
-            
+
             // Si no tiene número, agregarlo
             if (!/\d/.test(calle)) {
                 const numero = this.randomBetween(1, 999);

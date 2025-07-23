@@ -72,7 +72,7 @@ type ChatContext = Context & {
     callbackQuery?: {
         [key: string]: any;
     };
-}
+};
 
 interface PolicyData {
     titular: string;
@@ -194,7 +194,6 @@ class CommandHandler {
         this.registry.registerCommand(mediaCmd);
         mediaCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
 
-
         const ocuparCmd = new OcuparPolizaCallback(this as any);
         this.registry.registerCommand(ocuparCmd);
         ocuparCmd.register(); // <--- LLAMAR AL MÉTODO REGISTER
@@ -304,7 +303,7 @@ class CommandHandler {
                     [Markup.button.callback('💰 Añadir Pago', 'accion:addpayment')],
                     [Markup.button.callback('🚗 Añadir Servicio', 'accion:addservice')],
                     [Markup.button.callback('📁 Subir Archivos', 'accion:upload')],
-                    [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')],
+                    [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')]
                 ]);
 
                 await ctx.editMessageText(
@@ -324,11 +323,11 @@ class CommandHandler {
         this.bot.action('accion:administracion', async (ctx: ChatContext) => {
             try {
                 await ctx.answerCbQuery();
-                
+
                 // Importar AdminAuth y adminMenu aquí para verificar permisos
                 const { default: AdminAuth } = require('../admin/middleware/adminAuth');
                 const { default: adminMenu } = require('../admin/menus/adminMenu');
-                
+
                 // Verificar permisos de admin
                 const isAdmin = await AdminAuth.isAdmin(ctx);
                 if (!isAdmin) {
@@ -336,7 +335,7 @@ class CommandHandler {
                         '🔒 **ACCESO DENEGADO**\n\n' +
                             'Solo los administradores pueden acceder a esta sección.\n\n' +
                             'Si necesitas permisos de administrador, contacta al administrador del sistema.',
-                        { 
+                        {
                             parse_mode: 'Markdown',
                             ...Markup.inlineKeyboard([
                                 [Markup.button.callback('⬅️ Volver al Menú', 'accion:volver_menu')]
@@ -345,10 +344,9 @@ class CommandHandler {
                     );
                     return;
                 }
-                
+
                 // Si es admin, mostrar directamente el menú principal de administración
                 await adminMenu.showMainMenu(ctx);
-                
             } catch (error: any) {
                 logger.error('Error en accion:administracion:', error);
                 await ctx.reply('❌ Error al mostrar el menú de administración.');
@@ -393,7 +391,7 @@ class CommandHandler {
                                         '⬅️ Volver a Administración',
                                         'accion:administracion'
                                     )
-                                ],
+                                ]
                             ])
                         }
                     );
@@ -610,14 +608,9 @@ class CommandHandler {
                                     'accion:reportPaymentPDF'
                                 )
                             ],
-                            [
-                                Markup.button.callback(
-                                    '🚗 PÓLIZAS A MANDAR',
-                                    'accion:reportUsed'
-                                )
-                            ],
+                            [Markup.button.callback('🚗 PÓLIZAS A MANDAR', 'accion:reportUsed')],
                             [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')]
-                                ])
+                        ])
                     }
                 );
             } catch (error: any) {
@@ -734,7 +727,6 @@ class CommandHandler {
 
     // Método para configurar callback handlers adicionales
     private setupCallbackHandlers(): void {
-
         // Ocupar Póliza: acción principal para el botón "Ocupar Póliza"
         this.bot.action(/ocuparPoliza:(.+)/, async (ctx: ChatContext) => {
             try {
@@ -788,11 +780,7 @@ class CommandHandler {
                 await this.handleGetPolicyFlow(ctx, numeroPoliza);
 
                 // Añadir el botón de volver explícitamente aquí
-                await ctx.reply(
-                    'Acciones adicionales:',
-                    Markup.inlineKeyboard([
-                    ])
-                );
+                await ctx.reply('Acciones adicionales:', Markup.inlineKeyboard([]));
 
                 await ctx.answerCbQuery(); // Acknowledge the button press
             } catch (error: any) {
@@ -865,32 +853,42 @@ class CommandHandler {
                 const { asignacionesEnProceso } = require('./comandos/PolicyAssignmentHandler');
                 const { vehiculosEnProceso } = require('./comandos/VehicleRegistrationHandler');
                 const StateKeyManager = require('../utils/StateKeyManager').default;
-                
+
                 // Buscar todas las claves que correspondan a este chatId y threadId
                 if (asignacionesEnProceso) {
                     const allKeys = Array.from(asignacionesEnProceso.getInternalMap().keys()) as string[];
                     const contextKey = StateKeyManager.getContextKey(chatId, threadId);
-                    const keysToDelete = allKeys.filter((key: string) => key.includes(`:${contextKey}`));
+                    const keysToDelete = allKeys.filter((key: string) =>
+                        key.includes(`:${contextKey}`)
+                    );
                     keysToDelete.forEach((key: string) => {
                         asignacionesEnProceso.delete(key);
                     });
-                    logger.debug(`Eliminados ${keysToDelete.length} estados de asignación para chatId=${chatId}`);
+                    logger.debug(
+                        `Eliminados ${keysToDelete.length} estados de asignación para chatId=${chatId}`
+                    );
                 }
-                
+
                 if (vehiculosEnProceso) {
                     const allKeys = Array.from(vehiculosEnProceso.getInternalMap().keys()) as string[];
                     const contextKey = StateKeyManager.getContextKey(chatId, threadId);
-                    const keysToDelete = allKeys.filter((key: string) => key.includes(`:${contextKey}`));
+                    const keysToDelete = allKeys.filter((key: string) =>
+                        key.includes(`:${contextKey}`)
+                    );
                     keysToDelete.forEach((key: string) => {
                         vehiculosEnProceso.delete(key);
                     });
-                    logger.debug(`Eliminados ${keysToDelete.length} estados de vehículo para chatId=${chatId}`);
+                    logger.debug(
+                        `Eliminados ${keysToDelete.length} estados de vehículo para chatId=${chatId}`
+                    );
                 }
             } catch (error) {
                 logger.warn('Error limpiando estados de Base de Autos:', error);
             }
 
-            logger.debug(`🧹 Estados de hilo específico limpiados para chatId=${chatId}, threadId=${threadId}`);
+            logger.debug(
+                `🧹 Estados de hilo específico limpiados para chatId=${chatId}, threadId=${threadId}`
+            );
             return;
         }
 
@@ -916,7 +914,7 @@ class CommandHandler {
         try {
             const { asignacionesEnProceso } = require('./comandos/PolicyAssignmentHandler');
             const { vehiculosEnProceso } = require('./comandos/VehicleRegistrationHandler');
-            
+
             // Buscar todas las claves que correspondan a este chatId (sin importar threadId)
             if (asignacionesEnProceso) {
                 const allKeys = Array.from(asignacionesEnProceso.getInternalMap().keys()) as string[];
@@ -924,16 +922,20 @@ class CommandHandler {
                 keysToDelete.forEach((key: string) => {
                     asignacionesEnProceso.delete(key);
                 });
-                logger.debug(`Eliminados ${keysToDelete.length} estados de asignación para chatId=${chatId}`);
+                logger.debug(
+                    `Eliminados ${keysToDelete.length} estados de asignación para chatId=${chatId}`
+                );
             }
-            
+
             if (vehiculosEnProceso) {
                 const allKeys = Array.from(vehiculosEnProceso.getInternalMap().keys()) as string[];
                 const keysToDelete = allKeys.filter((key: string) => key.includes(`${chatId}`));
                 keysToDelete.forEach((key: string) => {
                     vehiculosEnProceso.delete(key);
                 });
-                logger.debug(`Eliminados ${keysToDelete.length} estados de vehículo para chatId=${chatId}`);
+                logger.debug(
+                    `Eliminados ${keysToDelete.length} estados de vehículo para chatId=${chatId}`
+                );
             }
         } catch (error) {
             logger.warn('Error limpiando estados de Base de Autos:', error);
@@ -1092,7 +1094,7 @@ ${serviciosInfo}
                                 '🚗 Ocupar Póliza',
                                 `ocuparPoliza:${policy.numeroPoliza}`
                             )
-                        ],
+                        ]
                     ])
                 );
                 logger.info('Información de póliza enviada', { numeroPoliza, chatId, threadId });
@@ -1386,9 +1388,7 @@ ${serviciosInfo}
             // Obtener solo el monto (ya no requerimos fecha)
             const montoStr = messageText.trim();
             if (!montoStr) {
-                await ctx.reply(
-                    '❌ Formato inválido. Debes ingresar el monto del pago.'
-                );
+                await ctx.reply('❌ Formato inválido. Debes ingresar el monto del pago.');
                 return;
             }
 
@@ -1414,15 +1414,14 @@ ${serviciosInfo}
             // Responder éxito
             const fechaFormateada = fechaJS.toLocaleDateString('es-ES', {
                 day: '2-digit',
-                month: '2-digit', 
+                month: '2-digit',
                 year: 'numeric'
             });
             await ctx.reply(
                 `✅ Se ha registrado un pago de $${monto.toFixed(2)} con fecha ${fechaFormateada} en la póliza *${numeroPoliza}*.`,
                 {
                     parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                    ])
+                    ...Markup.inlineKeyboard([])
                 }
             );
             // Limpiar el estado al finalizar correctamente
@@ -1649,8 +1648,7 @@ ${serviciosInfo}
                         `Origen y Destino: ${origenDestino}`,
                     {
                         parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            ])
+                        ...Markup.inlineKeyboard([])
                     }
                 );
             } else {
@@ -1725,8 +1723,7 @@ ${serviciosInfo}
                         `Origen y Destino: ${origenDestino}`,
                     {
                         parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            ])
+                        ...Markup.inlineKeyboard([])
                     }
                 );
             }
@@ -1784,8 +1781,7 @@ ${serviciosInfo}
                     'Cuando termines, puedes volver al menú principal.',
                 {
                     parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                    ])
+                    ...Markup.inlineKeyboard([])
                 }
             );
             // Ya no esperamos el número de póliza, ahora esperamos archivos
@@ -1801,5 +1797,3 @@ ${serviciosInfo}
 }
 
 export default CommandHandler;
-
-

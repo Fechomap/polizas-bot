@@ -156,10 +156,10 @@ async function handleServiceData(
             if (savedState?.googleMapsUrl && rutaInfo) {
                 rutaInfo = { ...rutaInfo, googleMapsUrl: savedState.googleMapsUrl };
             } else if (savedState?.googleMapsUrl && !rutaInfo) {
-                rutaInfo = { 
-                    distanciaKm: 0, 
-                    tiempoMinutos: 0, 
-                    googleMapsUrl: savedState.googleMapsUrl 
+                rutaInfo = {
+                    distanciaKm: 0,
+                    tiempoMinutos: 0,
+                    googleMapsUrl: savedState.googleMapsUrl
                 };
             }
 
@@ -286,10 +286,10 @@ async function handleServiceData(
             if (savedState?.googleMapsUrl && rutaInfo) {
                 rutaInfo = { ...rutaInfo, googleMapsUrl: savedState.googleMapsUrl };
             } else if (savedState?.googleMapsUrl && !rutaInfo) {
-                rutaInfo = { 
-                    distanciaKm: 0, 
-                    tiempoMinutos: 0, 
-                    googleMapsUrl: savedState.googleMapsUrl 
+                rutaInfo = {
+                    distanciaKm: 0,
+                    tiempoMinutos: 0,
+                    googleMapsUrl: savedState.googleMapsUrl
                 };
             }
 

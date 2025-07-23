@@ -41,14 +41,14 @@ async function auditoriaVehiculos2023_2026() {
 
         console.log('📋 1. BÚSQUEDA DE VEHÍCULOS 2023-2026:');
         console.log('-'.repeat(60));
-        
+
         // Buscar TODOS los vehículos de los años objetivo
         const vehiculosObjetivo = await Vehicle.find({
             año: { $in: [2023, 2024, 2025, 2026] }
         }).lean();
 
         console.log(`📊 VEHÍCULOS ENCONTRADOS: ${vehiculosObjetivo.length}`);
-        
+
         if (vehiculosObjetivo.length === 0) {
             console.log('❌ No se encontraron vehículos 2023-2026');
             return;
@@ -69,8 +69,8 @@ async function auditoriaVehiculos2023_2026() {
 
         console.log('\n📋 2. ANÁLISIS DETALLADO POR VEHÍCULO:');
         console.log('-'.repeat(60));
-        
-        let contadores = {
+
+        const contadores = {
             total: 0,
             deberianSerNIV: 0,
             yaSonNIV: 0,
@@ -87,7 +87,7 @@ async function auditoriaVehiculos2023_2026() {
 
         for (const vehiculo of vehiculosObjetivo) {
             contadores.total++;
-            
+
             console.log(`\n🚗 ${contadores.total}. ${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}`);
             console.log(`   • Serie: ${vehiculo.serie}`);
             console.log(`   • Estado: ${vehiculo.estado}`);
@@ -143,10 +143,10 @@ async function auditoriaVehiculos2023_2026() {
 
             // Determinar si DEBERÍA ser NIV
             const deberiaSerNIV = vehiculo.año >= 2023 && vehiculo.año <= 2026;
-            
+
             if (deberiaSerNIV) {
                 contadores.deberianSerNIV++;
-                
+
                 // Verificar si ya está correctamente configurado
                 let estadoCorrectoNIV = false;
                 let estadoCorrectoPoliza = false;
@@ -159,14 +159,14 @@ async function auditoriaVehiculos2023_2026() {
                     estadoCorrectoPoliza = true;
                 }
 
-                console.log(`   🎯 DEBERÍA SER NIV: SÍ`);
+                console.log('   🎯 DEBERÍA SER NIV: SÍ');
                 console.log(`   ✅ Estado vehículo correcto: ${estadoCorrectoNIV ? 'SÍ' : 'NO'}`);
                 console.log(`   ✅ Estado póliza correcto: ${estadoCorrectoPoliza ? 'SÍ' : 'NO'}`);
 
                 // Detectar casos que necesitan migración
                 if (!estadoCorrectoNIV || !estadoCorrectoPoliza) {
-                    console.log(`   🔄 REQUIERE MIGRACIÓN`);
-                    
+                    console.log('   🔄 REQUIERE MIGRACIÓN');
+
                     const migracion = {
                         vehiculo: {
                             serie: vehiculo.serie,
@@ -210,7 +210,7 @@ async function auditoriaVehiculos2023_2026() {
                         vehiculo: vehiculo.serie,
                         poliza: polizaAsociada.numeroPoliza
                     });
-                    console.log(`   🚨 INCONSISTENCIA: Vehículo es NIV pero póliza es NIP`);
+                    console.log('   🚨 INCONSISTENCIA: Vehículo es NIV pero póliza es NIP');
                 }
 
                 if (vehiculo.estado === 'CONVERTIDO_NIP' && polizaAsociada && polizaAsociada.tipoPoliza === 'NIV') {
@@ -220,16 +220,16 @@ async function auditoriaVehiculos2023_2026() {
                         vehiculo: vehiculo.serie,
                         poliza: polizaAsociada.numeroPoliza
                     });
-                    console.log(`   🚨 INCONSISTENCIA: Vehículo es NIP pero póliza es NIV`);
+                    console.log('   🚨 INCONSISTENCIA: Vehículo es NIP pero póliza es NIV');
                 }
             } else {
-                console.log(`   🎯 DEBERÍA SER NIV: NO (año fuera de rango)`);
+                console.log('   🎯 DEBERÍA SER NIV: NO (año fuera de rango)');
             }
         }
 
         console.log('\n📋 3. RESUMEN ESTADÍSTICO:');
         console.log('═'.repeat(80));
-        console.log(`📊 TOTALES:`);
+        console.log('📊 TOTALES:');
         console.log(`   • Vehículos analizados: ${contadores.total}`);
         console.log(`   • Deberían ser NIV: ${contadores.deberianSerNIV}`);
         console.log(`   • Ya son NIV (nuevo): ${contadores.yaSonNIV}`);
@@ -255,12 +255,12 @@ async function auditoriaVehiculos2023_2026() {
         console.log('\n📋 5. PLAN DE MIGRACIÓN:');
         console.log('═'.repeat(80));
         console.log(`🔄 VEHÍCULOS QUE REQUIEREN MIGRACIÓN: ${migracionesPendientes.length}`);
-        
+
         if (migracionesPendientes.length === 0) {
             console.log('✅ Todos los vehículos 2023-2026 están correctamente configurados como NIVs');
         } else {
             console.log('\n📋 ACCIONES REQUERIDAS:');
-            
+
             const accionesPorTipo = {};
             migracionesPendientes.forEach(migracion => {
                 migracion.acciones.forEach(accion => {
@@ -289,7 +289,7 @@ async function auditoriaVehiculos2023_2026() {
 
         console.log('\n📋 6. RECOMENDACIONES:');
         console.log('═'.repeat(80));
-        
+
         if (migracionesPendientes.length > 0) {
             console.log('💡 ACCIONES RECOMENDADAS:');
             console.log('   1. 🔄 Crear script de migración automática');
@@ -297,11 +297,11 @@ async function auditoriaVehiculos2023_2026() {
             console.log('   3. 📊 Hacer backup de datos antes de migración');
             console.log('   4. ✅ Verificar integridad post-migración');
             console.log('   5. 🔍 Monitorear reportes después de la migración');
-            
+
             console.log('\n🚨 PRIORIDADES:');
             const vehiculosConPoliza = migracionesPendientes.filter(m => m.poliza);
             const vehiculosSinPoliza = migracionesPendientes.filter(m => !m.poliza);
-            
+
             console.log(`   • ALTA: ${vehiculosConPoliza.length} vehículos con póliza que necesitan actualización`);
             console.log(`   • MEDIA: ${vehiculosSinPoliza.length} vehículos sin póliza que necesitan conversión completa`);
         } else {
@@ -312,9 +312,9 @@ async function auditoriaVehiculos2023_2026() {
         const journeyEnMigracion = migracionesPendientes.find(m => m.vehiculo.serie === 'LMWDT1G89P1141436');
         if (journeyEnMigracion) {
             console.log('\n🎯 CASO ESPECÍFICO - JOURNEY:');
-            console.log(`   • Confirmado en lista de migración`);
+            console.log('   • Confirmado en lista de migración');
             console.log(`   • Acciones: ${journeyEnMigracion.acciones.join(', ')}`);
-            console.log(`   • Esta es la causa del fallo de reportes reportado`);
+            console.log('   • Esta es la causa del fallo de reportes reportado');
         }
 
     } catch (error) {

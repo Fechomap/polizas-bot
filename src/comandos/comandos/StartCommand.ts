@@ -24,7 +24,7 @@ class StartCommand extends BaseCommand {
             try {
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
-                
+
                 // Limpiar estados admin problemáticos
                 AdminStateManager.clearAdminState(ctx.from?.id, ctx.chat?.id);
                 this.logInfo('Estados admin limpiados al ejecutar /start', {

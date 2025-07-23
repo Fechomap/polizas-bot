@@ -43,9 +43,9 @@ async function investigarNIV() {
         // 1. BUSCAR EN COLECCIÓN VEHICLE
         console.log('\n📋 1. INVESTIGANDO COLECCIÓN VEHICLE:');
         console.log('-'.repeat(50));
-        
-        const vehiculos = await Vehicle.find({ 
-            serie: SERIE_INVESTIGAR 
+
+        const vehiculos = await Vehicle.find({
+            serie: SERIE_INVESTIGAR
         }).lean();
 
         if (vehiculos.length === 0) {
@@ -72,9 +72,9 @@ async function investigarNIV() {
         // 2. BUSCAR EN COLECCIÓN POLICY
         console.log('\n📋 2. INVESTIGANDO COLECCIÓN POLICY:');
         console.log('-'.repeat(50));
-        
-        const polizas = await Policy.find({ 
-            numeroPoliza: SERIE_INVESTIGAR 
+
+        const polizas = await Policy.find({
+            numeroPoliza: SERIE_INVESTIGAR
         }).lean();
 
         if (polizas.length === 0) {
@@ -108,16 +108,16 @@ async function investigarNIV() {
             tipoPoliza: 'NIP',
             totalServicios: 0
         })
-        .sort({ createdAt: -1 })
-        .limit(4)
-        .lean();
+            .sort({ createdAt: -1 })
+            .limit(4)
+            .lean();
 
         console.log(`📊 Query NIPs para reportes devuelve: ${nipsEnReportes.length} resultados`);
         if (nipsEnReportes.length > 0) {
             nipsEnReportes.forEach((nip, index) => {
                 console.log(`   ${index + 1}. ${nip.numeroPoliza} - Estado: ${nip.estado} - Servicios: ${nip.totalServicios} - Tipo: ${nip.tipoPoliza}`);
             });
-            
+
             // Buscar específicamente nuestro NIP
             const nuestroNipEnQuery = nipsEnReportes.find(n => n.numeroPoliza === SERIE_INVESTIGAR);
             if (nuestroNipEnQuery) {
@@ -125,7 +125,7 @@ async function investigarNIV() {
             } else {
                 console.log(`❌ El NIP ${SERIE_INVESTIGAR} NO aparece en query de reportes`);
                 console.log('   🔍 Verificando por qué...');
-                
+
                 // Verificar condiciones específicas
                 const nuestroNip = polizas.length > 0 ? polizas[0] : null;
                 if (nuestroNip) {
@@ -145,8 +145,8 @@ async function investigarNIV() {
         const todasLasNIPs = await Policy.find({
             tipoPoliza: 'NIP'
         })
-        .sort({ createdAt: -1 })
-        .lean();
+            .sort({ createdAt: -1 })
+            .lean();
 
         console.log(`📊 Total de pólizas NIP en sistema: ${todasLasNIPs.length}`);
         if (todasLasNIPs.length > 0) {
@@ -169,13 +169,13 @@ async function investigarNIV() {
         if (vehiculoEncontrado && polizaEncontrada) {
             const vehiculo = vehiculos[0];
             const poliza = polizas[0];
-            
+
             console.log(`• Vinculación V→P: ${vehiculo.policyId?.toString() === poliza._id.toString() ? '✅ CORRECTA' : '❌ INCORRECTA'}`);
             console.log(`• Vinculación P→V: ${poliza.vehicleId?.toString() === vehiculo._id.toString() ? '✅ CORRECTA' : '❌ INCORRECTA'}`);
             console.log(`• Tipo conversión: ${poliza.tipoPoliza === 'NIP' ? '✅ NIP' : '❌ REGULAR'}`);
             console.log(`• Estado vehículo: ${vehiculo.estado}`);
             console.log(`• Estado póliza: ${poliza.estado}`);
-            
+
             // Verificar por qué no aparece en reportes
             const cumpleCriterios = poliza.estado === 'ACTIVO' && poliza.tipoPoliza === 'NIP' && poliza.totalServicios === 0;
             console.log(`• Cumple criterios reportes: ${cumpleCriterios ? '✅ SÍ' : '❌ NO'}`);

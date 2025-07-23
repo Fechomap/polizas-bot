@@ -125,7 +125,7 @@ ${serviciosInfo}
                                 '🚗 Ocupar Póliza',
                                 `ocuparPoliza:${policy.numeroPoliza}`
                             )
-                        ],
+                        ]
                     ])
                 );
                 this.logInfo('Información de póliza enviada', {

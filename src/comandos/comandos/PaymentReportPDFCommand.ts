@@ -534,7 +534,11 @@ class PaymentReportPDFCommand extends BaseCommand {
      * @param pageNumber - Número de página
      * @param metadata - Metadatos del reporte
      */
-    addOptimizedFooter(doc: InstanceType<typeof PDFDocument>, pageNumber: number, metadata: ReportMetadata): void {
+    addOptimizedFooter(
+        doc: InstanceType<typeof PDFDocument>,
+        pageNumber: number,
+        metadata: ReportMetadata
+    ): void {
         const footerY = doc.page.height - this.layout.footerHeight;
 
         // Línea separadora

@@ -47,9 +47,7 @@ class NotificationCommand extends BaseCommand {
             try {
                 // Verificar si es administrador
                 if (ctx.from?.id !== this.ADMIN_ID) {
-                    await ctx.reply(
-                        '⚠️ Este comando está restringido solo para administradores.'
-                    );
+                    await ctx.reply('⚠️ Este comando está restringido solo para administradores.');
                 }
 
                 // Obtener instancia del NotificationManager
@@ -61,9 +59,7 @@ class NotificationCommand extends BaseCommand {
                         await notificationManager.initialize();
                     } catch (initError: any) {
                         this.logError('Error al inicializar NotificationManager:', initError);
-                        await ctx.reply(
-                            '❌ Error al inicializar el sistema de notificaciones.'
-                        );
+                        await ctx.reply('❌ Error al inicializar el sistema de notificaciones.');
                     }
                 }
 
@@ -72,7 +68,7 @@ class NotificationCommand extends BaseCommand {
 
                 if (pendingNotifications.length === 0) {
                     await ctx.reply('📅 No hay notificaciones programadas pendientes.');
-                        return;
+                    return;
                 }
 
                 await ctx.reply(
@@ -88,7 +84,7 @@ class NotificationCommand extends BaseCommand {
                                 )
                             ],
                             [Markup.button.callback('⏰ Ver próximas hoy', 'notification:today')],
-                            [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')],
+                            [Markup.button.callback('📊 Ver estadísticas', 'notification:stats')]
                         ])
                     }
                 );
@@ -133,7 +129,7 @@ class NotificationCommand extends BaseCommand {
                     if (todayNotifications.length === 0) {
                         await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
                             ...Markup.inlineKeyboard([
-                                [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                                [Markup.button.callback('⬅️ Volver', 'notification:back')]
                             ])
                         });
                         return;
@@ -166,8 +162,12 @@ class NotificationCommand extends BaseCommand {
                             };
 
                             // Emoji según el tipo de notificación
-                            const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                            notification.tipoNotificacion === 'TERMINO' ? '🟩' : '';
+                            const tipoEmoji =
+                                notification.tipoNotificacion === 'CONTACTO'
+                                    ? '🟨'
+                                    : notification.tipoNotificacion === 'TERMINO'
+                                      ? '🟩'
+                                      : '';
 
                             const emoji = statusEmoji[notification.status] || '❓';
 
@@ -238,7 +238,7 @@ class NotificationCommand extends BaseCommand {
                     if (todayNotifications.length === 0) {
                         await ctx.reply('📅 No hay notificaciones programadas para hoy.', {
                             ...Markup.inlineKeyboard([
-                                [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                                [Markup.button.callback('⬅️ Volver', 'notification:back')]
                             ])
                         });
                         return;
@@ -261,8 +261,12 @@ class NotificationCommand extends BaseCommand {
                         const formattedTime = scheduledMoment.format('HH:mm');
 
                         // Emoji según el tipo de notificación
-                        const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                        notification.tipoNotificacion === 'TERMINO' ? '🟩' : '';
+                        const tipoEmoji =
+                            notification.tipoNotificacion === 'CONTACTO'
+                                ? '🟨'
+                                : notification.tipoNotificacion === 'TERMINO'
+                                  ? '🟩'
+                                  : '';
 
                         message += `🔹${tipoEmoji} *${formattedTime}* - ${notification.expedienteNum}\n`;
                         message += `📝 Póliza: ${notification.numeroPoliza}\n`;
@@ -278,7 +282,7 @@ class NotificationCommand extends BaseCommand {
                     await ctx.reply(message, {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                            [Markup.button.callback('⬅️ Volver', 'notification:back')]
                         ])
                     });
                     return;
@@ -357,7 +361,7 @@ class NotificationCommand extends BaseCommand {
                     await ctx.reply(message, {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('⬅️ Volver', 'notification:back')],
+                            [Markup.button.callback('⬅️ Volver', 'notification:back')]
                         ])
                     });
                 } catch (error: any) {
@@ -401,8 +405,8 @@ class NotificationCommand extends BaseCommand {
                                         '📊 Ver estadísticas',
                                         'notification:stats'
                                     )
-                                ],
-                                ])
+                                ]
+                            ])
                         }
                     );
                 } catch (error: any) {

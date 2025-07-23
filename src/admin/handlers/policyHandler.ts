@@ -93,11 +93,7 @@ class PolicyHandler {
     static async handleUnifiedPolicySearch(ctx: Context): Promise<void> {
         try {
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-            adminStateManager.createAdminState(
-                ctx.from!.id,
-                ctx.chat!.id,
-                'policy_unified_search'
-            );
+            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_unified_search');
 
             const searchText = `
 🔍 *BUSCAR PÓLIZA*
@@ -256,12 +252,24 @@ _¿La póliza está eliminada? Usa "🔄 Restaurar Póliza"_
             // ABANICO DE OPCIONES COMPLETO
             const buttons = [
                 [
-                    Markup.button.callback('✏️ Editar Póliza', `admin_policy_edit_categories:${policy._id}`),
-                    Markup.button.callback('🗑️ Eliminar Póliza', `admin_policy_delete_confirm:${policy._id}`)
+                    Markup.button.callback(
+                        '✏️ Editar Póliza',
+                        `admin_policy_edit_categories:${policy._id}`
+                    ),
+                    Markup.button.callback(
+                        '🗑️ Eliminar Póliza',
+                        `admin_policy_delete_confirm:${policy._id}`
+                    )
                 ],
                 [
-                    Markup.button.callback('🚗 Ver Servicios', `admin_service_select:${policy._id}`),
-                    Markup.button.callback('📊 Ver Estadísticas', `admin_policy_stats:${policy._id}`)
+                    Markup.button.callback(
+                        '🚗 Ver Servicios',
+                        `admin_service_select:${policy._id}`
+                    ),
+                    Markup.button.callback(
+                        '📊 Ver Estadísticas',
+                        `admin_policy_stats:${policy._id}`
+                    )
                 ],
                 [
                     Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_search'),
@@ -468,7 +476,10 @@ _Intenta con otro término de búsqueda._
         }
     }
 
-    static async searchPolicies(searchTerm: string, onlyDeleted: boolean = false): Promise<IPolicySearchResult[]> {
+    static async searchPolicies(
+        searchTerm: string,
+        onlyDeleted = false
+    ): Promise<IPolicySearchResult[]> {
         const cleanTerm = searchTerm.trim();
 
         const searchQuery: any = {
@@ -812,7 +823,10 @@ Selecciona una póliza:
         const buttons = [
             [
                 Markup.button.callback('🚗 Ver Servicios', `admin_service_select:${policy._id}`),
-                Markup.button.callback('✏️ Editar Póliza', `admin_policy_edit_categories:${policy._id}`)
+                Markup.button.callback(
+                    '✏️ Editar Póliza',
+                    `admin_policy_edit_categories:${policy._id}`
+                )
             ],
             [
                 Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_edit'),
@@ -909,7 +923,7 @@ Selecciona una póliza:
 
             // Verificar si viene del nuevo flujo unificado
             const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
-            
+
             if (adminState && adminState.operation === 'policy_unified_search') {
                 // Nuevo flujo: mostrar abanico completo de opciones
                 await this.showUnifiedPolicyDetails(ctx, policyId);
@@ -959,10 +973,15 @@ Escribe el motivo de eliminación o presiona Cancelar:
 
             // Cambiar estado para esperar el motivo
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_deletion_reason', {
-                policyId,
-                policyNumber: policy.numeroPoliza
-            });
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_deletion_reason',
+                {
+                    policyId,
+                    policyNumber: policy.numeroPoliza
+                }
+            );
 
             await AuditLogger.log(ctx, 'policy_deletion_confirmation_requested', {
                 module: 'policy',
@@ -1203,12 +1222,13 @@ Selecciona el campo a editar:
                     Markup.button.callback('🏘️ Colonia', `admin_edit_field:colonia:${policyId}`)
                 ],
                 [
-                    Markup.button.callback('🏙️ Municipio', `admin_edit_field:municipio:${policyId}`),
+                    Markup.button.callback(
+                        '🏙️ Municipio',
+                        `admin_edit_field:municipio:${policyId}`
+                    ),
                     Markup.button.callback('🗺️ Estado', `admin_edit_field:estadoRegion:${policyId}`)
                 ],
-                [
-                    Markup.button.callback('📮 CP', `admin_edit_field:cp:${policyId}`)
-                ],
+                [Markup.button.callback('📮 CP', `admin_edit_field:cp:${policyId}`)],
                 [Markup.button.callback('⬅️ Volver', `admin_policy_edit_categories:${policyId}`)]
             ]);
 
@@ -1696,12 +1716,14 @@ El cambio se ha guardado exitosamente.
             }
         };
 
-        return fieldInfoMap[fieldName] || {
-            displayName: fieldName,
-            instructions: 'Escribe el nuevo valor',
-            validation: 'Texto libre',
-            type: 'string'
-        };
+        return (
+            fieldInfoMap[fieldName] || {
+                displayName: fieldName,
+                instructions: 'Escribe el nuevo valor',
+                validation: 'Texto libre',
+                type: 'string'
+            }
+        );
     }
 
     static async handleFieldEditInput(ctx: Context, newValue: string): Promise<void> {
@@ -1769,8 +1791,14 @@ El cambio se ha guardado exitosamente.
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('✅ Confirmar', `admin_confirm_edit:${policyId}:${fieldName}`),
-                    Markup.button.callback('❌ Cancelar', `admin_policy_edit_categories:${policyId}`)
+                    Markup.button.callback(
+                        '✅ Confirmar',
+                        `admin_confirm_edit:${policyId}:${fieldName}`
+                    ),
+                    Markup.button.callback(
+                        '❌ Cancelar',
+                        `admin_policy_edit_categories:${policyId}`
+                    )
                 ]
             ]);
 
@@ -1781,14 +1809,18 @@ El cambio se ha guardado exitosamente.
 
             // Actualizar estado para confirmación
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_field_confirmation', {
-                policyId,
-                fieldName,
-                oldValue: currentValue,
-                newValue: validatedValue,
-                fieldInfo
-            });
-
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_field_confirmation',
+                {
+                    policyId,
+                    fieldName,
+                    oldValue: currentValue,
+                    newValue: validatedValue,
+                    fieldInfo
+                }
+            );
         } catch (error) {
             logger.error('Error al procesar entrada de campo:', error);
             await ctx.reply('❌ Error al procesar el valor. Intenta nuevamente.');
@@ -1858,13 +1890,13 @@ El cambio se ha guardado exitosamente.
     static async handleTextMessage(ctx: Context): Promise<boolean> {
         try {
             const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
-            
+
             if (!adminState) {
                 return false; // No hay estado admin activo
             }
 
             const messageText = (ctx.message as any).text.trim();
-            
+
             // Verificar si estamos en búsqueda unificada (NUEVO FLUJO)
             if (adminState.operation === 'policy_unified_search') {
                 await this.handleUnifiedPolicySearchResults(ctx, messageText);
@@ -2067,13 +2099,21 @@ Escribe uno de los siguientes datos para buscar:
         await ctx.reply('Manejo de estadísticas en desarrollo');
     }
 
-    static async showSearchResultsForDelete(ctx: Context, results: IPolicySearchResult[], searchTerm: string): Promise<void> {
+    static async showSearchResultsForDelete(
+        ctx: Context,
+        results: IPolicySearchResult[],
+        searchTerm: string
+    ): Promise<void> {
         // Basic implementation - can be enhanced later
         await this.showSearchResults(ctx, results, searchTerm);
     }
 
-    static async showSearchResultsForRestore(ctx: Context, results: IPolicySearchResult[], searchTerm: string): Promise<void> {
-        // Basic implementation - can be enhanced later  
+    static async showSearchResultsForRestore(
+        ctx: Context,
+        results: IPolicySearchResult[],
+        searchTerm: string
+    ): Promise<void> {
+        // Basic implementation - can be enhanced later
         await this.showSearchResults(ctx, results, searchTerm);
     }
 }

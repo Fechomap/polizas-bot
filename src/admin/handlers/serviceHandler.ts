@@ -319,13 +319,15 @@ ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
 
         if (isServicio) {
             const servicio = item as IServiceData;
-            const fecha = servicio.fechaServicio ? new Date(servicio.fechaServicio).toLocaleDateString('es-ES') : 'N/A';
+            const fecha = servicio.fechaServicio
+                ? new Date(servicio.fechaServicio).toLocaleDateString('es-ES')
+                : 'N/A';
             const tipoServ = servicio.tipoServicio || 'N/A';
             const desc = servicio.descripcion || 'N/A';
             const costo = servicio.costo || 0;
             const estado = servicio.estado || 'N/A';
             const proveedor = servicio.proveedor || 'N/A';
-            
+
             detailsText += `• Fecha: ${fecha}\n`;
             detailsText += `• Tipo: ${tipoServ}\n`;
             detailsText += `• Descripción: ${desc}\n`;
@@ -334,11 +336,13 @@ ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
             detailsText += `• Proveedor: ${proveedor}\n`;
         } else {
             const registro = item as IRegistroData;
-            const fecha = registro.fechaRegistro ? new Date(registro.fechaRegistro).toLocaleDateString('es-ES') : 'N/A';
+            const fecha = registro.fechaRegistro
+                ? new Date(registro.fechaRegistro).toLocaleDateString('es-ES')
+                : 'N/A';
             const tipoReg = registro.tipoRegistro || 'N/A';
             const desc = registro.descripcion || 'N/A';
             const estado = registro.estado || 'N/A';
-            
+
             detailsText += `• Fecha: ${fecha}\n`;
             detailsText += `• Tipo: ${tipoReg}\n`;
             detailsText += `• Descripción: ${desc}\n`;
@@ -351,42 +355,32 @@ ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
 
         // Create short ID for callback data
         const shortId = result.policyId.slice(-8); // Use last 8 characters
-        
+
         if (isServicio) {
             buttons.push(
+                [Markup.button.callback('📅 Fecha', `asf:${shortId}:s:${result.itemIndex}:fS`)],
+                [Markup.button.callback('🏷️ Tipo', `asf:${shortId}:s:${result.itemIndex}:tS`)],
                 [
-                    Markup.button.callback('📅 Fecha', `asf:${shortId}:s:${result.itemIndex}:fS`)
+                    Markup.button.callback(
+                        '📝 Descripción',
+                        `asf:${shortId}:s:${result.itemIndex}:d`
+                    )
                 ],
-                [
-                    Markup.button.callback('🏷️ Tipo', `asf:${shortId}:s:${result.itemIndex}:tS`)
-                ],
-                [
-                    Markup.button.callback('📝 Descripción', `asf:${shortId}:s:${result.itemIndex}:d`)
-                ],
-                [
-                    Markup.button.callback('💰 Costo', `asf:${shortId}:s:${result.itemIndex}:c`)
-                ],
-                [
-                    Markup.button.callback('📊 Estado', `asf:${shortId}:s:${result.itemIndex}:e`)
-                ],
-                [
-                    Markup.button.callback('🏢 Proveedor', `asf:${shortId}:s:${result.itemIndex}:p`)
-                ]
+                [Markup.button.callback('💰 Costo', `asf:${shortId}:s:${result.itemIndex}:c`)],
+                [Markup.button.callback('📊 Estado', `asf:${shortId}:s:${result.itemIndex}:e`)],
+                [Markup.button.callback('🏢 Proveedor', `asf:${shortId}:s:${result.itemIndex}:p`)]
             );
         } else {
             buttons.push(
+                [Markup.button.callback('📅 Fecha', `asf:${shortId}:r:${result.itemIndex}:fR`)],
+                [Markup.button.callback('🏷️ Tipo', `asf:${shortId}:r:${result.itemIndex}:tR`)],
                 [
-                    Markup.button.callback('📅 Fecha', `asf:${shortId}:r:${result.itemIndex}:fR`)
+                    Markup.button.callback(
+                        '📝 Descripción',
+                        `asf:${shortId}:r:${result.itemIndex}:d`
+                    )
                 ],
-                [
-                    Markup.button.callback('🏷️ Tipo', `asf:${shortId}:r:${result.itemIndex}:tR`)
-                ],
-                [
-                    Markup.button.callback('📝 Descripción', `asf:${shortId}:r:${result.itemIndex}:d`)
-                ],
-                [
-                    Markup.button.callback('📊 Estado', `asf:${shortId}:r:${result.itemIndex}:e`)
-                ]
+                [Markup.button.callback('📊 Estado', `asf:${shortId}:r:${result.itemIndex}:e`)]
             );
         }
 
@@ -519,12 +513,7 @@ _Escribe el nuevo valor y se actualizará automáticamente._
             const shortId = policyId.slice(-8);
             const typeCode = type === 'servicio' ? 's' : 'r';
             const keyboard = Markup.inlineKeyboard([
-                [
-                    Markup.button.callback(
-                        '❌ Cancelar',
-                        `ase:${shortId}:${typeCode}:${itemIndex}`
-                    )
-                ]
+                [Markup.button.callback('❌ Cancelar', `ase:${shortId}:${typeCode}:${itemIndex}`)]
             ]);
 
             await ctx.editMessageText(editText, {
@@ -558,11 +547,9 @@ _Escribe el nuevo valor y se actualizará automáticamente._
             const policies = await Policy.find({
                 estado: { $ne: 'ELIMINADO' }
             }).select('_id numeroPoliza titular servicios registros');
-            
-            const policy = policies.find(p => 
-                p._id.toString().slice(-8) === shortId
-            );
-            
+
+            const policy = policies.find(p => p._id.toString().slice(-8) === shortId);
+
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
                 return;
@@ -587,11 +574,9 @@ _Escribe el nuevo valor y se actualizará automáticamente._
             const policies = await Policy.find({
                 estado: { $ne: 'ELIMINADO' }
             }).select('_id numeroPoliza titular servicios registros');
-            
-            const policy = policies.find(p => 
-                p._id.toString().slice(-8) === shortId
-            );
-            
+
+            const policy = policies.find(p => p._id.toString().slice(-8) === shortId);
+
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
                 return;

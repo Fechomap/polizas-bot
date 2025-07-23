@@ -87,7 +87,9 @@ class NotificationsHandler implements IAdminHandler {
 
                 chunk.forEach((notification: IScheduledNotification) => {
                     // Usar moment-timezone para mostrar hora correcta en CDMX
-                    const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                    const scheduledMoment = moment(notification.scheduledDate).tz(
+                        'America/Mexico_City'
+                    );
                     const formattedTime = scheduledMoment.format('HH:mm');
 
                     // Emoji según el estado
@@ -101,8 +103,12 @@ class NotificationsHandler implements IAdminHandler {
                     };
 
                     // Emoji según el tipo de notificación
-                    const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                    notification.tipoNotificacion === 'TERMINO' ? '🟩' : '';
+                    const tipoEmoji =
+                        notification.tipoNotificacion === 'CONTACTO'
+                            ? '🟨'
+                            : notification.tipoNotificacion === 'TERMINO'
+                              ? '🟩'
+                              : '';
 
                     const emoji = statusEmoji[notification.status] || '❓';
 
@@ -164,7 +170,7 @@ class NotificationsHandler implements IAdminHandler {
 
             // Filtrar solo las futuras (no filtrar por día específico)
             const now = moment().tz('America/Mexico_City').toDate();
-            
+
             const futureNotifications = allPending.filter((n: IScheduledNotification) => {
                 return new Date(n.scheduledDate) > now;
             });
@@ -186,12 +192,19 @@ class NotificationsHandler implements IAdminHandler {
 
             // Separar por días para mejor visualización
             const today = moment().tz('America/Mexico_City').startOf('day');
-            const todayNotifs = futureNotifications.filter(n => 
-                moment(n.scheduledDate).tz('America/Mexico_City').isSame(today, 'day'));
-            const tomorrowNotifs = futureNotifications.filter(n => 
-                moment(n.scheduledDate).tz('America/Mexico_City').isSame(today.clone().add(1, 'day'), 'day'));
-            const laterNotifs = futureNotifications.filter(n => 
-                moment(n.scheduledDate).tz('America/Mexico_City').isAfter(today.clone().add(1, 'day'), 'day'));
+            const todayNotifs = futureNotifications.filter(n =>
+                moment(n.scheduledDate).tz('America/Mexico_City').isSame(today, 'day')
+            );
+            const tomorrowNotifs = futureNotifications.filter(n =>
+                moment(n.scheduledDate)
+                    .tz('America/Mexico_City')
+                    .isSame(today.clone().add(1, 'day'), 'day')
+            );
+            const laterNotifs = futureNotifications.filter(n =>
+                moment(n.scheduledDate)
+                    .tz('America/Mexico_City')
+                    .isAfter(today.clone().add(1, 'day'), 'day')
+            );
 
             let message = `⏰ *NOTIFICACIONES PENDIENTES (${futureNotifications.length})*\n\n`;
 
@@ -199,11 +212,17 @@ class NotificationsHandler implements IAdminHandler {
             if (todayNotifs.length > 0) {
                 message += `📅 *HOY (${todayNotifs.length}):*\n`;
                 todayNotifs.forEach((notification: IScheduledNotification) => {
-                    const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                    const scheduledMoment = moment(notification.scheduledDate).tz(
+                        'America/Mexico_City'
+                    );
                     const formattedTime = scheduledMoment.format('HH:mm');
 
-                    const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                    notification.tipoNotificacion === 'TERMINO' ? '🟩' : '📝';
+                    const tipoEmoji =
+                        notification.tipoNotificacion === 'CONTACTO'
+                            ? '🟨'
+                            : notification.tipoNotificacion === 'TERMINO'
+                              ? '🟩'
+                              : '📝';
 
                     message += `🔹${tipoEmoji} *${formattedTime}* - ${notification.expedienteNum}\n`;
                     message += `📝 ${notification.numeroPoliza} (${notification.tipoNotificacion})\n\n`;
@@ -214,11 +233,17 @@ class NotificationsHandler implements IAdminHandler {
             if (tomorrowNotifs.length > 0) {
                 message += `📅 *MAÑANA (${tomorrowNotifs.length}):*\n`;
                 tomorrowNotifs.forEach((notification: IScheduledNotification) => {
-                    const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                    const scheduledMoment = moment(notification.scheduledDate).tz(
+                        'America/Mexico_City'
+                    );
                     const formattedTime = scheduledMoment.format('HH:mm');
 
-                    const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                    notification.tipoNotificacion === 'TERMINO' ? '🟩' : '📝';
+                    const tipoEmoji =
+                        notification.tipoNotificacion === 'CONTACTO'
+                            ? '🟨'
+                            : notification.tipoNotificacion === 'TERMINO'
+                              ? '🟩'
+                              : '📝';
 
                     message += `🔹${tipoEmoji} *${formattedTime}* - ${notification.expedienteNum}\n`;
                     message += `📝 ${notification.numeroPoliza} (${notification.tipoNotificacion})\n\n`;
@@ -229,11 +254,17 @@ class NotificationsHandler implements IAdminHandler {
             if (laterNotifs.length > 0) {
                 message += `📅 *PRÓXIMOS DÍAS (${laterNotifs.length}):*\n`;
                 laterNotifs.slice(0, 5).forEach((notification: IScheduledNotification) => {
-                    const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                    const scheduledMoment = moment(notification.scheduledDate).tz(
+                        'America/Mexico_City'
+                    );
                     const formattedDateTime = scheduledMoment.format('DD/MM HH:mm');
 
-                    const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                    notification.tipoNotificacion === 'TERMINO' ? '🟩' : '📝';
+                    const tipoEmoji =
+                        notification.tipoNotificacion === 'CONTACTO'
+                            ? '🟨'
+                            : notification.tipoNotificacion === 'TERMINO'
+                              ? '🟩'
+                              : '📝';
 
                     message += `🔹${tipoEmoji} *${formattedDateTime}* - ${notification.expedienteNum}\n`;
                     message += `📝 ${notification.numeroPoliza} (${notification.tipoNotificacion})\n\n`;
@@ -282,8 +313,9 @@ class NotificationsHandler implements IAdminHandler {
             // Mostrar solo las próximas 10 notificaciones para no sobrecargar
             const upcomingNotifications = pendingNotifications
                 .slice(0, 10)
-                .sort((a: any, b: any) => 
-                    new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()
+                .sort(
+                    (a: any, b: any) =>
+                        new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime()
                 );
 
             let message = `✏️ *EDITAR NOTIFICACIONES*\n`;
@@ -293,12 +325,18 @@ class NotificationsHandler implements IAdminHandler {
             const buttons: any[][] = [];
 
             upcomingNotifications.forEach((notification: any, index: number) => {
-                const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
+                const scheduledMoment = moment(notification.scheduledDate).tz(
+                    'America/Mexico_City'
+                );
                 const formattedDateTime = scheduledMoment.format('DD/MM HH:mm');
-                
+
                 // Emoji según el tipo
-                const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '🟨' : 
-                                notification.tipoNotificacion === 'TERMINO' ? '🟩' : '⚪';
+                const tipoEmoji =
+                    notification.tipoNotificacion === 'CONTACTO'
+                        ? '🟨'
+                        : notification.tipoNotificacion === 'TERMINO'
+                          ? '🟩'
+                          : '⚪';
 
                 message += `${index + 1}. ${tipoEmoji} ${formattedDateTime} - ${notification.expedienteNum}\n`;
                 message += `   📝 ${notification.numeroPoliza}\n\n`;
@@ -306,7 +344,7 @@ class NotificationsHandler implements IAdminHandler {
                 // Crear botón para editar esta notificación
                 buttons.push([
                     Markup.button.callback(
-                        `${index + 1}. ${tipoEmoji} ${notification.expedienteNum}`, 
+                        `${index + 1}. ${tipoEmoji} ${notification.expedienteNum}`,
                         `admin_notifications_edit_${notification._id}`
                     )
                 ]);
@@ -319,7 +357,6 @@ class NotificationsHandler implements IAdminHandler {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard(buttons)
             });
-
         } catch (error) {
             logger.error('Error en handleEditNotifications:', error);
             await ctx.editMessageText('❌ Error al cargar notificaciones para editar.', {
@@ -338,7 +375,7 @@ class NotificationsHandler implements IAdminHandler {
 
             // Buscar la notificación específica
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 await ctx.editMessageText('❌ Notificación no encontrada.', {
                     ...Markup.inlineKeyboard([
@@ -351,7 +388,7 @@ class NotificationsHandler implements IAdminHandler {
             // Formatear la información de la notificación
             const scheduledMoment = moment(notification.scheduledDate).tz('America/Mexico_City');
             const formattedDateTime = scheduledMoment.format('DD/MM/YYYY HH:mm');
-            
+
             const statusEmoji: Record<string, string> = {
                 PENDING: '⏳ Pendiente',
                 SCHEDULED: '🕒 Programada',
@@ -362,7 +399,7 @@ class NotificationsHandler implements IAdminHandler {
             };
 
             const statusText = statusEmoji[notification.status] || notification.status;
-            
+
             let message = `🔧 *EDITAR NOTIFICACIÓN*\n\n`;
             message += `📋 *Expediente:* ${notification.expedienteNum || 'N/A'}\n`;
             message += `📝 *Póliza:* ${notification.numeroPoliza}\n`;
@@ -370,43 +407,70 @@ class NotificationsHandler implements IAdminHandler {
             message += `📊 *Estado:* ${statusText}\n`;
             message += `🔄 *Reintentos:* ${notification.retryCount || 0}\n`;
             message += `📞 *Tipo:* ${notification.tipoNotificacion}\n`;
-            
+
             if (notification.telefono) {
                 message += `📱 *Teléfono:* ${notification.telefono}\n`;
             }
-            
+
             if (notification.error) {
                 message += `\n❌ *Error:* ${notification.error.substring(0, 100)}${notification.error.length > 100 ? '...' : ''}`;
             }
 
             // Botones según el estado de la notificación
             const buttons = [];
-            
+
             // Solo mostrar opciones relevantes según el estado
             if (['PENDING', 'SCHEDULED', 'FAILED'].includes(notification.status)) {
-                buttons.push([Markup.button.callback('🗑️ Cancelar Notificación', `admin_notifications_cancel_${notificationId}`)]);
-                
+                buttons.push([
+                    Markup.button.callback(
+                        '🗑️ Cancelar Notificación',
+                        `admin_notifications_cancel_${notificationId}`
+                    )
+                ]);
+
                 // Botón de editar fecha (siempre disponible para estos estados)
-                buttons.push([Markup.button.callback('📅 Editar Fecha', `admin_notifications_edit_date_${notificationId}`)]);
-                
+                buttons.push([
+                    Markup.button.callback(
+                        '📅 Editar Fecha',
+                        `admin_notifications_edit_date_${notificationId}`
+                    )
+                ]);
+
                 if (notification.status === 'FAILED') {
-                    buttons.push([Markup.button.callback('🔄 Reprogramar 5min', `admin_notifications_reschedule_${notificationId}`)]);
+                    buttons.push([
+                        Markup.button.callback(
+                            '🔄 Reprogramar 5min',
+                            `admin_notifications_reschedule_${notificationId}`
+                        )
+                    ]);
                 }
             }
-            
+
             if (notification.status === 'PROCESSING') {
-                buttons.push([Markup.button.callback('⏹️ Detener Procesamiento', `admin_notifications_stop_${notificationId}`)]);
+                buttons.push([
+                    Markup.button.callback(
+                        '⏹️ Detener Procesamiento',
+                        `admin_notifications_stop_${notificationId}`
+                    )
+                ]);
             }
-            
+
             // Botón para limpiar si es una notificación vieja
             const ahora = new Date();
             const hace24Horas = new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
-            
-            if (['SENT', 'FAILED', 'CANCELLED'].includes(notification.status) && 
-                notification.scheduledDate < hace24Horas) {
-                buttons.push([Markup.button.callback('🧹 Eliminar (vieja)', `admin_notifications_delete_${notificationId}`)]);
+
+            if (
+                ['SENT', 'FAILED', 'CANCELLED'].includes(notification.status) &&
+                notification.scheduledDate < hace24Horas
+            ) {
+                buttons.push([
+                    Markup.button.callback(
+                        '🧹 Eliminar (vieja)',
+                        `admin_notifications_delete_${notificationId}`
+                    )
+                ]);
             }
-            
+
             // Botón de regreso
             buttons.push([Markup.button.callback('⬅️ Volver a Lista', 'admin_notifications_edit')]);
 
@@ -414,7 +478,6 @@ class NotificationsHandler implements IAdminHandler {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard(buttons)
             });
-
         } catch (error) {
             logger.error('Error en handleEditIndividual:', error);
             await ctx.editMessageText('❌ Error al cargar la notificación', {
@@ -433,7 +496,7 @@ class NotificationsHandler implements IAdminHandler {
             await ctx.answerCbQuery();
 
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 await ctx.editMessageText('❌ Notificación no encontrada.', {
                     ...Markup.inlineKeyboard([
@@ -445,22 +508,29 @@ class NotificationsHandler implements IAdminHandler {
 
             // Cancelar la notificación usando el método del modelo
             await notification.cancel();
-            
-            await ctx.editMessageText(`✅ *Notificación cancelada exitosamente*\n\n📝 Póliza: ${notification.numeroPoliza}\n📋 Expediente: ${notification.expedienteNum || 'N/A'}`, {
-                parse_mode: 'Markdown',
-                ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver a Lista', 'admin_notifications_edit')],
-                    [Markup.button.callback('🏠 Menú Principal', 'admin_notifications_menu')]
-                ])
-            });
+
+            await ctx.editMessageText(
+                `✅ *Notificación cancelada exitosamente*\n\n📝 Póliza: ${notification.numeroPoliza}\n📋 Expediente: ${notification.expedienteNum || 'N/A'}`,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('⬅️ Volver a Lista', 'admin_notifications_edit')],
+                        [Markup.button.callback('🏠 Menú Principal', 'admin_notifications_menu')]
+                    ])
+                }
+            );
 
             logger.info(`Notificación ${notificationId} cancelada por admin`);
-
         } catch (error) {
             logger.error('Error en handleCancelNotification:', error);
             await ctx.editMessageText('❌ Error al cancelar la notificación', {
                 ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
+                    [
+                        Markup.button.callback(
+                            '⬅️ Volver',
+                            `admin_notifications_edit_${notificationId}`
+                        )
+                    ]
                 ])
             });
         }
@@ -474,7 +544,7 @@ class NotificationsHandler implements IAdminHandler {
             await ctx.answerCbQuery();
 
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 await ctx.editMessageText('❌ Notificación no encontrada.', {
                     ...Markup.inlineKeyboard([
@@ -487,35 +557,56 @@ class NotificationsHandler implements IAdminHandler {
             // Verificar que sea una notificación vieja antes de eliminar
             const ahora = new Date();
             const hace24Horas = new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
-            
-            if (!(['SENT', 'FAILED', 'CANCELLED'].includes(notification.status) && 
-                  notification.scheduledDate < hace24Horas)) {
-                await ctx.editMessageText('❌ Solo se pueden eliminar notificaciones viejas (>24h) que estén enviadas, fallidas o canceladas.', {
-                    ...Markup.inlineKeyboard([
-                        [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
-                    ])
-                });
+
+            if (
+                !(
+                    ['SENT', 'FAILED', 'CANCELLED'].includes(notification.status) &&
+                    notification.scheduledDate < hace24Horas
+                )
+            ) {
+                await ctx.editMessageText(
+                    '❌ Solo se pueden eliminar notificaciones viejas (>24h) que estén enviadas, fallidas o canceladas.',
+                    {
+                        ...Markup.inlineKeyboard([
+                            [
+                                Markup.button.callback(
+                                    '⬅️ Volver',
+                                    `admin_notifications_edit_${notificationId}`
+                                )
+                            ]
+                        ])
+                    }
+                );
                 return;
             }
 
             // Eliminar la notificación
             await ScheduledNotification.findByIdAndDelete(notificationId);
-            
-            await ctx.editMessageText(`🗑️ *Notificación eliminada exitosamente*\n\n📝 Póliza: ${notification.numeroPoliza}\n📋 Expediente: ${notification.expedienteNum || 'N/A'}`, {
-                parse_mode: 'Markdown',
-                ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver a Lista', 'admin_notifications_edit')],
-                    [Markup.button.callback('🏠 Menú Principal', 'admin_notifications_menu')]
-                ])
-            });
 
-            logger.info(`Notificación ${notificationId} eliminada por admin (póliza: ${notification.numeroPoliza})`);
+            await ctx.editMessageText(
+                `🗑️ *Notificación eliminada exitosamente*\n\n📝 Póliza: ${notification.numeroPoliza}\n📋 Expediente: ${notification.expedienteNum || 'N/A'}`,
+                {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('⬅️ Volver a Lista', 'admin_notifications_edit')],
+                        [Markup.button.callback('🏠 Menú Principal', 'admin_notifications_menu')]
+                    ])
+                }
+            );
 
+            logger.info(
+                `Notificación ${notificationId} eliminada por admin (póliza: ${notification.numeroPoliza})`
+            );
         } catch (error) {
             logger.error('Error en handleDeleteNotification:', error);
             await ctx.editMessageText('❌ Error al eliminar la notificación', {
                 ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
+                    [
+                        Markup.button.callback(
+                            '⬅️ Volver',
+                            `admin_notifications_edit_${notificationId}`
+                        )
+                    ]
                 ])
             });
         }
@@ -533,7 +624,7 @@ class NotificationsHandler implements IAdminHandler {
             await ctx.answerCbQuery();
 
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 await ctx.editMessageText('❌ Notificación no encontrada.', {
                     ...Markup.inlineKeyboard([
@@ -543,58 +634,85 @@ class NotificationsHandler implements IAdminHandler {
                 return;
             }
 
-            const currentDateTime = moment(notification.scheduledDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
-            const tipoEmoji = notification.tipoNotificacion === 'CONTACTO' ? '📞' : 
-                             notification.tipoNotificacion === 'TERMINO' ? '🏁' : '📝';
+            const currentDateTime = moment(notification.scheduledDate)
+                .tz('America/Mexico_City')
+                .format('DD/MM/YYYY HH:mm');
+            const tipoEmoji =
+                notification.tipoNotificacion === 'CONTACTO'
+                    ? '📞'
+                    : notification.tipoNotificacion === 'TERMINO'
+                      ? '🏁'
+                      : '📝';
 
             let message = `📅 *EDITAR FECHA Y HORA*\n\n`;
             message += `${tipoEmoji} *Tipo:* ${notification.tipoNotificacion}\n`;
             message += `📝 *Póliza:* ${notification.numeroPoliza}\n`;
             message += `📅 *Actual:* ${currentDateTime}\n\n`;
-            
+
             if (notification.tipoNotificacion === 'CONTACTO') {
                 message += `⚠️ *Al mover CONTACTO, TERMINO se ajusta automáticamente*\n\n`;
             } else if (notification.tipoNotificacion === 'TERMINO') {
                 message += `⚠️ *TERMINO no puede ser antes que CONTACTO*\n\n`;
             }
-            
+
             message += `🕐 Selecciona cuándo reprogramar:`;
 
             const now = moment().tz('America/Mexico_City');
             const buttons = [];
-            
+
             // Opciones rápidas de tiempo
             buttons.push([
-                Markup.button.callback('⏰ +30min', `admin_notifications_quick_${notificationId}_30m`),
+                Markup.button.callback(
+                    '⏰ +30min',
+                    `admin_notifications_quick_${notificationId}_30m`
+                ),
                 Markup.button.callback('⏰ +1h', `admin_notifications_quick_${notificationId}_1h`),
                 Markup.button.callback('⏰ +2h', `admin_notifications_quick_${notificationId}_2h`)
             ]);
 
             buttons.push([
                 Markup.button.callback('🌅 +4h', `admin_notifications_quick_${notificationId}_4h`),
-                Markup.button.callback('🌄 Mañana 8AM', `admin_notifications_quick_${notificationId}_tomorrow8`),
-                Markup.button.callback('🌆 Mañana 6PM', `admin_notifications_quick_${notificationId}_tomorrow18`)
+                Markup.button.callback(
+                    '🌄 Mañana 8AM',
+                    `admin_notifications_quick_${notificationId}_tomorrow8`
+                ),
+                Markup.button.callback(
+                    '🌆 Mañana 6PM',
+                    `admin_notifications_quick_${notificationId}_tomorrow18`
+                )
             ]);
 
             // Opciones de fecha específica (simplificadas por Telegram)
             buttons.push([
-                Markup.button.callback('📅 Hoy +3h', `admin_notifications_quick_${notificationId}_today3h`),
-                Markup.button.callback('📅 Hoy +6h', `admin_notifications_quick_${notificationId}_today6h`)
+                Markup.button.callback(
+                    '📅 Hoy +3h',
+                    `admin_notifications_quick_${notificationId}_today3h`
+                ),
+                Markup.button.callback(
+                    '📅 Hoy +6h',
+                    `admin_notifications_quick_${notificationId}_today6h`
+                )
             ]);
 
             // Botones de navegación
-            buttons.push([Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]);
+            buttons.push([
+                Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)
+            ]);
 
             await ctx.editMessageText(message, {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard(buttons)
             });
-
         } catch (error) {
             logger.error('Error en handleEditDate:', error);
             await ctx.editMessageText('❌ Error al mostrar opciones de edición', {
                 ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
+                    [
+                        Markup.button.callback(
+                            '⬅️ Volver',
+                            `admin_notifications_edit_${notificationId}`
+                        )
+                    ]
                 ])
             });
         }
@@ -608,7 +726,7 @@ class NotificationsHandler implements IAdminHandler {
             await ctx.answerCbQuery();
 
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 await ctx.editMessageText('❌ Notificación no encontrada.', {
                     ...Markup.inlineKeyboard([
@@ -650,7 +768,12 @@ class NotificationsHandler implements IAdminHandler {
                 default:
                     await ctx.editMessageText('❌ Opción no válida', {
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_date_${notificationId}`)]
+                            [
+                                Markup.button.callback(
+                                    '⬅️ Volver',
+                                    `admin_notifications_edit_date_${notificationId}`
+                                )
+                            ]
                         ])
                     });
                     return;
@@ -662,11 +785,11 @@ class NotificationsHandler implements IAdminHandler {
 
             if (result.success) {
                 let successMessage = `${result.message}\n\n`;
-                
+
                 if (result.affectedNotifications && result.affectedNotifications.length > 1) {
                     successMessage += `📊 Notificaciones actualizadas: ${result.affectedNotifications.length}\n`;
                 }
-                
+
                 successMessage += `⏰ Cambio realizado: ${moment().tz('America/Mexico_City').format('DD/MM HH:mm')}`;
 
                 await ctx.editMessageText(successMessage, {
@@ -677,21 +800,37 @@ class NotificationsHandler implements IAdminHandler {
                     ])
                 });
 
-                logger.info(`Admin editó fecha de notificación ${notificationId} a ${newDate.toISOString()}`);
+                logger.info(
+                    `Admin editó fecha de notificación ${notificationId} a ${newDate.toISOString()}`
+                );
             } else {
                 await ctx.editMessageText(`❌ ${result.message}`, {
                     ...Markup.inlineKeyboard([
-                        [Markup.button.callback('🔄 Reintentar', `admin_notifications_edit_date_${notificationId}`)],
-                        [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
+                        [
+                            Markup.button.callback(
+                                '🔄 Reintentar',
+                                `admin_notifications_edit_date_${notificationId}`
+                            )
+                        ],
+                        [
+                            Markup.button.callback(
+                                '⬅️ Volver',
+                                `admin_notifications_edit_${notificationId}`
+                            )
+                        ]
                     ])
                 });
             }
-
         } catch (error) {
             logger.error('Error en handleQuickEdit:', error);
             await ctx.editMessageText('❌ Error al editar la notificación', {
                 ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_date_${notificationId}`)]
+                    [
+                        Markup.button.callback(
+                            '⬅️ Volver',
+                            `admin_notifications_edit_date_${notificationId}`
+                        )
+                    ]
                 ])
             });
         }
@@ -705,7 +844,7 @@ class NotificationsHandler implements IAdminHandler {
             await ctx.answerCbQuery();
 
             const notification = await ScheduledNotification.findById(notificationId);
-            
+
             if (!notification) {
                 await ctx.editMessageText('❌ Notificación no encontrada.', {
                     ...Markup.inlineKeyboard([
@@ -733,16 +872,25 @@ class NotificationsHandler implements IAdminHandler {
             } else {
                 await ctx.editMessageText(`❌ Error al reprogramar: ${result.message}`, {
                     ...Markup.inlineKeyboard([
-                        [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
+                        [
+                            Markup.button.callback(
+                                '⬅️ Volver',
+                                `admin_notifications_edit_${notificationId}`
+                            )
+                        ]
                     ])
                 });
             }
-
         } catch (error) {
             logger.error('Error en handleRescheduleNotification:', error);
             await ctx.editMessageText('❌ Error al reprogramar la notificación', {
                 ...Markup.inlineKeyboard([
-                    [Markup.button.callback('⬅️ Volver', `admin_notifications_edit_${notificationId}`)]
+                    [
+                        Markup.button.callback(
+                            '⬅️ Volver',
+                            `admin_notifications_edit_${notificationId}`
+                        )
+                    ]
                 ])
             });
         }

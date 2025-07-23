@@ -348,10 +348,10 @@ class ExcelUploadHandler extends BaseCommand {
         policyData.estado = 'ACTIVO';
 
         // Inicializar arreglos vacíos para archivos, pagos y servicios
-        policyData.archivos = { 
-            fotos: [], 
-            pdfs: [], 
-            r2Files: { fotos: [], pdfs: [] } 
+        policyData.archivos = {
+            fotos: [],
+            pdfs: [],
+            r2Files: { fotos: [], pdfs: [] }
         };
         policyData.pagos = [];
         policyData.servicios = [];

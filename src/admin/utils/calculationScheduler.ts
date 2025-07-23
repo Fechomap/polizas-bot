@@ -253,15 +253,14 @@ class CalculationScheduler {
                 message += `🗑️ NIVs eliminados: ${eliminados}\\n`;
                 message += '✨ NIVs usados limpiados correctamente';
 
-                await this.bot.telegram.sendMessage(
-                    this.adminChatId,
-                    message,
-                    { parse_mode: 'MarkdownV2' }
-                );
+                await this.bot.telegram.sendMessage(this.adminChatId, message, {
+                    parse_mode: 'MarkdownV2'
+                });
             }
 
-            logger.info(`✅ Limpieza de NIVs completada en ${elapsed}s - ${eliminados} NIVs eliminados`);
-
+            logger.info(
+                `✅ Limpieza de NIVs completada en ${elapsed}s - ${eliminados} NIVs eliminados`
+            );
         } catch (error) {
             logger.error('❌ Error en limpieza de NIVs:', error);
 
@@ -297,15 +296,12 @@ class CalculationScheduler {
                 message += '🗑️ Notificaciones obsoletas eliminadas\\n';
                 message += '✨ Base de datos de notificaciones optimizada';
 
-                await this.bot.telegram.sendMessage(
-                    this.adminChatId,
-                    message,
-                    { parse_mode: 'MarkdownV2' }
-                );
+                await this.bot.telegram.sendMessage(this.adminChatId, message, {
+                    parse_mode: 'MarkdownV2'
+                });
             }
 
             logger.info(`✅ Limpieza de notificaciones completada en ${elapsed}s`);
-
         } catch (error) {
             logger.error('❌ Error en limpieza de notificaciones:', error);
 

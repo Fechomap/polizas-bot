@@ -72,7 +72,7 @@ const isValidPolicyNumber = numeroPoliza => {
 const importExcel = async excelPath => {
     try {
         console.log(`📄 Leyendo archivo Excel: ${excelPath}`);
-        
+
         // Verificar que el archivo existe
         try {
             require('fs').accessSync(excelPath);
@@ -81,14 +81,14 @@ const importExcel = async excelPath => {
         }
 
         const workbook = XLSX.readFile(excelPath);
-        
+
         if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
             throw new Error('El archivo Excel no contiene hojas de trabajo');
         }
 
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(sheet, { defval: null });
-        
+
         console.log(`📊 ${data.length} registros encontrados en la hoja: ${workbook.SheetNames[0]}`);
 
         if (data.length === 0) {
@@ -106,7 +106,7 @@ const importExcel = async excelPath => {
         for (const [index, item] of data.entries()) {
             try {
                 const numeroPoliza = toUpperIfExists(item['# DE POLIZA']);
-                
+
                 if (!isValidPolicyNumber(numeroPoliza)) {
                     console.log(`⚠️ Registro ${index + 1} sin número de póliza válido, omitiendo...`);
                     skipped++;
@@ -136,7 +136,7 @@ const importExcel = async excelPath => {
                 for (let i = 1; i <= 12; i++) {
                     const monto = item[`PAGO${i}_MONTO`];
                     const fecha = item[`PAGO${i}_FECHA`];
-                    
+
                     if (monto || fecha) {
                         const pagoData = {
                             numeroMembresia: i,
@@ -145,7 +145,7 @@ const importExcel = async excelPath => {
                             estado: 'REALIZADO', // Asumimos que los pagos en Excel están realizados
                             metodoPago: 'IMPORTADO_EXCEL'
                         };
-                        
+
                         // Solo agregar si tiene monto válido
                         if (pagoData.monto > 0) {
                             pagos.push(pagoData);
@@ -160,7 +160,7 @@ const importExcel = async excelPath => {
                     const fecha = item[`SERVICIO${i}_FECHA`];
                     const expediente = item[`SERVICIO${i}_EXPEDIENTE`];
                     const origenDestino = item[`SERVICIO${i}_ORIGEN_DESTINO`];
-                    
+
                     if (costo || fecha || expediente || origenDestino) {
                         const servicioData = {
                             numeroServicio: i,
@@ -170,7 +170,7 @@ const importExcel = async excelPath => {
                             origenDestino: toUpperIfExists(origenDestino),
                             estado: 'COMPLETADO'
                         };
-                        
+
                         // Solo agregar si tiene información relevante
                         if (servicioData.costo > 0 || servicioData.numeroExpediente || servicioData.origenDestino) {
                             servicios.push(servicioData);
@@ -245,7 +245,7 @@ const importExcel = async excelPath => {
         console.log(`❌ Errores de procesamiento: ${errors}`);
         console.log(`📊 Total procesado: ${inserted + updated + skipped + errors}/${data.length}`);
         console.log('🎯 Versión: TypeScript Compatible');
-        
+
         if (errors > 0) {
             console.log(`\n⚠️ Se encontraron ${errors} errores durante la importación. Revisa los logs anteriores.`);
         }
@@ -267,7 +267,7 @@ const importExcel = async excelPath => {
 const run = async () => {
     try {
         await connectDB();
-        
+
         const excelPath = process.argv[2];
         if (!excelPath) {
             console.error('❌ Falta la ruta del archivo Excel');

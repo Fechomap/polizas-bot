@@ -38,10 +38,10 @@ async function probarCorrecciones() {
 
         console.log('\n📋 1. VERIFICANDO ESTADO ACTUAL DEL VEHÍCULO 3VWHP6BU9RM073778:');
         console.log('-'.repeat(50));
-        
+
         // Buscar el vehículo problemático
-        const vehiculoExistente = await Vehicle.findOne({ 
-            serie: '3VWHP6BU9RM073778' 
+        const vehiculoExistente = await Vehicle.findOne({
+            serie: '3VWHP6BU9RM073778'
         }).lean();
 
         if (vehiculoExistente) {
@@ -65,8 +65,8 @@ async function probarCorrecciones() {
             console.log('✅ Transacción iniciada');
 
             // 1. Validar duplicados dentro de la transacción
-            const existeEnTransaccion = await Vehicle.findOne({ 
-                serie: 'TEST_SERIE_123456' 
+            const existeEnTransaccion = await Vehicle.findOne({
+                serie: 'TEST_SERIE_123456'
             }).session(session);
 
             if (!existeEnTransaccion) {
@@ -153,12 +153,12 @@ async function probarCorrecciones() {
                 tipoPoliza: 'NIP',
                 totalServicios: 0
             })
-            .sort({ createdAt: -1 })
-            .limit(4)
-            .lean();
+                .sort({ createdAt: -1 })
+                .limit(4)
+                .lean();
 
             console.log(`📊 NIPs encontrados para reportes: ${nipsEnReportes.length}`);
-            
+
             const nuestroNipEnReportes = nipsEnReportes.find(n => n.numeroPoliza === 'TEST_SERIE_123456');
             if (nuestroNipEnReportes) {
                 console.log('✅ NIP de prueba aparece correctamente en reportes');

@@ -174,10 +174,9 @@ class OcuparPolizaCallback extends BaseCommand {
                     await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
                     logger.info('[keepPhone] Botones removidos del mensaje original');
                 } catch (editError) {
-                    logger.info(
-                        '[keepPhone] No se pudo editar mensaje original:',
-                        { error: (editError as Error).message }
-                    );
+                    logger.info('[keepPhone] No se pudo editar mensaje original:', {
+                        error: (editError as Error).message
+                    });
                 }
 
                 const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
@@ -246,10 +245,9 @@ class OcuparPolizaCallback extends BaseCommand {
                     await ctx.editMessageReplyMarkup({ inline_keyboard: [] });
                     logger.info('[changePhone] Botones removidos del mensaje original');
                 } catch (editError) {
-                    logger.info(
-                        '[changePhone] No se pudo editar mensaje original:',
-                        { error: (editError as Error).message }
-                    );
+                    logger.info('[changePhone] No se pudo editar mensaje original:', {
+                        error: (editError as Error).message
+                    });
                 }
 
                 logger.info(
@@ -312,29 +310,41 @@ class OcuparPolizaCallback extends BaseCommand {
                 setImmediate(async () => {
                     try {
                         const threadIdStr = threadId ? String(threadId) : null;
-                        const flowState = flowStateManager.getState(chatId, numeroPoliza, threadIdStr);
+                        const flowState = flowStateManager.getState(
+                            chatId,
+                            numeroPoliza,
+                            threadIdStr
+                        );
                         const policy = await getPolicyByNumber(numeroPoliza);
-                        
+
                         if (flowState && policy && flowState.geocoding) {
                             const enhancedData = {
                                 origenGeo: flowState.geocoding.origen,
                                 destinoGeo: flowState.geocoding.destino,
-                                googleMapsUrl: flowState.googleMapsUrl || flowState.rutaInfo?.googleMapsUrl,
+                                googleMapsUrl:
+                                    flowState.googleMapsUrl || flowState.rutaInfo?.googleMapsUrl,
                                 leyenda: '' // No usado en la versión azul
                             };
 
                             const targetGroupId = -1002212807945;
-                            logger.info(`Enviando leyenda azul al grupo ${targetGroupId} para registro de servicio`);
-                            
+                            logger.info(
+                                `Enviando leyenda azul al grupo ${targetGroupId} para registro de servicio`
+                            );
+
                             // Enviar leyenda azul de forma asíncrona y rápida
-                            this.enviarLeyendaConEfectoTypingAzul(ctx.telegram, targetGroupId, policy, enhancedData).catch(error => {
+                            this.enviarLeyendaConEfectoTypingAzul(
+                                ctx.telegram,
+                                targetGroupId,
+                                policy,
+                                enhancedData
+                            ).catch(error => {
                                 logger.error('Error enviando leyenda azul:', error);
                             });
                         } else {
                             logger.warn('No se pudo obtener datos completos para leyenda azul', {
                                 hasFlowState: !!flowState,
                                 hasPolicy: !!policy,
-                                hasGeocoding: !!(flowState?.geocoding)
+                                hasGeocoding: !!flowState?.geocoding
                             });
                         }
                     } catch (error) {
@@ -350,7 +360,6 @@ class OcuparPolizaCallback extends BaseCommand {
                 logger.info(
                     `Estado establecido para esperar datos del servicio para ${numeroPoliza}`
                 );
-
             } catch (error) {
                 logger.error('Error en callback registrarServicio:', error);
                 await ctx.reply('❌ Error al iniciar el registro del servicio.');
@@ -409,10 +418,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
                 // PROTECCIÓN ANTI-DOBLE-CLIC: Verificar si ya se está procesando
                 const processingKey = `${chatId}_${numeroPoliza}_${numeroRegistro}`;
-                if (
-                    (this.handler as any).processingCallbacks &&
-                    (this.handler as any).processingCallbacks.has(processingKey)
-                ) {
+                if ((this.handler as any).processingCallbacks?.has(processingKey)) {
                     logger.warn(
                         `[ANTI-DUPLICATE] Callback asig_yes ya procesándose para ${processingKey}, ignorando`
                     );
@@ -443,14 +449,16 @@ class OcuparPolizaCallback extends BaseCommand {
                 }
 
                 // Obtener la póliza para extraer datos del registro
-                const policy = await getPolicyByNumber(numeroPoliza) as IPolicy;
+                const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
                 if (!policy) {
                     await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                     return;
                 }
 
                 // Buscar el registro específico
-                const registro = policy.registros.find((r: any) => r.numeroRegistro === numeroRegistro);
+                const registro = policy.registros.find(
+                    (r: any) => r.numeroRegistro === numeroRegistro
+                );
                 if (!registro) {
                     await ctx.reply(
                         `❌ Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}.`
@@ -489,31 +497,37 @@ class OcuparPolizaCallback extends BaseCommand {
                 try {
                     const policy = await Policy.findOne({ numeroPoliza });
                     if (policy && policy.tipoPoliza === 'NIV' && policy.totalServicios >= 1) {
-                        logger.info(`Detectado NIV utilizado: ${numeroPoliza}. Iniciando eliminación automática.`);
-                        
+                        logger.info(
+                            `Detectado NIV utilizado: ${numeroPoliza}. Iniciando eliminación automática.`
+                        );
+
                         // Marcar póliza NIV como eliminada
                         await Policy.findByIdAndUpdate(policy._id, {
                             estado: 'ELIMINADO',
                             fechaEliminacion: new Date(),
                             motivoEliminacion: 'NIV utilizado - Eliminación automática'
                         });
-                        
+
                         // Marcar vehículo asociado como eliminado
                         if (policy.vehicleId) {
                             await Vehicle.findByIdAndUpdate(policy.vehicleId, {
                                 estado: 'ELIMINADO'
                             });
-                            logger.info(`Vehículo ${policy.vehicleId} marcado como eliminado (NIV consumido)`);
+                            logger.info(
+                                `Vehículo ${policy.vehicleId} marcado como eliminado (NIV consumido)`
+                            );
                         }
-                        
+
                         // Log de auditoría
-                        logger.info(`NIV ${numeroPoliza} eliminado automáticamente tras conversión a servicio ${numeroServicio}`);
-                        
+                        logger.info(
+                            `NIV ${numeroPoliza} eliminado automáticamente tras conversión a servicio ${numeroServicio}`
+                        );
+
                         // Mensaje adicional al usuario sobre el NIV consumido
                         await ctx.reply(
                             '⚡ *NIV CONSUMIDO*\n\n' +
-                            `El NIV \`${numeroPoliza}\` ha sido utilizado y se ha eliminado automáticamente del sistema.\n` +
-                            'Ya no aparecerá en reportes futuros.',
+                                `El NIV \`${numeroPoliza}\` ha sido utilizado y se ha eliminado automáticamente del sistema.\n` +
+                                'Ya no aparecerá en reportes futuros.',
                             { parse_mode: 'Markdown' }
                         );
                     }
@@ -566,7 +580,7 @@ class OcuparPolizaCallback extends BaseCommand {
                 try {
                     const notificationManager = getInstance();
 
-                    if (!notificationManager || !notificationManager.isInitialized) {
+                    if (!notificationManager?.isInitialized) {
                         logger.error(
                             'NotificationManager no está inicializado para notificaciones automáticas'
                         );
@@ -602,8 +616,12 @@ class OcuparPolizaCallback extends BaseCommand {
 
                         // PROGRAMACIÓN SECUENCIAL DE NOTIFICACIONES (ANTI-DUPLICADOS)
                         const results: Array<
-                            { status: 'fulfilled'; value: any } | { status: 'rejected'; reason: any }
-                        > = [{ status: 'rejected', reason: null }, { status: 'rejected', reason: null }];
+                            | { status: 'fulfilled'; value: any }
+                            | { status: 'rejected'; reason: any }
+                        > = [
+                            { status: 'rejected', reason: null },
+                            { status: 'rejected', reason: null }
+                        ];
 
                         try {
                             // 1. Programar notificación de CONTACTO primero
@@ -666,7 +684,9 @@ class OcuparPolizaCallback extends BaseCommand {
                         } else {
                             logger.error(
                                 'Error programando notificación de CONTACTO:',
-                                results[0].status === 'rejected' ? results[0].reason : 'Error desconocido'
+                                results[0].status === 'rejected'
+                                    ? results[0].reason
+                                    : 'Error desconocido'
                             );
                         }
 
@@ -677,7 +697,9 @@ class OcuparPolizaCallback extends BaseCommand {
                         } else {
                             logger.error(
                                 'Error programando notificación de TÉRMINO:',
-                                results[1].status === 'rejected' ? results[1].reason : 'Error desconocido'
+                                results[1].status === 'rejected'
+                                    ? results[1].reason
+                                    : 'Error desconocido'
                             );
                         }
 
@@ -869,7 +891,9 @@ class OcuparPolizaCallback extends BaseCommand {
                 if (!numeroPoliza) {
                     logger.error(`Número de póliza no encontrado en handlePhoneNumber`);
                     this.awaitingPhoneNumber.delete(chatId, threadId);
-                    await ctx.reply('❌ Error: Número de póliza no encontrado. Operación cancelada.');
+                    await ctx.reply(
+                        '❌ Error: Número de póliza no encontrado. Operación cancelada.'
+                    );
                     return true;
                 }
                 policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
@@ -962,7 +986,12 @@ class OcuparPolizaCallback extends BaseCommand {
             }
 
             // Guardar coordenadas de origen en FlowStateManager
-            flowStateManager.saveState(chatId, numeroPoliza, { origenCoords: coordenadas }, threadId);
+            flowStateManager.saveState(
+                chatId,
+                numeroPoliza,
+                { origenCoords: coordenadas },
+                threadId
+            );
 
             // También almacenar en caché local para compatibilidad
             const cachedData = this.polizaCache.get(chatId, threadId);
@@ -1010,12 +1039,15 @@ class OcuparPolizaCallback extends BaseCommand {
         try {
             let coordenadas = null;
 
-            if (input && input.location) {
+            if (input?.location) {
                 coordenadas = {
                     lat: input.location.latitude,
                     lng: input.location.longitude
                 };
-                logger.info('Coordenadas de destino extraídas de ubicación de Telegram', coordenadas);
+                logger.info(
+                    'Coordenadas de destino extraídas de ubicación de Telegram',
+                    coordenadas
+                );
             } else if (typeof input === 'string') {
                 coordenadas = this.hereMapsService.parseCoordinates(input);
                 if (!coordenadas) {
@@ -1037,7 +1069,9 @@ class OcuparPolizaCallback extends BaseCommand {
 
             if (!origenCoords) {
                 logger.error('No se encontraron coordenadas de origen guardadas');
-                await ctx.reply('❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.');
+                await ctx.reply(
+                    '❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.'
+                );
                 this.awaitingDestino.delete(chatId, threadId);
                 return false;
             }
@@ -1048,7 +1082,8 @@ class OcuparPolizaCallback extends BaseCommand {
 
             // Obtener póliza desde caché o BD
             const policyCacheData = this.polizaCache.get(chatId, threadId);
-            const policy = policyCacheData?.policy || (await getPolicyByNumber(numeroPoliza)) as IPolicy;
+            const policy =
+                policyCacheData?.policy || ((await getPolicyByNumber(numeroPoliza)) as IPolicy);
             if (!policy) {
                 await ctx.reply('❌ Error: Póliza no encontrada.');
                 this.awaitingDestino.delete(chatId, threadId);
@@ -1119,8 +1154,15 @@ class OcuparPolizaCallback extends BaseCommand {
             // Enviar leyenda en background sin bloquear al usuario
             setImmediate(async () => {
                 try {
-                    logger.info(`Enviando leyenda automáticamente al grupo ${targetGroupId} con efecto typing`);
-                    await this.enviarLeyendaConEfectoTyping(ctx.telegram, targetGroupId, policy, enhancedData);
+                    logger.info(
+                        `Enviando leyenda automáticamente al grupo ${targetGroupId} con efecto typing`
+                    );
+                    await this.enviarLeyendaConEfectoTyping(
+                        ctx.telegram,
+                        targetGroupId,
+                        policy,
+                        enhancedData
+                    );
                     logger.info(`Leyenda con efecto typing enviada al grupo: ${targetGroupId}`);
                 } catch (sendError) {
                     logger.error('Error al enviar leyenda automáticamente al grupo:', sendError);
@@ -1137,8 +1179,14 @@ class OcuparPolizaCallback extends BaseCommand {
                     link_preview_options: { is_disabled: true },
                     ...Markup.inlineKeyboard([
                         [
-                            Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
-                            Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
+                            Markup.button.callback(
+                                '✅ Registrar Servicio',
+                                `registrar_servicio_${numeroPoliza}`
+                            ),
+                            Markup.button.callback(
+                                '❌ No registrar',
+                                `no_registrar_${numeroPoliza}`
+                            )
                         ]
                     ])
                 }
@@ -1150,7 +1198,6 @@ class OcuparPolizaCallback extends BaseCommand {
             this.pendingLeyendas.delete(chatId, threadId);
             this.awaitingDestino.delete(chatId, threadId);
             return true;
-
         } catch (error) {
             logger.error('Error procesando destino:', error);
             await ctx.reply('❌ Error al procesar la ubicación del destino.');
@@ -1256,12 +1303,12 @@ class OcuparPolizaCallback extends BaseCommand {
             const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
             // Validar datos antes de generar mensajes
-            if (!policy || !enhancedData || !enhancedData.origenGeo || !enhancedData.destinoGeo) {
+            if (!policy || !enhancedData?.origenGeo || !enhancedData.destinoGeo) {
                 logger.error('Datos insuficientes para leyenda con efecto typing', {
                     hasPolicy: !!policy,
                     hasEnhancedData: !!enhancedData,
-                    hasOrigenGeo: !!(enhancedData?.origenGeo),
-                    hasDestinoGeo: !!(enhancedData?.destinoGeo)
+                    hasOrigenGeo: !!enhancedData?.origenGeo,
+                    hasDestinoGeo: !!enhancedData?.destinoGeo
                 });
                 throw new Error('Datos insuficientes para generar leyenda');
             }
@@ -1279,16 +1326,16 @@ class OcuparPolizaCallback extends BaseCommand {
             // Enviar cada mensaje con delay
             for (let i = 0; i < mensajes.length; i++) {
                 const mensaje = mensajes[i];
-                
+
                 // Validar que el mensaje no esté vacío
                 if (!mensaje || mensaje.trim().length === 0) {
                     logger.warn(`Mensaje ${i + 1} está vacío, saltando envío`);
                     continue;
                 }
-                
+
                 await telegram.sendMessage(targetGroupId, mensaje);
                 logger.info(`Mensaje ${i + 1}/${mensajes.length} enviado: ${mensaje}`);
-                
+
                 // Delay entre mensajes (menos en el último) - 4 mensajes por segundo
                 if (i < mensajes.length - 1) {
                     await delay(250); // 250ms entre mensajes = 4 por segundo
@@ -1300,18 +1347,17 @@ class OcuparPolizaCallback extends BaseCommand {
 
             await delay(250); // Delay antes del mensaje con URL - 4 por segundo
             await telegram.sendMessage(targetGroupId, mensajeUrl);
-            
+
             await delay(250); // Delay antes del mensaje de cierre - 4 por segundo
-            
+
             // Mensaje de cierre morado separado
             const mensajeCierre = '🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣';
             await telegram.sendMessage(targetGroupId, mensajeCierre);
-            
+
             logger.info('Secuencia de leyenda con efecto typing completada exitosamente');
-            
         } catch (error) {
             logger.error('Error enviando leyenda con efecto typing:', error);
-            
+
             // Fallback: enviar leyenda original en caso de error
             const leyendaFallback = enhancedData.leyenda;
             await telegram.sendMessage(targetGroupId, leyendaFallback);
@@ -1332,12 +1378,12 @@ class OcuparPolizaCallback extends BaseCommand {
             const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
             // Validar datos antes de generar mensajes azules
-            if (!policy || !enhancedData || !enhancedData.origenGeo || !enhancedData.destinoGeo) {
+            if (!policy || !enhancedData?.origenGeo || !enhancedData.destinoGeo) {
                 logger.error('Datos insuficientes para leyenda azul con efecto typing', {
                     hasPolicy: !!policy,
                     hasEnhancedData: !!enhancedData,
-                    hasOrigenGeo: !!(enhancedData?.origenGeo),
-                    hasDestinoGeo: !!(enhancedData?.destinoGeo)
+                    hasOrigenGeo: !!enhancedData?.origenGeo,
+                    hasDestinoGeo: !!enhancedData?.destinoGeo
                 });
                 throw new Error('Datos insuficientes para generar leyenda azul');
             }
@@ -1355,16 +1401,16 @@ class OcuparPolizaCallback extends BaseCommand {
             // Enviar cada mensaje con delay
             for (let i = 0; i < mensajes.length; i++) {
                 const mensaje = mensajes[i];
-                
+
                 // Validar que el mensaje no esté vacío
                 if (!mensaje || mensaje.trim().length === 0) {
                     logger.warn(`Mensaje azul ${i + 1} está vacío, saltando envío`);
                     continue;
                 }
-                
+
                 await telegram.sendMessage(targetGroupId, mensaje);
                 logger.info(`Mensaje azul ${i + 1}/${mensajes.length} enviado: ${mensaje}`);
-                
+
                 // Delay entre mensajes azules - mismo ritmo que morado (4 por segundo)
                 if (i < mensajes.length - 1) {
                     await delay(250); // 250ms entre mensajes = 4 por segundo
@@ -1376,18 +1422,17 @@ class OcuparPolizaCallback extends BaseCommand {
 
             await delay(250); // Delay antes del mensaje con URL azul - 4 por segundo
             await telegram.sendMessage(targetGroupId, mensajeUrl);
-            
+
             await delay(250); // Delay antes del mensaje de cierre azul - 4 por segundo
-            
+
             // Mensaje de cierre azul separado
             const mensajeCierre = '🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵';
             await telegram.sendMessage(targetGroupId, mensajeCierre);
-            
+
             logger.info('Secuencia de leyenda azul con efecto typing completada exitosamente');
-            
         } catch (error) {
             logger.error('Error enviando leyenda azul con efecto typing:', error);
-            
+
             // Fallback: enviar leyenda original en caso de error
             const leyendaFallback = enhancedData.leyenda;
             await telegram.sendMessage(targetGroupId, leyendaFallback);

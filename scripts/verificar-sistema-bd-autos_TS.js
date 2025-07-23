@@ -74,7 +74,7 @@ const verificarIntegridadBaseDatos = async () => {
         // Verificar pólizas con archivos
         const conFotos = await Policy.countDocuments({ 'archivos.fotos.0': { $exists: true } });
         const conPDFs = await Policy.countDocuments({ 'archivos.pdfs.0': { $exists: true } });
-        console.log(`\n📎 Pólizas con archivos adjuntos:`);
+        console.log('\n📎 Pólizas con archivos adjuntos:');
         console.log(`   - Con fotos: ${conFotos} (${((conFotos / totalPolicies) * 100).toFixed(1)}%)`);
         console.log(`   - Con PDFs: ${conPDFs} (${((conPDFs / totalPolicies) * 100).toFixed(1)}%)`);
 
@@ -125,10 +125,10 @@ async function verificarSistemaBDAutos() {
         // Si hay conexión, verificar integridad
         if (dbConnected) {
             const integridad = await verificarIntegridadBaseDatos();
-            
+
             if (integridad) {
                 console.log('\n✅ VERIFICACIÓN DE BASE DE DATOS COMPLETADA');
-                
+
                 // Mostrar recomendaciones basadas en los resultados
                 if (integridad.sinNumero > 0) {
                     console.log(`\n⚠️ RECOMENDACIÓN: Hay ${integridad.sinNumero} pólizas sin número. Ejecutar limpieza.`);

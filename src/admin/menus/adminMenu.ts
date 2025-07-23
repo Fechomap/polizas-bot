@@ -31,9 +31,7 @@ _Solo usuarios administradores pueden acceder a estas funciones._
                 Markup.button.callback('📊 REPORTES PDF', 'admin_reports_menu'),
                 Markup.button.callback('💾 BASE DE DATOS', 'admin_database_menu')
             ],
-            [
-                Markup.button.callback('📱 NOTIFICACIONES', 'admin_notifications_menu')
-            ]
+            [Markup.button.callback('📱 NOTIFICACIONES', 'admin_notifications_menu')]
         ]);
 
         if (ctx.callbackQuery) {
@@ -69,12 +67,8 @@ _Primero ubica la póliza, luego decide qué hacer con ella._
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
-            [
-                Markup.button.callback('🔍 Buscar Póliza', 'admin_policy_search')
-            ],
-            [
-                Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore')
-            ],
+            [Markup.button.callback('🔍 Buscar Póliza', 'admin_policy_search')],
+            [Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore')],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
@@ -203,9 +197,7 @@ _Gestiona todas las notificaciones de contacto y término automáticas._
                 Markup.button.callback('📋 Ver del Día', 'admin_notifications_list'),
                 Markup.button.callback('⏰ Ver Próximas', 'admin_notifications_today')
             ],
-            [
-                Markup.button.callback('✏️ Editar Notificaciones', 'admin_notifications_edit')
-            ],
+            [Markup.button.callback('✏️ Editar Notificaciones', 'admin_notifications_edit')],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 
