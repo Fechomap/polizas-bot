@@ -40,6 +40,11 @@ class NotificationManager {
     public isInitialized: boolean;
     private processingLocks: Set<string>;
     private recoveryInterval: NodeJS.Timeout | null;
+    
+    // NUEVAS VARIABLES para tracking mejorado
+    private timerTimestamps: Map<string, Date>; // Cuándo se programó cada timer
+    private originalScheduledDates: Map<string, Date>; // Fechas originales de cada timer
+    private editingLocks: Set<string>; // Notificaciones en proceso de edición
 
     constructor(bot?: Telegraf) {
         this.bot = bot || null;
@@ -47,6 +52,11 @@ class NotificationManager {
         this.isInitialized = false;
         this.processingLocks = new Set();
         this.recoveryInterval = null;
+        
+        // Inicializar nuevas estructuras de datos
+        this.timerTimestamps = new Map();
+        this.originalScheduledDates = new Map();
+        this.editingLocks = new Set();
     }
 
     /**
@@ -239,11 +249,15 @@ class NotificationManager {
                     await this.sendNotificationWithRetry(notificationId);
                 } finally {
                     this.activeTimers.delete(notificationId);
+                    this.timerTimestamps.delete(notificationId);
+                    this.originalScheduledDates.delete(notificationId);
                 }
             }, timeToWait);
 
-            // Guardar referencia al timer
+            // Guardar referencias al timer y timestamps para tracking
             this.activeTimers.set(notificationId, timerId);
+            this.timerTimestamps.set(notificationId, new Date());
+            this.originalScheduledDates.set(notificationId, scheduledTime);
 
             const scheduledMoment = moment(scheduledTime).tz('America/Mexico_City');
             logger.info(
@@ -540,6 +554,35 @@ class NotificationManager {
         let notification: IScheduledNotification | null = null;
 
         try {
+            // DOBLE VERIFICACIÓN ANTES DEL ENVÍO
+            
+            // Verificación 1: ¿Está siendo editada?
+            if (this.editingLocks.has(notificationId)) {
+                logger.warn(`[SEND_ABORTED] ${notificationId} está siendo editada`);
+                return;
+            }
+
+            // Verificación 2: Obtener estado actual antes de procesar
+            const preCheck = await ScheduledNotification.findById(notificationId);
+            if (!preCheck) {
+                logger.warn(`[SEND_ABORTED] ${notificationId} no existe`);
+                return;
+            }
+
+            // Verificación 3: ¿Fue editada después de programar el timer?
+            const timerProgrammedAt = this.timerTimestamps.get(notificationId);
+            if (timerProgrammedAt && preCheck.updatedAt && preCheck.updatedAt > timerProgrammedAt) {
+                logger.warn(`[SEND_ABORTED] ${notificationId} fue editada después del timer (${preCheck.updatedAt} > ${timerProgrammedAt})`);
+                return;
+            }
+
+            // Verificación 4: ¿La fecha programada cambió?
+            const originalDate = this.originalScheduledDates.get(notificationId);
+            if (originalDate && preCheck.scheduledDate.getTime() !== originalDate.getTime()) {
+                logger.warn(`[SEND_ABORTED] ${notificationId} fecha cambió de ${originalDate} a ${preCheck.scheduledDate}`);
+                return;
+            }
+
             // Actualización atómica del estado
             notification = await ScheduledNotification.findOneAndUpdate(
                 {
@@ -633,6 +676,10 @@ class NotificationManager {
 
             // Marcar como enviada
             await (notification as any).markAsSent();
+            
+            // Limpiar locks de edición
+            this.editingLocks.delete(notificationId);
+            
             logger.info(`✅ [SENT] Notificación ${notificationId} enviada exitosamente`);
         } catch (error: any) {
             logger.error(`Error al enviar notificación ${notificationId}:`, error);
@@ -733,6 +780,473 @@ class NotificationManager {
             }
         } catch (error: any) {
             logger.error('Error en recuperación de notificaciones:', error);
+        }
+    }
+
+    /**
+     * Sistema de edición inteligente de notificaciones
+     */
+
+    /**
+     * Valida si una notificación puede ser editada con timing crítico
+     */
+    async validateEditableNotification(notification: any, newDate: Date): Promise<{
+        canEdit: boolean;
+        reason?: string;
+        editMode?: 'NORMAL_EDIT' | 'FORCE_CANCEL' | 'CANCEL_AND_CREATE';
+        timeToExecution?: number;
+        requiresImmediateCancel?: boolean;
+    }> {
+        try {
+            const now = moment().tz('America/Mexico_City').toDate();
+            
+            // 1. La nueva fecha debe ser futura
+            if (newDate <= now) {
+                return {
+                    canEdit: false,
+                    reason: 'La nueva fecha debe ser en el futuro'
+                };
+            }
+
+            // 2. La notificación original debe ser futura o muy reciente (máximo 20 min atrás)
+            const twentyMinutesAgo = new Date(now.getTime() - 20 * 60 * 1000);
+            if (notification.scheduledDate < twentyMinutesAgo) {
+                return {
+                    canEdit: false,
+                    reason: 'No se puede editar una notificación programada hace más de 20 minutos'
+                };
+            }
+
+            // 3. No se puede editar si ya está PROCESSING o SENT
+            if (['PROCESSING', 'SENT'].includes(notification.status)) {
+                return {
+                    canEdit: false,
+                    reason: `No se puede editar una notificación en estado ${notification.status}`
+                };
+            }
+
+            // 4. NUEVAS VALIDACIONES DE TIMING CRÍTICO
+            const timeToExecution = new Date(notification.scheduledDate).getTime() - now.getTime();
+            
+            // Caso crítico: menos de 2 minutos
+            if (timeToExecution < 2 * 60 * 1000 && timeToExecution > 0) {
+                return {
+                    canEdit: true,
+                    editMode: 'CANCEL_AND_CREATE',
+                    timeToExecution,
+                    reason: 'Tiempo crítico: se cancelará la original y se creará una nueva'
+                };
+            }
+            
+            // Caso de riesgo: menos de 10 minutos
+            if (timeToExecution < 10 * 60 * 1000 && timeToExecution > 0) {
+                return {
+                    canEdit: true,
+                    editMode: 'FORCE_CANCEL',
+                    timeToExecution,
+                    requiresImmediateCancel: true,
+                    reason: 'Edición en ventana de riesgo: requiere cancelación forzosa'
+                };
+            }
+
+            // Caso normal: más de 10 minutos o ya pasó
+            return { 
+                canEdit: true, 
+                editMode: 'NORMAL_EDIT',
+                timeToExecution 
+            };
+            
+        } catch (error) {
+            logger.error('Error validando edición de notificación:', error);
+            return {
+                canEdit: false,
+                reason: 'Error interno de validación'
+            };
+        }
+    }
+
+    /**
+     * Cancela forzosamente un timer y marca la notificación para edición
+     */
+    async forceTimerCancel(notificationId: string): Promise<boolean> {
+        try {
+            logger.info(`[FORCE_CANCEL] Iniciando cancelación forzosa para ${notificationId}`);
+            
+            // 1. Marcar como en edición para bloquear envíos
+            this.editingLocks.add(notificationId);
+            
+            // 2. Cancelar timer inmediatamente
+            if (this.activeTimers.has(notificationId)) {
+                clearTimeout(this.activeTimers.get(notificationId));
+                this.activeTimers.delete(notificationId);
+                this.timerTimestamps.delete(notificationId);
+                this.originalScheduledDates.delete(notificationId);
+                logger.info(`[FORCE_CANCEL] Timer cancelado para ${notificationId}`);
+            }
+            
+            // 3. Marcar en BD como EDITING para doble protección
+            const updated = await ScheduledNotification.findByIdAndUpdate(
+                notificationId,
+                {
+                    status: 'EDITING',
+                    editingStartedAt: new Date(),
+                    lastScheduledAt: null,
+                    processingStartedAt: null
+                },
+                { new: true }
+            );
+            
+            if (!updated) {
+                logger.error(`[FORCE_CANCEL] No se pudo actualizar estado para ${notificationId}`);
+                return false;
+            }
+            
+            // 4. Esperar 1 segundo para asegurar cancelación
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 5. Verificar que no se envió mientras editábamos
+            const verification = await ScheduledNotification.findById(notificationId);
+            if (!verification) {
+                logger.error(`[FORCE_CANCEL] Notificación ${notificationId} no existe`);
+                return false;
+            }
+            
+            if (verification.status === 'SENT') {
+                logger.error(`[FORCE_CANCEL] Notificación ${notificationId} ya fue enviada durante la edición`);
+                this.editingLocks.delete(notificationId);
+                return false;
+            }
+            
+            logger.info(`[FORCE_CANCEL] Cancelación forzosa exitosa para ${notificationId}`);
+            this.editingLocks.delete(notificationId);
+            return true;
+            
+        } catch (error: any) {
+            logger.error(`Error en cancelación forzosa ${notificationId}:`, error);
+            this.editingLocks.delete(notificationId);
+            return false;
+        }
+    }
+
+    /**
+     * Cancela y recrea una notificación para casos críticos
+     */
+    async cancelAndRecreate(originalId: string, newDate: Date): Promise<{
+        success: boolean;
+        message: string;
+        originalId: string;
+        newId?: string;
+    }> {
+        try {
+            logger.info(`[CANCEL_RECREATE] Iniciando cancelar y recrear para ${originalId}`);
+            
+            // 1. Obtener datos de la notificación original
+            const original = await ScheduledNotification.findById(originalId);
+            if (!original) {
+                return {
+                    success: false,
+                    message: 'Notificación original no encontrada',
+                    originalId
+                };
+            }
+            
+            // 2. Cancelar la original inmediatamente
+            await this.forceTimerCancel(originalId);
+            
+            // 3. Marcar original como cancelada
+            await ScheduledNotification.findByIdAndUpdate(originalId, {
+                status: 'CANCELLED',
+                cancelReason: 'Editada en tiempo crítico - recreada con nuevo ID',
+                cancelledAt: new Date()
+            });
+            
+            // 4. Crear nueva notificación con los mismos datos
+            const newNotificationData = {
+                numeroPoliza: original.numeroPoliza,
+                expedienteNum: original.expedienteNum,
+                tipoNotificacion: original.tipoNotificacion,
+                contactTime: newDate, // Campo requerido
+                targetGroupId: original.targetGroupId,
+                origenDestino: original.origenDestino,
+                marcaModelo: original.marcaModelo,
+                colorVehiculo: original.colorVehiculo,
+                placas: original.placas,
+                telefono: original.telefono,
+                scheduledDate: newDate
+            };
+            
+            // 5. Crear la nueva notificación usando el método estándar
+            const newNotification = await this.scheduleNotification(newNotificationData);
+            
+            const newTime = moment(newDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
+            
+            logger.info(`[CANCEL_RECREATE] Exitoso: ${originalId} → ${newNotification._id}`);
+            
+            return {
+                success: true,
+                message: `✅ Notificación crítica recreada para ${newTime}`,
+                originalId,
+                newId: newNotification._id.toString()
+            };
+            
+        } catch (error: any) {
+            logger.error(`Error en cancelar y recrear ${originalId}:`, error);
+            return {
+                success: false,
+                message: 'Error al recrear la notificación',
+                originalId
+            };
+        }
+    }
+
+    /**
+     * Edita la fecha de una notificación con validaciones completas
+     */
+    async editNotificationDate(notificationId: string, newDate: Date): Promise<{
+        success: boolean;
+        message: string;
+        affectedNotifications?: string[];
+    }> {
+        try {
+            const notification = await ScheduledNotification.findById(notificationId);
+            
+            if (!notification) {
+                return {
+                    success: false,
+                    message: 'Notificación no encontrada'
+                };
+            }
+
+            // Validar si se puede editar con nuevas validaciones críticas
+            const validation = await this.validateEditableNotification(notification, newDate);
+            if (!validation.canEdit) {
+                return {
+                    success: false,
+                    message: validation.reason || 'No se puede editar esta notificación'
+                };
+            }
+
+            // MANEJO SEGÚN EL MODO DE EDICIÓN DETERMINADO
+            
+            // Caso crítico: menos de 2 minutos - cancelar y recrear
+            if (validation.editMode === 'CANCEL_AND_CREATE') {
+                logger.warn(`[CRITICAL_EDIT] Editando notificación ${notificationId} en tiempo crítico (${Math.round((validation.timeToExecution || 0) / 1000 / 60)} min)`);
+                return await this.cancelAndRecreate(notificationId, newDate);
+            }
+            
+            // Caso de riesgo: menos de 10 minutos - cancelación forzosa
+            if (validation.editMode === 'FORCE_CANCEL') {
+                logger.warn(`[RISKY_EDIT] Editando notificación ${notificationId} en ventana de riesgo (${Math.round((validation.timeToExecution || 0) / 1000 / 60)} min)`);
+                
+                const cancelSuccess = await this.forceTimerCancel(notificationId);
+                if (!cancelSuccess) {
+                    return {
+                        success: false,
+                        message: 'No se pudo cancelar el timer de manera segura'
+                    };
+                }
+            }
+
+            // Determinar si necesita actualizar la pareja (CONTACTO-TERMINO)
+            if (notification.tipoNotificacion === 'CONTACTO') {
+                return await this.editContactoAndTermino(notification, newDate, validation.editMode);
+            } else if (notification.tipoNotificacion === 'TERMINO') {
+                return await this.editTerminoWithValidation(notification, newDate, validation.editMode);
+            } else {
+                // Notificación MANUAL - editar directamente
+                return await this.editSingleNotification(notification, newDate, validation.editMode);
+            }
+
+        } catch (error) {
+            logger.error('Error editando fecha de notificación:', error);
+            return {
+                success: false,
+                message: 'Error interno al editar la notificación'
+            };
+        }
+    }
+
+    /**
+     * Edita CONTACTO y automáticamente ajusta TERMINO manteniendo la diferencia
+     */
+    private async editContactoAndTermino(contactoNotification: any, newContactoDate: Date, editMode?: string): Promise<{
+        success: boolean;
+        message: string;
+        affectedNotifications?: string[];
+    }> {
+        try {
+            // Buscar la notificación TERMINO correspondiente
+            const terminoNotification = await ScheduledNotification.findOne({
+                numeroPoliza: contactoNotification.numeroPoliza,
+                expedienteNum: contactoNotification.expedienteNum,
+                tipoNotificacion: 'TERMINO',
+                status: { $in: ['PENDING', 'SCHEDULED'] }
+            });
+
+            if (!terminoNotification) {
+                // Solo editar CONTACTO si no hay TERMINO
+                const result = await this.editSingleNotification(contactoNotification, newContactoDate);
+                return {
+                    ...result,
+                    affectedNotifications: [contactoNotification._id.toString()]
+                };
+            }
+
+            // Calcular la diferencia original entre CONTACTO y TERMINO
+            const originalDiff = terminoNotification.scheduledDate.getTime() - contactoNotification.scheduledDate.getTime();
+            
+            // Calcular nueva fecha para TERMINO manteniendo la diferencia
+            const newTerminoDate = new Date(newContactoDate.getTime() + originalDiff);
+
+            // Validar que TERMINO también sea editable
+            const terminoValidation = await this.validateEditableNotification(terminoNotification, newTerminoDate);
+            if (!terminoValidation.canEdit) {
+                return {
+                    success: false,
+                    message: `No se puede mover TERMINO: ${terminoValidation.reason}`
+                };
+            }
+
+            // Cancelar timers existentes si los hay
+            if (this.activeTimers.has(contactoNotification._id.toString())) {
+                clearTimeout(this.activeTimers.get(contactoNotification._id.toString()));
+                this.activeTimers.delete(contactoNotification._id.toString());
+            }
+            
+            if (this.activeTimers.has(terminoNotification._id.toString())) {
+                clearTimeout(this.activeTimers.get(terminoNotification._id.toString()));
+                this.activeTimers.delete(terminoNotification._id.toString());
+            }
+
+            // Actualizar ambas notificaciones en la base de datos
+            await Promise.all([
+                ScheduledNotification.findByIdAndUpdate(contactoNotification._id, {
+                    scheduledDate: newContactoDate,
+                    status: 'PENDING',
+                    lastScheduledAt: null,
+                    processingStartedAt: null
+                }),
+                ScheduledNotification.findByIdAndUpdate(terminoNotification._id, {
+                    scheduledDate: newTerminoDate,
+                    status: 'PENDING',
+                    lastScheduledAt: null,
+                    processingStartedAt: null
+                })
+            ]);
+
+            // Reprogramar ambas notificaciones
+            const updatedContacto = await ScheduledNotification.findById(contactoNotification._id);
+            const updatedTermino = await ScheduledNotification.findById(terminoNotification._id);
+            
+            if (updatedContacto && updatedTermino) {
+                await Promise.all([
+                    this.scheduleExistingNotification(updatedContacto),
+                    this.scheduleExistingNotification(updatedTermino)
+                ]);
+            }
+
+            const contactoTime = moment(newContactoDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
+            const terminoTime = moment(newTerminoDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
+
+            return {
+                success: true,
+                message: `✅ CONTACTO reprogramado a ${contactoTime} y TERMINO automáticamente a ${terminoTime}`,
+                affectedNotifications: [contactoNotification._id.toString(), terminoNotification._id.toString()]
+            };
+
+        } catch (error) {
+            logger.error('Error editando CONTACTO y TERMINO:', error);
+            return {
+                success: false,
+                message: 'Error al editar las notificaciones relacionadas'
+            };
+        }
+    }
+
+    /**
+     * Edita TERMINO con validación de que no sea antes que CONTACTO
+     */
+    private async editTerminoWithValidation(terminoNotification: any, newTerminoDate: Date, editMode?: 'NORMAL_EDIT' | 'FORCE_CANCEL' | 'CANCEL_AND_CREATE'): Promise<{
+        success: boolean;
+        message: string;
+        affectedNotifications?: string[];
+    }> {
+        try {
+            // Buscar la notificación CONTACTO correspondiente
+            const contactoNotification = await ScheduledNotification.findOne({
+                numeroPoliza: terminoNotification.numeroPoliza,
+                expedienteNum: terminoNotification.expedienteNum,
+                tipoNotificacion: 'CONTACTO',
+                status: { $in: ['PENDING', 'SCHEDULED', 'SENT'] }
+            });
+
+            if (contactoNotification) {
+                // Validar que TERMINO no sea antes que CONTACTO
+                if (newTerminoDate <= contactoNotification.scheduledDate) {
+                    const contactoTime = moment(contactoNotification.scheduledDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
+                    return {
+                        success: false,
+                        message: `TERMINO no puede ser antes o igual que CONTACTO (${contactoTime})`
+                    };
+                }
+            }
+
+            // Editar solo TERMINO
+            return await this.editSingleNotification(terminoNotification, newTerminoDate, editMode);
+
+        } catch (error) {
+            logger.error('Error editando TERMINO:', error);
+            return {
+                success: false,
+                message: 'Error al editar la notificación TERMINO'
+            };
+        }
+    }
+
+    /**
+     * Edita una sola notificación (para MANUAL o casos independientes)
+     */
+    private async editSingleNotification(notification: any, newDate: Date, editMode?: 'NORMAL_EDIT' | 'FORCE_CANCEL' | 'CANCEL_AND_CREATE'): Promise<{
+        success: boolean;
+        message: string;
+        affectedNotifications?: string[];
+    }> {
+        try {
+            // Cancelar timer existente si lo hay
+            if (this.activeTimers.has(notification._id.toString())) {
+                clearTimeout(this.activeTimers.get(notification._id.toString()));
+                this.activeTimers.delete(notification._id.toString());
+            }
+
+            // Actualizar en base de datos
+            await ScheduledNotification.findByIdAndUpdate(notification._id, {
+                scheduledDate: newDate,
+                status: 'PENDING',
+                lastScheduledAt: null,
+                processingStartedAt: null
+            });
+
+            // Reprogramar
+            const updatedNotification = await ScheduledNotification.findById(notification._id);
+            if (updatedNotification) {
+                await this.scheduleExistingNotification(updatedNotification);
+            }
+
+            const newTime = moment(newDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
+            const tipoText = notification.tipoNotificacion === 'MANUAL' ? 'Notificación' : notification.tipoNotificacion;
+
+            return {
+                success: true,
+                message: `✅ ${tipoText} reprogramada a ${newTime}`,
+                affectedNotifications: [notification._id.toString()]
+            };
+
+        } catch (error) {
+            logger.error('Error editando notificación individual:', error);
+            return {
+                success: false,
+                message: 'Error al editar la notificación'
+            };
         }
     }
 

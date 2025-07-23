@@ -56,6 +56,7 @@ class CalculationScheduler {
 
         this.scheduleDailyCalculation();
         this.scheduleNIVCleanup(); // NUEVO: Limpieza NIVs usados
+        this.scheduleNotificationsCleanup(); // NUEVO: Limpieza notificaciones obsoletas
         this.scheduleAutoCleanup();
         this.scheduleWeeklyCleanup();
 
@@ -111,6 +112,23 @@ class CalculationScheduler {
 
         this.jobs.set('nivCleanup', nivCleanupJob);
         logger.info('📅 Limpieza de NIVs usados programada para las 3:15 AM');
+    }
+
+    private scheduleNotificationsCleanup(): void {
+        const notificationsCleanupJob = cron.schedule(
+            '16 3 * * *',
+            async () => {
+                logger.info('🧹 Iniciando limpieza automática de notificaciones obsoletas');
+                await this.executeNotificationsCleanup();
+            },
+            {
+                scheduled: true,
+                timezone: 'America/Mexico_City'
+            }
+        );
+
+        this.jobs.set('notificationsCleanup', notificationsCleanupJob);
+        logger.info('📅 Limpieza de notificaciones programada para las 3:16 AM');
     }
 
     private scheduleWeeklyCleanup(): void {
@@ -251,6 +269,50 @@ class CalculationScheduler {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
                     `❌ *Error en Limpieza NIVs*\\n\\n🔥 ${(error as Error).message.replace(/[_*\\[\\]()~`>#+\\-=|{}.!]/g, '\\\\$&')}\\n\\n📋 Revisar logs para más detalles`,
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+        }
+    }
+
+    private async executeNotificationsCleanup(): Promise<void> {
+        const startTime = Date.now();
+
+        try {
+            if (this.adminChatId) {
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    '🧹 *Limpieza Notificaciones*\\n\\n⏳ Eliminando notificaciones obsoletas\\.\\.\\.',
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+
+            await this.executeScript('cleanupOldNotifications.js');
+
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+
+            if (this.adminChatId) {
+                let message = '✅ *Limpieza Notificaciones Completada*\\n\\n';
+                message += `⏱️ Tiempo: ${elapsed}s\\n`;
+                message += '🗑️ Notificaciones obsoletas eliminadas\\n';
+                message += '✨ Base de datos de notificaciones optimizada';
+
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    message,
+                    { parse_mode: 'MarkdownV2' }
+                );
+            }
+
+            logger.info(`✅ Limpieza de notificaciones completada en ${elapsed}s`);
+
+        } catch (error) {
+            logger.error('❌ Error en limpieza de notificaciones:', error);
+
+            if (this.adminChatId) {
+                await this.bot.telegram.sendMessage(
+                    this.adminChatId,
+                    `❌ *Error Limpieza Notificaciones*\\n\\n🔥 ${(error as Error).message.replace(/[_*\\[\\]()~`>#+\\-=|{}.!]/g, '\\\\$&')}\\n\\n📋 Revisar logs para más detalles`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }

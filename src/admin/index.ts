@@ -518,6 +518,70 @@ class AdminModule {
             }
         });
 
+        // Callbacks para edición individual de notificaciones (solo ver detalles)
+        this.bot.action(/^admin_notifications_edit_([a-f0-9]{24})$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                const notificationId = (ctx.match as RegExpMatchArray)[1];
+                await this.handlers.notifications.handleEditIndividual(ctx, notificationId);
+            } catch (error) {
+                logger.error('Error editando notificación:', error);
+                await ctx.answerCbQuery('Error al editar notificación', { show_alert: true });
+            }
+        });
+
+        // Callbacks para acciones específicas de notificaciones
+        this.bot.action(/^admin_notifications_cancel_(.+)$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                const notificationId = (ctx.match as RegExpMatchArray)[1];
+                await this.handlers.notifications.handleCancelNotification(ctx, notificationId);
+            } catch (error) {
+                logger.error('Error cancelando notificación:', error);
+                await ctx.answerCbQuery('Error al cancelar notificación', { show_alert: true });
+            }
+        });
+
+        this.bot.action(/^admin_notifications_delete_(.+)$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                const notificationId = (ctx.match as RegExpMatchArray)[1];
+                await this.handlers.notifications.handleDeleteNotification(ctx, notificationId);
+            } catch (error) {
+                logger.error('Error eliminando notificación:', error);
+                await ctx.answerCbQuery('Error al eliminar notificación', { show_alert: true });
+            }
+        });
+
+        // Callbacks para edición de fechas de notificaciones
+        this.bot.action(/^admin_notifications_edit_date_(.+)$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                const notificationId = (ctx.match as RegExpMatchArray)[1];
+                await this.handlers.notifications.handleEditDate(ctx, notificationId);
+            } catch (error) {
+                logger.error('Error mostrando opciones de edición:', error);
+                await ctx.answerCbQuery('Error al mostrar opciones de edición', { show_alert: true });
+            }
+        });
+
+        this.bot.action(/^admin_notifications_quick_(.+)_(.+)$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                const notificationId = (ctx.match as RegExpMatchArray)[1];
+                const option = (ctx.match as RegExpMatchArray)[2];
+                await this.handlers.notifications.handleQuickEdit(ctx, notificationId, option);
+            } catch (error) {
+                logger.error('Error en edición rápida de notificación:', error);
+                await ctx.answerCbQuery('Error al editar notificación', { show_alert: true });
+            }
+        });
+
+        this.bot.action(/^admin_notifications_reschedule_(.+)$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            try {
+                const notificationId = (ctx.match as RegExpMatchArray)[1];
+                await this.handlers.notifications.handleRescheduleNotification(ctx, notificationId);
+            } catch (error) {
+                logger.error('Error reprogramando notificación:', error);
+                await ctx.answerCbQuery('Error al reprogramar notificación', { show_alert: true });
+            }
+        });
+
         // Callbacks para confirmación de auto-cleanup
         this.bot.action('admin_autocleanup_confirm', adminAuth.requireAdmin, async (ctx: Context) => {
             try {

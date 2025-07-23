@@ -66,30 +66,23 @@ function contarArchivos(poliza) {
 }
 
 /**
- * Validar archivos de una póliza (versión simplificada)
+ * Validar archivos de una póliza (versión completa)
  */
 function validarArchivos(poliza) {
     const conteos = contarArchivos(poliza);
     
-    // Solo verificar si tiene al menos 1 foto y 1 PDF
+    // Verificar si tiene al menos 1 foto y 1 PDF
     const tieneFotos = conteos.totalFotos > 0;
     const tienePdf = conteos.totalPdfs > 0;
     
-    // Si tiene al menos 1 foto, no debe aparecer en el reporte
-    if (tieneFotos) {
-        return { 
-            ...conteos,
-            tieneFotos,
-            tienePdf,
-            debeIncluirse: false // NO incluir en reporte
-        };
-    }
+    // Incluir en reporte si le falta fotos O PDFs (o ambos)
+    const debeIncluirse = !tieneFotos || !tienePdf;
     
     return {
         ...conteos,
         tieneFotos,
         tienePdf,
-        debeIncluirse: true // SÍ incluir en reporte
+        debeIncluirse
     };
 }
 
@@ -113,7 +106,8 @@ async function procesarLotePolizas(lote) {
                         tienePdf: validacion.tienePdf ? '✓' : 'X',
                         
                         // Determinar severidad para colores
-                        severidad: (!validacion.tieneFotos && !validacion.tienePdf) ? 'CRITICO' : 'PARCIAL'
+                        severidad: (!validacion.tieneFotos && !validacion.tienePdf) ? 'CRITICO' : 
+                                  !validacion.tieneFotos ? 'SIN_FOTOS' : 'SIN_PDF'
                     };
                 }
                 return null;
@@ -165,7 +159,7 @@ async function procesarPolizas() {
             procesadas += lote.length;
             
             // Mostrar progreso cada lote
-            console.log(`📈 Progreso: ${procesadas}/${totalPolizas} (${polizasConProblemas.length} SIN fotos)`);
+            console.log(`📈 Progreso: ${procesadas}/${totalPolizas} (${polizasConProblemas.length} con problemas)`);
             
         } catch (error) {
             console.error(`Error procesando lote en offset ${offset}:`, error);
@@ -174,8 +168,8 @@ async function procesarPolizas() {
     
     console.log(`\n✅ Análisis completado:`);
     console.log(`📊 Total procesadas: ${procesadas}`);
-    console.log(`⚠️ SIN FOTOS: ${polizasConProblemas.length}`);
-    console.log(`✅ CON FOTOS: ${procesadas - polizasConProblemas.length}`);
+    console.log(`⚠️ CON PROBLEMAS: ${polizasConProblemas.length}`);
+    console.log(`✅ COMPLETAS: ${procesadas - polizasConProblemas.length}`);
     
     return polizasConProblemas;
 }
@@ -216,12 +210,19 @@ async function generarExcel(polizasConProblemas) {
                 pattern: 'solid',
                 fgColor: { argb: 'FFFF6B6B' } // Rojo suave
             };
-        } else if (poliza.severidad === 'PARCIAL') {
-            // Solo tiene uno de los dos - Naranja
+        } else if (poliza.severidad === 'SIN_FOTOS') {
+            // Sin fotos pero con PDF - Naranja
             row.fill = {
                 type: 'pattern',
                 pattern: 'solid',
                 fgColor: { argb: 'FFFFA726' } // Naranja
+            };
+        } else if (poliza.severidad === 'SIN_PDF') {
+            // Sin PDF pero con fotos - Amarillo
+            row.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFF59' } // Amarillo
             };
         }
     });
@@ -232,9 +233,9 @@ async function generarExcel(polizasConProblemas) {
     resumenRow.getCell(1).font = { bold: true };
     
     const estadisticasRow = worksheet.addRow({
-        numeroPoliza: `Total SIN fotos: ${polizasConProblemas.length}`,
+        numeroPoliza: `Total con problemas: ${polizasConProblemas.length}`,
         tieneFotos: `Fecha: ${new Date().toLocaleDateString('es-MX')}`,
-        tienePdf: 'Solo pólizas sin fotos'
+        tienePdf: 'Sin fotos O sin PDF'
     });
     estadisticasRow.font = { bold: true };
     
@@ -258,14 +259,14 @@ async function main() {
         const polizasConProblemas = await procesarPolizas();
         
         if (polizasConProblemas.length === 0) {
-            console.log('\n🎉 ¡Excelente! Todas las pólizas activas tienen al menos 1 foto.');
+            console.log('\n🎉 ¡Excelente! Todas las pólizas activas tienen fotos Y PDFs.');
             
             // Crear Excel vacío con mensaje
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Sin Problemas');
-            worksheet.addRow(['✅ TODAS LAS PÓLIZAS TIENEN AL MENOS 1 FOTO']);
+            worksheet.addRow(['✅ TODAS LAS PÓLIZAS TIENEN FOTOS Y PDFs']);
             worksheet.addRow([`Fecha de verificación: ${new Date().toLocaleString('es-MX')}`]);
-            worksheet.addRow(['Criterio: Al menos 1 foto por póliza activa']);
+            worksheet.addRow(['Criterio: Al menos 1 foto Y 1 PDF por póliza activa']);
             
             const excelPath = path.join(__dirname, 'file-validation-report.xlsx');
             await workbook.xlsx.writeFile(excelPath);
