@@ -856,7 +856,9 @@ class CommandHandler {
 
                 // Buscar todas las claves que correspondan a este chatId y threadId
                 if (asignacionesEnProceso) {
-                    const allKeys = Array.from(asignacionesEnProceso.getInternalMap().keys()) as string[];
+                    const allKeys = Array.from(
+                        asignacionesEnProceso.getInternalMap().keys()
+                    ) as string[];
                     const contextKey = StateKeyManager.getContextKey(chatId, threadId);
                     const keysToDelete = allKeys.filter((key: string) =>
                         key.includes(`:${contextKey}`)
@@ -870,7 +872,9 @@ class CommandHandler {
                 }
 
                 if (vehiculosEnProceso) {
-                    const allKeys = Array.from(vehiculosEnProceso.getInternalMap().keys()) as string[];
+                    const allKeys = Array.from(
+                        vehiculosEnProceso.getInternalMap().keys()
+                    ) as string[];
                     const contextKey = StateKeyManager.getContextKey(chatId, threadId);
                     const keysToDelete = allKeys.filter((key: string) =>
                         key.includes(`:${contextKey}`)
@@ -917,7 +921,9 @@ class CommandHandler {
 
             // Buscar todas las claves que correspondan a este chatId (sin importar threadId)
             if (asignacionesEnProceso) {
-                const allKeys = Array.from(asignacionesEnProceso.getInternalMap().keys()) as string[];
+                const allKeys = Array.from(
+                    asignacionesEnProceso.getInternalMap().keys()
+                ) as string[];
                 const keysToDelete = allKeys.filter((key: string) => key.includes(`${chatId}`));
                 keysToDelete.forEach((key: string) => {
                     asignacionesEnProceso.delete(key);
