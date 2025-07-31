@@ -44,9 +44,13 @@ class ViewFilesCallbacks extends BaseCommand {
                 const totalFotos = r2Fotos.length + legacyFotos.length;
 
                 // DEBUG: Log detalles de fotos
-                this.logInfo(`DEBUG - R2 fotos: ${r2Fotos.length}, Legacy fotos: ${legacyFotos.length}, Total: ${totalFotos}`);
+                this.logInfo(
+                    `DEBUG - R2 fotos: ${r2Fotos.length}, Legacy fotos: ${legacyFotos.length}, Total: ${totalFotos}`
+                );
                 if (r2Fotos.length > 0) {
-                    this.logInfo(`DEBUG - Primera foto R2: key=${r2Fotos[0].key}, url=${r2Fotos[0].url ? 'existe' : 'no existe'}`);
+                    this.logInfo(
+                        `DEBUG - Primera foto R2: key=${r2Fotos[0].key}, url=${r2Fotos[0].url ? 'existe' : 'no existe'}`
+                    );
                 }
 
                 if (totalFotos === 0) {

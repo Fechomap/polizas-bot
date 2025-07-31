@@ -587,11 +587,11 @@ export class VehicleRegistrationHandler {
             // Usar el número de serie para nombrar las fotos en Cloudflare
             const serie = registro.datos.serie!;
             const timestamp = Date.now();
-            
+
             // ✅ DETECCIÓN NIV: Verificar si es vehículo NIV (2023-2026)
             const añoVehiculo = parseInt(String(registro.datos.año));
             const esVehiculoNIV = añoVehiculo >= 2023 && añoVehiculo <= 2026;
-            
+
             const fotoFile = {
                 buffer: buffer,
                 originalname: `${esVehiculoNIV ? 'niv' : 'vehiculo'}_${serie}_foto_${timestamp}.jpg`,
@@ -603,21 +603,23 @@ export class VehicleRegistrationHandler {
             const storage = getInstance();
 
             // ✅ ESTRUCTURA INTELIGENTE: NIV va a policies/, regular a vehiculos/
-            const fileName = esVehiculoNIV 
+            const fileName = esVehiculoNIV
                 ? `policies/${serie}/fotos/${timestamp}_${fotoFile.originalname}`
                 : `vehiculos/${serie}/${timestamp}_${fotoFile.originalname}`;
 
             // ✅ METADATOS CORRECTOS según el tipo (todos como strings para R2)
-            const uploadMetadata = esVehiculoNIV ? {
-                policyNumber: serie,
-                type: 'policy_foto_niv',
-                originalName: fotoFile.originalname,
-                vehicleYear: String(añoVehiculo)
-            } : {
-                vehicleSerie: serie,
-                type: 'vehiculo_foto',
-                originalName: fotoFile.originalname
-            };
+            const uploadMetadata = esVehiculoNIV
+                ? {
+                      policyNumber: serie,
+                      type: 'policy_foto_niv',
+                      originalName: fotoFile.originalname,
+                      vehicleYear: String(añoVehiculo)
+                  }
+                : {
+                      vehicleSerie: serie,
+                      type: 'vehiculo_foto',
+                      originalName: fotoFile.originalname
+                  };
 
             const uploadResult: IUploadResult = await storage.uploadFile(
                 buffer,
@@ -1145,7 +1147,10 @@ export class VehicleRegistrationHandler {
 
                     logger.info(`Foto NIV referenciada: ${foto.key}`);
                 } catch (error: any) {
-                    logger.error(`Error procesando referencia foto NIV ${foto.originalname}:`, error.message);
+                    logger.error(
+                        `Error procesando referencia foto NIV ${foto.originalname}:`,
+                        error.message
+                    );
                 }
             }
 
