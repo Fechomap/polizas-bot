@@ -1064,13 +1064,105 @@ Se puede restaurar desde "Restaurar Póliza".
     }
 
     static async handleRestoreConfirmation(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement restore confirmation
-        await ctx.reply('Confirmación de restauración en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+            if (!policy) {
+                await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
+                return;
+            }
+
+            if (policy.estado !== 'ELIMINADO') {
+                await ctx.answerCbQuery('❌ Esta póliza no está eliminada', { show_alert: true });
+                return;
+            }
+
+            const confirmText = `
+♻️ *CONFIRMAR RESTAURACIÓN*
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 *Póliza:* ${this.escapeMarkdown(policy.numeroPoliza)}
+👤 *Titular:* ${this.escapeMarkdown(policy.titular)}
+🚗 *Vehículo:* ${this.escapeMarkdown(policy.marca)} ${this.escapeMarkdown(policy.submarca)}
+🔢 *Serie:* ${this.escapeMarkdown(policy.serie)}
+
+⚠️ *Esta acción cambiará el estado de la póliza de ELIMINADO a ACTIVO*
+
+¿Confirmas la restauración?
+            `.trim();
+
+            const keyboard = Markup.inlineKeyboard([
+                [
+                    Markup.button.callback('✅ Confirmar Restauración', `admin_policy_restore_execute:${policyId}`),
+                    Markup.button.callback('❌ Cancelar', 'admin_policy_menu')
+                ]
+            ]);
+
+            await ctx.editMessageText(confirmText, {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+        } catch (error) {
+            logger.error('Error en handleRestoreConfirmation:', error);
+            await ctx.answerCbQuery('❌ Error al preparar confirmación', { show_alert: true });
+        }
     }
 
     static async handleRestoreExecution(ctx: Context, policyId: string): Promise<void> {
-        // TODO: Implement restore execution
-        await ctx.reply('Ejecución de restauración en desarrollo');
+        try {
+            const policy = await Policy.findById(policyId);
+            if (!policy) {
+                await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
+                return;
+            }
+
+            if (policy.estado !== 'ELIMINADO') {
+                await ctx.answerCbQuery('❌ Esta póliza no está eliminada', { show_alert: true });
+                return;
+            }
+
+            // Usar el controlador para restaurar la póliza
+            const restoredPolicy = await restorePolicy(policy.numeroPoliza);
+            
+            if (restoredPolicy) {
+                await AuditLogger.log(ctx, 'policy_restored', {
+                    module: 'policy',
+                    metadata: {
+                        policyId,
+                        numeroPoliza: policy.numeroPoliza,
+                        titular: policy.titular
+                    }
+                });
+
+                const successText = `
+✅ *PÓLIZA RESTAURADA EXITOSAMENTE*
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 *Póliza:* ${this.escapeMarkdown(policy.numeroPoliza)}
+👤 *Titular:* ${this.escapeMarkdown(policy.titular)}
+🔄 *Estado:* ACTIVO
+
+La póliza ha sido restaurada y está disponible nuevamente en el sistema.
+                `.trim();
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔍 Buscar Otra', 'admin_policy_restore')],
+                    [Markup.button.callback('⬅️ Menú Principal', 'admin_policy_menu')]
+                ]);
+
+                await ctx.editMessageText(successText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+
+            } else {
+                await ctx.answerCbQuery('❌ Error: No se pudo restaurar la póliza', { show_alert: true });
+            }
+
+        } catch (error) {
+            logger.error('Error en handleRestoreExecution:', error);
+            await ctx.answerCbQuery('❌ Error al restaurar póliza', { show_alert: true });
+        }
     }
 
     static async showEditCategoriesMenu(ctx: Context, policyId: string): Promise<void> {
@@ -2113,8 +2205,86 @@ Escribe uno de los siguientes datos para buscar:
         results: IPolicySearchResult[],
         searchTerm: string
     ): Promise<void> {
-        // Basic implementation - can be enhanced later
-        await this.showSearchResults(ctx, results, searchTerm);
+        try {
+            if (results.length === 0) {
+                const noResultsText = `
+❌ *NO SE ENCONTRARON PÓLIZAS ELIMINADAS*
+━━━━━━━━━━━━━━━━━━━━━━
+
+No hay pólizas eliminadas que coincidan con: *${this.escapeMarkdown(searchTerm)}*
+
+_Intenta con otro término de búsqueda._
+                `.trim();
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_restore')],
+                    [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
+                ]);
+
+                await ctx.reply(noResultsText, {
+                    parse_mode: 'Markdown',
+                    ...keyboard
+                });
+                return;
+            }
+
+            const formatDate = (date: Date | string | null | undefined): string => {
+                if (!date) return 'No definida';
+                return new Date(date).toLocaleDateString('es-MX');
+            };
+
+            let resultText = `
+♻️ *PÓLIZAS ELIMINADAS ENCONTRADAS*
+━━━━━━━━━━━━━━━━━━━━━━
+
+Búsqueda: *${this.escapeMarkdown(searchTerm)}*
+Total encontradas: *${results.length}*
+
+`;
+
+            const buttons: any[][] = [];
+
+            results.forEach((policy, index) => {
+                const serviciosCount = policy.servicios?.length || 0;
+                const fechaEliminacion = formatDate(policy.fechaEliminacion);
+                
+                resultText += `
+📋 *${index + 1}. ${this.escapeMarkdown(policy.numeroPoliza)}*
+👤 ${this.escapeMarkdown(policy.titular)}
+🚗 ${this.escapeMarkdown(policy.marca)} ${this.escapeMarkdown(policy.submarca)} (${policy.año})
+🔢 Serie: ${this.escapeMarkdown(policy.serie)}
+🔧 Servicios: ${serviciosCount}
+📅 Eliminada: ${fechaEliminacion}
+💭 Motivo: ${this.escapeMarkdown(policy.motivoEliminacion || 'No especificado')}
+
+`;
+
+                // Botón para restaurar esta póliza específica
+                buttons.push([
+                    Markup.button.callback(
+                        `♻️ Restaurar ${policy.numeroPoliza}`,
+                        `admin_policy_restore_confirm:${policy._id}`
+                    )
+                ]);
+            });
+
+            // Botones de navegación
+            buttons.push([
+                Markup.button.callback('🔍 Nueva Búsqueda', 'admin_policy_restore'),
+                Markup.button.callback('⬅️ Volver', 'admin_policy_menu')
+            ]);
+
+            const keyboard = Markup.inlineKeyboard(buttons);
+
+            await ctx.reply(resultText.trim(), {
+                parse_mode: 'Markdown',
+                ...keyboard
+            });
+
+        } catch (error) {
+            logger.error('Error en showSearchResultsForRestore:', error);
+            await ctx.reply('❌ Error al mostrar resultados de restauración.');
+        }
     }
 }
 
