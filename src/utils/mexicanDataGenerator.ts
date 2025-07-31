@@ -349,33 +349,85 @@ class MexicanDataGenerator {
     }
 
     /**
-     * Genera un RFC válido (formato básico)
+     * Genera un RFC válido siguiendo reglas oficiales mexicanas
+     * Formato: [Primera letra apellido paterno][Primera vocal apellido paterno]
+     *          [Primera letra apellido materno][Primera letra nombre]
+     *          [Fecha AAMMDD][Homoclave XXX]
      */
-    generateRFC(): string {
-        const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-        const numeros = '0123456789';
-
-        // 4 letras + 6 números + 3 caracteres alfanuméricos
-        let rfc = '';
-
-        // 4 letras iniciales
-        for (let i = 0; i < 4; i++) {
-            rfc += letras[Math.floor(Math.random() * letras.length)];
+    generateRFC(nombreCompleto?: string): string {
+        const nombre = nombreCompleto || this.generateNombre();
+        const partes = nombre.split(' ');
+        
+        // Extraer componentes del nombre (CORRECCIÓN: formato mexicano)
+        // José Luis García Rodríguez = [José Luis] [García] [Rodríguez]
+        let primerNombre: string;
+        let apellidoPaterno: string;
+        let apellidoMaterno: string;
+        
+        if (partes.length >= 3) {
+            // Para nombres con 3+ partes, últimas 2 son apellidos
+            apellidoPaterno = partes[partes.length - 2];
+            apellidoMaterno = partes[partes.length - 1];
+            primerNombre = partes[0];
+        } else {
+            // Fallback para nombres cortos
+            primerNombre = partes[0] || 'JOSE';
+            apellidoPaterno = partes[1] || 'GARCIA';
+            apellidoMaterno = 'LOPEZ';
         }
-
-        // 6 números (fecha)
-        for (let i = 0; i < 6; i++) {
-            rfc += numeros[Math.floor(Math.random() * numeros.length)];
-        }
-
-        // 3 caracteres alfanuméricos
-        const alfanumerico = letras + numeros;
-        for (let i = 0; i < 3; i++) {
-            rfc += alfanumerico[Math.floor(Math.random() * alfanumerico.length)];
-        }
-
-        return rfc;
+        
+        // Aplicar reglas oficiales RFC
+        const letra1 = apellidoPaterno.charAt(0).toUpperCase();
+        const vocal1 = this.getPrimeraVocalInterna(apellidoPaterno);
+        const letra2 = apellidoMaterno.charAt(0).toUpperCase();
+        const letra3 = primerNombre.charAt(0).toUpperCase();
+        
+        // Generar fecha aleatoria entre 1960-1990
+        const año = this.randomBetween(1960, 1990);
+        const mes = this.randomBetween(1, 12).toString().padStart(2, '0');
+        const dia = this.randomBetween(1, 26).toString().padStart(2, '0');
+        const fechaStr = año.toString().substring(2) + mes + dia;
+        
+        // Generar homoclave aleatoria (3 caracteres alfanuméricos)
+        const homoclave = this.generateHomoclave();
+        
+        return `${letra1}${vocal1}${letra2}${letra3}${fechaStr}${homoclave}`;
     }
+
+    /**
+     * Obtiene la primera vocal interna de una palabra (excluyendo la primera letra)
+     */
+    private getPrimeraVocalInterna(palabra: string): string {
+        const vocales = 'AEIOUÁÉÍÓÚ';
+        const palabraUpper = palabra.toUpperCase();
+        
+        // Buscar desde la segunda letra (índice 1)
+        for (let i = 1; i < palabraUpper.length; i++) {
+            const char = palabraUpper.charAt(i);
+            if (vocales.includes(char)) {
+                // Normalizar vocales acentuadas a sin acento para RFC
+                return char.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            }
+        }
+        
+        // Fallback si no encuentra vocal
+        return 'A';
+    }
+
+    /**
+     * Genera homoclave RFC (3 caracteres alfanuméricos)
+     */
+    private generateHomoclave(): string {
+        const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let homoclave = '';
+        
+        for (let i = 0; i < 3; i++) {
+            homoclave += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+        }
+        
+        return homoclave;
+    }
+
 
     /**
      * Genera un teléfono mexicano válido

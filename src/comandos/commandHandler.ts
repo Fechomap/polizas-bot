@@ -572,7 +572,7 @@ class CommandHandler {
                 const chatId = ctx.chat.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
                 this.clearChatState(chatId, threadId);
-                this.uploadTargets.set(chatId, true, threadId);
+                this.awaitingUploadPolicyNumber.set(chatId, true, threadId);
                 await ctx.reply(
                     '📁 **SUBIR ARCHIVOS**\n\nPor favor, envía el número de póliza para subir archivos:',
                     { parse_mode: 'Markdown' }

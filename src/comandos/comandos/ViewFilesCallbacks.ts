@@ -43,6 +43,12 @@ class ViewFilesCallbacks extends BaseCommand {
                 const legacyFotos = policy.archivos?.fotos || [];
                 const totalFotos = r2Fotos.length + legacyFotos.length;
 
+                // DEBUG: Log detalles de fotos
+                this.logInfo(`DEBUG - R2 fotos: ${r2Fotos.length}, Legacy fotos: ${legacyFotos.length}, Total: ${totalFotos}`);
+                if (r2Fotos.length > 0) {
+                    this.logInfo(`DEBUG - Primera foto R2: key=${r2Fotos[0].key}, url=${r2Fotos[0].url ? 'existe' : 'no existe'}`);
+                }
+
                 if (totalFotos === 0) {
                     await ctx.reply('📸 No hay fotos asociadas a esta póliza.');
                     await ctx.answerCbQuery();
@@ -80,6 +86,10 @@ class ViewFilesCallbacks extends BaseCommand {
                                 origen = '🚗 Foto transferida del vehículo';
                             } else if (foto.fuenteOriginal === 'vehiculo_bd_autos_reparacion') {
                                 origen = '🔧 Foto del vehículo (reparación)';
+                            } else if (foto.fuenteOriginal === '🚗 Transferida del vehículo') {
+                                origen = '🚗 Transferida del vehículo NIV';
+                            } else if (foto.fuenteOriginal === '🆔 Foto NIV directa') {
+                                origen = '🆔 Foto NIV directa';
                             }
 
                             await ctx.replyWithPhoto(

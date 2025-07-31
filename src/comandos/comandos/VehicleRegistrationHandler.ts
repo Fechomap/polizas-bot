@@ -587,28 +587,43 @@ export class VehicleRegistrationHandler {
             // Usar el número de serie para nombrar las fotos en Cloudflare
             const serie = registro.datos.serie!;
             const timestamp = Date.now();
+            
+            // ✅ DETECCIÓN NIV: Verificar si es vehículo NIV (2023-2026)
+            const añoVehiculo = parseInt(String(registro.datos.año));
+            const esVehiculoNIV = añoVehiculo >= 2023 && añoVehiculo <= 2026;
+            
             const fotoFile = {
                 buffer: buffer,
-                originalname: `vehiculo_${serie}_foto_${timestamp}.jpg`,
+                originalname: `${esVehiculoNIV ? 'niv' : 'vehiculo'}_${serie}_foto_${timestamp}.jpg`,
                 mimetype: 'image/jpeg',
                 size: buffer.length
             };
 
-            // Subir INMEDIATAMENTE a Cloudflare con número de serie
+            // Subir INMEDIATAMENTE a Cloudflare con estructura correcta
             const storage = getInstance();
 
-            // Generar nombre de archivo para vehículos similar al formato de pólizas
-            const fileName = `vehiculos/${serie}/${timestamp}_${fotoFile.originalname}`;
+            // ✅ ESTRUCTURA INTELIGENTE: NIV va a policies/, regular a vehiculos/
+            const fileName = esVehiculoNIV 
+                ? `policies/${serie}/fotos/${timestamp}_${fotoFile.originalname}`
+                : `vehiculos/${serie}/${timestamp}_${fotoFile.originalname}`;
+
+            // ✅ METADATOS CORRECTOS según el tipo (todos como strings para R2)
+            const uploadMetadata = esVehiculoNIV ? {
+                policyNumber: serie,
+                type: 'policy_foto_niv',
+                originalName: fotoFile.originalname,
+                vehicleYear: String(añoVehiculo)
+            } : {
+                vehicleSerie: serie,
+                type: 'vehiculo_foto',
+                originalName: fotoFile.originalname
+            };
 
             const uploadResult: IUploadResult = await storage.uploadFile(
                 buffer,
                 fileName,
                 'image/jpeg',
-                {
-                    vehicleSerie: serie,
-                    type: 'vehiculo_foto',
-                    originalName: fotoFile.originalname
-                }
+                uploadMetadata
             );
 
             if (uploadResult.url) {
@@ -621,9 +636,10 @@ export class VehicleRegistrationHandler {
                     uploadedAt: new Date()
                 });
 
-                // Crear mensaje con contador de fotos
+                // Crear mensaje con contador de fotos y tipo de vehículo
+                const tipoVehiculo = esVehiculoNIV ? '🆔 NIV (2023-2026)' : '🚗 Regular';
                 const mensaje =
-                    `✅ Foto subida a Cloudflare\n📊 Total de fotos: ${registro.fotos.length}\n🔗 Serie: ${serie}\n\n` +
+                    `✅ Foto subida a Cloudflare\n📊 Total de fotos: ${registro.fotos.length}\n🔗 Serie: ${serie}\n${tipoVehiculo}\n\n` +
                     'Puedes enviar más fotos o finalizar el registro';
 
                 const keyboard = {
@@ -991,8 +1007,8 @@ export class VehicleRegistrationHandler {
 
             // ✅ CORRECCIÓN: Vincular fotos directamente a la PÓLIZA NIV (no al vehículo)
             if (registro.fotos && registro.fotos.length > 0) {
-                // Procesar fotos en background para la póliza NIV
-                this.procesarFotosPolizaNIVAsync(
+                // Procesar fotos de manera síncrona para asegurar que se completen
+                await this.procesarFotosPolizaNIVAsync(
                     polizaCreada[0]._id,
                     polizaCreada[0].numeroPoliza,
                     registro.fotos
@@ -1110,43 +1126,36 @@ export class VehicleRegistrationHandler {
         try {
             logger.info(`Iniciando procesamiento de fotos para póliza NIV: ${policyNumber}`);
 
-            const cloudflareStorage = getInstance();
             const Policy = require('../../models/policy').default;
-
             const fotosR2: any[] = [];
 
-            // Subir cada foto a R2
+            // ✅ CORRECCIÓN: Las fotos ya están subidas a Cloudflare con estructura correcta
+            // Solo necesitamos crear las referencias para la póliza
             for (const foto of fotos) {
                 try {
-                    const fileInfo = await cloudflareStorage.uploadPolicyPhoto(
-                        foto.buffer,
-                        policyNumber,
-                        foto.originalName || 'foto-niv.jpg'
-                    );
-
                     fotosR2.push({
-                        url: fileInfo.url,
-                        key: fileInfo.key,
-                        size: fileInfo.size,
-                        contentType: fileInfo.contentType,
-                        uploadDate: new Date(),
-                        originalName: foto.originalName || 'foto-niv.jpg',
-                        fuenteOriginal: 'REGISTRO_VEHICULO_NIV'
+                        url: foto.url,
+                        key: foto.key,
+                        size: foto.size,
+                        contentType: 'image/jpeg',
+                        uploadDate: foto.uploadedAt || new Date(),
+                        originalName: foto.originalname,
+                        fuenteOriginal: '🆔 Foto NIV directa'
                     });
 
-                    logger.info(`Foto NIV subida: ${fileInfo.key}`);
+                    logger.info(`Foto NIV referenciada: ${foto.key}`);
                 } catch (error: any) {
-                    logger.error(`Error subiendo foto NIV ${foto.originalName}:`, error.message);
+                    logger.error(`Error procesando referencia foto NIV ${foto.originalname}:`, error.message);
                 }
             }
 
-            // Actualizar la póliza con las fotos
+            // Actualizar la póliza con las referencias de fotos
             if (fotosR2.length > 0) {
                 await Policy.findByIdAndUpdate(policyId, {
                     $push: { 'archivos.r2Files.fotos': { $each: fotosR2 } }
                 });
 
-                logger.info(`${fotosR2.length} fotos vinculadas a póliza NIV: ${policyNumber}`);
+                logger.info(`${fotosR2.length} fotos referenciadas en póliza NIV: ${policyNumber}`);
             }
         } catch (error: any) {
             logger.error(
