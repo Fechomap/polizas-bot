@@ -234,27 +234,89 @@ class ReportUsedCommand extends BaseCommand {
                 return;
             }
 
-            // Separar regulares y NIVs
+            // Separar regulares y NIVs, y además separar por grupos de prioridad
             const regulares = todasLasPolizas.filter(p => p.tipoReporte !== 'NIV');
             const nivs = todasLasPolizas.filter(p => p.tipoReporte === 'NIV');
+            
+            // Separar las regulares por grupo de prioridad (basado en prioridadGrupo)
+            const polizasSinServicio = regulares.filter(p => p.prioridadGrupo === 1);
+            const polizasConUnServicio = regulares.filter(p => p.prioridadGrupo === 2);
 
             // Mostrar cabecera general
-            let cabecera = '📊 *PÓLIZAS PRIORITARIAS Y NIVs*\n\n';
-            if (regulares.length > 0 && nivs.length > 0) {
-                cabecera += `📋 ${regulares.length} pólizas regulares + ⚡ ${nivs.length} NIVs disponibles\n\n`;
-            } else if (regulares.length > 0) {
-                cabecera += `📋 ${regulares.length} pólizas regulares encontradas\n\n`;
-            } else {
+            let cabecera = '🎯 *SISTEMA ROBUSTO DE CALIFICACIONES*\n\n';
+            if (polizasSinServicio.length > 0 && polizasConUnServicio.length > 0 && nivs.length > 0) {
+                cabecera += `🚫 ${polizasSinServicio.length} sin servicio + 🔧 ${polizasConUnServicio.length} con 1 servicio + ⚡ ${nivs.length} NIVs\n\n`;
+            } else if (polizasSinServicio.length > 0 && polizasConUnServicio.length > 0) {
+                cabecera += `🚫 ${polizasSinServicio.length} sin servicio + 🔧 ${polizasConUnServicio.length} con 1 servicio\n\n`;
+            } else if (polizasSinServicio.length > 0) {
+                cabecera += `🚫 ${polizasSinServicio.length} pólizas sin servicio encontradas\n\n`;
+            } else if (nivs.length > 0) {
                 cabecera += `⚡ ${nivs.length} NIVs disponibles\n\n`;
             }
 
             await ctx.reply(cabecera, { parse_mode: 'Markdown' });
 
-            // Mostrar pólizas regulares
-            if (regulares.length > 0) {
-                await ctx.reply('📋 *TOP PÓLIZAS REGULARES:*', { parse_mode: 'Markdown' });
+            // Mostrar pólizas SIN SERVICIO (prioridad 1)
+            if (polizasSinServicio.length > 0) {
+                await ctx.reply('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡\n🚫 *PÓLIZAS SIN SERVICIO (MÁXIMA PRIORIDAD)*\n🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡', { parse_mode: 'Markdown' });
 
-                for (const pol of regulares) {
+                for (const pol of polizasSinServicio) {
+                    const fEmision: string = pol.fechaEmision
+                        ? new Date(pol.fechaEmision).toISOString().split('T')[0]
+                        : 'No disponible';
+                    const fechaFinCobertura: string = pol.fechaFinCobertura
+                        ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0]
+                        : 'No disponible';
+                    const fechaFinGracia: string = pol.fechaFinGracia
+                        ? new Date(pol.fechaFinGracia).toISOString().split('T')[0]
+                        : 'No disponible';
+                    const totalServicios: number = (pol.servicios || []).length;
+                    const totalPagos: number = (pol.pagos || []).length;
+
+                    // Determinar prioridad basado en la nueva calificación y días de gracia
+                    let alertaPrioridad = '';
+                    const calificacion: number = pol.calificacion || 0;
+                    const diasGracia = pol.diasRestantesGracia;
+                    
+                    if (calificacion >= 90 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)) {
+                        alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
+                    } else if (calificacion >= 70 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)) {
+                        alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
+                    }
+
+                    const msg: string = `
+${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
+🔧 *Servicios:* ${totalServicios}
+💰 *Pagos:* ${totalPagos}
+*ASEGURADORA:* ${pol.aseguradora || 'NO DEFINIDA'}`.trim();
+
+                    const inlineKeyboard = [
+                        [
+                            Markup.button.callback(
+                                `📋 ${pol.numeroPoliza}`,
+                                `getPoliza:${pol.numeroPoliza}`
+                            )
+                        ]
+                    ];
+
+                    try {
+                        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                        await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
+                    } catch (sendError: unknown) {
+                        this.logError(
+                            `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
+                            sendError as Error
+                        );
+                        await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`); // Fallback
+                    }
+                }
+            }
+
+            // Mostrar pólizas CON UN SERVICIO (prioridad 2)
+            if (polizasConUnServicio.length > 0) {
+                await ctx.reply('🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠\n🔧 *PÓLIZAS CON UN SERVICIO (SEGUNDA PRIORIDAD)*\n🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠', { parse_mode: 'Markdown' });
+
+                for (const pol of polizasConUnServicio) {
                     const fEmision: string = pol.fechaEmision
                         ? new Date(pol.fechaEmision).toISOString().split('T')[0]
                         : 'No disponible';
@@ -308,7 +370,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
             // ✅ NUEVO: Mostrar NIVs disponibles
             if (nivs.length > 0) {
-                await ctx.reply('⚡ *NIVs DISPONIBLES (2023-2026):*', { parse_mode: 'Markdown' });
+                await ctx.reply('⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡\n⚡ *NIVs DISPONIBLES (2023-2026)*\n⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡', { parse_mode: 'Markdown' });
 
                 for (const niv of nivs) {
                     const fEmision: string = niv.fechaEmision
