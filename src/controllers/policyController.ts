@@ -507,108 +507,106 @@ export const getDetailedPaymentInfo = async (
 };
 
 /**
- * ✅ ACTUALIZADO: Retorna las 10 pólizas regulares + hasta 4 NIVs disponibles
- * Prioridad pólizas regulares:
- *   1) Pólizas sin servicios (y mayores de 26 días de emisión).
- *   2) Luego pólizas con servicios, ordenadas por fecha del último servicio (más antiguo primero).
- *   3) Orden secundario por fechaEmision más antigua.
- *
- * NIVs:
- *   - Solo NIVs sin usar (totalServicios: 0)
- *   - Ordenados por fecha de creación (más recientes primero)
- *   - Máximo 4 NIVs en el reporte
+ * 🎯 SISTEMA ROBUSTO DE CALIFICACIONES - PÓLIZAS A MANDAR
+ * 
+ * Nuevo sistema de prioridad basado en días restantes de gracia:
+ * 1. TOP 10 pólizas con 0 servicios ordenadas por días restantes de gracia (menor = mayor prioridad)
+ * 2. TOP 10 pólizas con 1 servicio ordenadas por días restantes de gracia (menor = mayor prioridad)
+ * 3. Pólizas con 2+ servicios se excluyen automáticamente
+ * 4. NIVs disponibles (hasta 4)
+ * 
+ * Sistema de calificación: Menor días de gracia = Mayor puntaje
  */
 export const getOldUnusedPolicies = async (): Promise<any[]> => {
     try {
-        const now = new Date();
-        const THRESHOLD_DIAS_MINIMO = 26;
+        logger.info('🔄 Iniciando sistema robusto de calificaciones - Pólizas a mandar');
 
-        // 1) Obtener pólizas regulares (excluyendo NIVs)
-        const regularPolicies = await Policy.find({
+        // 1) Obtener todas las pólizas activas regulares (excluyendo NIVs)
+        const allActivePolicies = await Policy.find({
             estado: 'ACTIVO',
-            tipoPoliza: { $ne: 'NIV' } // Excluir NIVs del top regular
+            tipoPoliza: { $ne: 'NIV' } // Excluir NIVs del análisis regular
         }).lean();
 
-        // 2) Procesar pólizas regulares con lógica existente
-        interface PolicyWithFields {
-            pol: IPolicy;
-            priorityGroup: number;
-            lastServiceDate: Date | null;
-            diasDesdeEmision: number;
+        logger.info(`📊 Analizando ${allActivePolicies.length} pólizas activas`);
+
+        // 2) Separar por número de servicios y filtrar las válidas
+        const polizasConCeroServicios: IPolicy[] = [];
+        const polizasConUnServicio: IPolicy[] = [];
+        let descartadasPorServicios = 0;
+
+        for (const policy of allActivePolicies) {
+            const totalServicios = (policy.servicios || []).length;
+            
+            // Solo incluir pólizas con 0 o 1 servicio
+            if (totalServicios === 0) {
+                polizasConCeroServicios.push(policy);
+            } else if (totalServicios === 1) {
+                polizasConUnServicio.push(policy);
+            } else {
+                // Las pólizas con 2+ servicios se descartan automáticamente
+                descartadasPorServicios++;
+            }
         }
 
-        const polConCampos: PolicyWithFields[] = regularPolicies.map(pol => {
-            const msDesdeEmision = now.getTime() - pol.fechaEmision.getTime();
-            const diasDesdeEmision = Math.floor(msDesdeEmision / (1000 * 60 * 60 * 24));
+        logger.info(`📋 Análisis de servicios: ${polizasConCeroServicios.length} con 0 servicios, ${polizasConUnServicio.length} con 1 servicio, ${descartadasPorServicios} descartadas (2+ servicios)`);
 
-            const servicios = pol.servicios || [];
-            if (servicios.length === 0) {
-                // Sin servicios
-                return {
-                    pol,
-                    priorityGroup: 1, // Mayor prioridad
-                    lastServiceDate: null, // no existe
-                    diasDesdeEmision
-                };
-            } else {
-                // Con servicios => calculamos fecha del último
-                let ultimoServicio: Date | null = null;
-                for (const s of servicios) {
-                    if (!ultimoServicio || s.fechaServicio < ultimoServicio) {
-                        ultimoServicio = s.fechaServicio;
-                    }
-                }
-                return {
-                    pol,
-                    priorityGroup: 2,
-                    lastServiceDate: ultimoServicio,
-                    diasDesdeEmision
-                };
-            }
-        });
-
-        // 3) Filtrar las pólizas muy recientes (si se desea)
-        const polFiltradas = polConCampos.filter(({ diasDesdeEmision }) => {
-            // Ej.: descartar si la póliza se emitió hace menos de 26 días
-            return diasDesdeEmision >= THRESHOLD_DIAS_MINIMO;
-        });
-
-        // 4) Ordenar:
-        //    - primero por priorityGroup asc (1 sin servicios, 2 con servicios)
-        //    - dentro de priorityGroup=1, por diasDesdeEmision desc (más antigua primero)
-        //    - para priorityGroup=2, ordenamos por lastServiceDate asc (más antiguo primero),
-        //      y secundario diasDesdeEmision desc (más antigua primero)
-        polFiltradas.sort((a, b) => {
-            // Comparar por priorityGroup
-            if (a.priorityGroup !== b.priorityGroup) {
-                return a.priorityGroup - b.priorityGroup;
+        // 3) Función para calcular calificación basada en días restantes de gracia
+        const calcularCalificacion = (policy: IPolicy): number => {
+            // Si no hay días restantes de gracia calculados, usar valor bajo
+            if (policy.diasRestantesGracia === null || policy.diasRestantesGracia === undefined) {
+                return 10; // Calificación baja por falta de datos
             }
 
-            // Ambos en priorityGroup=1 => ordenamos por diasDesdeEmision desc
-            if (a.priorityGroup === 1) {
-                return b.diasDesdeEmision - a.diasDesdeEmision;
-            }
+            const diasGracia = policy.diasRestantesGracia;
+            
+            // Sistema de puntaje: menor días = mayor puntaje
+            if (diasGracia <= 0) return 100; // Máxima prioridad - ya vencido o por vencer
+            if (diasGracia <= 5) return 90;  // Muy alta prioridad
+            if (diasGracia <= 10) return 80; // Alta prioridad
+            if (diasGracia <= 15) return 70; // Prioridad media-alta
+            if (diasGracia <= 20) return 60; // Prioridad media
+            if (diasGracia <= 25) return 50; // Prioridad media-baja
+            if (diasGracia <= 30) return 40; // Prioridad baja
+            
+            return Math.max(10, 40 - Math.floor(diasGracia / 5)); // Degradación gradual
+        };
 
-            // Ambos en priorityGroup=2 => comparamos lastServiceDate asc
-            if (a.lastServiceDate && b.lastServiceDate) {
-                const diff = a.lastServiceDate.getTime() - b.lastServiceDate.getTime();
-                if (diff !== 0) return diff;
-            } else if (a.lastServiceDate && !b.lastServiceDate) {
-                // si uno no tiene lastServiceDate, lo ponemos después
-                return -1;
-            } else if (!a.lastServiceDate && b.lastServiceDate) {
-                return 1;
-            }
+        // 4) Procesar y ordenar pólizas con 0 servicios
+        const polizasCeroOrdenadas = polizasConCeroServicios
+            .map(policy => ({
+                ...policy,
+                calificacion: calcularCalificacion(policy),
+                tipoGrupo: 'SIN_SERVICIOS' as const
+            }))
+            .sort((a, b) => {
+                // Ordenar por días restantes de gracia ASC (menor = mayor prioridad)
+                const diasA = a.diasRestantesGracia ?? 999;
+                const diasB = b.diasRestantesGracia ?? 999;
+                return diasA - diasB;
+            });
 
-            // si lastServiceDate es igual o ambos nulos, desempatar con diasDesdeEmision desc
-            return b.diasDesdeEmision - a.diasDesdeEmision;
-        });
+        // 5) Procesar y ordenar pólizas con 1 servicio
+        const polizasUnoOrdenadas = polizasConUnServicio
+            .map(policy => ({
+                ...policy,
+                calificacion: calcularCalificacion(policy),
+                tipoGrupo: 'UN_SERVICIO' as const
+            }))
+            .sort((a, b) => {
+                // Ordenar por días restantes de gracia ASC (menor = mayor prioridad)
+                const diasA = a.diasRestantesGracia ?? 999;
+                const diasB = b.diasRestantesGracia ?? 999;
+                return diasA - diasB;
+            });
 
-        // 5) Tomar top 10 pólizas regulares
-        const top10Regulares = polFiltradas.slice(0, 10).map(x => x.pol);
+        // 6) Tomar TOP 10 de cada grupo
+        const top10CeroServicios = polizasCeroOrdenadas.slice(0, 10);
+        const top10UnServicio = polizasUnoOrdenadas.slice(0, 10);
 
-        // 6) ✅ NUEVO: Obtener hasta 4 NIVs disponibles
-        const nips = await Policy.find({
+        logger.info(`🎯 TOP 10 seleccionadas: ${top10CeroServicios.length} sin servicios, ${top10UnServicio.length} con 1 servicio`);
+
+        // 7) Obtener NIVs disponibles (mantener funcionalidad existente)
+        const nivs = await Policy.find({
             estado: 'ACTIVO',
             tipoPoliza: 'NIV',
             totalServicios: 0 // Solo NIVs sin usar
@@ -617,28 +615,50 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
             .limit(4)
             .lean();
 
-        // 7) Combinar resultados y agregar metadatos
-        const todasLasPolizas = [
-            ...top10Regulares.map((policy, index) => ({
+        // 8) Combinar resultados con metadatos mejorados
+        const resultadoFinal = [
+            // Primero las pólizas sin servicios (mayor prioridad)
+            ...top10CeroServicios.map((policy, index) => ({
                 ...policy,
                 posicion: index + 1,
                 tipoReporte: 'REGULAR' as const,
-                mensajeEspecial: null
+                prioridadGrupo: 1,
+                mensajeEspecial: (policy.diasRestantesGracia !== null && policy.diasRestantesGracia !== undefined && policy.diasRestantesGracia <= 5) ? '🚨 URGENTE - PERÍODO DE GRACIA' : null
             })),
-            ...nips.map((nip, index) => ({
-                ...nip,
-                posicion: top10Regulares.length + index + 1,
+            // Luego las pólizas con un servicio
+            ...top10UnServicio.map((policy, index) => ({
+                ...policy,
+                posicion: top10CeroServicios.length + index + 1,
+                tipoReporte: 'REGULAR' as const,
+                prioridadGrupo: 2,
+                mensajeEspecial: (policy.diasRestantesGracia !== null && policy.diasRestantesGracia !== undefined && policy.diasRestantesGracia <= 5) ? '⚠️ URGENTE - 1 SERVICIO' : null
+            })),
+            // Finalmente los NIVs
+            ...nivs.map((niv, index) => ({
+                ...niv,
+                posicion: top10CeroServicios.length + top10UnServicio.length + index + 1,
                 tipoReporte: 'NIV' as const,
-                mensajeEspecial: '⚡ NIV DISPONIBLE'
+                prioridadGrupo: 3,
+                mensajeEspecial: '⚡ NIV DISPONIBLE',
+                calificacion: 95 // NIVs tienen alta prioridad por estar listos para uso
             }))
         ];
 
-        logger.info(
-            `Reporte generado: ${top10Regulares.length} pólizas regulares + ${nips.length} NIVs`
-        );
-        return todasLasPolizas;
+        // 9) Log detallado del resultado
+        const estadisticas = {
+            sinServicios: top10CeroServicios.length,
+            conUnServicio: top10UnServicio.length,
+            nivs: nivs.length,
+            total: resultadoFinal.length,
+            urgentes: resultadoFinal.filter(p => p.mensajeEspecial?.includes('URGENTE')).length,
+            descartadas: descartadasPorServicios
+        };
+
+        logger.info(`✅ Sistema robusto completado:`, estadisticas);
+
+        return resultadoFinal;
     } catch (error: any) {
-        logger.error('Error obteniendo pólizas prioritarias y NIVs:', error);
+        logger.error('❌ Error en sistema de calificaciones robusto:', error);
         throw error;
     }
 };
