@@ -267,26 +267,27 @@ class ReportUsedCommand extends BaseCommand {
                     const totalServicios: number = (pol.servicios || []).length;
                     const totalPagos: number = (pol.pagos || []).length;
 
+                    // Determinar prioridad basado en la nueva calificación y días de gracia
                     let alertaPrioridad = '';
                     const calificacion: number = pol.calificacion || 0;
-                    if (calificacion >= 80) alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                    else if (calificacion >= 60) alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
+                    const diasGracia = pol.diasRestantesGracia;
+                    
+                    if (calificacion >= 90 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)) {
+                        alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
+                    } else if (calificacion >= 70 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)) {
+                        alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
+                    }
 
                     const msg: string = `
-${alertaPrioridad}🏆 *Calificación: ${calificacion}*
-🔍 *Póliza:* ${pol.numeroPoliza}
-📅 *Emisión:* ${fEmision}
-🚗 *Vehículo:* ${pol.marca || 'N/A'} ${pol.submarca || 'N/A'} (${pol.año || 'N/A'})
-📊 *Estado:* ${pol.estadoPoliza || 'No calculado'}
-🗓️ *Fin Cobertura:* ${fechaFinCobertura} (${pol.diasRestantesCobertura || 'N/A'} días)
-⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
+${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
 🔧 *Servicios:* ${totalServicios}
-💰 *Pagos:* ${totalPagos}`.trim();
+💰 *Pagos:* ${totalPagos}
+*ASEGURADORA:* ${pol.aseguradora || 'NO DEFINIDA'}`.trim();
 
                     const inlineKeyboard = [
                         [
                             Markup.button.callback(
-                                `👀 Consultar ${pol.numeroPoliza}`,
+                                `📋 ${pol.numeroPoliza}`,
                                 `getPoliza:${pol.numeroPoliza}`
                             )
                         ]
