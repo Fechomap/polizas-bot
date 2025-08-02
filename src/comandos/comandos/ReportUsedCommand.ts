@@ -301,13 +301,25 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
                     try {
                         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
+                        await new Promise<void>(resolve => setTimeout(resolve, 2000)); // Increased pause
                     } catch (sendError: unknown) {
-                        this.logError(
-                            `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
-                            sendError as Error
-                        );
-                        await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`); // Fallback
+                        const error = sendError as any;
+                        if (error.response?.error_code === 429) {
+                            const retryAfter = error.response.parameters?.retry_after || 30;
+                            this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
+                            await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
+                            try {
+                                await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                                await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                            } catch (retryError) {
+                                this.logError(`Retry failed for póliza ${pol.numeroPoliza}:`, retryError as Error);
+                            }
+                        } else {
+                            this.logError(
+                                `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
+                                sendError as Error
+                            );
+                        }
                     }
                 }
             }
@@ -357,13 +369,25 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
                     try {
                         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
+                        await new Promise<void>(resolve => setTimeout(resolve, 2000)); // Increased pause
                     } catch (sendError: unknown) {
-                        this.logError(
-                            `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
-                            sendError as Error
-                        );
-                        await ctx.reply(`Error al mostrar detalles de póliza ${pol.numeroPoliza}`); // Fallback
+                        const error = sendError as any;
+                        if (error.response?.error_code === 429) {
+                            const retryAfter = error.response.parameters?.retry_after || 30;
+                            this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
+                            await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
+                            try {
+                                await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                                await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                            } catch (retryError) {
+                                this.logError(`Retry failed for póliza ${pol.numeroPoliza}:`, retryError as Error);
+                            }
+                        } else {
+                            this.logError(
+                                `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
+                                sendError as Error
+                            );
+                        }
                     }
                 }
             }
@@ -400,13 +424,25 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
                     try {
                         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 500)); // Pause
+                        await new Promise<void>(resolve => setTimeout(resolve, 2000)); // Increased pause
                     } catch (sendError: unknown) {
-                        this.logError(
-                            `Error al enviar mensaje para NIV ${niv.numeroPoliza}:`,
-                            sendError as Error
-                        );
-                        await ctx.reply(`Error al mostrar detalles de NIV ${niv.numeroPoliza}`); // Fallback
+                        const error = sendError as any;
+                        if (error.response?.error_code === 429) {
+                            const retryAfter = error.response.parameters?.retry_after || 30;
+                            this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
+                            await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
+                            try {
+                                await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                                await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                            } catch (retryError) {
+                                this.logError(`Retry failed for NIV ${niv.numeroPoliza}:`, retryError as Error);
+                            }
+                        } else {
+                            this.logError(
+                                `Error al enviar mensaje para NIV ${niv.numeroPoliza}:`,
+                                sendError as Error
+                            );
+                        }
                     }
                 }
             }
@@ -478,7 +514,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                                 ]
                             ])
                         );
-                        await new Promise<void>(resolve => setTimeout(resolve, 300));
+                        await new Promise<void>(resolve => setTimeout(resolve, 2000));
                     }
 
                     // Añadir botón para volver al menú principal incluso en caso de error
