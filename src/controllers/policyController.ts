@@ -605,15 +605,22 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
 
         logger.info(`🎯 TOP 10 seleccionadas: ${top10CeroServicios.length} sin servicios, ${top10UnServicio.length} con 1 servicio`);
 
-        // 7) Obtener NIVs disponibles (mantener funcionalidad existente)
-        const nivs = await Policy.find({
+        // 7) Obtener NIVs disponibles ordenados por año (menor a mayor)
+        const todosLosNivs = await Policy.find({
             estado: 'ACTIVO',
             tipoPoliza: 'NIV',
             totalServicios: 0 // Solo NIVs sin usar
         })
-            .sort({ createdAt: -1 }) // Más recientes primero
-            .limit(4)
+            .sort({ año: 1, createdAt: -1 }) // Primero por año ascendente, luego por más recientes
             .lean();
+
+        // Tomar top 4 del año más antiguo disponible
+        let nivs: any[] = [];
+        if (todosLosNivs.length > 0) {
+            const añoMasAntiguo = todosLosNivs[0].año;
+            const nivsDelAñoMasAntiguo = todosLosNivs.filter(niv => niv.año === añoMasAntiguo);
+            nivs = nivsDelAñoMasAntiguo.slice(0, 4);
+        }
 
         // 8) Combinar resultados con metadatos mejorados
         const resultadoFinal = [

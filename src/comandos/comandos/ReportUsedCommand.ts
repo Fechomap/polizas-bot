@@ -229,6 +229,22 @@ class ReportUsedCommand extends BaseCommand {
             // ✅ ACTUALIZADO: Usar nueva función que incluye NIVs
             const todasLasPolizas = await getOldUnusedPolicies();
 
+            // Responder inmediatamente y procesar en background
+            await ctx.reply('🔄 Consultando pólizas prioritarias... El reporte se enviará en unos momentos.');
+            
+            // Procesar asíncronamente sin bloquear el bot
+            setTimeout(async () => {
+                await this.enviarReporteAsincrono(ctx, todasLasPolizas);
+            }, 100);
+            
+            return; // Salir inmediatamente para no bloquear el bot
+        } catch (error: unknown) {
+            await this.handleMainError(ctx, error);
+        }
+    }
+
+    private async enviarReporteAsincrono(ctx: Context, todasLasPolizas: any[]): Promise<void> {
+        try {
             if (!todasLasPolizas.length) {
                 await ctx.reply('✅ No hay pólizas prioritarias ni NIVs que mostrar.');
                 return;
@@ -273,10 +289,17 @@ class ReportUsedCommand extends BaseCommand {
                     const totalServicios: number = (pol.servicios || []).length;
                     const totalPagos: number = (pol.pagos || []).length;
 
+                    // Calcular días restantes si no están disponibles
+                    let diasGracia = pol.diasRestantesGracia;
+                    if ((diasGracia === null || diasGracia === undefined) && pol.fechaFinGracia) {
+                        const hoy = new Date();
+                        const fechaFin = new Date(pol.fechaFinGracia);
+                        diasGracia = Math.ceil((fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    }
+
                     // Determinar prioridad basado en la nueva calificación y días de gracia
                     let alertaPrioridad = '';
                     const calificacion: number = pol.calificacion || 0;
-                    const diasGracia = pol.diasRestantesGracia;
                     
                     if (calificacion >= 90 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)) {
                         alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
@@ -284,8 +307,9 @@ class ReportUsedCommand extends BaseCommand {
                         alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
                     }
 
+                    const diasTexto = diasGracia !== null && diasGracia !== undefined ? diasGracia.toString() : '0';
                     const msg: string = `
-${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
+${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
 🔧 *Servicios:* ${totalServicios}
 💰 *Pagos:* ${totalPagos}
 *ASEGURADORA:* ${pol.aseguradora || 'NO DEFINIDA'}`.trim();
@@ -301,7 +325,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
                     try {
                         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 2000)); // Increased pause
+                        await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Optimized pause
                     } catch (sendError: unknown) {
                         const error = sendError as any;
                         if (error.response?.error_code === 429) {
@@ -310,7 +334,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                             await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
                             try {
                                 await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                                await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                                await new Promise<void>(resolve => setTimeout(resolve, 1000));
                             } catch (retryError) {
                                 this.logError(`Retry failed for póliza ${pol.numeroPoliza}:`, retryError as Error);
                             }
@@ -341,10 +365,17 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                     const totalServicios: number = (pol.servicios || []).length;
                     const totalPagos: number = (pol.pagos || []).length;
 
+                    // Calcular días restantes si no están disponibles
+                    let diasGracia = pol.diasRestantesGracia;
+                    if ((diasGracia === null || diasGracia === undefined) && pol.fechaFinGracia) {
+                        const hoy = new Date();
+                        const fechaFin = new Date(pol.fechaFinGracia);
+                        diasGracia = Math.ceil((fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                    }
+
                     // Determinar prioridad basado en la nueva calificación y días de gracia
                     let alertaPrioridad = '';
                     const calificacion: number = pol.calificacion || 0;
-                    const diasGracia = pol.diasRestantesGracia;
                     
                     if (calificacion >= 90 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)) {
                         alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
@@ -352,8 +383,9 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                         alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
                     }
 
+                    const diasTexto = diasGracia !== null && diasGracia !== undefined ? diasGracia.toString() : '0';
                     const msg: string = `
-${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia || 'N/A'} días)
+${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
 🔧 *Servicios:* ${totalServicios}
 💰 *Pagos:* ${totalPagos}
 *ASEGURADORA:* ${pol.aseguradora || 'NO DEFINIDA'}`.trim();
@@ -369,7 +401,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
                     try {
                         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 2000)); // Increased pause
+                        await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Optimized pause
                     } catch (sendError: unknown) {
                         const error = sendError as any;
                         if (error.response?.error_code === 429) {
@@ -378,7 +410,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                             await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
                             try {
                                 await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                                await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                                await new Promise<void>(resolve => setTimeout(resolve, 1000));
                             } catch (retryError) {
                                 this.logError(`Retry failed for póliza ${pol.numeroPoliza}:`, retryError as Error);
                             }
@@ -424,7 +456,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
 
                     try {
                         await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 2000)); // Increased pause
+                        await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Optimized pause
                     } catch (sendError: unknown) {
                         const error = sendError as any;
                         if (error.response?.error_code === 429) {
@@ -433,7 +465,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                             await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
                             try {
                                 await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                                await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                                await new Promise<void>(resolve => setTimeout(resolve, 1000));
                             } catch (retryError) {
                                 this.logError(`Retry failed for NIV ${niv.numeroPoliza}:`, retryError as Error);
                             }
@@ -460,34 +492,16 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
             await ctx.reply(mensajeFinal, Markup.inlineKeyboard([]));
             this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
         } catch (error: unknown) {
-            // Ensure interval is cleared on error
-            scriptRunning = false;
-            if (progressInterval) {
-                clearInterval(progressInterval);
-            }
+            this.logError(`Error en envío asíncrono:`, error as Error);
+            await ctx.reply('❌ Error al generar el reporte completo.');
+        }
+    }
 
+    private async handleMainError(ctx: Context, error: unknown): Promise<void> {
+        try {
             const typedError = error as Error;
             this.logError(`Error general en ${this.getCommandName()}:`, typedError);
-
-            // Notify user about the error
-            if (waitMsg) {
-                try {
-                    await this.handler.bot.telegram.editMessageText(
-                        waitMsg.chat.id,
-                        waitMsg.message_id,
-                        undefined,
-                        '❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...'
-                    );
-                } catch (e: unknown) {
-                    await ctx.reply(
-                        '❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...'
-                    );
-                }
-            } else {
-                await ctx.reply(
-                    '❌ Error durante el proceso. Intentando mostrar pólizas de todas formas...'
-                );
-            }
+            await ctx.reply('❌ Error al generar el reporte de pólizas prioritarias.');
 
             // Fallback: Try fetching policies anyway
             try {
@@ -514,7 +528,7 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                                 ]
                             ])
                         );
-                        await new Promise<void>(resolve => setTimeout(resolve, 2000));
+                        await new Promise<void>(resolve => setTimeout(resolve, 1000));
                     }
 
                     // Añadir botón para volver al menú principal incluso en caso de error
@@ -534,6 +548,8 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${pol.diasRestantesGracia
                 // Añadir botón para volver al menú principal incluso en caso de error crítico
                 await ctx.reply('❌ Error crítico.', Markup.inlineKeyboard([]));
             }
+        } catch (handlerError: unknown) {
+            this.logError('Error en handler de errores:', handlerError as Error);
         }
     }
 }
