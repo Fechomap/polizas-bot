@@ -303,6 +303,7 @@ class CommandHandler {
                     [Markup.button.callback('💰 Añadir Pago', 'accion:addpayment')],
                     [Markup.button.callback('🚗 Añadir Servicio', 'accion:addservice')],
                     [Markup.button.callback('📁 Subir Archivos', 'accion:upload')],
+                    [Markup.button.callback('🗑️ Eliminar Póliza', 'accion:delete')],
                     [Markup.button.callback('🏠 MENÚ PRINCIPAL', 'accion:volver_menu')]
                 ]);
 
@@ -580,6 +581,35 @@ class CommandHandler {
             } catch (error: any) {
                 logger.error('Error en accion:upload:', error);
                 await ctx.reply('❌ Error al iniciar la subida de archivos.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
+        // ✅ ELIMINAR PÓLIZA - Manejador implementado
+        this.bot.action('accion:delete', async (ctx: ChatContext) => {
+            try {
+                await ctx.answerCbQuery();
+                const chatId = ctx.chat.id;
+                const threadId = StateKeyManager.getThreadId(ctx);
+                this.clearChatState(chatId, threadId);
+                this.awaitingDeletePolicyNumber.set(chatId, true, threadId);
+                await ctx.reply(
+                    '🗑️ **ELIMINAR PÓLIZA**\n\n' +
+                    'Puedes enviar:\n' +
+                    '• Un número de póliza\n' +
+                    '• Varios números separados por líneas\n' +
+                    '• Varios números separados por comas\n\n' +
+                    '📝 Ejemplo:\n' +
+                    '12345\n' +
+                    'o\n' +
+                    '12345, 67890, ABC-123',
+                    { parse_mode: 'Markdown' }
+                );
+            } catch (error: any) {
+                logger.error('Error en accion:delete:', error);
+                await ctx.reply('❌ Error al iniciar el proceso de eliminación.');
                 try {
                     await ctx.answerCbQuery('Error');
                 } catch {}
