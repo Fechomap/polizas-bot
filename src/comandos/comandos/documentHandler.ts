@@ -6,6 +6,7 @@ import { getPolicyByNumber } from '../../controllers/policyController';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/CloudflareStorage';
 import { IPolicy, IR2FileObject, IR2File } from '../../types/database';
+import Policy from '../../models/policy';
 
 interface IExcelUploadHandler {
     awaitingExcelUpload: Map<number, boolean>;
@@ -231,32 +232,101 @@ class DocumentHandler {
 
     private async processPdfUpload(ctx: Context, numeroPoliza: string): Promise<void> {
         try {
-            // Download file
-            console.log('FLUJO NORMAL - Documento recibido:', {
-                file_id: (ctx.message as any).document.file_id,
-                file_name: (ctx.message as any).document.file_name,
-                file_size: (ctx.message as any).document.file_size,
-                mime_type: (ctx.message as any).document.mime_type,
-                file_unique_id: (ctx.message as any).document.file_unique_id
+            const documentInfo = (ctx.message as any).document;
+            const fileSize = documentInfo.file_size || 0;
+            const fileName = documentInfo.file_name || `documento_${Date.now()}.pdf`;
+
+            logger.info('[PDF_UPLOAD] Documento recibido', {
+                file_id: documentInfo.file_id,
+                file_name: fileName,
+                file_size: fileSize,
+                mime_type: documentInfo.mime_type,
+                numeroPoliza
             });
-            const fileId = (ctx.message as any).document.file_id;
+
+            // ✅ VALIDACIÓN 1: Tamaño de archivo (20MB máximo por defecto)
+            const MAX_FILE_SIZE = parseInt(process.env.MAX_PDF_SIZE || '20971520'); // 20MB
+            if (fileSize > MAX_FILE_SIZE) {
+                const sizeMB = (fileSize / 1024 / 1024).toFixed(2);
+                const maxSizeMB = (MAX_FILE_SIZE / 1024 / 1024).toFixed(2);
+
+                logger.warn('[PDF_UPLOAD] Archivo excede tamaño máximo', {
+                    fileSize,
+                    MAX_FILE_SIZE,
+                    sizeMB,
+                    maxSizeMB
+                });
+
+                await ctx.reply(
+                    `❌ El archivo es demasiado grande (${sizeMB}MB).\n` +
+                    `Tamaño máximo permitido: ${maxSizeMB}MB`
+                );
+                return;
+            }
+
+            // ✅ VALIDACIÓN 2: Verificar que sea realmente un PDF
+            if (!documentInfo.mime_type?.includes('pdf')) {
+                logger.warn('[PDF_UPLOAD] Archivo no es PDF', {
+                    mime_type: documentInfo.mime_type,
+                    file_name: fileName
+                });
+
+                await ctx.reply('❌ Solo se permiten documentos PDF.');
+                return;
+            }
+
+            // Descargar archivo de Telegram
+            const fileId = documentInfo.file_id;
+            logger.info('[PDF_UPLOAD] Descargando archivo de Telegram', { fileId });
+
             const fileLink = await ctx.telegram.getFileLink(fileId);
             const response = await fetch(fileLink.href);
-            console.log('FLUJO NORMAL - Response status:', response.status);
-            console.log('FLUJO NORMAL - Response headers:', response.headers.raw());
-            if (!response.ok) throw new Error('Falló la descarga del documento');
+
+            logger.info('[PDF_UPLOAD] Respuesta de descarga', {
+                status: response.status,
+                contentType: response.headers.get('content-type')
+            });
+
+            if (!response.ok) {
+                throw new Error(`Error al descargar archivo: HTTP ${response.status}`);
+            }
+
             const buffer = await response.buffer();
-            console.log('FLUJO NORMAL - Buffer length:', buffer.length);
-            console.log(
-                'FLUJO NORMAL - Buffer primeros 100 bytes:',
-                buffer.slice(0, 100).toString('hex')
-            );
+
+            logger.info('[PDF_UPLOAD] Archivo descargado', {
+                bufferLength: buffer.length,
+                expectedSize: fileSize,
+                match: buffer.length === fileSize
+            });
+
+            // ✅ VALIDACIÓN 3: Verificar que el buffer se descargó correctamente
+            if (buffer.length === 0) {
+                throw new Error('Buffer vacío después de descargar archivo');
+            }
+
+            // ✅ VALIDACIÓN 4: Verificar que sea realmente un PDF (magic bytes)
+            const pdfHeader = buffer.slice(0, 4).toString();
+            if (!pdfHeader.startsWith('%PDF')) {
+                logger.error('[PDF_UPLOAD] Archivo no es un PDF válido', {
+                    header: pdfHeader,
+                    hexHeader: buffer.slice(0, 10).toString('hex')
+                });
+
+                await ctx.reply('❌ El archivo no es un PDF válido.');
+                return;
+            }
 
             // Subir PDF a Cloudflare R2
+            logger.info('[PDF_UPLOAD] Subiendo a Cloudflare R2', { numeroPoliza, fileName });
+
             const storage = getInstance();
-            const originalName =
-                (ctx.message as any).document.file_name || `documento_${Date.now()}.pdf`;
-            const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
+            const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, fileName);
+
+            logger.info('[PDF_UPLOAD] Archivo subido a Cloudflare R2 exitosamente', {
+                url: uploadResult.url,
+                key: uploadResult.key,
+                size: uploadResult.size
+            });
 
             // Crear objeto de archivo R2 compatible con IR2File
             const r2FileObject: IR2File = {
@@ -265,36 +335,81 @@ class DocumentHandler {
                 size: uploadResult.size,
                 contentType: uploadResult.contentType,
                 uploadDate: new Date(),
-                originalName: originalName
+                originalName: fileName
             };
 
-            // Find the policy and update
-            const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
-            if (!policy) {
+            // ✅ OPERACIÓN ATÓMICA: Añadir PDF con $push para evitar race conditions
+            logger.info('[PDF_UPLOAD] Añadiendo PDF a póliza con operación atómica', {
+                numeroPoliza
+            });
+
+            const updatedPolicy = await Policy.findOneAndUpdate(
+                { numeroPoliza, estado: 'ACTIVO' },
+                {
+                    $push: { 'archivos.r2Files.pdfs': r2FileObject },
+                    $setOnInsert: {
+                        archivos: {
+                            fotos: [],
+                            pdfs: [],
+                            r2Files: {
+                                fotos: [],
+                                pdfs: [r2FileObject]
+                            }
+                        }
+                    }
+                },
+                {
+                    new: true,
+                    runValidators: false,
+                    upsert: false
+                }
+            );
+
+            if (!updatedPolicy) {
+                logger.error('[PDF_UPLOAD] Póliza no encontrada después de subir a R2', {
+                    numeroPoliza
+                });
                 await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 return;
             }
 
-            // Initialize files if it doesn't exist
-            if (!policy.archivos) {
-                policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
+            logger.info('[PDF_UPLOAD] ✅ PDF guardado exitosamente en póliza', {
+                numeroPoliza,
+                totalPDFs: updatedPolicy.archivos?.r2Files?.pdfs?.length || 0,
+                fileName
+            });
+
+            await ctx.reply(
+                `✅ PDF guardado correctamente en almacenamiento seguro.\n\n` +
+                `📄 Archivo: ${fileName}\n` +
+                `📊 Tamaño: ${(uploadResult.size / 1024).toFixed(2)} KB`
+            );
+        } catch (error: any) {
+            logger.error('[PDF_UPLOAD] ❌ Error al procesar PDF', {
+                numeroPoliza,
+                error: error.message,
+                stack: error.stack,
+                errorName: error.name
+            });
+
+            // Mensaje de error específico según el tipo de error
+            let errorMessage = '❌ Error al procesar el documento PDF.';
+
+            if (error.message?.includes('no está configurado')) {
+                errorMessage = '❌ Error de configuración de almacenamiento. Contacta al administrador.';
+            } else if (error.message?.includes('HTTP')) {
+                errorMessage = '❌ Error al descargar el archivo de Telegram. Intenta nuevamente.';
+            } else if (error.message?.includes('Buffer vacío')) {
+                errorMessage = '❌ El archivo descargado está corrupto. Intenta subirlo nuevamente.';
+            } else if (error.message?.includes('R2') || error.message?.includes('S3')) {
+                errorMessage = '❌ Error al subir el archivo a almacenamiento. Verifica que el archivo no esté corrupto.';
+            } else if (error.message?.includes('Póliza no encontrada')) {
+                errorMessage = `❌ Póliza ${numeroPoliza} no encontrada.`;
             }
-            if (!policy.archivos.r2Files) {
-                policy.archivos.r2Files = { fotos: [], pdfs: [] };
-            }
 
-            // Add the PDF to R2 files
-            policy.archivos.r2Files.pdfs.push(r2FileObject);
+            await ctx.reply(errorMessage + '\n\nDetalles técnicos: ' + error.message);
 
-            // Save
-            await policy.save();
-
-            await ctx.reply('✅ PDF guardado correctamente en almacenamiento seguro.');
-            logger.info('PDF guardado', { numeroPoliza });
-        } catch (error) {
-            logger.error('Error al procesar PDF:', error);
-            await ctx.reply('❌ Error al procesar el documento PDF.');
-            // Considerar limpiar estado en error
+            // Limpiar estado en error
             if (ctx.chat) {
                 const threadId = StateKeyManager.getThreadId(ctx);
                 const threadIdStr = threadId ? String(threadId) : '';
