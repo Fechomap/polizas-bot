@@ -265,26 +265,35 @@ export const addServiceToPolicy = async (
     rutaInfo: IRutaInfo | null = null
 ): Promise<IPolicy | null> => {
     try {
-        logger.info(`Añadiendo servicio a la póliza: ${numeroPoliza}`, {
+        logger.info(`[ATOMIC] Añadiendo servicio a la póliza: ${numeroPoliza}`, {
             coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
             rutaInfo: rutaInfo ? 'incluida' : 'no incluida'
         });
-        const policy = await getPolicyByNumber(numeroPoliza);
-        if (!policy) {
+
+        // ✅ PASO 1: Obtener el siguiente número de servicio de forma atómica
+        // Esto garantiza que no haya race conditions en el contador
+        const policyForCounter = await Policy.findOneAndUpdate(
+            { numeroPoliza, estado: 'ACTIVO' },
+            {
+                $inc: { servicioCounter: 1 },
+                $setOnInsert: { servicioCounter: 1 }
+            },
+            {
+                new: true,
+                upsert: false,
+                select: 'servicioCounter numeroPoliza'
+            }
+        );
+
+        if (!policyForCounter) {
             logger.warn(`Póliza no encontrada: ${numeroPoliza} al intentar añadir servicio.`);
             return null;
         }
 
-        // Inicializar contador de servicios si no existe
-        if (policy.servicioCounter === undefined) {
-            policy.servicioCounter = 0;
-        }
+        const nextServiceNumber = policyForCounter.servicioCounter;
+        logger.info(`[ATOMIC] Número de servicio asignado: #${nextServiceNumber} para póliza ${numeroPoliza}`);
 
-        // Incrementar el contador para este nuevo servicio
-        policy.servicioCounter += 1;
-        const nextServiceNumber = policy.servicioCounter;
-
-        // Crear objeto de servicio con nuevos campos
+        // ✅ PASO 2: Construir objeto de servicio con el número asignado
         const serviceData: IServicio = {
             numeroServicio: nextServiceNumber,
             costo,
@@ -305,7 +314,7 @@ export const addServiceToPolicy = async (
                     lng: coordenadas.destino.lng
                 }
             };
-            logger.info(`Coordenadas añadidas al servicio #${nextServiceNumber}`, coordenadas);
+            logger.info(`[ATOMIC] Coordenadas añadidas al servicio #${nextServiceNumber}`, coordenadas);
         }
 
         // Añadir información de ruta si está disponible
@@ -315,29 +324,50 @@ export const addServiceToPolicy = async (
                 tiempoMinutos: rutaInfo.tiempoMinutos
             };
 
-            // Añadir Google Maps URL si está disponible
             if (rutaInfo.googleMapsUrl) {
                 serviceData.rutaInfo.googleMapsUrl = rutaInfo.googleMapsUrl;
             }
 
-            logger.info(`Información de ruta añadida al servicio #${nextServiceNumber}`, {
+            logger.info(`[ATOMIC] Información de ruta añadida al servicio #${nextServiceNumber}`, {
                 distancia: rutaInfo.distanciaKm,
                 tiempo: rutaInfo.tiempoMinutos,
                 aproximado: rutaInfo.aproximado || false
             });
         }
 
-        // Añadir el servicio al arreglo
-        policy.servicios.push(serviceData);
-
-        // Guardamos la póliza
-        const updatedPolicy = await policy.save();
-        logger.info(
-            `Servicio #${nextServiceNumber} añadido correctamente a la póliza ${numeroPoliza}`
+        // ✅ PASO 3: Añadir servicio al array de forma atómica con $push
+        // Esto garantiza que el servicio se añada sin race conditions
+        const updatedPolicy = await Policy.findOneAndUpdate(
+            { numeroPoliza, estado: 'ACTIVO' },
+            {
+                $push: { servicios: serviceData },
+                $inc: { totalServicios: 1 }  // Sincronizar contador cache
+            },
+            {
+                new: true,
+                runValidators: false  // Los datos ya están validados
+            }
         );
+
+        if (!updatedPolicy) {
+            logger.error(`[ATOMIC] ERROR: Póliza ${numeroPoliza} no encontrada al hacer $push del servicio #${nextServiceNumber}`);
+            // ⚠️ IMPORTANTE: El servicioCounter ya se incrementó, pero el servicio no se añadió
+            // Esto es un caso edge que requiere corrección manual o script de limpieza
+            return null;
+        }
+
+        logger.info(
+            `[ATOMIC] ✅ Servicio #${nextServiceNumber} añadido correctamente a la póliza ${numeroPoliza}`,
+            {
+                serviciosActuales: updatedPolicy.servicios.length,
+                totalServicios: updatedPolicy.totalServicios,
+                servicioCounter: updatedPolicy.servicioCounter
+            }
+        );
+
         return updatedPolicy;
     } catch (error: any) {
-        logger.error('Error al añadir servicio a la póliza:', {
+        logger.error('[ATOMIC] Error al añadir servicio a la póliza:', {
             numeroPoliza,
             costo,
             fechaServicio,
@@ -345,7 +375,8 @@ export const addServiceToPolicy = async (
             origenDestino,
             coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
             rutaInfo: rutaInfo ? 'incluida' : 'no incluida',
-            error: error.message
+            error: error.message,
+            stack: error.stack
         });
         throw error;
     }
@@ -823,6 +854,7 @@ export const savePoliciesBatch = async (policiesData: IPolicyData[]): Promise<Ba
 
 /**
  * Añade un REGISTRO (intento de servicio) a la póliza. No cuenta como servicio hasta confirmarse.
+ * ✅ IMPLEMENTACIÓN ATÓMICA: Usa operaciones MongoDB para evitar race conditions
  */
 export const addRegistroToPolicy = async (
     numeroPoliza: string,
@@ -834,27 +866,32 @@ export const addRegistroToPolicy = async (
     rutaInfo: IRutaInfo | null = null
 ): Promise<IPolicy | null> => {
     try {
-        logger.info(`Añadiendo REGISTRO a la póliza: ${numeroPoliza}`, {
+        logger.info(`[ATOMIC] Añadiendo REGISTRO a la póliza: ${numeroPoliza}`, {
             coordenadas: coordenadas ? 'incluidas' : 'no incluidas',
             rutaInfo: rutaInfo ? 'incluida' : 'no incluida'
         });
 
-        const policy = await getPolicyByNumber(numeroPoliza);
-        if (!policy) {
-            logger.warn(`Póliza no encontrada: ${numeroPoliza} al intentar añadir registro.`);
+        // ✅ PASO 1: Incrementar registroCounter de forma atómica
+        const policyForCounter = await Policy.findOneAndUpdate(
+            { numeroPoliza, estado: 'ACTIVO' },
+            {
+                $inc: { registroCounter: 1 }
+            },
+            {
+                new: true,
+                select: 'registroCounter numeroPoliza'
+            }
+        );
+
+        if (!policyForCounter) {
+            logger.warn(`[ATOMIC] Póliza no encontrada: ${numeroPoliza} al intentar añadir registro.`);
             return null;
         }
 
-        // Inicializar contador de registros si no existe
-        if (policy.registroCounter === undefined) {
-            policy.registroCounter = 0;
-        }
+        const nextRegistroNumber = policyForCounter.registroCounter;
+        logger.info(`[ATOMIC] Número de registro asignado: #${nextRegistroNumber} para póliza ${numeroPoliza}`);
 
-        // Incrementar el contador para este nuevo registro
-        policy.registroCounter += 1;
-        const nextRegistroNumber = policy.registroCounter;
-
-        // Crear objeto de registro
+        // ✅ PASO 2: Construir objeto de registro
         const registroData: IRegistro = {
             numeroRegistro: nextRegistroNumber,
             costo,
@@ -876,7 +913,7 @@ export const addRegistroToPolicy = async (
                     lng: coordenadas.destino.lng
                 }
             };
-            logger.info(`Coordenadas añadidas al registro #${nextRegistroNumber}`, coordenadas);
+            logger.info(`[ATOMIC] Coordenadas añadidas al registro #${nextRegistroNumber}`, coordenadas);
         }
 
         // Añadir información de ruta si está disponible
@@ -890,29 +927,43 @@ export const addRegistroToPolicy = async (
                 registroData.rutaInfo.googleMapsUrl = rutaInfo.googleMapsUrl;
             }
 
-            logger.info(`Información de ruta añadida al registro #${nextRegistroNumber}`, {
+            logger.info(`[ATOMIC] Información de ruta añadida al registro #${nextRegistroNumber}`, {
                 distancia: rutaInfo.distanciaKm,
                 tiempo: rutaInfo.tiempoMinutos
             });
         }
 
-        // Inicializar array de registros si no existe
-        if (!policy.registros) {
-            policy.registros = [];
+        // ✅ PASO 3: Añadir registro al array de forma atómica con $push
+        const updatedPolicy = await Policy.findOneAndUpdate(
+            { numeroPoliza, estado: 'ACTIVO' },
+            {
+                $push: { registros: registroData }
+            },
+            {
+                new: true,
+                runValidators: false
+            }
+        );
+
+        if (!updatedPolicy) {
+            logger.error(`[ATOMIC] ERROR: Póliza ${numeroPoliza} no encontrada al hacer $push del registro #${nextRegistroNumber}`);
+            return null;
         }
 
-        // Añadir el registro al arreglo
-        policy.registros.push(registroData);
-
-        const updatedPolicy = await policy.save();
         logger.info(
-            `Registro #${nextRegistroNumber} añadido correctamente a la póliza ${numeroPoliza}`
+            `[ATOMIC] ✅ Registro #${nextRegistroNumber} añadido correctamente a la póliza ${numeroPoliza}`,
+            {
+                registrosActuales: updatedPolicy.registros.length,
+                registroCounter: updatedPolicy.registroCounter
+            }
         );
+
         return updatedPolicy;
     } catch (error: any) {
-        logger.error('Error al añadir registro a la póliza:', {
+        logger.error('[ATOMIC] Error al añadir registro a la póliza:', {
             numeroPoliza,
-            error: error.message
+            error: error.message,
+            stack: error.stack
         });
         throw error;
     }
@@ -920,6 +971,7 @@ export const addRegistroToPolicy = async (
 
 /**
  * Convierte un REGISTRO en SERVICIO confirmado con fechas de contacto y término programadas
+ * ✅ IMPLEMENTACIÓN ATÓMICA: Usa operaciones MongoDB para evitar race conditions
  */
 export const convertirRegistroAServicio = async (
     numeroPoliza: string,
@@ -929,12 +981,13 @@ export const convertirRegistroAServicio = async (
 ): Promise<{ updatedPolicy: IPolicy; numeroServicio: number } | null> => {
     try {
         logger.info(
-            `Convirtiendo registro ${numeroRegistro} a servicio en póliza: ${numeroPoliza}`
+            `[ATOMIC] Convirtiendo registro ${numeroRegistro} a servicio en póliza: ${numeroPoliza}`
         );
 
+        // ✅ PASO 1: Buscar el registro para extraer sus datos
         const policy = await getPolicyByNumber(numeroPoliza);
         if (!policy) {
-            logger.warn(`Póliza no encontrada: ${numeroPoliza}`);
+            logger.warn(`[ATOMIC] Póliza no encontrada: ${numeroPoliza}`);
             return null;
         }
 
@@ -943,25 +996,37 @@ export const convertirRegistroAServicio = async (
             (r: IRegistro) => r.numeroRegistro === numeroRegistro
         );
         if (!registro) {
-            logger.warn(`Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}`);
+            logger.warn(`[ATOMIC] Registro ${numeroRegistro} no encontrado en póliza ${numeroPoliza}`);
             return null;
         }
 
-        // Marcar registro como ASIGNADO
-        registro.estado = 'ASIGNADO';
-        registro.fechaContactoProgramada = fechaContactoProgramada;
-        registro.fechaTerminoProgramada = fechaTerminoProgramada;
-
-        // Inicializar contador de servicios si no existe
-        if (policy.servicioCounter === undefined) {
-            policy.servicioCounter = 0;
+        // Verificar que el registro no esté ya asignado
+        if (registro.estado === 'ASIGNADO') {
+            logger.warn(`[ATOMIC] Registro ${numeroRegistro} ya está ASIGNADO en póliza ${numeroPoliza}`);
+            return null;
         }
 
-        // Incrementar contador de servicios
-        policy.servicioCounter += 1;
-        const nextServiceNumber = policy.servicioCounter;
+        // ✅ PASO 2: Incrementar servicioCounter de forma atómica para obtener el siguiente número
+        const policyForCounter = await Policy.findOneAndUpdate(
+            { numeroPoliza, estado: 'ACTIVO' },
+            {
+                $inc: { servicioCounter: 1 }
+            },
+            {
+                new: true,
+                select: 'servicioCounter numeroPoliza'
+            }
+        );
 
-        // Crear servicio basado en el registro
+        if (!policyForCounter) {
+            logger.error(`[ATOMIC] ERROR: Póliza ${numeroPoliza} no encontrada al incrementar servicioCounter`);
+            return null;
+        }
+
+        const nextServiceNumber = policyForCounter.servicioCounter;
+        logger.info(`[ATOMIC] Número de servicio asignado: #${nextServiceNumber} para conversión de registro ${numeroRegistro}`);
+
+        // ✅ PASO 3: Crear servicio basado en el registro
         const servicioData: IServicio = {
             numeroServicio: nextServiceNumber,
             numeroRegistroOrigen: numeroRegistro,
@@ -975,19 +1040,51 @@ export const convertirRegistroAServicio = async (
             rutaInfo: registro.rutaInfo
         };
 
-        // Añadir servicio al array
-        policy.servicios.push(servicioData);
-
-        const updatedPolicy = await policy.save();
-        logger.info(
-            `Registro #${numeroRegistro} convertido a servicio #${nextServiceNumber} en póliza ${numeroPoliza}`
+        // ✅ PASO 4: Actualización atómica: marcar registro como ASIGNADO y añadir servicio
+        // Usando arrayFilters para actualizar solo el registro específico
+        const updatedPolicy = await Policy.findOneAndUpdate(
+            {
+                numeroPoliza,
+                estado: 'ACTIVO',
+                'registros.numeroRegistro': numeroRegistro
+            },
+            {
+                $push: { servicios: servicioData },
+                $inc: { totalServicios: 1 },
+                $set: {
+                    'registros.$[registro].estado': 'ASIGNADO',
+                    'registros.$[registro].fechaContactoProgramada': fechaContactoProgramada,
+                    'registros.$[registro].fechaTerminoProgramada': fechaTerminoProgramada
+                }
+            },
+            {
+                new: true,
+                runValidators: false,
+                arrayFilters: [{ 'registro.numeroRegistro': numeroRegistro }]
+            }
         );
+
+        if (!updatedPolicy) {
+            logger.error(`[ATOMIC] ERROR: Póliza ${numeroPoliza} no encontrada al convertir registro a servicio`);
+            return null;
+        }
+
+        logger.info(
+            `[ATOMIC] ✅ Registro #${numeroRegistro} convertido a servicio #${nextServiceNumber} en póliza ${numeroPoliza}`,
+            {
+                serviciosActuales: updatedPolicy.servicios.length,
+                totalServicios: updatedPolicy.totalServicios,
+                servicioCounter: updatedPolicy.servicioCounter
+            }
+        );
+
         return { updatedPolicy, numeroServicio: nextServiceNumber };
     } catch (error: any) {
-        logger.error('Error al convertir registro a servicio:', {
+        logger.error('[ATOMIC] Error al convertir registro a servicio:', {
             numeroPoliza,
             numeroRegistro,
-            error: error.message
+            error: error.message,
+            stack: error.stack
         });
         throw error;
     }

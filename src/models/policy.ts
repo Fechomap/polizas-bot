@@ -1,6 +1,7 @@
 // src/models/policy.ts
 import mongoose, { Schema, Model } from 'mongoose';
 import { IPolicy, IFile, IR2File } from '../../types';
+import logger from '../utils/logger';
 
 // Esquema para archivos sin _id (compatibilidad con archivos binarios legacy)
 const fileSchema = new Schema<IFile>(
@@ -336,7 +337,7 @@ const policySchema = new Schema(
     },
     {
         timestamps: true,
-        versionKey: false
+        versionKey: '__v'  // ✅ HABILITADO: Lock optimista para prevenir race conditions
     }
 );
 
@@ -344,19 +345,40 @@ const policySchema = new Schema(
 policySchema.index({ rfc: 1 });
 policySchema.index({ placas: 1 });
 policySchema.index({ estado: 1 });
+policySchema.index({ numeroPoliza: 1, estado: 1 });  // ✅ NUEVO: Índice compuesto para queries comunes
 
-// Middleware pre-save
+// ✅ Middleware pre-save MEJORADO: Sincronización automática de contadores
 policySchema.pre('save', function (next) {
+    // Limpiar correo inválido
     if (this.correo && this.correo.toLowerCase() === 'sin correo') {
         this.correo = '';
     }
 
+    // Normalizar número de póliza
     if (this.numeroPoliza) {
         this.numeroPoliza = this.numeroPoliza.trim().replace(/[\r\n\t]/g, '');
     }
 
-    if (this.servicios && this.totalServicios === undefined) {
-        this.totalServicios = this.servicios.length;
+    // ✅ SINCRONIZACIÓN AUTOMÁTICA: totalServicios siempre refleja el tamaño del array
+    if (this.servicios) {
+        const serviciosReales = this.servicios.length;
+
+        // Solo actualizar si hay discrepancia
+        if (this.totalServicios !== serviciosReales) {
+            this.totalServicios = serviciosReales;
+
+            // Log de corrección automática
+            if (this.totalServicios !== undefined) {
+                logger.warn(`[SYNC] Corrección automática de totalServicios en póliza ${this.numeroPoliza}`, {
+                    totalServiciosAnterior: this.totalServicios,
+                    serviciosReales,
+                    diferencia: Math.abs(this.totalServicios - serviciosReales)
+                });
+            }
+        }
+    } else {
+        // Si no hay array de servicios, asegurar que totalServicios sea 0
+        this.totalServicios = 0;
     }
 
     next();
