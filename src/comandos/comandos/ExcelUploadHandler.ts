@@ -1,6 +1,6 @@
 // src/comandos/comandos/ExcelUploadHandler.ts
 import { BaseCommand } from './BaseCommand';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import {
     savePolicy,
     DuplicatePolicyError,
@@ -105,21 +105,25 @@ class ExcelUploadHandler extends BaseCommand {
             const arrayBuffer = await response.arrayBuffer();
             this.logInfo(`ArrayBuffer obtenido: ${arrayBuffer.byteLength} bytes`, { chatId });
 
-            // Leer el Excel
-            this.logInfo('Leyendo Excel con XLSX.read', { chatId });
-            const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
-            this.logInfo(`Excel leído correctamente. Hojas: ${workbook.SheetNames.join(', ')}`, {
+            // Leer el Excel con ExcelJS
+            this.logInfo('Leyendo Excel con ExcelJS', { chatId });
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(arrayBuffer);
+
+            const worksheetNames = workbook.worksheets.map(ws => ws.name);
+            this.logInfo(`Excel leído correctamente. Hojas: ${worksheetNames.join(', ')}`, {
                 chatId
             });
 
             // Obtener la primera hoja
-            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+            const worksheet = workbook.worksheets[0];
 
-            // Convertir a JSON (array de objetos)
-            const data: any[][] = XLSX.utils.sheet_to_json(worksheet, {
-                header: 1,
-                blankrows: false,
-                defval: ''
+            // Convertir a array de arrays (similar a xlsx)
+            const data: any[][] = [];
+            worksheet.eachRow((row, rowNumber) => {
+                // row.values es un array donde el índice 0 está vacío, comenzamos desde 1
+                const rowValues = row.values as any[];
+                data.push(rowValues.slice(1)); // Eliminar el primer elemento vacío
             });
 
             // Verificar que haya datos

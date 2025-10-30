@@ -123,6 +123,39 @@ async function exportExcelStream() {
             ])
         ];
 
+        // ✅ ESTILOS PROFESIONALES PARA ENCABEZADOS
+        // Fondo azul, letras blancas, letras grandes, filtro automático
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 25; // Altura mayor para destacar
+
+        headerRow.eachCell((cell) => {
+            cell.style = {
+                font: {
+                    bold: true,
+                    color: { argb: 'FFFFFFFF' }, // Letras blancas
+                    size: 14  // Letras grandes
+                },
+                fill: {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FF2E86AB' }  // Fondo azul
+                },
+                alignment: {
+                    horizontal: 'center',
+                    vertical: 'middle'
+                },
+                border: {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'thin' },
+                    right: { style: 'thin' }
+                }
+            };
+        });
+
+        // Confirmar que los encabezados se escriban
+        headerRow.commit();
+
         // Aplicar formato de fecha a las columnas de fecha
         // Cambios para columnas específicas (T, V, W)
         worksheet.getColumn('fechaEmision').numFmt = 'dd/mm/yyyy';
@@ -232,6 +265,19 @@ async function exportExcelStream() {
 
         // Cerramos el cursor
         await cursor.close();
+
+        // ✅ AGREGAR FILTRO AUTOMÁTICO A TODAS LAS COLUMNAS
+        const totalColumns = worksheet.columns.length;
+
+        worksheet.autoFilter = {
+            from: { row: 1, column: 1 },
+            to: { row: 1, column: totalColumns }
+        };
+
+        console.log(`✅ Filtro automático aplicado a ${totalColumns} columnas`);
+
+        // Confirmar worksheet antes de cerrar workbook
+        await worksheet.commit();
 
         // Terminamos la escritura del workbook
         await workbook.commit();

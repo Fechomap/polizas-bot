@@ -53,7 +53,7 @@ async function buscarNIVsParaEliminar() {
             { creadoViaOBD: true } // Criterio adicional para NIVs
         ],
         estado: 'ACTIVO',
-        totalServicios: { $gte: 1 }
+        totalServicios: { $gte: 2 } // ✅ CORREGIDO: Eliminar solo NIVs con 2+ servicios (igual que AutoCleanupService)
     };
 
     const nivesParaEliminar = await Policy.find(criteriosBusqueda)
