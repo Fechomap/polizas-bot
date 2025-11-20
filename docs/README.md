@@ -102,6 +102,46 @@
 
 ---
 
+### 🔍 **AUDITORÍA Y REFACTORIZACIÓN**
+
+#### [14-auditoria-bugs-criticos.md](./14-auditoria-bugs-criticos.md)
+**Auditoría de Bugs Críticos y Problemas de Seguridad**
+- **Estado:** 🚨 ANÁLISIS COMPLETADO - Requiere acción inmediata
+- **Fecha:** 2025-11-20
+- **Descripción:** Análisis exhaustivo de bugs, problemas de seguridad y vulnerabilidades
+- **Hallazgos:** 26 issues (7 críticos, 7 altos, 6 medios, 6 bajos)
+- **Impacto:** Race conditions, memory leaks, contraseñas expuestas, estados sin limpiar
+- **Plan:** Corrección en 10-13 días de desarrollo
+
+#### [15-analisis-code-smells-antipatterns.md](./15-analisis-code-smells-antipatterns.md)
+**Análisis de Code Smells y Anti-Patterns**
+- **Estado:** 📊 ANÁLISIS COMPLETADO - Deuda técnica MEDIA-ALTA
+- **Fecha:** 2025-11-20
+- **Descripción:** Identificación de code smells, anti-patterns y problemas arquitectónicos
+- **Hallazgos:** God classes (1500+ líneas), funciones largas (379 líneas), código duplicado
+- **Impacto:** Mantenibilidad reducida, testing difícil, onboarding lento
+- **Plan:** Refactorización gradual en 5 semanas
+
+#### [16-roadmap-refactorizacion-escalabilidad.md](./16-roadmap-refactorizacion-escalabilidad.md)
+**Roadmap de Refactorización y Escalabilidad**
+- **Estado:** 🚀 PLAN ESTRATÉGICO - 15-20 semanas de desarrollo
+- **Fecha:** 2025-11-20
+- **Descripción:** Plan completo de refactorización para escalabilidad horizontal
+- **Fases:** Fundamentos (Redis, Bull Queue), Arquitectura Limpia, Performance, Producción
+- **Objetivo:** Soportar 10,000+ usuarios, reducir 60% tiempo de desarrollo
+- **ROI esperado:** 200-300% en 18 meses
+
+#### [17-arquitectura-tecnica-actual.md](./17-arquitectura-tecnica-actual.md)
+**Arquitectura Técnica Actual - Documentación Completa**
+- **Estado:** 📚 DOCUMENTACIÓN COMPLETA
+- **Fecha:** 2025-11-20
+- **Descripción:** Documentación exhaustiva de arquitectura, componentes y flujos
+- **Contenido:** Stack tecnológico, modelos de datos, flujos principales, servicios externos
+- **Utilidad:** Referencia para desarrollo, onboarding, troubleshooting
+- **Cobertura:** 15,000 líneas de código documentadas
+
+---
+
 ## 🎯 ESTADO GENERAL DEL PROYECTO
 
 ### **FUNCIONALIDADES PRINCIPALES:**
@@ -110,31 +150,50 @@
 - ✅ **Gestión de expedientes** vía Telegram
 - ✅ **Reportes y estadísticas** automatizadas
 - ✅ **Control de timezone** (CDMX)
+- ✅ **Sistema de vehículos y NIVs** automáticos
+- ✅ **Módulo administrativo** completo
 
 ### **NIVEL DE MADUREZ:**
-- 🟢 **Producción estable**
-- 🟢 **Documentación completa**
-- 🟢 **Sin issues críticos**
-- 🟢 **Performance optimizado**
+- 🟢 **Producción estable** (~500 usuarios activos)
+- 🟢 **Documentación exhaustiva** (17 documentos técnicos)
+- 🟡 **Deuda técnica MEDIA-ALTA** (requiere refactorización)
+- 🟡 **Performance aceptable** (optimizable en 70%)
+- 🔴 **Escalabilidad limitada** (máximo ~1,000 usuarios)
+
+### **HALLAZGOS RECIENTES (2025-11-20):**
+- 🚨 **26 bugs identificados** (7 críticos, 7 altos)
+- ⚠️ **Race conditions** en notificaciones
+- ⚠️ **Memory leaks** en timers
+- ⚠️ **Contraseñas expuestas** en logs
+- ⚠️ **God classes** dificultan mantenimiento
+- ⚠️ **Estado en memoria** impide escalabilidad horizontal
 
 ### **PRÓXIMOS PASOS:**
-- 📊 **Monitoreo continuo** de alertas
-- 🔄 **Mantenimiento preventivo**
-- 📈 **Optimizaciones menores** según métricas
+- 🔴 **URGENTE:** Corrección de bugs críticos (2 semanas)
+- 🟠 **ALTA PRIORIDAD:** Migración a Redis + Bull Queue (4-6 semanas)
+- 🟡 **IMPORTANTE:** Refactorización de arquitectura (6-8 semanas)
+- 🟢 **MEJORA:** Optimizaciones de performance (3-4 semanas)
+- 📊 **Objetivo:** Soportar 10,000+ usuarios con 99.9% uptime
 
 ---
 
 ## 📞 CONTACTO Y SOPORTE
 
-**Desarrollado por:** Claude Code  
-**Última actualización:** 2025-01-21  
-**Repositorio:** /Users/jhonvc/NODE HEROKU/POLIZAS-BOT
+**Desarrollado por:** Claude Code
+**Última actualización:** 2025-11-20
+**Repositorio:** /home/user/polizas-bot
 
 **Para soporte técnico:**
 1. Revisar documentación correspondiente
 2. Verificar logs del sistema
 3. Consultar historial de commits
 4. Evaluar necesidad de rollback
+
+**Documentos clave para desarrollo:**
+- **Bugs y seguridad:** Ver [14-auditoria-bugs-criticos.md](./14-auditoria-bugs-criticos.md)
+- **Refactorización:** Ver [15-analisis-code-smells-antipatterns.md](./15-analisis-code-smells-antipatterns.md)
+- **Roadmap técnico:** Ver [16-roadmap-refactorizacion-escalabilidad.md](./16-roadmap-refactorizacion-escalabilidad.md)
+- **Arquitectura:** Ver [17-arquitectura-tecnica-actual.md](./17-arquitectura-tecnica-actual.md)
 
 ---
 
