@@ -230,13 +230,15 @@ class ReportUsedCommand extends BaseCommand {
             const todasLasPolizas = await getOldUnusedPolicies();
 
             // Responder inmediatamente y procesar en background
-            await ctx.reply('🔄 Consultando pólizas prioritarias... El reporte se enviará en unos momentos.');
-            
+            await ctx.reply(
+                '🔄 Consultando pólizas prioritarias... El reporte se enviará en unos momentos.'
+            );
+
             // Procesar asíncronamente sin bloquear el bot
             setTimeout(async () => {
                 await this.enviarReporteAsincrono(ctx, todasLasPolizas);
             }, 100);
-            
+
             return; // Salir inmediatamente para no bloquear el bot
         } catch (error: unknown) {
             await this.handleMainError(ctx, error);
@@ -253,14 +255,18 @@ class ReportUsedCommand extends BaseCommand {
             // Separar regulares y NIVs, y además separar por grupos de prioridad
             const regulares = todasLasPolizas.filter(p => p.tipoReporte !== 'NIV');
             const nivs = todasLasPolizas.filter(p => p.tipoReporte === 'NIV');
-            
+
             // Separar las regulares por grupo de prioridad (basado en prioridadGrupo)
             const polizasSinServicio = regulares.filter(p => p.prioridadGrupo === 1);
             const polizasConUnServicio = regulares.filter(p => p.prioridadGrupo === 2);
 
             // Mostrar cabecera general
             let cabecera = '🎯 *SISTEMA ROBUSTO DE CALIFICACIONES*\n\n';
-            if (polizasSinServicio.length > 0 && polizasConUnServicio.length > 0 && nivs.length > 0) {
+            if (
+                polizasSinServicio.length > 0 &&
+                polizasConUnServicio.length > 0 &&
+                nivs.length > 0
+            ) {
                 cabecera += `🚫 ${polizasSinServicio.length} sin servicio + 🔧 ${polizasConUnServicio.length} con 1 servicio + ⚡ ${nivs.length} NIVs\n\n`;
             } else if (polizasSinServicio.length > 0 && polizasConUnServicio.length > 0) {
                 cabecera += `🚫 ${polizasSinServicio.length} sin servicio + 🔧 ${polizasConUnServicio.length} con 1 servicio\n\n`;
@@ -274,7 +280,10 @@ class ReportUsedCommand extends BaseCommand {
 
             // Mostrar pólizas SIN SERVICIO (prioridad 1)
             if (polizasSinServicio.length > 0) {
-                await ctx.reply('🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡\n🚫 *PÓLIZAS SIN SERVICIO (MÁXIMA PRIORIDAD)*\n🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡', { parse_mode: 'Markdown' });
+                await ctx.reply(
+                    '🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡\n🚫 *PÓLIZAS SIN SERVICIO (MÁXIMA PRIORIDAD)*\n🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡',
+                    { parse_mode: 'Markdown' }
+                );
 
                 for (const pol of polizasSinServicio) {
                     const fEmision: string = pol.fechaEmision
@@ -294,20 +303,31 @@ class ReportUsedCommand extends BaseCommand {
                     if ((diasGracia === null || diasGracia === undefined) && pol.fechaFinGracia) {
                         const hoy = new Date();
                         const fechaFin = new Date(pol.fechaFinGracia);
-                        diasGracia = Math.ceil((fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                        diasGracia = Math.ceil(
+                            (fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+                        );
                     }
 
                     // Determinar prioridad basado en la nueva calificación y días de gracia
                     let alertaPrioridad = '';
                     const calificacion: number = pol.calificacion || 0;
-                    
-                    if (calificacion >= 90 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)) {
+
+                    if (
+                        calificacion >= 90 ||
+                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)
+                    ) {
                         alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                    } else if (calificacion >= 70 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)) {
+                    } else if (
+                        calificacion >= 70 ||
+                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)
+                    ) {
                         alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
                     }
 
-                    const diasTexto = diasGracia !== null && diasGracia !== undefined ? diasGracia.toString() : '0';
+                    const diasTexto =
+                        diasGracia !== null && diasGracia !== undefined
+                            ? diasGracia.toString()
+                            : '0';
                     const msg: string = `
 ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
 🔧 *Servicios:* ${totalServicios}
@@ -330,13 +350,23 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
                         const error = sendError as any;
                         if (error.response?.error_code === 429) {
                             const retryAfter = error.response.parameters?.retry_after || 30;
-                            this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
-                            await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
+                            this.logInfo(
+                                `Rate limited, waiting ${retryAfter} seconds before retry`
+                            );
+                            await new Promise<void>(resolve =>
+                                setTimeout(resolve, retryAfter * 1000)
+                            );
                             try {
-                                await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                                await ctx.replyWithMarkdown(
+                                    msg,
+                                    Markup.inlineKeyboard(inlineKeyboard)
+                                );
                                 await new Promise<void>(resolve => setTimeout(resolve, 1000));
                             } catch (retryError) {
-                                this.logError(`Retry failed for póliza ${pol.numeroPoliza}:`, retryError as Error);
+                                this.logError(
+                                    `Retry failed for póliza ${pol.numeroPoliza}:`,
+                                    retryError as Error
+                                );
                             }
                         } else {
                             this.logError(
@@ -350,7 +380,10 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
 
             // Mostrar pólizas CON UN SERVICIO (prioridad 2)
             if (polizasConUnServicio.length > 0) {
-                await ctx.reply('🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠\n🔧 *PÓLIZAS CON UN SERVICIO (SEGUNDA PRIORIDAD)*\n🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠', { parse_mode: 'Markdown' });
+                await ctx.reply(
+                    '🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠\n🔧 *PÓLIZAS CON UN SERVICIO (SEGUNDA PRIORIDAD)*\n🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠',
+                    { parse_mode: 'Markdown' }
+                );
 
                 for (const pol of polizasConUnServicio) {
                     const fEmision: string = pol.fechaEmision
@@ -370,20 +403,31 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
                     if ((diasGracia === null || diasGracia === undefined) && pol.fechaFinGracia) {
                         const hoy = new Date();
                         const fechaFin = new Date(pol.fechaFinGracia);
-                        diasGracia = Math.ceil((fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+                        diasGracia = Math.ceil(
+                            (fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+                        );
                     }
 
                     // Determinar prioridad basado en la nueva calificación y días de gracia
                     let alertaPrioridad = '';
                     const calificacion: number = pol.calificacion || 0;
-                    
-                    if (calificacion >= 90 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)) {
+
+                    if (
+                        calificacion >= 90 ||
+                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)
+                    ) {
                         alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                    } else if (calificacion >= 70 || (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)) {
+                    } else if (
+                        calificacion >= 70 ||
+                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)
+                    ) {
                         alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
                     }
 
-                    const diasTexto = diasGracia !== null && diasGracia !== undefined ? diasGracia.toString() : '0';
+                    const diasTexto =
+                        diasGracia !== null && diasGracia !== undefined
+                            ? diasGracia.toString()
+                            : '0';
                     const msg: string = `
 ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
 🔧 *Servicios:* ${totalServicios}
@@ -406,13 +450,23 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
                         const error = sendError as any;
                         if (error.response?.error_code === 429) {
                             const retryAfter = error.response.parameters?.retry_after || 30;
-                            this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
-                            await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
+                            this.logInfo(
+                                `Rate limited, waiting ${retryAfter} seconds before retry`
+                            );
+                            await new Promise<void>(resolve =>
+                                setTimeout(resolve, retryAfter * 1000)
+                            );
                             try {
-                                await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                                await ctx.replyWithMarkdown(
+                                    msg,
+                                    Markup.inlineKeyboard(inlineKeyboard)
+                                );
                                 await new Promise<void>(resolve => setTimeout(resolve, 1000));
                             } catch (retryError) {
-                                this.logError(`Retry failed for póliza ${pol.numeroPoliza}:`, retryError as Error);
+                                this.logError(
+                                    `Retry failed for póliza ${pol.numeroPoliza}:`,
+                                    retryError as Error
+                                );
                             }
                         } else {
                             this.logError(
@@ -426,7 +480,10 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
 
             // ✅ NUEVO: Mostrar NIVs disponibles
             if (nivs.length > 0) {
-                await ctx.reply('⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡\n⚡ *NIVs DISPONIBLES (2023-2026)*\n⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡', { parse_mode: 'Markdown' });
+                await ctx.reply(
+                    '⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡\n⚡ *NIVs DISPONIBLES (2023-2026)*\n⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡',
+                    { parse_mode: 'Markdown' }
+                );
 
                 for (const niv of nivs) {
                     const fEmision: string = niv.fechaEmision
@@ -461,13 +518,23 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
                         const error = sendError as any;
                         if (error.response?.error_code === 429) {
                             const retryAfter = error.response.parameters?.retry_after || 30;
-                            this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
-                            await new Promise<void>(resolve => setTimeout(resolve, retryAfter * 1000));
+                            this.logInfo(
+                                `Rate limited, waiting ${retryAfter} seconds before retry`
+                            );
+                            await new Promise<void>(resolve =>
+                                setTimeout(resolve, retryAfter * 1000)
+                            );
                             try {
-                                await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
+                                await ctx.replyWithMarkdown(
+                                    msg,
+                                    Markup.inlineKeyboard(inlineKeyboard)
+                                );
                                 await new Promise<void>(resolve => setTimeout(resolve, 1000));
                             } catch (retryError) {
-                                this.logError(`Retry failed for NIV ${niv.numeroPoliza}:`, retryError as Error);
+                                this.logError(
+                                    `Retry failed for NIV ${niv.numeroPoliza}:`,
+                                    retryError as Error
+                                );
                             }
                         } else {
                             this.logError(

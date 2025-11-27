@@ -218,13 +218,23 @@ class AuditLogger {
         });
     }
 
+    /**
+     * Escapa caracteres especiales para RegExp
+     */
+    private static escapeRegExp(string: string): string {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
     static async getLogs(filters: IAuditLogFilters = {}): Promise<IAuditLogResult> {
         const { userId, action, module, startDate, endDate, page = 1, limit = 20 } = filters;
 
         const query: any = {};
 
         if (userId) query.userId = userId;
-        if (action) query.action = new RegExp(action, 'i');
+        if (action) {
+            const escapedAction = this.escapeRegExp(action);
+            query.action = new RegExp(escapedAction, 'i');
+        }
         if (module) query.module = module;
 
         if (startDate || endDate) {

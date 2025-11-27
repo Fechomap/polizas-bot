@@ -29,11 +29,20 @@ class CommandRegistry {
      * @param pattern - Regex pattern to match callback data
      * @param handler - Handler function
      */
-    registerCallback(pattern: string, handler: CallbackHandler): CommandRegistry {
-        this.callbackHandlers.set(pattern, handler);
+    registerCallback(pattern: string | RegExp, handler: CallbackHandler): CommandRegistry {
+        // Store pattern as string if it's a RegExp (using source) or keep as string
+        // Note: The actual matching logic in TextMessageHandler/CommandHandler needs to handle this.
+        // For now, we just allow the type.
+        const key = pattern instanceof RegExp ? pattern.source : pattern;
+        this.callbackHandlers.set(key, handler);
         logger.info(`Registered callback handler: ${pattern}`);
         return this;
     }
+
+    // Optional state manager to satisfy RegistryWithStateManager interface
+    public stateManager?: {
+        clearUserState(userId: string, flowType: string): Promise<void>;
+    };
 
     /**
      * Get a command by name

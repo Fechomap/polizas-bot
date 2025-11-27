@@ -6,13 +6,32 @@ import {
 } from '../../navigation/NavigationMiddleware';
 import type { Context } from 'telegraf';
 import type { NavigationManager } from '../../navigation/NavigationManager';
-import type { ParseMode } from 'telegraf/typings/core/types/typegram';
+import type { ParseMode, Message } from 'telegraf/typings/core/types/typegram';
 
 // Base handler interface
 interface IBaseHandler {
     bot: any;
     [key: string]: any;
 }
+
+// ChatContext Type Definition
+type ChatContext = Context & {
+    chat: {
+        id: number;
+        [key: string]: any;
+    };
+    from: {
+        id: number;
+        [key: string]: any;
+    };
+    message?: {
+        message_thread_id?: number;
+        [key: string]: any;
+    };
+    callbackQuery?: {
+        [key: string]: any;
+    };
+};
 
 // Navigation properties type (matching NavigationMiddleware)
 type NavigationContext = Context & {
@@ -57,6 +76,25 @@ abstract class BaseCommand {
      * Get the command description for help text
      */
     abstract getDescription(): string;
+
+    /**
+     * Safely gets the thread ID from the context.
+     * @param ctx The Telegraf context.
+     * @returns The thread ID or null.
+     */
+    public static getThreadId(ctx: ChatContext): number | null {
+        if (ctx.message) {
+            return ctx.message.message_thread_id || null;
+        }
+        if (ctx.callbackQuery && 'message' in ctx.callbackQuery) {
+            const msg = ctx.callbackQuery.message;
+            if (msg && 'date' in msg) {
+                // Type guard for accessible message
+                return (msg as Message.ServiceMessage).message_thread_id || null;
+            }
+        }
+        return null;
+    }
 
     /**
      * Log an info message with the command context
@@ -220,5 +258,5 @@ abstract class BaseCommand {
     }
 }
 
-export { BaseCommand, NavigationContext, IBaseHandler, ReplyOptions };
+export { BaseCommand, NavigationContext, IBaseHandler, ReplyOptions, ChatContext };
 export default BaseCommand;

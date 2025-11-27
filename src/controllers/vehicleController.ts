@@ -304,6 +304,13 @@ export class VehicleController {
     }
 
     /**
+     * Escapa caracteres especiales para RegExp
+     */
+    private static escapeRegExp(string: string): string {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    /**
      * Busca vehículos por serie o placas
      */
     static async buscarVehiculo(
@@ -324,11 +331,12 @@ export class VehicleController {
 
             // Búsqueda más amplia si no se encuentra exactamente
             if (!vehiculo) {
+                const escapedTerm = this.escapeRegExp(termino);
                 vehiculo = await Vehicle.findOne({
                     $or: [
-                        { serie: new RegExp(termino, 'i') },
-                        { placas: new RegExp(termino, 'i') },
-                        { titular: new RegExp(termino, 'i') }
+                        { serie: new RegExp(escapedTerm, 'i') },
+                        { placas: new RegExp(escapedTerm, 'i') },
+                        { titular: new RegExp(escapedTerm, 'i') }
                     ],
                     estado: { $ne: 'ELIMINADO' }
                 });

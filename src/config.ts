@@ -14,6 +14,11 @@ interface IConfig {
     mongodb: {
         uri: string;
     };
+    redis: {
+        host: string;
+        port: number;
+        password?: string;
+    };
     session: {
         ttl: number;
     };
@@ -40,6 +45,11 @@ const config: IConfig = {
     mongodb: {
         uri: process.env.MONGO_URI || ''
     },
+    redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        password: process.env.REDIS_PASSWORD
+    },
     session: {
         ttl: parseInt(process.env.SESSION_TIMEOUT || '1800000')
     },
@@ -57,7 +67,7 @@ const config: IConfig = {
 };
 
 const validateConfig = (): void => {
-    const required = ['telegram.token', 'mongodb.uri'];
+    const required = ['telegram.token', 'mongodb.uri', 'redis.host', 'redis.port'];
     const missing: string[] = [];
 
     for (const path of required) {

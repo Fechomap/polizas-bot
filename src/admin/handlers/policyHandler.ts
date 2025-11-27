@@ -1092,7 +1092,10 @@ Se puede restaurar desde "Restaurar Póliza".
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('✅ Confirmar Restauración', `admin_policy_restore_execute:${policyId}`),
+                    Markup.button.callback(
+                        '✅ Confirmar Restauración',
+                        `admin_policy_restore_execute:${policyId}`
+                    ),
                     Markup.button.callback('❌ Cancelar', 'admin_policy_menu')
                 ]
             ]);
@@ -1101,7 +1104,6 @@ Se puede restaurar desde "Restaurar Póliza".
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error en handleRestoreConfirmation:', error);
             await ctx.answerCbQuery('❌ Error al preparar confirmación', { show_alert: true });
@@ -1123,7 +1125,7 @@ Se puede restaurar desde "Restaurar Póliza".
 
             // Usar el controlador para restaurar la póliza
             const restoredPolicy = await restorePolicy(policy.numeroPoliza);
-            
+
             if (restoredPolicy) {
                 await AuditLogger.log(ctx, 'policy_restored', {
                     module: 'policy',
@@ -1154,11 +1156,11 @@ La póliza ha sido restaurada y está disponible nuevamente en el sistema.
                     parse_mode: 'Markdown',
                     ...keyboard
                 });
-
             } else {
-                await ctx.answerCbQuery('❌ Error: No se pudo restaurar la póliza', { show_alert: true });
+                await ctx.answerCbQuery('❌ Error: No se pudo restaurar la póliza', {
+                    show_alert: true
+                });
             }
-
         } catch (error) {
             logger.error('Error en handleRestoreExecution:', error);
             await ctx.answerCbQuery('❌ Error al restaurar póliza', { show_alert: true });
@@ -1250,7 +1252,7 @@ Selecciona la categoría a editar:
 🆔 RFC: ${policy.rfc}
 📧 Email: ${policy.correo || 'No definido'}
 📞 Teléfono: ${policy.telefono || 'No definido'}
-🔑 Contraseña: ${policy.contraseña || 'No definida'}
+🔑 Contraseña: ${policy.contraseña ? '********' : 'No definida'}
 
 Selecciona el campo a editar:
             `.trim();
@@ -2247,7 +2249,7 @@ Total encontradas: *${results.length}*
             results.forEach((policy, index) => {
                 const serviciosCount = policy.servicios?.length || 0;
                 const fechaEliminacion = formatDate(policy.fechaEliminacion);
-                
+
                 resultText += `
 📋 *${index + 1}. ${this.escapeMarkdown(policy.numeroPoliza)}*
 👤 ${this.escapeMarkdown(policy.titular)}
@@ -2280,7 +2282,6 @@ Total encontradas: *${results.length}*
                 parse_mode: 'Markdown',
                 ...keyboard
             });
-
         } catch (error) {
             logger.error('Error en showSearchResultsForRestore:', error);
             await ctx.reply('❌ Error al mostrar resultados de restauración.');

@@ -178,7 +178,7 @@ export interface IPolicy extends Document {
 }
 
 // Alias para compatibilidad con ExcelUploadHandler
-export type IPolicyData = IPolicy;
+// // // export type IPolicyData = IPolicy; // This was incorrect
 
 // Interfaces para procesamiento de Excel
 export interface IProcessingDetail {
@@ -304,9 +304,10 @@ export interface IScheduledNotification extends Document {
 
 // Interfaces adicionales para tipos de datos
 
-export interface IPolicyDataAlternative {
+export interface IPolicyData {
     titular: string;
     correo?: string;
+    contraseña?: string;
     rfc?: string;
     telefono?: string;
     calle?: string;
@@ -325,6 +326,11 @@ export interface IPolicyDataAlternative {
     numeroPoliza: string;
     fechaEmision: Date;
     notas?: string;
+    // Optional properties for processing
+    estado?: 'ACTIVO' | 'INACTIVO' | 'ELIMINADO';
+    archivos?: { fotos: any[]; pdfs: any[]; r2Files?: { fotos: any[]; pdfs: any[] } };
+    pagos?: any[];
+    servicios?: any[];
 }
 
 export interface IVehicleData {

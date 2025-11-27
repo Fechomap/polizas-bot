@@ -8,14 +8,36 @@ import CommandHandler from './comandos/commandHandler';
 import handleGroupUpdate from './middleware/groupHandler';
 import authMiddleware from './middleware/authMiddleware';
 import { getInstance as getNotificationManager } from './services/NotificationManager';
+import { RedisSessionStore } from './state/RedisSessionStore';
 
 // 🚀 TYPESCRIPT MIGRATION CONFIRMED - DÍA 15 COMPLETADO! 🚀
 import stateCleanupService from './utils/StateCleanupService';
 import AdminModule from './admin';
 import CalculationScheduler from './admin/utils/calculationScheduler';
+import { createBullBoard } from '@bull-board/api';
+import { BullAdapter } from '@bull-board/api/bullAdapter';
+import { ExpressAdapter } from '@bull-board/express';
+import { notificationQueue, initializeNotificationConsumer } from './queues/NotificationQueue';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
+
+if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
+    throw new Error('PORT inválido en configuración');
+}
+
+if (!config.telegram.token) {
+    throw new Error('TELEGRAM_BOT_TOKEN no configurado en .env');
+}
+
+if (!config.mongodb.uri) {
+    throw new Error('MONGO_URI no configurado en .env');
+}
+
+// Validar ID de grupo principal
+if (!process.env.TELEGRAM_GROUP_ID) {
+    logger.warn('TELEGRAM_GROUP_ID no configurado en .env. Usando valor por defecto (Riesgoso).');
+}
 
 let isShuttingDown = false;
 
@@ -24,6 +46,18 @@ async function initializeBot(): Promise<Telegraf> {
         app.get('/', (req, res) => {
             res.send('Bot is running!');
         });
+
+        // Configurar Bull Board UI
+        const serverAdapter = new ExpressAdapter();
+        serverAdapter.setBasePath('/admin/queues');
+
+        createBullBoard({
+            queues: [new BullAdapter(notificationQueue)],
+            serverAdapter: serverAdapter
+        });
+
+        app.use('/admin/queues', serverAdapter.getRouter());
+        logger.info(`✅ Bull Board UI disponible en /admin/queues`);
 
         app.listen(PORT, () => {
             logger.info(`Servidor web iniciado en puerto ${PORT}`);
@@ -59,7 +93,10 @@ async function initializeBot(): Promise<Telegraf> {
         try {
             const notificationManager = getNotificationManager(bot);
             await notificationManager.initialize();
-            logger.info('✅ Sistema de notificaciones inicializado correctamente');
+            logger.info('✅ Sistema de notificaciones (legacy) inicializado correctamente');
+
+            // Inicializar consumidor de la cola de notificaciones
+            initializeNotificationConsumer(bot);
         } catch (notifyError) {
             logger.error('⚠️ Error al inicializar sistema de notificaciones:', notifyError);
             // No bloquear el inicio del bot si falla el notificationManager
@@ -114,6 +151,17 @@ async function initializeBot(): Promise<Telegraf> {
                 await ctx.reply('❌ Error al procesar el comando.');
             }
         });
+
+        // Middleware de sesión con Redis (NUEVO)
+        // Usamos require para evitar problemas de resolución de módulos con esta librería beta
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const session = require('@telegraf/session');
+        bot.use(
+            session({
+                store: new RedisSessionStore()
+            })
+        );
+        logger.info('✅ Middleware de sesión con Redis configurado');
 
         // Middleware de autorización (PRIMERO - más importante)
         bot.use(authMiddleware());

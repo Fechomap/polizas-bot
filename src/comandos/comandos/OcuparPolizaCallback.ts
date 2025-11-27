@@ -57,7 +57,7 @@ class OcuparPolizaCallback extends BaseCommand {
     private pendingLeyendas: IThreadSafeStateMap<string>;
     private polizaCache: IThreadSafeStateMap<any>;
     private messageIds: IThreadSafeStateMap<number>;
-    private awaitingContactTime: IThreadSafeStateMap<string>;
+    public awaitingContactTime: IThreadSafeStateMap<string>;
     private scheduledServiceInfo: IThreadSafeStateMap<IScheduledServiceInfo>;
     private hereMapsService: HereMapsService;
 
@@ -89,78 +89,8 @@ class OcuparPolizaCallback extends BaseCommand {
     register(): void {
         // Register the callback for "ocuparPoliza" button
         this.handler.registry.registerCallback(/ocuparPoliza:(.+)/, async (ctx: Context) => {
-            try {
-                const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
-                const chatId = ctx.chat!.id;
-                const threadId = StateKeyManager.getThreadId(ctx);
-                logger.info(`[keepPhone] Iniciando callback para póliza ${numeroPoliza}`, {
-                    chatId,
-                    threadId
-                });
-
-                const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
-                if (!policy) {
-                    await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
-                    return;
-                }
-
-                this.polizaCache.set(
-                    chatId,
-                    {
-                        numeroPoliza,
-                        policy
-                    },
-                    threadId
-                );
-
-                if (policy.telefono) {
-                    await ctx.reply(
-                        `📱 ${policy.telefono}`,
-                        Markup.inlineKeyboard([
-                            [Markup.button.callback('🔄 CAMBIAR', `changePhone:${numeroPoliza}`)],
-                            [Markup.button.callback('✅ MANTENER', `keepPhone:${numeroPoliza}`)]
-                        ])
-                    );
-
-                    logger.info(`Mostrando opciones de teléfono para póliza ${numeroPoliza}`, {
-                        chatId,
-                        threadId,
-                        telefonoActual: policy.telefono
-                    });
-                } else {
-                    const phoneSetResult = this.awaitingPhoneNumber.set(
-                        chatId,
-                        numeroPoliza,
-                        threadId
-                    );
-                    logger.info(
-                        `Estado de espera de teléfono guardado para nuevo teléfono: ${phoneSetResult ? 'OK' : 'FALLO'}`,
-                        {
-                            chatId,
-                            threadId
-                        }
-                    );
-                    const phoneHasResult = this.awaitingPhoneNumber.has(chatId, threadId);
-                    logger.info(
-                        `Verificación inmediata de estado teléfono (nuevo): ${phoneHasResult ? 'OK' : 'FALLO'}`
-                    );
-                    await ctx.reply(
-                        `📱 Ingresa el *número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
-                            '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
-                        { parse_mode: 'Markdown' }
-                    );
-                }
-
-                logger.info(`Esperando teléfono para póliza ${numeroPoliza}`, {
-                    chatId: ctx.chat!.id,
-                    threadId
-                });
-            } catch (error) {
-                logger.error('Error en callback ocuparPoliza:', error);
-                await ctx.reply('❌ Error al procesar ocupación de póliza.');
-            } finally {
-                await ctx.answerCbQuery();
-            }
+            const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
+            await this.handleOcuparPoliza(ctx, numeroPoliza);
         });
 
         // Register callback for keeping existing phone number
@@ -232,6 +162,78 @@ class OcuparPolizaCallback extends BaseCommand {
         this.registerServiceCallbacks();
         this.registerAssignmentCallbacks();
         this.registerDaySelectionCallbacks();
+    }
+
+    public async handleOcuparPoliza(ctx: Context, numeroPoliza: string): Promise<void> {
+        try {
+            const chatId = ctx.chat!.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+            logger.info(`[keepPhone] Iniciando callback para póliza ${numeroPoliza}`, {
+                chatId,
+                threadId
+            });
+
+            const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
+            if (!policy) {
+                await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
+                return;
+            }
+
+            this.polizaCache.set(
+                chatId,
+                {
+                    numeroPoliza,
+                    policy
+                },
+                threadId
+            );
+
+            if (policy.telefono) {
+                await ctx.reply(
+                    `📱 ${policy.telefono}`,
+                    Markup.inlineKeyboard([
+                        [Markup.button.callback('🔄 CAMBIAR', `changePhone:${numeroPoliza}`)],
+                        [Markup.button.callback('✅ MANTENER', `keepPhone:${numeroPoliza}`)]
+                    ])
+                );
+
+                logger.info(`Mostrando opciones de teléfono para póliza ${numeroPoliza}`, {
+                    chatId,
+                    threadId,
+                    telefonoActual: policy.telefono
+                });
+            } else {
+                const phoneSetResult = this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
+                logger.info(
+                    `Estado de espera de teléfono guardado para nuevo teléfono: ${phoneSetResult ? 'OK' : 'FALLO'}`,
+                    {
+                        chatId,
+                        threadId
+                    }
+                );
+                const phoneHasResult = this.awaitingPhoneNumber.has(chatId, threadId);
+                logger.info(
+                    `Verificación inmediata de estado teléfono (nuevo): ${phoneHasResult ? 'OK' : 'FALLO'}`
+                );
+                await ctx.reply(
+                    `📱 Ingresa el *número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
+                        '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
+                    { parse_mode: 'Markdown' }
+                );
+            }
+
+            logger.info(`Esperando teléfono para póliza ${numeroPoliza}`, {
+                chatId: ctx.chat!.id,
+                threadId
+            });
+        } catch (error) {
+            logger.error('Error en callback ocuparPoliza:', error);
+            await ctx.reply('❌ Error al procesar ocupación de póliza.');
+        } finally {
+            try {
+                await ctx.answerCbQuery();
+            } catch {}
+        }
     }
 
     private registerChangePhoneCallback(): void {
@@ -326,7 +328,9 @@ class OcuparPolizaCallback extends BaseCommand {
                                 leyenda: '' // No usado en la versión azul
                             };
 
-                            const targetGroupId = -1002212807945;
+                            const targetGroupId = parseInt(
+                                process.env.TELEGRAM_GROUP_ID || '-1002212807945'
+                            );
                             logger.info(
                                 `Enviando leyenda azul al grupo ${targetGroupId} para registro de servicio`
                             );
@@ -627,7 +631,9 @@ class OcuparPolizaCallback extends BaseCommand {
                             // 1. Programar notificación de CONTACTO primero
                             const notifContacto = await notificationManager.scheduleNotification({
                                 numeroPoliza: numeroPoliza,
-                                targetGroupId: -1002212807945,
+                                targetGroupId: parseInt(
+                                    process.env.TELEGRAM_GROUP_ID || '-1002212807945'
+                                ),
                                 contactTime: contactTimeStr,
                                 expedienteNum: registro.numeroExpediente,
                                 origenDestino: origenDestino,
@@ -651,7 +657,9 @@ class OcuparPolizaCallback extends BaseCommand {
                             // 2. Programar notificación de TÉRMINO después
                             const notifTermino = await notificationManager.scheduleNotification({
                                 numeroPoliza: numeroPoliza,
-                                targetGroupId: -1002212807945,
+                                targetGroupId: parseInt(
+                                    process.env.TELEGRAM_GROUP_ID || '-1002212807945'
+                                ),
                                 contactTime: terminoTimeStr,
                                 expedienteNum: registro.numeroExpediente,
                                 origenDestino: origenDestino,
@@ -1149,7 +1157,7 @@ class OcuparPolizaCallback extends BaseCommand {
             }
 
             // Envío automático de leyenda al grupo con efecto typing (asíncrono)
-            const targetGroupId = -1002212807945;
+            const targetGroupId = parseInt(process.env.TELEGRAM_GROUP_ID || '-1002212807945');
 
             // Enviar leyenda en background sin bloquear al usuario
             setImmediate(async () => {
