@@ -55,12 +55,12 @@ class NavigationManager {
                 subtitle: 'Selecciona una categoría:',
                 buttons: [
                     [
-                        { text: '📋   PÓLIZAS   ', callback: 'accion:polizas' },
-                        { text: '🔧 ADMINISTRACIÓN', callback: 'accion:administracion' }
+                        { text: '📋 PÓLIZAS', callback: 'accion:polizas' },
+                        { text: '🔧 ADMIN', callback: 'accion:administracion' }
                     ],
                     [
-                        { text: '📊  REPORTES  ', callback: 'accion:reportes' },
-                        { text: '🚗 BASE DE AUTOS', callback: 'accion:base_autos' }
+                        { text: '📊 REPORTES', callback: 'accion:reportes' },
+                        { text: '🚗 AUTOS', callback: 'accion:base_autos' }
                     ]
                 ]
             },

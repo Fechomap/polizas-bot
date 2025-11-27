@@ -13,17 +13,22 @@ export class RedisStateManager implements IStateManager {
     private redis: Redis;
 
     constructor() {
-        this.redis = new Redis({
-            host: config.redis.host,
-            port: config.redis.port,
-            password: config.redis.password,
-            retryStrategy: times => {
-                const delay = Math.min(times * 50, 2000); // Reintentos cada 50ms, max 2s
+        const redisOptions = {
+            retryStrategy: (times: number) => {
+                const delay = Math.min(times * 50, 2000);
                 logger.warn(`Redis: Reintentando conectar (intento ${times})...`);
                 return delay;
             },
-            maxRetriesPerRequest: 3 // Evitar bucles infinitos en una sola petición
-        });
+            maxRetriesPerRequest: 3
+        };
+        this.redis = config.redis.url
+            ? new Redis(config.redis.url, redisOptions)
+            : new Redis({
+                  host: config.redis.host,
+                  port: config.redis.port,
+                  password: config.redis.password,
+                  ...redisOptions
+              });
 
         this.redis.on('error', err => {
             logger.error('Redis: Error de conexión', { error: err.message });

@@ -1,4 +1,4 @@
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf, Context, session } from 'telegraf';
 import express from 'express';
 import https from 'https';
 import connectDB from './database';
@@ -152,16 +152,23 @@ async function initializeBot(): Promise<Telegraf> {
             }
         });
 
-        // Middleware de sesión con Redis (NUEVO)
-        // Usamos require para evitar problemas de resolución de módulos con esta librería beta
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const session = require('@telegraf/session');
-        bot.use(
-            session({
-                store: new RedisSessionStore()
-            })
-        );
-        logger.info('✅ Middleware de sesión con Redis configurado');
+        // Middleware de sesión (Redis en producción, memoria en desarrollo)
+        if (process.env.NODE_ENV === 'production') {
+            const sessionStore = new RedisSessionStore();
+            bot.use(
+                session({
+                    store: {
+                        get: (key: string) => sessionStore.get(key),
+                        set: (key: string, value: any) => sessionStore.set(key, value),
+                        delete: (key: string) => sessionStore.delete(key)
+                    }
+                })
+            );
+            logger.info('✅ Middleware de sesión con Redis configurado');
+        } else {
+            bot.use(session());
+            logger.info('✅ Middleware de sesión en memoria (desarrollo)');
+        }
 
         // Middleware de autorización (PRIMERO - más importante)
         bot.use(authMiddleware());

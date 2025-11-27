@@ -13,14 +13,15 @@ export class RedisSessionStore<T> {
     private readonly prefix: string;
 
     constructor(prefix = 'telegraf:session:') {
-        this.redis = new Redis({
-            host: config.redis.host,
-            port: config.redis.port,
-            password: config.redis.password,
-            // Opciones adicionales para robustez
-            maxRetriesPerRequest: 3,
-            connectTimeout: 10000
-        });
+        const redisOptions = { maxRetriesPerRequest: 3, connectTimeout: 10000 };
+        this.redis = config.redis.url
+            ? new Redis(config.redis.url, redisOptions)
+            : new Redis({
+                  host: config.redis.host,
+                  port: config.redis.port,
+                  password: config.redis.password,
+                  ...redisOptions
+              });
         this.prefix = prefix;
 
         this.redis.on('error', err => {

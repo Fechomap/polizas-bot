@@ -23,15 +23,20 @@ class CacheService {
             useClones: false // Mejora performance al no clonar objetos
         });
 
-        // Configuración de L2 Cache (Redis)
-        this.l2Cache = new Redis({
-            host: config.redis.host,
-            port: config.redis.port,
-            password: config.redis.password,
-            maxRetriesPerRequest: 3,
-            connectTimeout: 10000,
-            lazyConnect: true // Conectar solo cuando sea necesario
-        });
+        // Configuración de L2 Cache (Redis - soporta URL o host/port)
+        const redisConfig = config.redis.url
+            ? { lazyConnect: true, maxRetriesPerRequest: 3, connectTimeout: 10000 }
+            : {
+                  host: config.redis.host,
+                  port: config.redis.port,
+                  password: config.redis.password,
+                  maxRetriesPerRequest: 3,
+                  connectTimeout: 10000,
+                  lazyConnect: true
+              };
+        this.l2Cache = config.redis.url
+            ? new Redis(config.redis.url, redisConfig)
+            : new Redis(redisConfig);
 
         this.l2Cache.on('connect', () => {
             this.isL2Connected = true;

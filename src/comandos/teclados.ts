@@ -11,11 +11,11 @@ function getMainKeyboard() {
     return Markup.inlineKeyboard([
         [
             Markup.button.callback('📋 PÓLIZAS', 'accion:polizas'),
-            Markup.button.callback('🔧 ADMINISTRACIÓN', 'accion:administracion')
+            Markup.button.callback('🔧 ADMIN', 'accion:administracion')
         ],
         [
             Markup.button.callback('📊 REPORTES', 'accion:reportes'),
-            Markup.button.callback('🚗 BASE DE AUTOS', 'accion:base_autos')
+            Markup.button.callback('🚗 AUTOS', 'accion:base_autos')
         ]
     ]);
 }

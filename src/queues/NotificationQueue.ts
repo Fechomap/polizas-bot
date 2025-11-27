@@ -121,21 +121,21 @@ async function sendNotificationToTelegram(notification: any, bot: Telegraf): Pro
     logger.info(`✅ [SENT VIA QUEUE] Notificación ${notification._id} enviada exitosamente.`);
 }
 
-// 1. Inicialización de la cola
+// 1. Inicialización de la cola (soporta REDIS_URL o host/port)
+const redisConfig = config.redis.url
+    ? config.redis.url
+    : { host: config.redis.host, port: config.redis.port, password: config.redis.password };
+
 export const notificationQueue = new Queue('notifications', {
-    redis: {
-        host: config.redis.host,
-        port: config.redis.port,
-        password: config.redis.password
-    },
+    redis: redisConfig as any,
     defaultJobOptions: {
         attempts: 3,
         backoff: {
             type: 'exponential',
-            delay: 5000 // 5 segundos de backoff
+            delay: 5000
         },
         removeOnComplete: true,
-        removeOnFail: false // Mantener trabajos fallidos para inspección
+        removeOnFail: false
     }
 });
 
