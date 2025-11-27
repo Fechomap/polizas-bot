@@ -9,7 +9,6 @@ const testDir = path.join(__dirname, '..', 'tests');
 
 // Lista de mapas de estado que deben usar threadId
 const stateMaps = [
-    'awaitingGetPolicyNumber',
     'awaitingServicePolicyNumber',
     'awaitingServiceData',
     'awaitingPaymentPolicyNumber',
@@ -20,6 +19,7 @@ const stateMaps = [
     'awaitingOrigenDestino',
     'awaitingDeleteReason',
     'awaitingSaveData',
+    'awaitingPolicySearch',
     'uploadTargets'
 ];
 

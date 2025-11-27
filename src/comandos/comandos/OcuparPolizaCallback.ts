@@ -6,7 +6,8 @@ import {
     getPolicyByNumber,
     convertirRegistroAServicio,
     marcarRegistroNoAsignado,
-    calcularHorasAutomaticas
+    calcularHorasAutomaticas,
+    updatePolicyPhone
 } from '../../controllers/policyController';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/NotificationManager';
@@ -16,6 +17,7 @@ import Policy from '../../models/policy';
 import Vehicle from '../../models/vehicle';
 import type { IThreadSafeStateMap } from '../../utils/StateKeyManager';
 import flowStateManager from '../../utils/FlowStateManager';
+import type ViewFilesCallbacks from './ViewFilesCallbacks';
 
 interface IScheduledServiceInfo {
     numeroPoliza: string;
@@ -38,6 +40,7 @@ interface IHandler extends IBaseHandler {
     excelUploadMessages?: Map<number, number>;
     processingCallbacks?: Set<string>;
     uploadTargets: IThreadSafeStateMap<string>;
+    viewFilesCallbacks?: ViewFilesCallbacks;
     registry: {
         registerCallback(pattern: RegExp, handler: (ctx: Context) => Promise<void>): void;
         getAllCommands(): Array<{
@@ -88,13 +91,13 @@ class OcuparPolizaCallback extends BaseCommand {
 
     register(): void {
         // Register the callback for "ocuparPoliza" button
-        this.handler.registry.registerCallback(/ocuparPoliza:(.+)/, async (ctx: Context) => {
+        this.bot.action(/ocuparPoliza:(.+)/, async (ctx: Context) => {
             const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
             await this.handleOcuparPoliza(ctx, numeroPoliza);
         });
 
         // Register callback for keeping existing phone number
-        this.handler.registry.registerCallback(/keepPhone:(.+)/, async (ctx: Context) => {
+        this.bot.action(/keepPhone:(.+)/, async (ctx: Context) => {
             try {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const chatId = ctx.chat!.id;
@@ -168,7 +171,7 @@ class OcuparPolizaCallback extends BaseCommand {
         try {
             const chatId = ctx.chat!.id;
             const threadId = StateKeyManager.getThreadId(ctx);
-            logger.info(`[keepPhone] Iniciando callback para póliza ${numeroPoliza}`, {
+            logger.info(`[ocuparPoliza] Iniciando flujo para póliza ${numeroPoliza}`, {
                 chatId,
                 threadId
             });
@@ -179,6 +182,18 @@ class OcuparPolizaCallback extends BaseCommand {
                 return;
             }
 
+            // 1. Mostrar fotos primero
+            const viewFiles = (this.handler as IHandler).viewFilesCallbacks;
+            if (viewFiles) {
+                await viewFiles.showPhotos(ctx, policy);
+            }
+
+            // 2. Mostrar PDFs después
+            if (viewFiles) {
+                await viewFiles.showPDFs(ctx, policy);
+            }
+
+            // 3. Continuar con el flujo normal de ocupar póliza
             this.polizaCache.set(
                 chatId,
                 {
@@ -237,7 +252,7 @@ class OcuparPolizaCallback extends BaseCommand {
     }
 
     private registerChangePhoneCallback(): void {
-        this.handler.registry.registerCallback(/changePhone:(.+)/, async (ctx: Context) => {
+        this.bot.action(/changePhone:(.+)/, async (ctx: Context) => {
             try {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const chatId = ctx.chat!.id;
@@ -287,7 +302,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
     private registerServiceCallbacks(): void {
         // Register callbacks for service-related actions
-        this.handler.registry.registerCallback(/registrar_servicio_(.+)/, async (ctx: Context) => {
+        this.bot.action(/registrar_servicio_(.+)/, async (ctx: Context) => {
             try {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const chatId = ctx.chat!.id;
@@ -372,7 +387,7 @@ class OcuparPolizaCallback extends BaseCommand {
             }
         });
 
-        this.handler.registry.registerCallback(/no_registrar_(.+)/, async (ctx: Context) => {
+        this.bot.action(/no_registrar_(.+)/, async (ctx: Context) => {
             try {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const chatId = ctx.chat!.id;
@@ -413,7 +428,7 @@ class OcuparPolizaCallback extends BaseCommand {
 
     private registerAssignmentCallbacks(): void {
         // Register callback for "Asignado" button
-        this.handler.registry.registerCallback(/asig_yes_(.+)_(.+)/, async (ctx: Context) => {
+        this.bot.action(/asig_yes_(.+)_(.+)/, async (ctx: Context) => {
             try {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const numeroRegistro = parseInt((ctx.match as RegExpMatchArray)[2]);
@@ -746,7 +761,7 @@ class OcuparPolizaCallback extends BaseCommand {
         });
 
         // Register callback for "No asignado" button
-        this.handler.registry.registerCallback(/asig_no_(.+)_(.+)/, async (ctx: Context) => {
+        this.bot.action(/asig_no_(.+)_(.+)/, async (ctx: Context) => {
             try {
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[1];
                 const numeroRegistro = parseInt((ctx.match as RegExpMatchArray)[2]);
@@ -797,7 +812,7 @@ class OcuparPolizaCallback extends BaseCommand {
     }
 
     private registerDaySelectionCallbacks(): void {
-        this.handler.registry.registerCallback(/selectDay:(\d+):(.+)/, async (ctx: Context) => {
+        this.bot.action(/selectDay:(\d+):(.+)/, async (ctx: Context) => {
             try {
                 const daysOffset = parseInt((ctx.match as RegExpMatchArray)[1], 10);
                 const numeroPoliza = (ctx.match as RegExpMatchArray)[2];
@@ -916,8 +931,11 @@ class OcuparPolizaCallback extends BaseCommand {
                 return true;
             }
 
-            policy.telefono = messageText;
-            await policy.save();
+            const updatedPolicy = await updatePolicyPhone(policy.numeroPoliza, messageText);
+            if (!updatedPolicy) {
+                throw new Error('No se pudo actualizar el teléfono en la base de datos');
+            }
+            policy = updatedPolicy;
 
             if (cachedData) {
                 cachedData.policy = policy;

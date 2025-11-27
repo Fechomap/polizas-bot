@@ -76,6 +76,22 @@ export const deletePolicyByNumber = async (numeroPoliza: string): Promise<IPolic
     return policy;
 };
 
+export const updatePolicyPhone = async (
+    numeroPoliza: string,
+    telefono: string
+): Promise<IPolicy | null> => {
+    const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
+    const updatedPolicy = await Policy.findOneAndUpdate(
+        { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
+        { telefono },
+        { new: true }
+    );
+    if (updatedPolicy) {
+        await cacheService.invalidate(`policy:${normalizedNumero}`);
+    }
+    return updatedPolicy;
+};
+
 export const addFileToPolicy = async (
     numeroPoliza: string,
     fileBuffer: Buffer,
@@ -171,18 +187,145 @@ export const getSusceptiblePolicies = async (): Promise<
 };
 
 export const getOldUnusedPolicies = async (): Promise<any[]> => {
-    return cacheService.get(
-        'oldUnusedPolicies',
-        async () => {
-            const allPolicies = await Policy.find({
-                estado: 'ACTIVO',
-                tipoPoliza: { $ne: 'NIV' }
-            }).lean();
-            // ... (heavy calculation logic)
-            return [];
-        },
-        3600 * 2
-    );
+    try {
+        logger.info('🔄 Iniciando sistema robusto de calificaciones - Pólizas a mandar');
+
+        // 1) Obtener todas las pólizas activas regulares (excluyendo NIVs)
+        const allActivePolicies = await Policy.find({
+            estado: 'ACTIVO',
+            tipoPoliza: { $ne: 'NIV' }
+        }).lean();
+
+        logger.info(`📊 Analizando ${allActivePolicies.length} pólizas activas`);
+
+        // 2) Separar por número de servicios y filtrar las válidas
+        const polizasConCeroServicios: IPolicy[] = [];
+        const polizasConUnServicio: IPolicy[] = [];
+        let descartadasPorServicios = 0;
+
+        for (const policy of allActivePolicies) {
+            const totalServicios = (policy.servicios || []).length;
+            if (totalServicios === 0) {
+                polizasConCeroServicios.push(policy);
+            } else if (totalServicios === 1) {
+                polizasConUnServicio.push(policy);
+            } else {
+                descartadasPorServicios++;
+            }
+        }
+
+        logger.info(
+            `📋 Análisis: ${polizasConCeroServicios.length} con 0 servicios, ${polizasConUnServicio.length} con 1 servicio, ${descartadasPorServicios} descartadas`
+        );
+
+        // 3) Función para calcular calificación basada en días restantes de gracia
+        const calcularCalificacion = (policy: IPolicy): number => {
+            if (policy.diasRestantesGracia === null || policy.diasRestantesGracia === undefined) {
+                return 10;
+            }
+            const diasGracia = policy.diasRestantesGracia;
+            if (diasGracia <= 0) return 100;
+            if (diasGracia <= 5) return 90;
+            if (diasGracia <= 10) return 80;
+            if (diasGracia <= 15) return 70;
+            if (diasGracia <= 20) return 60;
+            if (diasGracia <= 25) return 50;
+            if (diasGracia <= 30) return 40;
+            return Math.max(10, 40 - Math.floor(diasGracia / 5));
+        };
+
+        // 4) Procesar y ordenar pólizas con 0 servicios
+        const polizasCeroOrdenadas = polizasConCeroServicios
+            .map(policy => ({
+                ...policy,
+                calificacion: calcularCalificacion(policy),
+                tipoGrupo: 'SIN_SERVICIOS' as const
+            }))
+            .sort((a, b) => {
+                const diasA = a.diasRestantesGracia ?? 999;
+                const diasB = b.diasRestantesGracia ?? 999;
+                return diasA - diasB;
+            });
+
+        // 5) Procesar y ordenar pólizas con 1 servicio
+        const polizasUnoOrdenadas = polizasConUnServicio
+            .map(policy => ({
+                ...policy,
+                calificacion: calcularCalificacion(policy),
+                tipoGrupo: 'UN_SERVICIO' as const
+            }))
+            .sort((a, b) => {
+                const diasA = a.diasRestantesGracia ?? 999;
+                const diasB = b.diasRestantesGracia ?? 999;
+                return diasA - diasB;
+            });
+
+        // 6) Tomar TOP 10 de cada grupo
+        const top10CeroServicios = polizasCeroOrdenadas.slice(0, 10);
+        const top10UnServicio = polizasUnoOrdenadas.slice(0, 10);
+
+        logger.info(
+            `🎯 TOP 10: ${top10CeroServicios.length} sin servicios, ${top10UnServicio.length} con 1 servicio`
+        );
+
+        // 7) Obtener NIVs disponibles ordenados por año
+        const todosLosNivs = await Policy.find({
+            estado: 'ACTIVO',
+            tipoPoliza: 'NIV',
+            totalServicios: 0
+        })
+            .sort({ año: 1, createdAt: -1 })
+            .lean();
+
+        let nivs: any[] = [];
+        if (todosLosNivs.length > 0) {
+            const añoMasAntiguo = todosLosNivs[0].año;
+            const nivsDelAñoMasAntiguo = todosLosNivs.filter(niv => niv.año === añoMasAntiguo);
+            nivs = nivsDelAñoMasAntiguo.slice(0, 4);
+        }
+
+        // 8) Combinar resultados
+        const resultadoFinal = [
+            ...top10CeroServicios.map((policy, index) => ({
+                ...policy,
+                posicion: index + 1,
+                tipoReporte: 'REGULAR' as const,
+                prioridadGrupo: 1,
+                mensajeEspecial:
+                    policy.diasRestantesGracia !== null &&
+                    policy.diasRestantesGracia !== undefined &&
+                    policy.diasRestantesGracia <= 5
+                        ? '🚨 URGENTE - PERÍODO DE GRACIA'
+                        : null
+            })),
+            ...top10UnServicio.map((policy, index) => ({
+                ...policy,
+                posicion: top10CeroServicios.length + index + 1,
+                tipoReporte: 'REGULAR' as const,
+                prioridadGrupo: 2,
+                mensajeEspecial:
+                    policy.diasRestantesGracia !== null &&
+                    policy.diasRestantesGracia !== undefined &&
+                    policy.diasRestantesGracia <= 5
+                        ? '⚠️ URGENTE - 1 SERVICIO'
+                        : null
+            })),
+            ...nivs.map((niv, index) => ({
+                ...niv,
+                posicion: top10CeroServicios.length + top10UnServicio.length + index + 1,
+                tipoReporte: 'NIV' as const,
+                prioridadGrupo: 3,
+                mensajeEspecial: '⚡ NIV DISPONIBLE',
+                calificacion: 95
+            }))
+        ];
+
+        logger.info(`✅ Sistema robusto completado: ${resultadoFinal.length} resultados`);
+        return resultadoFinal;
+    } catch (error: any) {
+        logger.error('❌ Error en sistema de calificaciones robusto:', error);
+        throw error;
+    }
 };
 
 export const getDeletedPolicies = async (): Promise<IPolicy[]> => {

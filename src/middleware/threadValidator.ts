@@ -6,7 +6,6 @@ import type { Context } from 'telegraf';
 
 interface CommandHandler {
     [key: string]: any;
-    awaitingGetPolicyNumber?: Map<number, any>;
     awaitingSaveData?: Map<number, any>;
     awaitingUploadPolicyNumber?: Map<number, any>;
     awaitingDeletePolicyNumber?: Map<number, any>;
@@ -17,6 +16,7 @@ interface CommandHandler {
     awaitingPhoneNumber?: Map<number, any>;
     awaitingOrigenDestino?: Map<number, any>;
     awaitingDeleteReason?: Map<number, any>;
+    awaitingPolicySearch?: Map<number, any>;
 }
 
 /**
@@ -76,7 +76,6 @@ const threadValidatorMiddleware =
 
                     // Lista de verificación (solo en CommandHandler)
                     const stateMapNames: (keyof CommandHandler)[] = [
-                        'awaitingGetPolicyNumber',
                         'awaitingSaveData',
                         'awaitingUploadPolicyNumber',
                         'awaitingDeletePolicyNumber',
@@ -86,7 +85,8 @@ const threadValidatorMiddleware =
                         'awaitingServiceData',
                         'awaitingPhoneNumber',
                         'awaitingOrigenDestino',
-                        'awaitingDeleteReason'
+                        'awaitingDeleteReason',
+                        'awaitingPolicySearch'
                     ];
 
                     // Verificar si algún estado en CommandHandler está activo para este chat

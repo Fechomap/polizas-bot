@@ -41,8 +41,8 @@ interface IThreadSafeStateMap<T> {
 
 interface IHandlerWithStates extends IBaseHandler {
     registry: ICommandRegistry;
+    ocuparPolizaCallback?: IOcuparPolizaCallback;
     awaitingSaveData: IThreadSafeStateMap<any>;
-    awaitingGetPolicyNumber: IThreadSafeStateMap<any>;
     awaitingUploadPolicyNumber: IThreadSafeStateMap<any>;
     awaitingDeletePolicyNumber: IThreadSafeStateMap<any>;
     awaitingPaymentPolicyNumber: IThreadSafeStateMap<any>;
@@ -54,13 +54,14 @@ interface IHandlerWithStates extends IBaseHandler {
     awaitingDestino: IThreadSafeStateMap<any>;
     awaitingOrigenDestino: IThreadSafeStateMap<any>;
     awaitingDeleteReason?: IThreadSafeStateMap<string[]>;
+    awaitingPolicySearch: IThreadSafeStateMap<any>;
     handleSaveData: (ctx: Context, messageText: string) => Promise<void>;
-    handleGetPolicyFlow: (ctx: Context, messageText: string) => Promise<void>;
     handleUploadFlow: (ctx: Context, messageText: string) => Promise<void>;
     handleDeletePolicyFlow: (ctx: Context, messageText: string) => Promise<void>;
     handleAddPaymentPolicyNumber: (ctx: Context, messageText: string) => Promise<void>;
     handlePaymentData: (ctx: Context, messageText: string) => Promise<void>;
     handleAddServicePolicyNumber: (ctx: Context, messageText: string) => Promise<void>;
+    handlePolicySearch: (ctx: Context, messageText: string) => Promise<void>;
 }
 
 interface IOcuparPolizaCallback extends ICommand {
@@ -112,12 +113,8 @@ export class TextMessageHandler extends BaseCommand {
                 });
 
                 // Get the OcuparPolizaCallback instance if needed
-                if (!this.ocuparPolizaCallback && this.handler.registry) {
-                    const commands = this.handler.registry.getAllCommands();
-                    this.ocuparPolizaCallback =
-                        (commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza') as
-                            | IOcuparPolizaCallback
-                            | undefined) || null;
+                if (!this.ocuparPolizaCallback) {
+                    this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback || null;
                 }
 
                 // Check if we're waiting for origin
@@ -247,12 +244,8 @@ export class TextMessageHandler extends BaseCommand {
         // Get the OcuparPolizaCallback instance if it's registered later
         this.bot.on('text', async (ctx: Context, next: () => Promise<void>) => {
             // Lazy load the ocuparPolizaCallback if needed
-            if (!this.ocuparPolizaCallback && this.handler.registry) {
-                const commands = this.handler.registry.getAllCommands();
-                this.ocuparPolizaCallback =
-                    (commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza') as
-                        | IOcuparPolizaCallback
-                        | undefined) || null;
+            if (!this.ocuparPolizaCallback) {
+                this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback || null;
             }
             try {
                 const chatId = ctx.chat!.id;
@@ -345,26 +338,14 @@ export class TextMessageHandler extends BaseCommand {
                     return;
                 }
 
-                // --- LOGGING AÑADIDO ---
-                this.logInfo('[TextMsgHandler] Verificando estado: awaitingGetPolicyNumber');
-                // 2) If we're waiting for a policy number for 'accion:consultar'
-                const esperaPoliza = this.handler.awaitingGetPolicyNumber.has(chatId, threadId);
-
-                if (esperaPoliza) {
+                // --- NUEVO FLUJO UNIFICADO DE PÓLIZAS ---
+                this.logInfo('[TextMsgHandler] Verificando estado: awaitingPolicySearch');
+                // 1.5) If we're waiting for a policy number in the new unified flow
+                if (this.handler.awaitingPolicySearch.has(chatId, threadId)) {
                     this.logInfo(
-                        '[TextMsgHandler] Estado awaitingGetPolicyNumber activo. Llamando a handleGetPolicyFlow.'
+                        '[TextMsgHandler] Estado awaitingPolicySearch activo. Llamando a handlePolicySearch.'
                     );
-                    try {
-                        await this.handler.handleGetPolicyFlow(ctx, messageText);
-                    } catch (error) {
-                        this.logError(
-                            `Error en handleGetPolicyFlow: ${(error as Error).message}`,
-                            error
-                        );
-                        await ctx.reply(
-                            '❌ Error al procesar el número de póliza. Por favor intenta nuevamente.'
-                        );
-                    }
+                    await this.handler.handlePolicySearch(ctx, messageText);
                     return;
                 }
 
@@ -420,11 +401,7 @@ export class TextMessageHandler extends BaseCommand {
                 let esperaHoraContacto = false;
 
                 // Verificar si existe serviceInfo con waitingForContactTime=true
-                const ocuparPolizaCmd = this.handler.registry?.getCommand
-                    ? (this.handler.registry.getCommand('ocuparPoliza') as
-                          | IOcuparPolizaCallback
-                          | undefined)
-                    : null;
+                const ocuparPolizaCmd = this.handler.ocuparPolizaCallback || null;
 
                 if (ocuparPolizaCmd) {
                     const serviceInfo = ocuparPolizaCmd.scheduledServiceInfo.get(chatId, threadId);
@@ -530,11 +507,7 @@ export class TextMessageHandler extends BaseCommand {
                     const { expediente, origenDestino, costo, fechaJS } = serviceResult;
 
                     // NUEVO: Verificar si estamos en flujo de notificación después de servicio
-                    const ocuparPolizaCmd2 = this.handler.registry?.getCommand
-                        ? (this.handler.registry.getCommand('ocuparPoliza') as
-                              | IOcuparPolizaCallback
-                              | undefined)
-                        : null;
+                    const ocuparPolizaCmd2 = this.handler.ocuparPolizaCallback || null;
 
                     if (ocuparPolizaCmd2) {
                         this.logInfo(
@@ -625,14 +598,10 @@ export class TextMessageHandler extends BaseCommand {
                         threadId: threadId || 'ninguno'
                     });
                     try {
-                        // Verificar existe el callback y el método
+                        // Usar ocuparPolizaCallback directamente desde handler
                         if (!this.ocuparPolizaCallback) {
-                            this.logInfo('Intentando cargar ocuparPolizaCallback dinámicamente');
-                            const commands = this.handler.registry.getAllCommands();
-                            this.ocuparPolizaCallback =
-                                (commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza') as
-                                    | IOcuparPolizaCallback
-                                    | undefined) || null;
+                            this.logInfo('Cargando ocuparPolizaCallback desde handler');
+                            this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback || null;
                         }
 
                         if (
@@ -679,11 +648,7 @@ export class TextMessageHandler extends BaseCommand {
                         '[TextMsgHandler] Estado awaitingOrigen activo. Llamando a handleOrigen.'
                     );
                     if (!this.ocuparPolizaCallback) {
-                        const commands = this.handler.registry.getAllCommands();
-                        this.ocuparPolizaCallback =
-                            (commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza') as
-                                | IOcuparPolizaCallback
-                                | undefined) || null;
+                        this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback || null;
                     }
 
                     if (
@@ -705,11 +670,7 @@ export class TextMessageHandler extends BaseCommand {
                         '[TextMsgHandler] Estado awaitingDestino activo. Llamando a handleDestino.'
                     );
                     if (!this.ocuparPolizaCallback) {
-                        const commands = this.handler.registry.getAllCommands();
-                        this.ocuparPolizaCallback =
-                            (commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza') as
-                                | IOcuparPolizaCallback
-                                | undefined) || null;
+                        this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback || null;
                     }
 
                     if (
@@ -765,14 +726,10 @@ export class TextMessageHandler extends BaseCommand {
                         threadId: threadId || 'ninguno'
                     });
                     try {
-                        // Verificar existe el callback y el método
+                        // Usar ocuparPolizaCallback directamente desde handler
                         if (!this.ocuparPolizaCallback) {
-                            this.logInfo('Intentando cargar ocuparPolizaCallback dinámicamente');
-                            const commands = this.handler.registry.getAllCommands();
-                            this.ocuparPolizaCallback =
-                                (commands.find(cmd => cmd.getCommandName() === 'ocuparPoliza') as
-                                    | IOcuparPolizaCallback
-                                    | undefined) || null;
+                            this.logInfo('Cargando ocuparPolizaCallback desde handler');
+                            this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback || null;
                         }
 
                         if (
