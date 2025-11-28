@@ -188,11 +188,8 @@ export class TextMessageHandler extends BaseCommand {
                     }
                 }
 
-                // If not processed by Base de Autos, inform user
-                this.logInfo('[TextMsgHandler] Foto recibida pero no hay flujo activo');
-                await ctx.reply(
-                    '📸 Foto recibida, pero no hay un registro de vehículo activo. Usa /base_autos para iniciar el registro.'
-                );
+                // Si no hay flujo activo, simplemente ignorar la foto
+                return;
             } catch (error) {
                 this.logError('Error al procesar foto:', error);
                 await ctx.reply('❌ Error al procesar la foto. Intenta nuevamente.');
@@ -233,11 +230,8 @@ export class TextMessageHandler extends BaseCommand {
                     }
                 }
 
-                // If not processed by Base de Autos, inform user
-                this.logInfo('[TextMsgHandler] Documento recibido pero no hay flujo activo');
-                await ctx.reply(
-                    '📎 Documento recibido, pero no hay un proceso activo que lo requiera.'
-                );
+                // Si no hay flujo activo, simplemente ignorar el documento
+                return;
             } catch (error) {
                 this.logError('Error al procesar documento:', error);
                 await ctx.reply('❌ Error al procesar el documento. Intenta nuevamente.');
