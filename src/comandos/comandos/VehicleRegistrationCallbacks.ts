@@ -1,7 +1,7 @@
 // src/comandos/comandos/VehicleRegistrationCallbacks.ts
 // Callbacks para el flujo de registro manual de vehículos
 
-import { VehicleRegistrationHandler, vehiculosEnProceso } from './VehicleRegistrationHandler';
+import { VehicleRegistrationHandler } from './VehicleRegistrationHandler';
 import { getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
 import type { Telegraf } from 'telegraf';
@@ -55,22 +55,19 @@ export function registerVehicleRegistrationCallbacks(
                 return;
             }
 
-            // Obtener el registro en proceso
-            const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
-            const registro = vehiculosEnProceso?.get(stateKey);
-
-            if (!registro) {
+            // Verificar que hay registro en proceso
+            const threadIdStr = threadId ? String(threadId) : null;
+            if (!VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)) {
                 await ctx.reply('❌ No hay registro en proceso.');
                 return;
             }
 
             // Finalizar el registro
             const resultado = await VehicleRegistrationHandler.finalizarRegistro(
-                bot,
+                bot as any,
                 chatId,
                 userId,
-                registro,
-                stateKey
+                threadIdStr
             );
 
             if (resultado) {

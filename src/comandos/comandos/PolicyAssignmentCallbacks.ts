@@ -59,6 +59,176 @@ export function registerPolicyAssignmentCallbacks(
         }
     });
 
+    // Handler para selección de vehículo a asegurar
+    bot.action(/^asignar_(.+)$/, async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const vehiculoId = ctx.match?.[1];
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!vehiculoId || !userId || !chatId) {
+                await ctx.reply('❌ Error: No se pudo identificar el vehículo.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.iniciarAsignacionConOpciones(
+                bot as any,
+                chatId,
+                userIdStr,
+                vehiculoId,
+                threadIdNum
+            );
+
+            logInfo('Vehículo seleccionado para asegurar', { userId, vehiculoId });
+        } catch (error: any) {
+            logError('Error seleccionando vehículo:', error);
+            await ctx.reply('❌ Error al seleccionar vehículo.');
+        }
+    });
+
+    // Handler para paginación de vehículos
+    bot.action(/^vehiculos_pag_(\d+)$/, async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const pagina = parseInt(ctx.match?.[1] || '1');
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!userId || !chatId) {
+                await ctx.reply('❌ Error: No se pudo identificar el usuario.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
+                bot as any,
+                chatId,
+                userIdStr,
+                threadIdNum,
+                pagina
+            );
+
+            logInfo('Navegación de vehículos', { userId, pagina });
+        } catch (error: any) {
+            logError('Error en paginación de vehículos:', error);
+            await ctx.reply('❌ Error al navegar.');
+        }
+    });
+
+    // Handler para selección de método OCR (PDF)
+    bot.action(/^ocr_metodo_pdf_(.+)$/, async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const vehiculoId = ctx.match?.[1];
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!vehiculoId || !userId || !chatId) {
+                await ctx.reply('❌ Error: Datos incompletos.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.seleccionarMetodoOCR(
+                bot as any,
+                chatId,
+                userIdStr,
+                vehiculoId,
+                threadIdNum
+            );
+
+            logInfo('Método OCR seleccionado', { userId, vehiculoId });
+        } catch (error: any) {
+            logError('Error seleccionando método OCR:', error);
+            await ctx.reply('❌ Error al seleccionar método.');
+        }
+    });
+
+    // Handler para selección de método manual
+    bot.action(/^ocr_metodo_manual_(.+)$/, async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const vehiculoId = ctx.match?.[1];
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!vehiculoId || !userId || !chatId) {
+                await ctx.reply('❌ Error: Datos incompletos.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.seleccionarMetodoManual(
+                bot as any,
+                chatId,
+                userIdStr,
+                vehiculoId,
+                threadIdNum
+            );
+
+            logInfo('Método manual seleccionado', { userId, vehiculoId });
+        } catch (error: any) {
+            logError('Error seleccionando método manual:', error);
+            await ctx.reply('❌ Error al seleccionar método.');
+        }
+    });
+
+    // Handler para selección de fecha OCR
+    bot.action(/^ocr_fecha_(.+)$/, async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const fechaISO = ctx.match?.[1];
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!fechaISO || !userId || !chatId) {
+                await ctx.reply('❌ Error: Datos incompletos.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.procesarFechaCallback(
+                bot as any,
+                chatId,
+                userIdStr,
+                fechaISO,
+                threadIdNum
+            );
+
+            logInfo('Fecha OCR seleccionada', { userId, fechaISO });
+        } catch (error: any) {
+            logError('Error seleccionando fecha OCR:', error);
+            await ctx.reply('❌ Error al seleccionar fecha.');
+        }
+    });
+
     // Handler para selección de fecha de emisión (flujo legacy)
     bot.action(/^fecha_emision_(.+)$/, async ctx => {
         try {
