@@ -4,6 +4,7 @@ import { Telegraf } from 'telegraf';
 import logger from '../utils/logger';
 import adminMenu from './menus/adminMenu';
 import adminAuth from './middleware/adminAuth';
+import adminStateManager from './utils/adminStates';
 import policyHandler from './handlers/policyHandler';
 import serviceHandler from './handlers/serviceHandler';
 import databaseHandler from './handlers/databaseHandler';
@@ -26,16 +27,13 @@ interface IPolicyHandler extends IAdminHandler {
     handlePolicySelection(ctx: Context, policyId: string): Promise<void>;
     handleUnifiedPolicySearch(ctx: Context): Promise<void>;
     handleDeleteConfirmation(ctx: Context, policyId: string): Promise<void>;
+    handleDeletionReason(ctx: Context, policyId: string, reasonCode: string): Promise<boolean>;
     handleRestoreConfirmation(ctx: Context, policyId: string): Promise<void>;
     handleRestoreExecution(ctx: Context, policyId: string): Promise<void>;
     showEditCategoriesMenu(ctx: Context, policyId: string): Promise<void>;
-    showPersonalDataEdit(ctx: Context, policyId: string): Promise<void>;
-    showAddressEdit(ctx: Context, policyId: string): Promise<void>;
-    showVehicleEdit(ctx: Context, policyId: string): Promise<void>;
     showPolicyDataEdit(ctx: Context, policyId: string): Promise<void>;
-    showFinancialEdit(ctx: Context, policyId: string): Promise<void>;
     startFieldEdit(ctx: Context, fieldName: string, policyId: string): Promise<void>;
-    executeFieldChange(ctx: Context, policyId: string, fieldName: string): Promise<void>;
+    executeFieldChange(ctx: Context, policyId: string, fieldName: string, newValue: string): Promise<boolean>;
     showMassSelectionInterface(ctx: Context): Promise<void>;
     cancelMassDeletion(ctx: Context): Promise<void>;
     togglePolicySelection(ctx: Context, policyId: string): Promise<void>;
@@ -204,6 +202,23 @@ class AdminModule {
             }
         );
 
+        // Callback para ejecutar eliminación con motivo (formato corto: adm_del:policyId:reasonCode)
+        this.bot.action(
+            /^adm_del:([^:]+):(.+)$/,
+            adminAuth.requireAdmin,
+            async (ctx: Context) => {
+                const policyId = (ctx.match as RegExpMatchArray)[1];
+                const reasonCode = (ctx.match as RegExpMatchArray)[2];
+                try {
+                    await this.handlers.policy.handleDeletionReason(ctx, policyId, reasonCode);
+                    await ctx.answerCbQuery();
+                } catch (error) {
+                    logger.error('Error al ejecutar eliminación:', error);
+                    await ctx.answerCbQuery('Error al eliminar póliza', { show_alert: true });
+                }
+            }
+        );
+
         // Callbacks específicos para restauración
         this.bot.action(
             /^admin_policy_restore_confirm:(.+)$/,
@@ -221,7 +236,7 @@ class AdminModule {
 
         // Callbacks para ejecutar restauración
         this.bot.action(
-            /^admin_policy_restore_execute:(.+)$/,
+            /^admin_policy_restore_exec:(.+)$/,
             adminAuth.requireAdmin,
             async (ctx: Context) => {
                 const policyId = (ctx.match as RegExpMatchArray)[1];
@@ -251,55 +266,7 @@ class AdminModule {
             }
         );
 
-        // Callbacks para cada categoría específica
-        this.bot.action(
-            /^admin_edit_personal:(.+)$/,
-            adminAuth.requireAdmin,
-            async (ctx: Context) => {
-                const policyId = (ctx.match as RegExpMatchArray)[1];
-                try {
-                    await this.handlers.policy.showPersonalDataEdit(ctx, policyId);
-                } catch (error) {
-                    logger.error('Error al mostrar datos personales:', error);
-                    await ctx.answerCbQuery('Error al cargar datos personales', {
-                        show_alert: true
-                    });
-                }
-            }
-        );
-
-        this.bot.action(
-            /^admin_edit_address:(.+)$/,
-            adminAuth.requireAdmin,
-            async (ctx: Context) => {
-                const policyId = (ctx.match as RegExpMatchArray)[1];
-                try {
-                    await this.handlers.policy.showAddressEdit(ctx, policyId);
-                } catch (error) {
-                    logger.error('Error al mostrar datos de domicilio:', error);
-                    await ctx.answerCbQuery('Error al cargar datos de domicilio', {
-                        show_alert: true
-                    });
-                }
-            }
-        );
-
-        this.bot.action(
-            /^admin_edit_vehicle:(.+)$/,
-            adminAuth.requireAdmin,
-            async (ctx: Context) => {
-                const policyId = (ctx.match as RegExpMatchArray)[1];
-                try {
-                    await this.handlers.policy.showVehicleEdit(ctx, policyId);
-                } catch (error) {
-                    logger.error('Error al mostrar datos del vehículo:', error);
-                    await ctx.answerCbQuery('Error al cargar datos del vehículo', {
-                        show_alert: true
-                    });
-                }
-            }
-        );
-
+        // Callback para edición de datos de póliza
         this.bot.action(
             /^admin_edit_policy:(.+)$/,
             adminAuth.requireAdmin,
@@ -310,22 +277,6 @@ class AdminModule {
                 } catch (error) {
                     logger.error('Error al mostrar datos de póliza:', error);
                     await ctx.answerCbQuery('Error al cargar datos de póliza', {
-                        show_alert: true
-                    });
-                }
-            }
-        );
-
-        this.bot.action(
-            /^admin_edit_financial:(.+)$/,
-            adminAuth.requireAdmin,
-            async (ctx: Context) => {
-                const policyId = (ctx.match as RegExpMatchArray)[1];
-                try {
-                    await this.handlers.policy.showFinancialEdit(ctx, policyId);
-                } catch (error) {
-                    logger.error('Error al mostrar datos financieros:', error);
-                    await ctx.answerCbQuery('Error al cargar datos financieros', {
                         show_alert: true
                     });
                 }
@@ -348,7 +299,7 @@ class AdminModule {
             }
         );
 
-        // Callbacks para confirmación de cambios
+        // Callbacks para confirmación de cambios (legacy - el nuevo flujo usa handleTextMessage)
         this.bot.action(
             /^admin_confirm_edit:([^:]+):(.+)$/,
             adminAuth.requireAdmin,
@@ -356,7 +307,10 @@ class AdminModule {
                 const policyId = (ctx.match as RegExpMatchArray)[1];
                 const fieldName = (ctx.match as RegExpMatchArray)[2];
                 try {
-                    await this.handlers.policy.executeFieldChange(ctx, policyId, fieldName);
+                    // Obtener nuevo valor del estado admin
+                    const state = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
+                    const newValue = state?.data?.newValue || '';
+                    await this.handlers.policy.executeFieldChange(ctx, policyId, fieldName, newValue);
                 } catch (error) {
                     logger.error('Error al confirmar cambio:', error);
                     await ctx.answerCbQuery('Error al confirmar cambio', { show_alert: true });
@@ -701,8 +655,9 @@ class AdminModule {
 
         // Interceptar mensajes de texto para búsquedas admin y edición de campos
         this.bot.on('text', async (ctx: Context, next: () => Promise<void>) => {
+            const messageText = (ctx.message as any).text;
             logger.info('🔍 [ADMIN-DEBUG] Mensaje de texto recibido', {
-                text: (ctx.message as any).text,
+                text: messageText,
                 userId: ctx.from!.id,
                 chatId: ctx.chat!.id
             });
@@ -714,11 +669,35 @@ class AdminModule {
                 logger.info('🔍 [ADMIN-DEBUG] Estado admin actual:', adminState);
 
                 // PRIORIZAR comandos que empiezan con "/" sobre estados admin
-                if ((ctx.message as any).text.startsWith('/')) {
+                if (messageText.startsWith('/')) {
                     logger.info(
                         '🔍 [ADMIN-DEBUG] Comando detectado, priorizando sobre estado admin'
                     );
+                    // Limpiar estado admin si existe
+                    if (adminState) {
+                        adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+                        logger.info('🔍 [ADMIN-DEBUG] Estado admin limpiado por comando');
+                    }
                     return next(); // Dejar que el comando se procese normalmente
+                }
+
+                // PRIORIZAR botón "MENÚ PRINCIPAL" sobre estados admin
+                const isMenuButton =
+                    messageText === '🏠 MENÚ PRINCIPAL' ||
+                    messageText === 'MENÚ PRINCIPAL' ||
+                    messageText === 'Menu Principal' ||
+                    messageText.toUpperCase().includes('MENÚ PRINCIPAL');
+
+                if (isMenuButton) {
+                    logger.info(
+                        '🔍 [ADMIN-DEBUG] Botón MENÚ PRINCIPAL detectado, escapando de estado admin'
+                    );
+                    // Limpiar estado admin si existe
+                    if (adminState) {
+                        adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+                        logger.info('🔍 [ADMIN-DEBUG] Estado admin limpiado por botón menú');
+                    }
+                    return next(); // Dejar que TextMessageHandler lo procese
                 }
 
                 // Intentar procesar como búsqueda de póliza o edición de campo

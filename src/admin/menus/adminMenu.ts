@@ -48,27 +48,25 @@ _Solo usuarios administradores pueden acceder a estas funciones._
     }
 
     /**
-     * Muestra el submenú de gestión de pólizas con flujo unificado
+     * Muestra el submenú de gestión de pólizas - solicita búsqueda directamente
      */
     static async showPolicyMenu(ctx: Context): Promise<void> {
+        // Importar y configurar estado para búsqueda
+        const adminStateManager = require('../utils/adminStates').default;
+        adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
+        adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_unified_search');
+
         const menuText = `
-📝 *GESTIÓN DE PÓLIZAS*
+📝 *PÓLIZAS*
 ━━━━━━━━━━━━━━━━━━━━━━
 
-Flujo intuitivo: Busca primero, luego elige la acción
+Escribe el *número de póliza*, *nombre* o *RFC*:
 
-🔍 *Buscar Póliza* - Encuentra por nombre, póliza o RFC
-   Después podrás: Editar, Eliminar, Ver servicios
-
-🔄 *Restaurar Póliza* - Recuperar póliza eliminada
-   Búsqueda especial en pólizas eliminadas
-
-_Primero ubica la póliza, luego decide qué hacer con ella._
+_Si está activa → Editar/Eliminar_
+_Si está eliminada → Restaurar_
     `.trim();
 
         const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🔍 Buscar Póliza', 'admin_policy_search')],
-            [Markup.button.callback('🔄 Restaurar Póliza', 'admin_policy_restore')],
             [Markup.button.callback('⬅️ Volver', 'admin_menu')]
         ]);
 

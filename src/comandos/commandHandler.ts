@@ -21,6 +21,7 @@ import ServiceHandler from './handlers/ServiceHandler';
 import { getPolicyByNumber } from '../controllers/policyController';
 import type { ChatContext } from './comandos/BaseCommand';
 import StateKeyManager from '../utils/StateKeyManager';
+import AdminMenu from '../admin/menus/adminMenu';
 
 // Usar StateKeyManager para crear mapas con firma consistente
 const createStateMap = () => StateKeyManager.createThreadSafeStateMap<any>();
@@ -327,16 +328,9 @@ ${pagosInfo}
         );
     }
 
-    // Menú de Administración - redirige directamente al panel admin
+    // Menú de Administración - muestra directamente el panel admin completo
     private async showAdminMenu(ctx: any): Promise<void> {
-        const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🔧 Panel de Administración', 'admin_menu')],
-            [Markup.button.callback('🏠 Menú Principal', 'accion:volver_menu')]
-        ]);
-        await ctx.editMessageText('🔧 **ADMINISTRACIÓN**\n\nAccede al panel de administración:', {
-            parse_mode: 'Markdown',
-            reply_markup: keyboard.reply_markup
-        });
+        await AdminMenu.showMainMenu(ctx);
     }
 
     async clearChatState(
