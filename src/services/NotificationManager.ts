@@ -281,6 +281,7 @@ class NotificationManager {
                 return { success: false, message: 'No se pudo cancelar el job de manera segura' };
         }
 
+        // Si es CONTACTO, mover también TERMINO manteniendo la diferencia de tiempo
         if (notification.tipoNotificacion === 'CONTACTO') {
             return this.editContactoAndTermino(notification, newDate);
         }

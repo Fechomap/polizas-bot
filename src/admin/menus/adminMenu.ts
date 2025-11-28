@@ -1,6 +1,5 @@
 import { Context } from 'telegraf';
 import { Markup } from 'telegraf';
-import menuBuilder from './menuBuilder';
 
 class AdminMenu {
     /**
@@ -174,35 +173,13 @@ Exportación y limpieza de datos:
     }
 
     /**
-     * Muestra el submenú de gestión de notificaciones
+     * Muestra directamente la lista de notificaciones para editar
+     * (Simplificado: sin menú intermedio)
      */
     static async showNotificationsMenu(ctx: Context): Promise<void> {
-        const menuText = `
-📱 *GESTIÓN DE NOTIFICACIONES*
-━━━━━━━━━━━━━━━━━━━━━━
-
-Administra notificaciones programadas del sistema:
-
-📋 *Ver Notificaciones del Día* - Lista completa de hoy
-⏰ *Ver Próximas Hoy* - Pendientes para hoy
-✏️ *Editar Notificaciones* - Reprogramar fechas y horas
-
-_Gestiona todas las notificaciones de contacto y término automáticas._
-        `.trim();
-
-        const keyboard = Markup.inlineKeyboard([
-            [
-                Markup.button.callback('📋 Ver del Día', 'admin_notifications_list'),
-                Markup.button.callback('⏰ Ver Próximas', 'admin_notifications_today')
-            ],
-            [Markup.button.callback('✏️ Editar Notificaciones', 'admin_notifications_edit')],
-            [Markup.button.callback('⬅️ Volver', 'admin_menu')]
-        ]);
-
-        await ctx.editMessageText(menuText, {
-            parse_mode: 'Markdown',
-            ...keyboard
-        });
+        // Ir directo a la lista de editar notificaciones
+        const NotificationsHandler = require('../handlers/notificationsHandler').default;
+        await NotificationsHandler.handleEditNotifications(ctx);
     }
 }
 

@@ -83,7 +83,7 @@ class PhoneStep {
                 const whatsappData = this.generateWhatsAppData(policy);
                 const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
-                await ctx.reply(`✅ Número: *${policy.telefono}*\n\n📍indica *ORIGEN*`, {
+                await ctx.reply('📍indica *ORIGEN*', {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
                         [Markup.button.url(whatsappButton.text, whatsappButton.url)]
@@ -273,7 +273,7 @@ class PhoneStep {
             const whatsappData = whatsAppService.generatePolicyWhatsApp(policyInfo);
             const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
-            await ctx.reply(`✅ Número: *${messageText}*\n\n📍indica *ORIGEN*`, {
+            await ctx.reply('📍indica *ORIGEN*', {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard([
                     [Markup.button.url(whatsappButton.text, whatsappButton.url)]

@@ -84,11 +84,7 @@ class LocationStep {
             this.awaitingOrigen.delete(chatId, threadId);
             this.awaitingDestino.set(chatId, numeroPoliza, threadId);
 
-            await ctx.reply(
-                `✅ Origen registrado: ${coordenadas.lat}, ${coordenadas.lng}\n\n` +
-                    '📍indica *DESTINO*',
-                { parse_mode: 'Markdown' }
-            );
+            await ctx.reply('📍indica *DESTINO*', { parse_mode: 'Markdown' });
 
             return true;
         } catch (error) {
@@ -322,10 +318,10 @@ class LocationStep {
      * Construye el mensaje de respuesta para el destino
      */
     private buildDestinationResponse(destinoCoords: ICoordinates, rutaInfo: any): string {
-        let responseMessage = `✅ Destino registrado: ${destinoCoords.lat}, ${destinoCoords.lng}\n\n`;
+        let responseMessage = '';
 
         if (rutaInfo) {
-            responseMessage +=
+            responseMessage =
                 '🗺️ *Información de ruta:*\n' +
                 `📏 Distancia: ${rutaInfo.distanciaKm} km\n` +
                 `⏱️ Tiempo estimado: ${rutaInfo.tiempoMinutos} minutos`;

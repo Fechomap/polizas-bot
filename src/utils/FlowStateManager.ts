@@ -1,6 +1,8 @@
 // src/utils/FlowStateManager.ts
+import Redis from 'ioredis';
 import logger from './logger';
 import StateKeyManager from './StateKeyManager';
+import config from '../config';
 
 // Interfaces para el manejo de estados
 interface IStateData {
@@ -18,32 +20,177 @@ interface IStateProvider {
     cleanup(cutoffTime?: number): Promise<number>;
 }
 
+const REDIS_PREFIX = 'flow:';
+
 /**
  * Clase para gestionar estados de flujos concurrentes en el bot
- * Permite manejar múltiples flujos simultáneos por chatId y por póliza
+ * Usa caché local + Redis para persistencia
  */
 class FlowStateManager implements IStateProvider {
-    // Map anidado: Map<contextKey, Map<numeroPoliza, StateData>>
+    // Caché local para operaciones rápidas
     private flowStates: Map<string, Map<string, IStateData>>;
-    // Map principal: chatId => Map<flowId, contextData>
-    private contexts: Map<string | number, Map<string, any>>;
-    // Contador para generar IDs únicos por chatId
-    private counters: Map<string | number, number>;
+    private redis: Redis | null = null;
+    private isRedisConnected = false;
 
     constructor() {
         this.flowStates = new Map();
-        this.contexts = new Map();
-        this.counters = new Map();
+        this.initRedis();
+    }
 
-        logger.info('FlowStateManager inicializado');
+    /**
+     * Inicializa conexión a Redis
+     */
+    private initRedis(): void {
+        try {
+            const redisUrl = config.redis.url;
+            if (!redisUrl && !config.redis.host) {
+                logger.warn('FlowStateManager: Redis no configurado, usando solo memoria');
+                return;
+            }
 
-        // NOTA: FlowStateManager NO se registra en StateCleanupService
-        // Los estados del flujo de Ocupar Póliza deben persistir indefinidamente
-        // hasta que el usuario complete el flujo, cancele, o presione MENÚ PRINCIPAL.
-        // La limpieza manual se realiza en:
-        // - OcuparPolizaFlow.cleanupAllStates()
-        // - TextMessageHandler (botón MENÚ PRINCIPAL)
-        // - StartCommand (/start)
+            const redisOptions = {
+                retryStrategy: (times: number) => {
+                    if (times > 3) {
+                        logger.warn('FlowStateManager: Redis no disponible, usando solo memoria');
+                        return null;
+                    }
+                    return Math.min(times * 100, 2000);
+                },
+                maxRetriesPerRequest: 3,
+                lazyConnect: true
+            };
+
+            this.redis = redisUrl
+                ? new Redis(redisUrl, redisOptions)
+                : new Redis({
+                      host: config.redis.host,
+                      port: config.redis.port,
+                      password: config.redis.password,
+                      ...redisOptions
+                  });
+
+            this.redis.on('connect', () => {
+                this.isRedisConnected = true;
+                logger.info('FlowStateManager: Redis conectado');
+                this.loadFromRedis();
+            });
+
+            this.redis.on('error', err => {
+                this.isRedisConnected = false;
+                logger.error('FlowStateManager: Error Redis', { error: err.message });
+            });
+
+            this.redis.on('close', () => {
+                this.isRedisConnected = false;
+            });
+
+            // Conectar
+            this.redis.connect().catch(() => {
+                logger.warn('FlowStateManager: No se pudo conectar a Redis, usando memoria');
+            });
+        } catch (error) {
+            logger.error('FlowStateManager: Error inicializando Redis', { error });
+        }
+    }
+
+    /**
+     * Carga estados desde Redis al iniciar
+     */
+    private async loadFromRedis(): Promise<void> {
+        if (!this.redis || !this.isRedisConnected) return;
+
+        try {
+            const keys = await this.redis.keys(`${REDIS_PREFIX}*`);
+            logger.info(`FlowStateManager: Cargando ${keys.length} estados desde Redis`);
+
+            for (const key of keys) {
+                const data = await this.redis.get(key);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        // Extraer contextKey y numeroPoliza del key
+                        // formato: flow:{contextKey}:{numeroPoliza}
+                        const keyParts = key.replace(REDIS_PREFIX, '').split(':');
+                        if (keyParts.length >= 2) {
+                            const contextKey = keyParts[0];
+                            const numeroPoliza = keyParts.slice(1).join(':');
+
+                            if (!this.flowStates.has(contextKey)) {
+                                this.flowStates.set(contextKey, new Map());
+                            }
+
+                            // Convertir createdAt string a Date
+                            if (parsed.createdAt) {
+                                parsed.createdAt = new Date(parsed.createdAt);
+                            }
+
+                            this.flowStates.get(contextKey)!.set(numeroPoliza, parsed);
+                        }
+                    } catch (parseError) {
+                        logger.error('FlowStateManager: Error parseando estado', { key });
+                    }
+                }
+            }
+
+            logger.info(`FlowStateManager: ${this.flowStates.size} contextos cargados`);
+        } catch (error) {
+            logger.error('FlowStateManager: Error cargando desde Redis', { error });
+        }
+    }
+
+    /**
+     * Guarda en Redis de forma asíncrona (fire and forget)
+     */
+    private saveToRedis(contextKey: string, numeroPoliza: string, data: IStateData): void {
+        if (!this.redis || !this.isRedisConnected) return;
+
+        const redisKey = `${REDIS_PREFIX}${contextKey}:${numeroPoliza}`;
+        const serialized = JSON.stringify(data);
+
+        this.redis.set(redisKey, serialized).catch(err => {
+            logger.error('FlowStateManager: Error guardando en Redis', {
+                redisKey,
+                error: err.message
+            });
+        });
+    }
+
+    /**
+     * Elimina de Redis de forma asíncrona
+     */
+    private deleteFromRedis(contextKey: string, numeroPoliza?: string): void {
+        if (!this.redis || !this.isRedisConnected) return;
+
+        if (numeroPoliza) {
+            const redisKey = `${REDIS_PREFIX}${contextKey}:${numeroPoliza}`;
+            this.redis.del(redisKey).catch(err => {
+                logger.error('FlowStateManager: Error eliminando de Redis', {
+                    redisKey,
+                    error: err.message
+                });
+            });
+        } else {
+            // Eliminar todas las keys del contextKey
+            const pattern = `${REDIS_PREFIX}${contextKey}:*`;
+            this.redis
+                .keys(pattern)
+                .then(keys => {
+                    if (keys.length > 0) {
+                        this.redis!.del(...keys).catch(err => {
+                            logger.error('FlowStateManager: Error eliminando keys de Redis', {
+                                pattern,
+                                error: err.message
+                            });
+                        });
+                    }
+                })
+                .catch(err => {
+                    logger.error('FlowStateManager: Error buscando keys en Redis', {
+                        pattern,
+                        error: err.message
+                    });
+                });
+        }
     }
 
     private _getContextKey(chatId: string | number, threadId?: string | null): string {
@@ -75,11 +222,16 @@ class FlowStateManager implements IStateProvider {
         const existingState = this.flowStates.get(contextKey)!.get(numeroPoliza);
 
         // Hacer merge del estado existente con los nuevos datos
-        this.flowStates.get(contextKey)!.set(numeroPoliza, {
-            ...existingState, // Mantener datos existentes
-            ...stateData, // Agregar/sobrescribir con nuevos datos
-            createdAt: existingState?.createdAt || new Date() // Preservar timestamp original
-        });
+        const newState: IStateData = {
+            ...existingState,
+            ...stateData,
+            createdAt: existingState?.createdAt ?? new Date()
+        };
+
+        this.flowStates.get(contextKey)!.set(numeroPoliza, newState);
+
+        // Guardar en Redis de forma asíncrona
+        this.saveToRedis(contextKey, numeroPoliza, newState);
 
         logger.debug('Estado guardado:', { chatId, numeroPoliza, threadId, stateData });
         return true;
@@ -97,7 +249,7 @@ class FlowStateManager implements IStateProvider {
         const chatStates = this.flowStates.get(contextKey);
         if (!chatStates) return null;
 
-        return chatStates.get(numeroPoliza) || null;
+        return chatStates.get(numeroPoliza) ?? null;
     }
 
     /**
@@ -119,6 +271,9 @@ class FlowStateManager implements IStateProvider {
 
         const result = chatStates.delete(numeroPoliza);
 
+        // Eliminar de Redis
+        this.deleteFromRedis(contextKey, numeroPoliza);
+
         // Si el mapa está vacío, eliminar la entrada del contextKey también
         if (chatStates.size === 0) {
             this.flowStates.delete(contextKey);
@@ -134,6 +289,10 @@ class FlowStateManager implements IStateProvider {
     clearAllStates(chatId: string | number, threadId?: string | null): boolean {
         const contextKey = this._getContextKey(chatId, threadId);
         const result = this.flowStates.delete(contextKey);
+
+        // Eliminar de Redis
+        this.deleteFromRedis(contextKey);
+
         logger.debug('Todos los estados eliminados para contextKey:', { contextKey, result });
         return result;
     }
@@ -181,12 +340,10 @@ class FlowStateManager implements IStateProvider {
     ): boolean {
         const contextKey = this._getContextKey(chatId, threadId);
 
-        // Si existen estados para el contexto exacto, es válido
         if (this.flowStates.has(contextKey) && this.flowStates.get(contextKey)!.has(numeroPoliza)) {
             return true;
         }
 
-        // Si no hay threadId, buscar en otros contextos de este chat
         if (!threadId) {
             for (const [otherContextKey, stateMap] of this.flowStates.entries()) {
                 if (otherContextKey.startsWith(`${chatId}-`) && stateMap.has(numeroPoliza)) {
@@ -203,7 +360,6 @@ class FlowStateManager implements IStateProvider {
             }
         }
 
-        // Si no se encontró conflicto, permitir acceso
         return true;
     }
 
@@ -214,7 +370,6 @@ class FlowStateManager implements IStateProvider {
         let removed = 0;
         const now = Date.now();
 
-        // Si no se proporciona timestamp, usar 2 horas por defecto
         if (!cutoffTime) {
             const TWO_HOURS = 2 * 60 * 60 * 1000;
             cutoffTime = now - TWO_HOURS;
@@ -222,10 +377,10 @@ class FlowStateManager implements IStateProvider {
 
         for (const [contextKey, stateMap] of this.flowStates.entries()) {
             for (const [flowId, data] of stateMap.entries()) {
-                // Verificar si el estado es más antiguo que el corte
                 const lastUpdate = data.createdAt ? data.createdAt.getTime() : 0;
                 if (lastUpdate < cutoffTime) {
                     stateMap.delete(flowId);
+                    this.deleteFromRedis(contextKey, flowId);
                     removed++;
                     logger.debug(
                         `Eliminado contexto antiguo: ${flowId} (contextKey: ${contextKey})`,
@@ -237,7 +392,6 @@ class FlowStateManager implements IStateProvider {
                 }
             }
 
-            // Si el mapa para este contextKey quedó vacío, eliminarlo también
             if (stateMap.size === 0) {
                 this.flowStates.delete(contextKey);
             }
@@ -257,11 +411,13 @@ class FlowStateManager implements IStateProvider {
         totalContexts: number;
         totalFlows: number;
         contextBreakdown: Record<string, number>;
+        redisConnected: boolean;
     } {
         const stats = {
             totalContexts: this.flowStates.size,
             totalFlows: 0,
-            contextBreakdown: {} as Record<string, number>
+            contextBreakdown: {} as Record<string, number>,
+            redisConnected: this.isRedisConnected
         };
 
         this.flowStates.forEach((stateMap, contextKey) => {

@@ -15,11 +15,11 @@ import SimpleScriptsHandler from './handlers/simpleScriptsHandler';
 interface IAdminHandler {
     handleAction(ctx: Context, action: string): Promise<void>;
     handleTextMessage?(ctx: Context): Promise<boolean>;
-    handleEditIndividual?(ctx: Context, notificationId: string): Promise<void>;
     handleCancelNotification?(ctx: Context, notificationId: string): Promise<void>;
     handleDeleteNotification?(ctx: Context, notificationId: string): Promise<void>;
     handleEditDate?(ctx: Context, notificationId: string): Promise<void>;
     handleQuickEdit?(ctx: Context, notificationId: string, option: string): Promise<void>;
+    handleCustomTime?(ctx: Context, notificationId: string, dayOption: string): Promise<void>;
     handleRescheduleNotification?(ctx: Context, notificationId: string): Promise<void>;
 }
 
@@ -505,14 +505,15 @@ class AdminModule {
             }
         );
 
-        // Callbacks para edición individual de notificaciones (solo ver detalles)
+        // Callbacks para edición individual de notificaciones -> Directo a editar fecha
         this.bot.action(
             /^admin_notifications_edit_([a-f0-9]{24})$/,
             adminAuth.requireAdmin,
             async (ctx: Context) => {
                 try {
                     const notificationId = (ctx.match as RegExpMatchArray)[1];
-                    await this.handlers.notifications.handleEditIndividual?.(ctx, notificationId);
+                    // Ir directo a editar fecha (sin menú intermedio)
+                    await this.handlers.notifications.handleEditDate?.(ctx, notificationId);
                 } catch (error) {
                     logger.error('Error editando notificación:', error);
                     await ctx.answerCbQuery('Error al editar notificación', { show_alert: true });
@@ -606,6 +607,26 @@ class AdminModule {
                     await ctx.answerCbQuery('Error al reprogramar notificación', {
                         show_alert: true
                     });
+                }
+            }
+        );
+
+        // Callback para hora personalizada (Elegir hora / Mañana)
+        this.bot.action(
+            /^admin_notifications_custom_(.+)_(today|tomorrow)$/,
+            adminAuth.requireAdmin,
+            async (ctx: Context) => {
+                try {
+                    const notificationId = (ctx.match as RegExpMatchArray)[1];
+                    const dayOption = (ctx.match as RegExpMatchArray)[2];
+                    await this.handlers.notifications.handleCustomTime?.(
+                        ctx,
+                        notificationId,
+                        dayOption
+                    );
+                } catch (error) {
+                    logger.error('Error en hora personalizada:', error);
+                    await ctx.answerCbQuery('Error al procesar', { show_alert: true });
                 }
             }
         );
@@ -714,6 +735,12 @@ class AdminModule {
                 if (!handled) {
                     handled = await this.handlers.service.handleTextMessage(ctx);
                     logger.info('🔍 [ADMIN-DEBUG] Procesado por service handler:', handled);
+                }
+
+                // Si no fue procesado, intentar con notifications (hora personalizada)
+                if (!handled && this.handlers.notifications.handleTextMessage) {
+                    handled = await this.handlers.notifications.handleTextMessage(ctx);
+                    logger.info('🔍 [ADMIN-DEBUG] Procesado por notifications handler:', handled);
                 }
 
                 if (!handled) {
