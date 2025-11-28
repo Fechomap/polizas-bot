@@ -82,11 +82,7 @@ class OcuparPolizaCallback extends BaseCommand {
         return this.flow.handlePhoneNumber(ctx, messageText, threadId);
     }
 
-    async handleOrigen(
-        ctx: Context,
-        input: any,
-        threadId: string | null = null
-    ): Promise<boolean> {
+    async handleOrigen(ctx: Context, input: any, threadId: string | null = null): Promise<boolean> {
         return this.flow.handleOrigen(ctx, input, threadId);
     }
 

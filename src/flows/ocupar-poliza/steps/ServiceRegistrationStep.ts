@@ -108,8 +108,8 @@ class ServiceRegistrationStep {
 
                 await ctx.reply(
                     `✅ Proceso finalizado para póliza *${numeroPoliza}*.\n\n` +
-                    '📝 Los datos de origen-destino y teléfono han sido guardados.\n' +
-                    '🚫 No se registrará ningún servicio en este momento.',
+                        '📝 Los datos de origen-destino y teléfono han sido guardados.\n' +
+                        '🚫 No se registrará ningún servicio en este momento.',
                     { parse_mode: 'Markdown' }
                 );
 
@@ -147,7 +147,13 @@ class ServiceRegistrationStep {
                 this.processingCallbacks.add(processingKey);
 
                 try {
-                    await this.handleAssignment(ctx, numeroPoliza, numeroRegistro, chatId, threadId);
+                    await this.handleAssignment(
+                        ctx,
+                        numeroPoliza,
+                        numeroRegistro,
+                        chatId,
+                        threadId
+                    );
                 } finally {
                     this.processingCallbacks.delete(processingKey);
                     await ctx.answerCbQuery();
@@ -177,11 +183,13 @@ class ServiceRegistrationStep {
                 if (resultado) {
                     await ctx.reply(
                         `✅ Registro ${numeroRegistro} marcado como *NO ASIGNADO* para póliza ${numeroPoliza}.\n\n` +
-                        '📝 El registro permanecerá en la base de datos pero no se programará ningún servicio.',
+                            '📝 El registro permanecerá en la base de datos pero no se programará ningún servicio.',
                         { parse_mode: 'Markdown' }
                     );
                 } else {
-                    await ctx.reply(`❌ Error al marcar registro ${numeroRegistro} como NO ASIGNADO.`);
+                    await ctx.reply(
+                        `❌ Error al marcar registro ${numeroRegistro} como NO ASIGNADO.`
+                    );
                 }
             } catch (error) {
                 logger.error('Error en callback noAssignedService:', error);
@@ -250,21 +258,16 @@ class ServiceRegistrationStep {
         // Confirmar conversión
         await ctx.reply(
             `✅ *Registro convertido a Servicio #${numeroServicio}*\n\n` +
-            '✨Los cálculos fueron realizados✨\n\n' +
-            '⏰ *Programación:*\n' +
-            `📞 Contacto: ${fechaContactoStr}\n` +
-            `🏁 Término: ${fechaTerminoStr}\n\n` +
-            '🤖 Las notificaciones se enviarán automáticamente.',
+                '✨Los cálculos fueron realizados✨\n\n' +
+                '⏰ *Programación:*\n' +
+                `📞 Contacto: ${fechaContactoStr}\n` +
+                `🏁 Término: ${fechaTerminoStr}\n\n` +
+                '🤖 Las notificaciones se enviarán automáticamente.',
             { parse_mode: 'Markdown' }
         );
 
         // Programar notificaciones
-        await this.scheduleNotifications(
-            policy,
-            registro,
-            numeroPoliza,
-            horasCalculadas
-        );
+        await this.scheduleNotifications(policy, registro, numeroPoliza, horasCalculadas);
 
         logger.info(`Servicio #${numeroServicio} confirmado para ${numeroPoliza}`);
     }
@@ -295,8 +298,8 @@ class ServiceRegistrationStep {
 
                 await ctx.reply(
                     '⚡ *NIV CONSUMIDO*\n\n' +
-                    `El NIV \`${numeroPoliza}\` ha sido utilizado y se ha eliminado automáticamente.\n` +
-                    'Ya no aparecerá en reportes futuros.',
+                        `El NIV \`${numeroPoliza}\` ha sido utilizado y se ha eliminado automáticamente.\n` +
+                        'Ya no aparecerá en reportes futuros.',
                     { parse_mode: 'Markdown' }
                 );
             }
@@ -384,7 +387,9 @@ class ServiceRegistrationStep {
 
                 const serviceInfo = this.scheduledServiceInfo.get(chatId, threadId);
                 if (!serviceInfo?.contactTime) {
-                    await ctx.reply('❌ Error: No se encontró la información de la hora de contacto.');
+                    await ctx.reply(
+                        '❌ Error: No se encontró la información de la hora de contacto.'
+                    );
                     return;
                 }
 
@@ -398,13 +403,21 @@ class ServiceRegistrationStep {
                 serviceInfo.scheduledDate = scheduledMoment.toDate();
                 this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
 
-                const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+                const dayNames = [
+                    'Domingo',
+                    'Lunes',
+                    'Martes',
+                    'Miércoles',
+                    'Jueves',
+                    'Viernes',
+                    'Sábado'
+                ];
                 const dayName = dayNames[scheduledMoment.day()];
                 const dateStr = scheduledMoment.format('DD/MM/YYYY');
 
                 await ctx.editMessageText(
                     `✅ Alerta programada para: *${dayName}, ${dateStr} a las ${serviceInfo.contactTime}*\n\n` +
-                    'El servicio ha sido registrado correctamente.',
+                        'El servicio ha sido registrado correctamente.',
                     { parse_mode: 'Markdown' }
                 );
 
@@ -432,7 +445,7 @@ class ServiceRegistrationStep {
         if (!timeRegex.test(messageText)) {
             await ctx.reply(
                 '⚠️ Formato de hora inválido. Debe ser HH:mm (24 horas).\n' +
-                'Ejemplos válidos: 09:30, 14:45, 23:15'
+                    'Ejemplos válidos: 09:30, 14:45, 23:15'
             );
             return false;
         }
@@ -498,13 +511,11 @@ class ServiceRegistrationStep {
             }
         }
 
-        dayButtons.push([
-            Markup.button.callback('❌ Cancelar', `cancelSelectDay:${numeroPoliza}`)
-        ]);
+        dayButtons.push([Markup.button.callback('❌ Cancelar', `cancelSelectDay:${numeroPoliza}`)]);
 
         await ctx.reply(
             `✅ Hora registrada: *${contactTime}*\n\n` +
-            '📅 ¿Para qué día programar la alerta de contacto?',
+                '📅 ¿Para qué día programar la alerta de contacto?',
             {
                 parse_mode: 'Markdown',
                 ...Markup.inlineKeyboard(dayButtons)
@@ -535,12 +546,14 @@ class ServiceRegistrationStep {
                         leyenda: ''
                     };
 
-                    const targetGroupId = parseInt(process.env.TELEGRAM_GROUP_ID || '-1002212807945');
+                    const targetGroupId = parseInt(
+                        process.env.TELEGRAM_GROUP_ID || '-1002212807945'
+                    );
 
                     await this.legendService.sendBlueLegendWithTypingEffect(
                         ctx.telegram,
                         targetGroupId,
-                        policy as IPolicy,
+                        policy,
                         enhancedData
                     );
                 }

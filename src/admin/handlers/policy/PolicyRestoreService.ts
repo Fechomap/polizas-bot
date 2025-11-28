@@ -18,7 +18,11 @@ class PolicyRestoreService {
     static async handlePolicyRestore(ctx: Context): Promise<void> {
         try {
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_search_for_restore');
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_search_for_restore'
+            );
 
             const searchText = `
 ♻️ *RESTAURAR PÓLIZA*
@@ -30,7 +34,12 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
             `.trim();
 
             const keyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('📋 Ver eliminadas recientes', 'admin_policy_recent_deleted')],
+                [
+                    Markup.button.callback(
+                        '📋 Ver eliminadas recientes',
+                        'admin_policy_recent_deleted'
+                    )
+                ],
                 [Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]
             ]);
 
@@ -68,7 +77,9 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
 
             if (policy.estado !== 'ELIMINADO') {
                 if (isCallback) {
-                    await ctx.answerCbQuery('⚠️ Esta póliza no está eliminada', { show_alert: true });
+                    await ctx.answerCbQuery('⚠️ Esta póliza no está eliminada', {
+                        show_alert: true
+                    });
                 } else {
                     await ctx.reply('⚠️ Esta póliza no está eliminada.');
                 }
@@ -97,7 +108,10 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
 
             const keyboard = Markup.inlineKeyboard([
                 [
-                    Markup.button.callback('✅ Sí, restaurar', `admin_policy_restore_exec:${policyId}`),
+                    Markup.button.callback(
+                        '✅ Sí, restaurar',
+                        `admin_policy_restore_exec:${policyId}`
+                    ),
                     Markup.button.callback('❌ No, cancelar', 'admin_policy_menu')
                 ]
             ]);
@@ -151,9 +165,9 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
             if (success) {
                 await ctx.editMessageText(
                     `✅ *PÓLIZA RESTAURADA*\n\n` +
-                    `**Póliza:** ${policy.numeroPoliza}\n` +
-                    `**Titular:** ${policy.titular}\n\n` +
-                    `_La póliza ha sido restaurada exitosamente._`,
+                        `**Póliza:** ${policy.numeroPoliza}\n` +
+                        `**Titular:** ${policy.titular}\n\n` +
+                        `_La póliza ha sido restaurada exitosamente._`,
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
@@ -193,14 +207,11 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
                 .select('numeroPoliza titular fechaEliminacion motivoEliminacion');
 
             if (deletedPolicies.length === 0) {
-                await ctx.editMessageText(
-                    '📋 No hay pólizas eliminadas recientemente.',
-                    {
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.callback('⬅️ Volver', 'admin_policy_restore')]
-                        ])
-                    }
-                );
+                await ctx.editMessageText('📋 No hay pólizas eliminadas recientemente.', {
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.callback('⬅️ Volver', 'admin_policy_restore')]
+                    ])
+                });
                 return;
             }
 
@@ -228,9 +239,7 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
                 ]);
             });
 
-            buttons.push([
-                Markup.button.callback('⬅️ Volver', 'admin_policy_restore')
-            ]);
+            buttons.push([Markup.button.callback('⬅️ Volver', 'admin_policy_restore')]);
 
             await ctx.editMessageText(resultText.trim(), {
                 parse_mode: 'Markdown',

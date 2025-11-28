@@ -19,7 +19,11 @@ class PolicyDeleteService {
     static async handlePolicyDelete(ctx: Context): Promise<void> {
         try {
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-            adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'policy_search_for_delete');
+            adminStateManager.createAdminState(
+                ctx.from!.id,
+                ctx.chat!.id,
+                'policy_search_for_delete'
+            );
 
             const searchText = `
 🗑️ *ELIMINAR PÓLIZA*
@@ -84,9 +88,7 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
                 Markup.button.callback(DELETION_REASONS_MAP[code], `adm_del:${policyId}:${code}`)
             ]);
 
-            reasonButtons.push([
-                Markup.button.callback('❌ Cancelar', 'admin_policy_menu')
-            ]);
+            reasonButtons.push([Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]);
 
             const keyboard = Markup.inlineKeyboard(reasonButtons);
 
@@ -106,7 +108,11 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
      * Maneja el motivo de eliminación y ejecuta la eliminación
      * @param reasonCode - Código corto del motivo (pv, sc, ii, dup, otro)
      */
-    static async handleDeletionReason(ctx: Context, policyId: string, reasonCode: string): Promise<boolean> {
+    static async handleDeletionReason(
+        ctx: Context,
+        policyId: string,
+        reasonCode: string
+    ): Promise<boolean> {
         try {
             const policy = await Policy.findById(policyId);
 
@@ -124,14 +130,19 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
             if (success) {
                 await ctx.editMessageText(
                     `✅ *PÓLIZA ELIMINADA*\n\n` +
-                    `**Póliza:** ${policy.numeroPoliza}\n` +
-                    `**Titular:** ${policy.titular}\n` +
-                    `**Motivo:** ${reason}\n\n` +
-                    `_La póliza puede ser restaurada desde el menú de restauración._`,
+                        `**Póliza:** ${policy.numeroPoliza}\n` +
+                        `**Titular:** ${policy.titular}\n` +
+                        `**Motivo:** ${reason}\n\n` +
+                        `_La póliza puede ser restaurada desde el menú de restauración._`,
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
-                            [Markup.button.callback('♻️ Deshacer', `admin_policy_restore_confirm:${policyId}`)],
+                            [
+                                Markup.button.callback(
+                                    '♻️ Deshacer',
+                                    `admin_policy_restore_confirm:${policyId}`
+                                )
+                            ],
                             [Markup.button.callback('⬅️ Menú Pólizas', 'admin_policy_menu')]
                         ])
                     }

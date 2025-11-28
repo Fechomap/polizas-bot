@@ -61,7 +61,7 @@ const mostrarDetallePoliza = policy => {
 const mostrarServicios = servicios => {
     console.log('\n🔧 SERVICIOS REGISTRADOS:');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    
+
     if (!servicios || servicios.length === 0) {
         console.log('❌ No se encontraron servicios registrados en esta póliza.');
         return false;
@@ -76,7 +76,7 @@ const mostrarServicios = servicios => {
         console.log(`    🆔 ID MongoDB: ${servicio._id || 'SIN ID - USARÁ ÍNDICE'}`);
         console.log(`    📍 Índice en array: ${index}`);
     });
-    
+
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     return true;
 };
@@ -86,12 +86,12 @@ const seleccionarServicio = async servicios => {
     while (true) {
         const seleccion = await pregunta('\n🎯 Selecciona el número del servicio a eliminar (1-' + servicios.length + '): ');
         const indice = parseInt(seleccion) - 1;
-        
+
         if (isNaN(indice) || indice < 0 || indice >= servicios.length) {
             console.log('❌ Selección inválida. Por favor, ingresa un número válido.');
             continue;
         }
-        
+
         return { servicio: servicios[indice], indice };
     }
 };
@@ -120,7 +120,7 @@ const eliminarServicio = async (numeroPoliza, servicio, indice) => {
         }
 
         let resultado;
-        
+
         // Si el servicio tiene _id, usar ese método
         if (servicio._id) {
             resultado = await Policy.updateOne(
@@ -134,10 +134,10 @@ const eliminarServicio = async (numeroPoliza, servicio, indice) => {
             if (!policy || !policy.servicios || policy.servicios.length <= indice) {
                 return { success: false, error: 'Servicio no encontrado o índice inválido' };
             }
-            
+
             // Crear nuevo array sin el servicio en el índice especificado
             const nuevosServicios = policy.servicios.filter((_, index) => index !== indice);
-            
+
             // Actualizar con el nuevo array
             resultado = await Policy.updateOne(
                 { numeroPoliza },
@@ -145,8 +145,8 @@ const eliminarServicio = async (numeroPoliza, servicio, indice) => {
             );
         }
 
-        return { 
-            success: resultado.modifiedCount > 0, 
+        return {
+            success: resultado.modifiedCount > 0,
             modified: resultado.modifiedCount,
             dryRun: false
         };
@@ -162,11 +162,11 @@ const eliminarServicioMain = async () => {
         // Mostrar banner
         console.log('\n🔧 HERRAMIENTA PARA ELIMINACIÓN DE SERVICIOS INDIVIDUALES');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        
+
         // Determinar modo de ejecución
         const args = process.argv.slice(2);
         DRY_RUN = args.includes('--dry-run') || args.includes('-d');
-        
+
         if (DRY_RUN) {
             console.log('🧪 EJECUTANDO EN MODO DRY RUN (SIMULACIÓN)');
             console.log('📝 No se realizarán cambios reales en la base de datos');
@@ -234,10 +234,10 @@ const eliminarServicioMain = async () => {
         }
 
         // Segunda confirmación usando datos del servicio
-        const confirmacionTexto = servicio._id ? 
-            servicio._id.toString().slice(-6) : 
+        const confirmacionTexto = servicio._id ?
+            servicio._id.toString().slice(-6) :
             `${servicio.numeroServicio || indice + 1}-${servicio.costo}`;
-            
+
         const confirmacion2 = await pregunta(
             `\n⚠️  CONFIRMACIÓN FINAL: Escribe "${confirmacionTexto}" para confirmar: `
         );
@@ -259,7 +259,7 @@ const eliminarServicioMain = async () => {
             } else {
                 console.log('\n✅ ÉXITO: El servicio ha sido ELIMINADO PERMANENTEMENTE');
             }
-            
+
             console.log('\n📝 Resumen de la eliminación:');
             console.log(`   - Póliza: ${numeroPoliza}`);
             console.log(`   - Servicio eliminado: #${servicio.numeroServicio || 'Sin número'}`);

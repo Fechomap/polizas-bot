@@ -38,11 +38,7 @@ class LocationStep {
     /**
      * Maneja el ingreso del origen
      */
-    async handleOrigen(
-        ctx: Context,
-        input: any,
-        threadId: string | null = null
-    ): Promise<boolean> {
+    async handleOrigen(ctx: Context, input: any, threadId: string | null = null): Promise<boolean> {
         const chatId = ctx.chat!.id;
         const numeroPoliza = this.awaitingOrigen.get(chatId, threadId);
 
@@ -89,7 +85,7 @@ class LocationStep {
 
             await ctx.reply(
                 `✅ Origen registrado: ${coordenadas.lat}, ${coordenadas.lng}\n\n` +
-                '📍indica *DESTINO*',
+                    '📍indica *DESTINO*',
                 { parse_mode: 'Markdown' }
             );
 
@@ -141,7 +137,9 @@ class LocationStep {
 
             if (!origenCoords) {
                 logger.error('No se encontraron coordenadas de origen');
-                await ctx.reply('❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.');
+                await ctx.reply(
+                    '❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.'
+                );
                 this.awaitingDestino.delete(chatId, threadId);
                 return false;
             }
@@ -152,7 +150,8 @@ class LocationStep {
 
             // Obtener póliza
             const policyCacheData = this.polizaCache.get(chatId, threadId);
-            const policy = policyCacheData?.policy || ((await getPolicyByNumber(numeroPoliza)) as IPolicy);
+            const policy =
+                policyCacheData?.policy || ((await getPolicyByNumber(numeroPoliza)) as IPolicy);
 
             if (!policy) {
                 await ctx.reply('❌ Error: Póliza no encontrada.');
@@ -198,15 +197,21 @@ class LocationStep {
 
             await ctx.reply(
                 responseMessage +
-                '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
-                '🚗 ¿Deseas registrar un servicio?',
+                    '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
+                    '🚗 ¿Deseas registrar un servicio?',
                 {
                     parse_mode: 'Markdown',
                     link_preview_options: { is_disabled: true },
                     ...Markup.inlineKeyboard([
                         [
-                            Markup.button.callback('✅ Registrar Servicio', `registrar_servicio_${numeroPoliza}`),
-                            Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
+                            Markup.button.callback(
+                                '✅ Registrar Servicio',
+                                `registrar_servicio_${numeroPoliza}`
+                            ),
+                            Markup.button.callback(
+                                '❌ No registrar',
+                                `no_registrar_${numeroPoliza}`
+                            )
                         ]
                     ])
                 }

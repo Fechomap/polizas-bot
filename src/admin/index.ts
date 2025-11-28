@@ -33,7 +33,12 @@ interface IPolicyHandler extends IAdminHandler {
     showEditCategoriesMenu(ctx: Context, policyId: string): Promise<void>;
     showPolicyDataEdit(ctx: Context, policyId: string): Promise<void>;
     startFieldEdit(ctx: Context, fieldName: string, policyId: string): Promise<void>;
-    executeFieldChange(ctx: Context, policyId: string, fieldName: string, newValue: string): Promise<boolean>;
+    executeFieldChange(
+        ctx: Context,
+        policyId: string,
+        fieldName: string,
+        newValue: string
+    ): Promise<boolean>;
     showMassSelectionInterface(ctx: Context): Promise<void>;
     cancelMassDeletion(ctx: Context): Promise<void>;
     togglePolicySelection(ctx: Context, policyId: string): Promise<void>;
@@ -203,21 +208,17 @@ class AdminModule {
         );
 
         // Callback para ejecutar eliminación con motivo (formato corto: adm_del:policyId:reasonCode)
-        this.bot.action(
-            /^adm_del:([^:]+):(.+)$/,
-            adminAuth.requireAdmin,
-            async (ctx: Context) => {
-                const policyId = (ctx.match as RegExpMatchArray)[1];
-                const reasonCode = (ctx.match as RegExpMatchArray)[2];
-                try {
-                    await this.handlers.policy.handleDeletionReason(ctx, policyId, reasonCode);
-                    await ctx.answerCbQuery();
-                } catch (error) {
-                    logger.error('Error al ejecutar eliminación:', error);
-                    await ctx.answerCbQuery('Error al eliminar póliza', { show_alert: true });
-                }
+        this.bot.action(/^adm_del:([^:]+):(.+)$/, adminAuth.requireAdmin, async (ctx: Context) => {
+            const policyId = (ctx.match as RegExpMatchArray)[1];
+            const reasonCode = (ctx.match as RegExpMatchArray)[2];
+            try {
+                await this.handlers.policy.handleDeletionReason(ctx, policyId, reasonCode);
+                await ctx.answerCbQuery();
+            } catch (error) {
+                logger.error('Error al ejecutar eliminación:', error);
+                await ctx.answerCbQuery('Error al eliminar póliza', { show_alert: true });
             }
-        );
+        });
 
         // Callbacks específicos para restauración
         this.bot.action(
@@ -310,7 +311,12 @@ class AdminModule {
                     // Obtener nuevo valor del estado admin
                     const state = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
                     const newValue = state?.data?.newValue || '';
-                    await this.handlers.policy.executeFieldChange(ctx, policyId, fieldName, newValue);
+                    await this.handlers.policy.executeFieldChange(
+                        ctx,
+                        policyId,
+                        fieldName,
+                        newValue
+                    );
                 } catch (error) {
                     logger.error('Error al confirmar cambio:', error);
                     await ctx.answerCbQuery('Error al confirmar cambio', { show_alert: true });

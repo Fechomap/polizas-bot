@@ -4,6 +4,8 @@ import { Markup } from 'telegraf';
 import StateKeyManager from '../../utils/StateKeyManager';
 import type { Context } from 'telegraf';
 import type { BotContext } from '../../../types';
+import { vehiculosEnProceso } from './VehicleRegistrationHandler';
+import { asignacionesEnProceso } from './PolicyAssignmentHandler';
 
 interface ICommand {
     getCommandName(): string;
@@ -285,6 +287,24 @@ export class TextMessageHandler extends BaseCommand {
                         this.logInfo('✅ Estados admin limpiados desde botón teclado persistente');
                     } catch (error) {
                         this.logInfo('Módulo admin no disponible para limpieza de estado');
+                    }
+
+                    // LIMPIAR ESTADOS DE BASE DE AUTOS (vehiculosEnProceso y asignacionesEnProceso)
+                    const userId = ctx.from?.id;
+                    if (userId && chatId) {
+                        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+                        if (vehiculosEnProceso.has(stateKey)) {
+                            vehiculosEnProceso.delete(stateKey);
+                            this.logInfo('🚗 Estado de registro de vehículo limpiado', {
+                                stateKey
+                            });
+                        }
+                        if (asignacionesEnProceso.has(stateKey)) {
+                            asignacionesEnProceso.delete(stateKey);
+                            this.logInfo('📄 Estado de asignación de póliza limpiado', {
+                                stateKey
+                            });
+                        }
                     }
 
                     // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO (igual que /start)

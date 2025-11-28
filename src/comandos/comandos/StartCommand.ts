@@ -1,6 +1,8 @@
 import BaseCommand, { NavigationContext, IBaseHandler } from './BaseCommand';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getPersistentMenuKeyboard } from '../teclados';
+import { vehiculosEnProceso } from './VehicleRegistrationHandler';
+import { asignacionesEnProceso } from './PolicyAssignmentHandler';
 
 // Import AdminStateManager
 const AdminStateManager = require('../../admin/utils/adminStates').default;
@@ -32,6 +34,20 @@ class StartCommand extends BaseCommand {
                     chatId: ctx.chat?.id,
                     threadId: threadId
                 });
+
+                // LIMPIAR ESTADOS DE BASE DE AUTOS (vehiculosEnProceso y asignacionesEnProceso)
+                const userId = ctx.from?.id;
+                if (userId && chatId) {
+                    const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+                    if (vehiculosEnProceso.has(stateKey)) {
+                        vehiculosEnProceso.delete(stateKey);
+                        this.logInfo('🚗 Estado de registro de vehículo limpiado', { stateKey });
+                    }
+                    if (asignacionesEnProceso.has(stateKey)) {
+                        asignacionesEnProceso.delete(stateKey);
+                        this.logInfo('📄 Estado de asignación de póliza limpiado', { stateKey });
+                    }
+                }
 
                 // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO
                 if (chatId && this.handler.clearChatState) {

@@ -10,7 +10,8 @@ import {
     TextMessageHandler,
     ViewFilesCallbacks,
     PaymentReportPDFCommand,
-    ReportUsedCommand
+    ReportUsedCommand,
+    BaseAutosCommand
 } from './comandos';
 import OcuparPolizaCallback from './comandos/OcuparPolizaCallback';
 import PolicyQueryHandler from './handlers/PolicyQueryHandler';
@@ -40,6 +41,7 @@ class CommandHandler {
     public ocuparPolizaCallback: OcuparPolizaCallback;
     private paymentReportPDFCommand: PaymentReportPDFCommand;
     private reportUsedCommand: ReportUsedCommand;
+    private baseAutosCommand: BaseAutosCommand;
 
     // Mapas de estado para compatibilidad con TextMessageHandler
     public awaitingSaveData = createStateMap();
@@ -74,6 +76,10 @@ class CommandHandler {
         this.ocuparPolizaCallback = new OcuparPolizaCallback(this as any);
         this.paymentReportPDFCommand = new PaymentReportPDFCommand(this as any);
         this.reportUsedCommand = new ReportUsedCommand(this as any);
+        this.baseAutosCommand = new BaseAutosCommand(this as any);
+
+        // Registrar BaseAutosCommand en el registry para acceso desde TextMessageHandler
+        this.registry.registerCommand(this.baseAutosCommand as any);
 
         this.registerCommands();
     }
@@ -96,6 +102,7 @@ class CommandHandler {
         this.serviceHandler.register();
         this.viewFilesCallbacks.register();
         this.ocuparPolizaCallback.register();
+        this.baseAutosCommand.register();
 
         new TextMessageHandler(this as any).register();
         this.setupActionHandlers();
@@ -169,7 +176,7 @@ class CommandHandler {
         // Callback para consultar póliza desde reportes
         this.bot.action(/getPoliza:(.+)/, async (ctx: any) => {
             try {
-                const numeroPoliza = (ctx.match as any)[1];
+                const numeroPoliza = ctx.match[1];
                 logger.info(`Callback getPoliza para: ${numeroPoliza}`);
 
                 const policy = await getPolicyByNumber(numeroPoliza);

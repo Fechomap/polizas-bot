@@ -94,11 +94,11 @@ export const FIELD_MAPPINGS: Record<string, IFieldMapping> = {
 
 // Motivos de eliminación con códigos cortos para callbacks (límite 64 bytes)
 export const DELETION_REASONS_MAP: Record<string, string> = {
-    'pv': 'Póliza vencida',
-    'sc': 'Solicitud del cliente',
-    'ii': 'Información incorrecta',
-    'dup': 'Duplicado',
-    'otro': 'Otro motivo'
+    pv: 'Póliza vencida',
+    sc: 'Solicitud del cliente',
+    ii: 'Información incorrecta',
+    dup: 'Duplicado',
+    otro: 'Otro motivo'
 };
 
 // Array de códigos para iterar

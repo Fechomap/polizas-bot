@@ -61,22 +61,31 @@ class PolicyHandler {
     // ==================== Delegación a servicios ====================
 
     // Búsqueda
-    static handleUnifiedPolicySearch = PolicySearchService.handleUnifiedPolicySearch.bind(PolicySearchService);
-    static handleUnifiedPolicySearchResults = PolicySearchService.handleUnifiedPolicySearchResults.bind(PolicySearchService);
+    static handleUnifiedPolicySearch =
+        PolicySearchService.handleUnifiedPolicySearch.bind(PolicySearchService);
+    static handleUnifiedPolicySearchResults =
+        PolicySearchService.handleUnifiedPolicySearchResults.bind(PolicySearchService);
     static searchPolicies = PolicySearchService.searchPolicies.bind(PolicySearchService);
-    static showMultipleSearchResults = PolicySearchService.showMultipleSearchResults.bind(PolicySearchService);
-    static searchPolicyForDelete = PolicySearchService.searchPolicyForDelete.bind(PolicySearchService);
-    static searchPolicyForRestore = PolicySearchService.searchPolicyForRestore.bind(PolicySearchService);
-    static showSearchResultsForDelete = PolicySearchService.showSearchResultsForDelete.bind(PolicySearchService);
-    static showSearchResultsForRestore = PolicySearchService.showSearchResultsForRestore.bind(PolicySearchService);
+    static showMultipleSearchResults =
+        PolicySearchService.showMultipleSearchResults.bind(PolicySearchService);
+    static searchPolicyForDelete =
+        PolicySearchService.searchPolicyForDelete.bind(PolicySearchService);
+    static searchPolicyForRestore =
+        PolicySearchService.searchPolicyForRestore.bind(PolicySearchService);
+    static showSearchResultsForDelete =
+        PolicySearchService.showSearchResultsForDelete.bind(PolicySearchService);
+    static showSearchResultsForRestore =
+        PolicySearchService.showSearchResultsForRestore.bind(PolicySearchService);
     static getPolicyStatusText = PolicySearchService.getPolicyStatusText.bind(PolicySearchService);
 
     // Display
-    static showUnifiedPolicyDetails = PolicyDisplayService.showUnifiedPolicyDetails.bind(PolicyDisplayService);
+    static showUnifiedPolicyDetails =
+        PolicyDisplayService.showUnifiedPolicyDetails.bind(PolicyDisplayService);
     static showPolicyDetails = PolicyDisplayService.showPolicyDetails.bind(PolicyDisplayService);
 
     // Edición
-    static showEditCategoriesMenu = PolicyEditService.showEditCategoriesMenu.bind(PolicyEditService);
+    static showEditCategoriesMenu =
+        PolicyEditService.showEditCategoriesMenu.bind(PolicyEditService);
     static showPolicyDataEdit = PolicyEditService.showPolicyDataEdit.bind(PolicyEditService);
     static startFieldEdit = PolicyEditService.startFieldEdit.bind(PolicyEditService);
     static executeFieldChange = PolicyEditService.executeFieldChange.bind(PolicyEditService);
@@ -84,14 +93,20 @@ class PolicyHandler {
 
     // Eliminación
     static handlePolicyDelete = PolicyDeleteService.handlePolicyDelete.bind(PolicyDeleteService);
-    static handleDeleteConfirmation = PolicyDeleteService.handleDeleteConfirmation.bind(PolicyDeleteService);
-    static handleDeletionReason = PolicyDeleteService.handleDeletionReason.bind(PolicyDeleteService);
+    static handleDeleteConfirmation =
+        PolicyDeleteService.handleDeleteConfirmation.bind(PolicyDeleteService);
+    static handleDeletionReason =
+        PolicyDeleteService.handleDeletionReason.bind(PolicyDeleteService);
 
     // Restauración
-    static handlePolicyRestore = PolicyRestoreService.handlePolicyRestore.bind(PolicyRestoreService);
-    static handleRestoreConfirmation = PolicyRestoreService.handleRestoreConfirmation.bind(PolicyRestoreService);
-    static handleRestoreExecution = PolicyRestoreService.handleRestoreExecution.bind(PolicyRestoreService);
-    static showRecentDeletedPolicies = PolicyRestoreService.showRecentDeletedPolicies.bind(PolicyRestoreService);
+    static handlePolicyRestore =
+        PolicyRestoreService.handlePolicyRestore.bind(PolicyRestoreService);
+    static handleRestoreConfirmation =
+        PolicyRestoreService.handleRestoreConfirmation.bind(PolicyRestoreService);
+    static handleRestoreExecution =
+        PolicyRestoreService.handleRestoreExecution.bind(PolicyRestoreService);
+    static showRecentDeletedPolicies =
+        PolicyRestoreService.showRecentDeletedPolicies.bind(PolicyRestoreService);
 
     /**
      * Maneja mensajes de texto según el estado actual
@@ -144,11 +159,7 @@ class PolicyHandler {
         return await PolicyDisplayService.showUnifiedPolicyDetails(ctx, policyId);
     }
 
-    static async showSearchResults(
-        ctx: Context,
-        results: any[],
-        operation: string
-    ): Promise<void> {
+    static async showSearchResults(ctx: Context, results: any[], operation: string): Promise<void> {
         if (operation === 'delete') {
             await PolicySearchService.showSearchResultsForDelete(ctx, results);
         } else if (operation === 'restore') {
@@ -227,5 +238,11 @@ class PolicyHandler {
 
 // Exports
 export default PolicyHandler;
-export { PolicySearchService, PolicyDisplayService, PolicyEditService, PolicyDeleteService, PolicyRestoreService };
+export {
+    PolicySearchService,
+    PolicyDisplayService,
+    PolicyEditService,
+    PolicyDeleteService,
+    PolicyRestoreService
+};
 export * from './types';

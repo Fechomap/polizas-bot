@@ -57,7 +57,8 @@ class OcuparPolizaFlow extends BaseCommand {
         this.pendingLeyendas = StateKeyManager.createThreadSafeStateMap<string>();
         this.messageIds = StateKeyManager.createThreadSafeStateMap<number>();
         this.awaitingContactTime = StateKeyManager.createThreadSafeStateMap<string>();
-        this.scheduledServiceInfo = StateKeyManager.createThreadSafeStateMap<IScheduledServiceInfo>();
+        this.scheduledServiceInfo =
+            StateKeyManager.createThreadSafeStateMap<IScheduledServiceInfo>();
 
         // Inicializar steps con sus dependencias
         this.phoneStep = new PhoneStep({
@@ -132,15 +133,10 @@ class OcuparPolizaFlow extends BaseCommand {
             await this.showPolicyFiles(ctx, policy);
 
             // 2. Guardar en caché
-            this.polizaCache.set(
-                chatId,
-                { numeroPoliza, policy },
-                threadId
-            );
+            this.polizaCache.set(chatId, { numeroPoliza, policy }, threadId);
 
             // 3. Mostrar opciones de teléfono
             await this.showPhoneOptions(ctx, policy, numeroPoliza, chatId, threadId);
-
         } catch (error) {
             logger.error('Error en handleOcuparPoliza:', error);
             await ctx.reply('❌ Error al procesar ocupación de póliza.');
@@ -189,7 +185,7 @@ class OcuparPolizaFlow extends BaseCommand {
 
             await ctx.reply(
                 `📱 Ingresa el *número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
-                '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
+                    '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
                 { parse_mode: 'Markdown' }
             );
         }
@@ -211,11 +207,7 @@ class OcuparPolizaFlow extends BaseCommand {
     /**
      * Delega el manejo del origen al LocationStep
      */
-    async handleOrigen(
-        ctx: Context,
-        input: any,
-        threadId: string | null = null
-    ): Promise<boolean> {
+    async handleOrigen(ctx: Context, input: any, threadId: string | null = null): Promise<boolean> {
         return this.locationStep.handleOrigen(ctx, input, threadId);
     }
 

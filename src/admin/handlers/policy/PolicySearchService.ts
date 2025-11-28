@@ -125,7 +125,10 @@ _Búsqueda inteligente en pólizas activas._
                 // Si está eliminada → ofrecer restaurar
                 if (policy.estado === 'ELIMINADO') {
                     const PolicyRestoreService = (await import('./PolicyRestoreService')).default;
-                    await PolicyRestoreService.handleRestoreConfirmation(ctx, policy._id.toString());
+                    await PolicyRestoreService.handleRestoreConfirmation(
+                        ctx,
+                        policy._id.toString()
+                    );
                     return;
                 }
 
@@ -206,10 +209,7 @@ Encontradas: ${results.length} pólizas
                 : `admin_policy_unified_detail:${policy._id}`;
 
             buttons.push([
-                Markup.button.callback(
-                    `${statusIcon} ${policy.numeroPoliza}`,
-                    callbackAction
-                )
+                Markup.button.callback(`${statusIcon} ${policy.numeroPoliza}`, callbackAction)
             ]);
         });
 
@@ -313,9 +313,7 @@ Encontradas: ${results.length} pólizas
             ]);
         });
 
-        buttons.push([
-            Markup.button.callback('❌ Cancelar', 'admin_policy_menu')
-        ]);
+        buttons.push([Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]);
 
         await ctx.reply(resultText.trim(), {
             parse_mode: 'Markdown',
@@ -349,9 +347,7 @@ Encontradas: ${results.length} pólizas eliminadas
             ]);
         });
 
-        buttons.push([
-            Markup.button.callback('❌ Cancelar', 'admin_policy_menu')
-        ]);
+        buttons.push([Markup.button.callback('❌ Cancelar', 'admin_policy_menu')]);
 
         await ctx.reply(resultText.trim(), {
             parse_mode: 'Markdown',

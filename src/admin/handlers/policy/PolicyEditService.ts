@@ -51,7 +51,12 @@ class PolicyEditService {
             `.trim();
 
             const keyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('📝 Cambiar Número', `admin_edit_field:numeroPoliza:${policyId}`)],
+                [
+                    Markup.button.callback(
+                        '📝 Cambiar Número',
+                        `admin_edit_field:numeroPoliza:${policyId}`
+                    )
+                ],
                 [Markup.button.callback('⬅️ Volver', `admin_policy_unified_detail:${policyId}`)]
             ]);
 
@@ -132,15 +137,25 @@ Escribe el nuevo valor:
 
             await ctx.reply(
                 `✅ *Campo actualizado exitosamente*\n\n` +
-                `**Póliza:** ${policy.numeroPoliza}\n` +
-                `**Campo:** ${displayName}\n` +
-                `**Anterior:** ${oldValue || 'No definido'}\n` +
-                `**Nuevo:** ${newValue}`,
+                    `**Póliza:** ${policy.numeroPoliza}\n` +
+                    `**Campo:** ${displayName}\n` +
+                    `**Anterior:** ${oldValue || 'No definido'}\n` +
+                    `**Nuevo:** ${newValue}`,
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
-                        [Markup.button.callback('✏️ Seguir editando', `admin_edit_policy:${policyId}`)],
-                        [Markup.button.callback('⬅️ Volver', `admin_policy_unified_detail:${policyId}`)]
+                        [
+                            Markup.button.callback(
+                                '✏️ Seguir editando',
+                                `admin_edit_policy:${policyId}`
+                            )
+                        ],
+                        [
+                            Markup.button.callback(
+                                '⬅️ Volver',
+                                `admin_policy_unified_detail:${policyId}`
+                            )
+                        ]
                     ])
                 }
             );

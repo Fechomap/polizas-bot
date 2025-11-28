@@ -18,7 +18,7 @@ export class PolicyRepositoryMongo implements IPolicyRepository {
         return new PolicyEntity({
             numeroPoliza: doc.numeroPoliza,
             titular: doc.titular,
-            estado: doc.estado as 'ACTIVO' | 'INACTIVO' | 'ELIMINADO',
+            estado: doc.estado,
             diasRestantesGracia: doc.diasRestantesGracia,
             servicios: doc.servicios,
             registros: doc.registros,

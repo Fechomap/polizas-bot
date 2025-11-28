@@ -95,7 +95,7 @@ class LegendService {
             destinoCoords
         );
 
-        const leyenda = (
+        const leyenda =
             '⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️⚡️\n' +
             `🔥 A L E R T A.    ${policy.aseguradora} 🔥\n` +
             '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n\n' +
@@ -105,8 +105,7 @@ class LegendService {
             `🗺️ ${googleMapsUrl}\n\n` +
             '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀\n' +
             '🌟 S E R V I C I O     A C T I V O 🌟\n' +
-            '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀'
-        );
+            '🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀';
 
         return {
             leyenda,
@@ -161,7 +160,10 @@ class LegendService {
             }
 
             await delay(250);
-            await telegram.sendMessage(targetGroupId, `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`);
+            await telegram.sendMessage(
+                targetGroupId,
+                `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`
+            );
 
             await delay(250);
             await telegram.sendMessage(targetGroupId, '🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣');
@@ -212,7 +214,10 @@ class LegendService {
             }
 
             await delay(250);
-            await telegram.sendMessage(targetGroupId, `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`);
+            await telegram.sendMessage(
+                targetGroupId,
+                `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`
+            );
 
             await delay(250);
             await telegram.sendMessage(targetGroupId, '🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵');

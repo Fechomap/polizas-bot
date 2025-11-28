@@ -83,8 +83,14 @@ class PolicyDisplayService {
 
             const buttons = [
                 [
-                    Markup.button.callback('✏️ Editar', `admin_policy_edit_categories:${policy._id}`),
-                    Markup.button.callback('🗑️ Eliminar', `admin_policy_delete_confirm:${policy._id}`)
+                    Markup.button.callback(
+                        '✏️ Editar',
+                        `admin_policy_edit_categories:${policy._id}`
+                    ),
+                    Markup.button.callback(
+                        '🗑️ Eliminar',
+                        `admin_policy_delete_confirm:${policy._id}`
+                    )
                 ],
                 [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
             ];
@@ -156,8 +162,14 @@ Color: ${policy.color || 'Sin color'}
 
             const buttons = [
                 [
-                    Markup.button.callback('✏️ Editar', `admin_policy_edit_categories:${policy._id}`),
-                    Markup.button.callback('🗑️ Eliminar', `admin_policy_delete_confirm:${policy._id}`)
+                    Markup.button.callback(
+                        '✏️ Editar',
+                        `admin_policy_edit_categories:${policy._id}`
+                    ),
+                    Markup.button.callback(
+                        '🗑️ Eliminar',
+                        `admin_policy_delete_confirm:${policy._id}`
+                    )
                 ],
                 [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
             ];
@@ -171,8 +183,6 @@ Color: ${policy.color || 'Sin color'}
             await ctx.reply('❌ Error al mostrar los detalles.');
         }
     }
-
 }
-
 
 export default PolicyDisplayService;

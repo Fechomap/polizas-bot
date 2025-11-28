@@ -80,8 +80,8 @@ class PhoneStep {
                 // Mensaje con botón de WhatsApp
                 await ctx.reply(
                     `✅ Se mantendrá el número: *${policy.telefono}*\n\n` +
-                    `📱 Puedes enviar la información por WhatsApp:\n\n` +
-                    `📍indica *ORIGEN*`,
+                        `📱 Puedes enviar la información por WhatsApp:\n\n` +
+                        `📍indica *ORIGEN*`,
                     {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
@@ -122,7 +122,7 @@ class PhoneStep {
 
                 await ctx.reply(
                     `📱 Ingresa el *nuevo número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
-                    '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
+                        '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
                     { parse_mode: 'Markdown' }
                 );
 
@@ -165,7 +165,9 @@ class PhoneStep {
                 if (!numeroPoliza) {
                     logger.error('Número de póliza no encontrado en handlePhoneNumber');
                     this.awaitingPhoneNumber.delete(chatId, threadId);
-                    await ctx.reply('❌ Error: Número de póliza no encontrado. Operación cancelada.');
+                    await ctx.reply(
+                        '❌ Error: Número de póliza no encontrado. Operación cancelada.'
+                    );
                     return true;
                 }
                 policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
@@ -174,7 +176,9 @@ class PhoneStep {
             if (!policy) {
                 logger.error(`Póliza no encontrada: ${numeroPoliza}`);
                 this.awaitingPhoneNumber.delete(chatId, threadId);
-                await ctx.reply(`❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`);
+                await ctx.reply(
+                    `❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`
+                );
                 return true;
             }
 
@@ -198,9 +202,10 @@ class PhoneStep {
             logger.info(`Teléfono actualizado para póliza ${numeroPoliza}: ${messageText}`);
 
             // Obtener último servicio
-            const ultimoServicio = policy.servicios && policy.servicios.length > 0
-                ? policy.servicios[policy.servicios.length - 1]
-                : null;
+            const ultimoServicio =
+                policy.servicios && policy.servicios.length > 0
+                    ? policy.servicios[policy.servicios.length - 1]
+                    : null;
 
             // Obtener origen/destino del último servicio
             let origenDestinoUltimo = '';
@@ -238,8 +243,8 @@ class PhoneStep {
             // Mensaje con botón de WhatsApp
             await ctx.reply(
                 `✅ Teléfono *${messageText}* asignado a la póliza *${numeroPoliza}*\n\n` +
-                `📱 Puedes enviar la información por WhatsApp:\n\n` +
-                `📍indica *ORIGEN*`,
+                    `📱 Puedes enviar la información por WhatsApp:\n\n` +
+                    `📍indica *ORIGEN*`,
                 {
                     parse_mode: 'Markdown',
                     ...Markup.inlineKeyboard([
@@ -262,9 +267,10 @@ class PhoneStep {
      */
     private generateWhatsAppData(policy: IPolicy) {
         // Obtener último servicio
-        const ultimoServicio = policy.servicios && policy.servicios.length > 0
-            ? policy.servicios[policy.servicios.length - 1]
-            : null;
+        const ultimoServicio =
+            policy.servicios && policy.servicios.length > 0
+                ? policy.servicios[policy.servicios.length - 1]
+                : null;
 
         // Obtener origen/destino del último servicio
         let origenDestinoUltimo = '';
