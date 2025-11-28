@@ -6,7 +6,11 @@
 
 import { Context, Markup } from 'telegraf';
 import logger from '../../../utils/logger';
-import { getPolicyByNumber, updatePolicyPhone } from '../../../controllers/policyController';
+import {
+    getPolicyByNumber,
+    updatePolicyPhone,
+    findPoliciesByPhone
+} from '../../../controllers/policyController';
 import StateKeyManager from '../../../utils/StateKeyManager';
 import { whatsAppService, IPolicyInfo } from '../../../services/whatsapp';
 import type { IPolicy } from '../../../types/database';
@@ -25,12 +29,14 @@ class PhoneStep {
     private awaitingPhoneNumber: IThreadSafeStateMap<string>;
     private awaitingOrigen: IThreadSafeStateMap<string>;
     private polizaCache: IThreadSafeStateMap<IPolicyCacheData>;
+    private phoneAttempts: IThreadSafeStateMap<number>;
 
     constructor(deps: IPhoneStepDependencies) {
         this.bot = deps.bot;
         this.awaitingPhoneNumber = deps.awaitingPhoneNumber;
         this.awaitingOrigen = deps.awaitingOrigen;
         this.polizaCache = deps.polizaCache;
+        this.phoneAttempts = StateKeyManager.createThreadSafeStateMap<number>();
     }
 
     /**
@@ -77,18 +83,12 @@ class PhoneStep {
                 const whatsappData = this.generateWhatsAppData(policy);
                 const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
-                // Mensaje con botón de WhatsApp
-                await ctx.reply(
-                    `✅ Se mantendrá el número: *${policy.telefono}*\n\n` +
-                        `📱 Puedes enviar la información por WhatsApp:\n\n` +
-                        `📍indica *ORIGEN*`,
-                    {
-                        parse_mode: 'Markdown',
-                        ...Markup.inlineKeyboard([
-                            [Markup.button.url(whatsappButton.text, whatsappButton.url)]
-                        ])
-                    }
-                );
+                await ctx.reply(`✅ Número: *${policy.telefono}*\n\n📍indica *ORIGEN*`, {
+                    parse_mode: 'Markdown',
+                    ...Markup.inlineKeyboard([
+                        [Markup.button.url(whatsappButton.text, whatsappButton.url)]
+                    ])
+                });
             } catch (error) {
                 logger.error('Error en callback keepPhone:', error);
                 await ctx.reply('❌ Error al procesar la acción.');
@@ -120,11 +120,9 @@ class PhoneStep {
                 // Establecer estado de espera de nuevo teléfono
                 this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
 
-                await ctx.reply(
-                    `📱 Ingresa el *nuevo número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
-                        '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
-                    { parse_mode: 'Markdown' }
-                );
+                await ctx.reply(`📱 Ingresa el *número telefónico* (10 dígitos):`, {
+                    parse_mode: 'Markdown'
+                });
 
                 logger.info(`[changePhone] Esperando nuevo teléfono para ${numeroPoliza}`);
             } catch (error) {
@@ -150,10 +148,24 @@ class PhoneStep {
         // Validar formato del teléfono
         const regexTel = /^\d{10}$/;
         if (!regexTel.test(messageText)) {
-            this.awaitingPhoneNumber.delete(chatId, threadId);
-            await ctx.reply('❌ Teléfono inválido (requiere 10 dígitos). Proceso cancelado.');
+            const attempts = (this.phoneAttempts.get(chatId, threadId) || 0) + 1;
+            this.phoneAttempts.set(chatId, attempts, threadId);
+
+            if (attempts >= 2) {
+                // Segundo intento fallido - cancelar
+                this.awaitingPhoneNumber.delete(chatId, threadId);
+                this.phoneAttempts.delete(chatId, threadId);
+                await ctx.reply('❌ Teléfono inválido. Proceso cancelado.');
+                return true;
+            }
+
+            // Primer intento fallido - dar otra oportunidad
+            await ctx.reply('❌ Teléfono inválido (10 dígitos). Intenta de nuevo:');
             return true;
         }
+
+        // Teléfono válido - limpiar contador de intentos
+        this.phoneAttempts.delete(chatId, threadId);
 
         try {
             let policy: IPolicy;
@@ -182,7 +194,28 @@ class PhoneStep {
                 return true;
             }
 
-            // Actualizar teléfono en la BD
+            // VALIDACIÓN INFORMATIVA: Verificar si el teléfono ya está en uso
+            const polizasConMismoTelefono = await findPoliciesByPhone(
+                messageText,
+                policy.numeroPoliza
+            );
+
+            if (polizasConMismoTelefono.length > 0) {
+                const polizasInfo = polizasConMismoTelefono
+                    .map(p => `• *${p.numeroPoliza}* - ${p.titular || 'Sin titular'}`)
+                    .join('\n');
+
+                await ctx.reply(`⚠️ *Teléfono en uso:*\n${polizasInfo}`, {
+                    parse_mode: 'Markdown'
+                });
+
+                logger.warn(`Teléfono ${messageText} duplicado`, {
+                    nuevaPoliza: policy.numeroPoliza,
+                    existentes: polizasConMismoTelefono.map(p => p.numeroPoliza)
+                });
+            }
+
+            // Actualizar teléfono en la BD (continúa aunque esté duplicado)
             const updatedPolicy = await updatePolicyPhone(policy.numeroPoliza, messageText);
             if (!updatedPolicy) {
                 throw new Error('No se pudo actualizar el teléfono en la base de datos');
@@ -240,18 +273,12 @@ class PhoneStep {
             const whatsappData = whatsAppService.generatePolicyWhatsApp(policyInfo);
             const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
-            // Mensaje con botón de WhatsApp
-            await ctx.reply(
-                `✅ Teléfono *${messageText}* asignado a la póliza *${numeroPoliza}*\n\n` +
-                    `📱 Puedes enviar la información por WhatsApp:\n\n` +
-                    `📍indica *ORIGEN*`,
-                {
-                    parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                        [Markup.button.url(whatsappButton.text, whatsappButton.url)]
-                    ])
-                }
-            );
+            await ctx.reply(`✅ Número: *${messageText}*\n\n📍indica *ORIGEN*`, {
+                parse_mode: 'Markdown',
+                ...Markup.inlineKeyboard([
+                    [Markup.button.url(whatsappButton.text, whatsappButton.url)]
+                ])
+            });
 
             return true;
         } catch (error) {

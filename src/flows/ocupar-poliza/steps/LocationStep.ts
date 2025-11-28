@@ -8,6 +8,7 @@ import { Context, Markup } from 'telegraf';
 import logger from '../../../utils/logger';
 import { getPolicyByNumber } from '../../../controllers/policyController';
 import flowStateManager from '../../../utils/FlowStateManager';
+import { whatsAppService } from '../../../services/whatsapp';
 import type { IPolicy } from '../../../types/database';
 import type { IThreadSafeStateMap } from '../../../utils/StateKeyManager';
 import type { ICoordinates, IPolicyCacheData, IEnhancedLegendData } from '../types';
@@ -195,27 +196,34 @@ class LocationStep {
             // Mensaje de confirmación con opciones de servicio
             const responseMessage = this.buildDestinationResponse(destinoCoords, rutaInfo);
 
-            await ctx.reply(
-                responseMessage +
-                    '✅ *Leyenda enviada al grupo de servicios.*\n\n' +
-                    '🚗 ¿Deseas registrar un servicio?',
-                {
-                    parse_mode: 'Markdown',
-                    link_preview_options: { is_disabled: true },
-                    ...Markup.inlineKeyboard([
-                        [
-                            Markup.button.callback(
-                                '✅ Registrar Servicio',
-                                `registrar_servicio_${numeroPoliza}`
-                            ),
-                            Markup.button.callback(
-                                '❌ No registrar',
-                                `no_registrar_${numeroPoliza}`
-                            )
-                        ]
-                    ])
-                }
+            // Generar URLs de WhatsApp directamente
+            const telefono = policy.telefono || '';
+            const waOrigenUrl = whatsAppService.generateWhatsAppUrl(
+                telefono,
+                `${origenCoords.lat}, ${origenCoords.lng}`
             );
+            const waDestinoUrl = whatsAppService.generateWhatsAppUrl(
+                telefono,
+                `${destinoCoords.lat}, ${destinoCoords.lng}`
+            );
+
+            await ctx.reply(responseMessage, {
+                parse_mode: 'Markdown',
+                link_preview_options: { is_disabled: true },
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(
+                            '✅ Registrar Servicio',
+                            `registrar_servicio_${numeroPoliza}`
+                        ),
+                        Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
+                    ],
+                    [
+                        Markup.button.url('📍 WA Origen', waOrigenUrl),
+                        Markup.button.url('📍 WA Destino', waDestinoUrl)
+                    ]
+                ])
+            });
 
             // Limpiar estados
             this.pendingLeyendas.delete(chatId, threadId);

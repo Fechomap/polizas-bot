@@ -92,6 +92,33 @@ export const updatePolicyPhone = async (
     return updatedPolicy;
 };
 
+/**
+ * Busca pólizas activas que tengan un número de teléfono específico
+ * @param telefono - Número de teléfono a buscar
+ * @param excludePoliza - Número de póliza a excluir de la búsqueda (opcional)
+ * @returns Array de pólizas que tienen ese teléfono
+ */
+export const findPoliciesByPhone = async (
+    telefono: string,
+    excludePoliza?: string
+): Promise<IPolicy[]> => {
+    const query: any = {
+        telefono: telefono.trim(),
+        estado: 'ACTIVO'
+    };
+
+    // Excluir la póliza actual si se proporciona
+    if (excludePoliza) {
+        query.numeroPoliza = { $ne: excludePoliza.trim().toUpperCase() };
+    }
+
+    const policies = await Policy.find(query)
+        .select('numeroPoliza titular marca submarca año color placas telefono')
+        .lean();
+
+    return policies as IPolicy[];
+};
+
 export const addFileToPolicy = async (
     numeroPoliza: string,
     fileBuffer: Buffer,

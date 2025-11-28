@@ -6,6 +6,7 @@ import type { Context } from 'telegraf';
 import type { BotContext } from '../../../types';
 import { vehiculosEnProceso } from './VehicleRegistrationHandler';
 import { asignacionesEnProceso } from './PolicyAssignmentHandler';
+import flowStateManager from '../../utils/FlowStateManager';
 
 interface ICommand {
     getCommandName(): string;
@@ -305,6 +306,16 @@ export class TextMessageHandler extends BaseCommand {
                                 stateKey
                             });
                         }
+                    }
+
+                    // LIMPIAR ESTADOS DE FLUJO OCUPAR PÓLIZA (FlowStateManager)
+                    if (chatId) {
+                        const threadIdStr = threadId ? String(threadId) : null;
+                        flowStateManager.clearAllStates(chatId, threadIdStr);
+                        this.logInfo('🔄 Estados de flujo Ocupar Póliza limpiados', {
+                            chatId,
+                            threadId: threadIdStr || 'ninguno'
+                        });
                     }
 
                     // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO (igual que /start)

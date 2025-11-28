@@ -37,13 +37,13 @@ class FlowStateManager implements IStateProvider {
 
         logger.info('FlowStateManager inicializado');
 
-        // Registrar en el servicio de limpieza si está disponible
-        try {
-            const stateCleanupService = require('./StateCleanupService').default;
-            stateCleanupService.registerStateProvider(this, 'FlowStateManager');
-        } catch (error: any) {
-            logger.warn('No se pudo registrar en StateCleanupService:', error.message);
-        }
+        // NOTA: FlowStateManager NO se registra en StateCleanupService
+        // Los estados del flujo de Ocupar Póliza deben persistir indefinidamente
+        // hasta que el usuario complete el flujo, cancele, o presione MENÚ PRINCIPAL.
+        // La limpieza manual se realiza en:
+        // - OcuparPolizaFlow.cleanupAllStates()
+        // - TextMessageHandler (botón MENÚ PRINCIPAL)
+        // - StartCommand (/start)
     }
 
     private _getContextKey(chatId: string | number, threadId?: string | null): string {
@@ -71,10 +71,14 @@ class FlowStateManager implements IStateProvider {
             this.flowStates.set(contextKey, new Map());
         }
 
-        // Guardar los datos para esta póliza
+        // Obtener estado existente para hacer merge
+        const existingState = this.flowStates.get(contextKey)!.get(numeroPoliza);
+
+        // Hacer merge del estado existente con los nuevos datos
         this.flowStates.get(contextKey)!.set(numeroPoliza, {
-            ...stateData,
-            createdAt: new Date() // Para poder implementar TTL si es necesario
+            ...existingState, // Mantener datos existentes
+            ...stateData, // Agregar/sobrescribir con nuevos datos
+            createdAt: existingState?.createdAt || new Date() // Preservar timestamp original
         });
 
         logger.debug('Estado guardado:', { chatId, numeroPoliza, threadId, stateData });

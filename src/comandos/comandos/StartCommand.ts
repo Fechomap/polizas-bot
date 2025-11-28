@@ -3,6 +3,7 @@ import StateKeyManager from '../../utils/StateKeyManager';
 import { getPersistentMenuKeyboard } from '../teclados';
 import { vehiculosEnProceso } from './VehicleRegistrationHandler';
 import { asignacionesEnProceso } from './PolicyAssignmentHandler';
+import flowStateManager from '../../utils/FlowStateManager';
 
 // Import AdminStateManager
 const AdminStateManager = require('../../admin/utils/adminStates').default;
@@ -47,6 +48,16 @@ class StartCommand extends BaseCommand {
                         asignacionesEnProceso.delete(stateKey);
                         this.logInfo('📄 Estado de asignación de póliza limpiado', { stateKey });
                     }
+                }
+
+                // LIMPIAR ESTADOS DE FLUJO OCUPAR PÓLIZA (FlowStateManager)
+                if (chatId) {
+                    const threadIdStr = threadId ? String(threadId) : null;
+                    flowStateManager.clearAllStates(chatId, threadIdStr);
+                    this.logInfo('🔄 Estados de flujo Ocupar Póliza limpiados', {
+                        chatId,
+                        threadId: threadIdStr || 'ninguno'
+                    });
                 }
 
                 // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO

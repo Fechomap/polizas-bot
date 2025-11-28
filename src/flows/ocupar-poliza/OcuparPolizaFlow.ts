@@ -183,11 +183,9 @@ class OcuparPolizaFlow extends BaseCommand {
         } else {
             handler.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
 
-            await ctx.reply(
-                `📱 Ingresa el *número telefónico* (10 dígitos) para la póliza *${numeroPoliza}*.\n` +
-                    '⏱️ Si no respondes o ingresas comando en 1 min, se cancelará.',
-                { parse_mode: 'Markdown' }
-            );
+            await ctx.reply(`📱 Ingresa el *número telefónico* (10 dígitos):`, {
+                parse_mode: 'Markdown'
+            });
         }
     }
 
