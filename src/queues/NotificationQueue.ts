@@ -7,6 +7,7 @@ import ScheduledNotification from '../models/scheduledNotification';
 import { Telegraf } from 'telegraf';
 
 import { getPolicyByNumber } from '../controllers/policyController';
+import { getInstance as getStorageInstance } from '../services/CloudflareStorage';
 
 // Helper para enviar mensaje con timeout
 async function sendMessageWithTimeout(
@@ -34,7 +35,7 @@ async function sendMessageWithTimeout(
     });
 }
 
-// Helper para enviar fotos
+// Helper para enviar fotos con URLs firmadas
 async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void> {
     try {
         if (!notification.numeroPoliza) return;
@@ -44,11 +45,17 @@ async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void
         const fotos = policy.archivos?.r2Files?.fotos || [];
         if (fotos.length === 0) return;
 
+        const storage = getStorageInstance();
         const fotosAEnviar = fotos.slice(0, 2);
+
         for (let i = 0; i < fotosAEnviar.length; i++) {
             const foto = fotosAEnviar[i];
             const caption = `📸 ${notification.numeroPoliza} - ${notification.marcaModelo || 'Vehículo'} (${i + 1}/${fotosAEnviar.length})`;
-            await bot.telegram.sendPhoto(notification.targetGroupId, foto.url, { caption });
+
+            // Usar URL firmada (válida por 1 hora) en lugar de URL pública
+            const signedUrl = await storage.getSignedUrl(foto.key, 3600);
+            await bot.telegram.sendPhoto(notification.targetGroupId, signedUrl, { caption });
+
             if (i < fotosAEnviar.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
