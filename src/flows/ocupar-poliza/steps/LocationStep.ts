@@ -190,18 +190,26 @@ class LocationStep {
             this.sendLegendToGroupAsync(ctx, policy, enhancedData);
 
             // Mensaje de confirmación con opciones de servicio
-            const responseMessage = this.buildDestinationResponse(destinoCoords, rutaInfo);
+            const responseMessage = this.buildDestinationResponse(enhancedData, rutaInfo);
 
             // Generar URLs de WhatsApp directamente
             const telefono = policy.telefono || '';
-            const waOrigenUrl = whatsAppService.generateWhatsAppUrl(
+
+            // URLs para coordenadas
+            const waOrigenCoordsUrl = whatsAppService.generateWhatsAppUrl(
                 telefono,
                 `${origenCoords.lat}, ${origenCoords.lng}`
             );
-            const waDestinoUrl = whatsAppService.generateWhatsAppUrl(
+            const waDestinoCoordsUrl = whatsAppService.generateWhatsAppUrl(
                 telefono,
                 `${destinoCoords.lat}, ${destinoCoords.lng}`
             );
+
+            // URLs para direcciones geocodificadas (dirección completa)
+            const origenDir = enhancedData.origenGeo?.direccionCompleta || enhancedData.origenGeo?.ubicacionCorta || 'Origen';
+            const destinoDir = enhancedData.destinoGeo?.direccionCompleta || enhancedData.destinoGeo?.ubicacionCorta || 'Destino';
+            const waOrigenDirUrl = whatsAppService.generateWhatsAppUrl(telefono, origenDir);
+            const waDestinoDirUrl = whatsAppService.generateWhatsAppUrl(telefono, destinoDir);
 
             await ctx.reply(responseMessage, {
                 parse_mode: 'Markdown',
@@ -215,8 +223,12 @@ class LocationStep {
                         Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
                     ],
                     [
-                        Markup.button.url('📍 WA Origen', waOrigenUrl),
-                        Markup.button.url('📍 WA Destino', waDestinoUrl)
+                        Markup.button.url('📍 Coords Origen', waOrigenCoordsUrl),
+                        Markup.button.url('📍 Coords Destino', waDestinoCoordsUrl)
+                    ],
+                    [
+                        Markup.button.url('🏠 Dir. Origen', waOrigenDirUrl),
+                        Markup.button.url('🏠 Dir. Destino', waDestinoDirUrl)
                     ]
                 ])
             });
@@ -317,11 +329,25 @@ class LocationStep {
     /**
      * Construye el mensaje de respuesta para el destino
      */
-    private buildDestinationResponse(destinoCoords: ICoordinates, rutaInfo: any): string {
+    private buildDestinationResponse(enhancedData: IEnhancedLegendData, rutaInfo: any): string {
         let responseMessage = '';
 
+        // Mostrar direcciones geocodificadas (dirección completa)
+        if (enhancedData.origenGeo || enhancedData.destinoGeo) {
+            responseMessage = '📍 *Ubicaciones:*\n';
+            if (enhancedData.origenGeo) {
+                const origenText = enhancedData.origenGeo.direccionCompleta || enhancedData.origenGeo.ubicacionCorta;
+                responseMessage += `🔹 Origen: ${origenText}\n`;
+            }
+            if (enhancedData.destinoGeo) {
+                const destinoText = enhancedData.destinoGeo.direccionCompleta || enhancedData.destinoGeo.ubicacionCorta;
+                responseMessage += `🔹 Destino: ${destinoText}\n`;
+            }
+            responseMessage += '\n';
+        }
+
         if (rutaInfo) {
-            responseMessage =
+            responseMessage +=
                 '🗺️ *Información de ruta:*\n' +
                 `📏 Distancia: ${rutaInfo.distanciaKm} km\n` +
                 `⏱️ Tiempo estimado: ${rutaInfo.tiempoMinutos} minutos`;

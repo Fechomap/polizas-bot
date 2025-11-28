@@ -27,7 +27,7 @@ class LegendService {
     ): Promise<IEnhancedLegendData> {
         try {
             // Realizar geocoding reverso para origen y destino
-            const [origenGeo, destinoGeo] = await Promise.all([
+            const [origenGeoRaw, destinoGeoRaw] = await Promise.all([
                 this.hereMapsService.reverseGeocode(origenCoords.lat, origenCoords.lng),
                 this.hereMapsService.reverseGeocode(destinoCoords.lat, destinoCoords.lng)
             ]);
@@ -37,6 +37,29 @@ class LegendService {
                 origenCoords,
                 destinoCoords
             );
+
+            // Mapear a IGeocodingInfo con todos los campos
+            const origenGeo: IGeocodingInfo = {
+                ubicacionCorta: origenGeoRaw.ubicacionCorta,
+                direccionCompleta: origenGeoRaw.direccionCompleta,
+                colonia: origenGeoRaw.colonia,
+                municipio: origenGeoRaw.municipio,
+                estado: origenGeoRaw.estado,
+                pais: origenGeoRaw.pais,
+                codigoPostal: origenGeoRaw.codigoPostal,
+                fallback: origenGeoRaw.fallback
+            };
+
+            const destinoGeo: IGeocodingInfo = {
+                ubicacionCorta: destinoGeoRaw.ubicacionCorta,
+                direccionCompleta: destinoGeoRaw.direccionCompleta,
+                colonia: destinoGeoRaw.colonia,
+                municipio: destinoGeoRaw.municipio,
+                estado: destinoGeoRaw.estado,
+                pais: destinoGeoRaw.pais,
+                codigoPostal: destinoGeoRaw.codigoPostal,
+                fallback: destinoGeoRaw.fallback
+            };
 
             // Formato de ubicación simplificado: "Colonia - Municipio"
             const origenTexto = origenGeo.ubicacionCorta.toUpperCase();

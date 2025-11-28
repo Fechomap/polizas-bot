@@ -90,15 +90,14 @@ class WhatsAppService {
     buildPolicyMessage(policy: IPolicyInfo, serviceInfo?: IServiceInfo): string {
         const lines: string[] = [];
 
-        // Encabezado
-        lines.push('📋 *Información de la Póliza*');
+        // Aseguradora primero
+        if (policy.aseguradora) lines.push(policy.aseguradora);
         lines.push(`Número: ${policy.numeroPoliza}`);
         lines.push(`Titular: ${policy.titular}`);
-        lines.push(`📞 Cel: ${policy.telefono}`);
+        lines.push(`Cel: ${policy.telefono}`);
         lines.push('');
 
         // Datos del vehículo
-        lines.push('🚗 *Datos del Vehículo:*');
         if (policy.marca) lines.push(`Marca: ${policy.marca}`);
         if (policy.submarca) lines.push(`Submarca: ${policy.submarca}`);
         if (policy.año) lines.push(`Año: ${policy.año}`);
@@ -107,37 +106,20 @@ class WhatsAppService {
         if (policy.placas) lines.push(`Placas: ${policy.placas}`);
         lines.push('');
 
-        // Aseguradora y agente
-        if (policy.aseguradora) lines.push(`Aseguradora: ${policy.aseguradora}`);
-        if (policy.agenteCotizador) lines.push(`Agente: ${policy.agenteCotizador}`);
-        lines.push('');
-
         // Servicios
         if (policy.totalServicios !== undefined) {
             lines.push(`Servicios: ${policy.totalServicios}`);
         }
-
-        if (policy.ultimoServicio) {
-            const fechaFormateada = this.formatDate(policy.ultimoServicio);
-            if (fechaFormateada) {
-                lines.push(`Último Servicio: ${fechaFormateada}`);
-            }
-        }
-
-        if (policy.origenDestinoUltimo) {
-            lines.push(`Origen/Destino: ${policy.origenDestinoUltimo}`);
-        }
         lines.push('');
 
         // Pagos
-        if (policy.totalPagos !== undefined && policy.totalPagos > 0) {
-            lines.push(`Pagos: ${policy.totalPagos} pago(s)`);
+        if (policy.totalPagos !== undefined) {
+            lines.push(`Pagos: ${policy.totalPagos}`);
         }
 
         // Información del servicio actual (si existe)
         if (serviceInfo) {
             lines.push('');
-            lines.push('📍 *Servicio Actual:*');
             if (serviceInfo.expediente) {
                 lines.push(`Expediente: ${serviceInfo.expediente}`);
             }

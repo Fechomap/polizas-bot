@@ -34,9 +34,13 @@ export interface IPolicyCacheData {
 // Información de geocoding
 export interface IGeocodingInfo {
     ubicacionCorta: string;
+    direccionCompleta?: string;
+    colonia?: string;
+    municipio?: string;
     ciudad?: string;
     estado?: string;
     pais?: string;
+    codigoPostal?: string;
     fallback?: boolean;
 }
 
