@@ -12,6 +12,7 @@ interface ICommand {
     getCommandName(): string;
     procesarMensajeBaseAutos?: (message: any, userId: string) => Promise<boolean>;
     procesarDocumentoBaseAutos?: (message: any, userId: string) => Promise<boolean>;
+    procesarFotoBaseAutos?: (message: any, userId: string) => Promise<boolean>;
     handleOrigen?: (ctx: Context, message: any, threadId: number | string | null) => Promise<void>;
     handleDestino?: (ctx: Context, message: any, threadId: number | string | null) => Promise<void>;
     handlePhoneNumber?: (
@@ -175,9 +176,9 @@ export class TextMessageHandler extends BaseCommand {
 
                 if (
                     baseAutosCommand &&
-                    typeof baseAutosCommand.procesarMensajeBaseAutos === 'function'
+                    typeof baseAutosCommand.procesarFotoBaseAutos === 'function'
                 ) {
-                    const procesadoPorBaseAutos = await baseAutosCommand.procesarMensajeBaseAutos(
+                    const procesadoPorBaseAutos = await baseAutosCommand.procesarFotoBaseAutos(
                         ctx.message,
                         userId
                     );

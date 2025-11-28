@@ -13,6 +13,7 @@ dist/
 
 # Testing
 coverage/
+tests/fixtures/
 
 # Claude AI
 .claude/

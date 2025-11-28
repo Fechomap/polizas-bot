@@ -1,11 +1,33 @@
 // src/comandos/comandos/BaseAutosCommand.ts
+// Comando principal para Base de Autos - REFACTORIZADO
+// Los callbacks están separados en módulos dedicados
+
 import BaseCommand from './BaseCommand';
 import { VehicleRegistrationHandler } from './VehicleRegistrationHandler';
+import { VehicleOCRHandler } from './VehicleOCRHandler';
 import { PolicyAssignmentHandler } from './PolicyAssignmentHandler';
 import { getBaseAutosKeyboard, getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
+
+// Callbacks separados
+import {
+    registerVehicleOCRCallbacks,
+    procesarTextoOCRVehiculo,
+    procesarFotoOCRVehiculo
+} from './VehicleOCRCallbacks';
+import {
+    registerVehicleRegistrationCallbacks,
+    procesarMensajeRegistroManual
+} from './VehicleRegistrationCallbacks';
+import {
+    registerPolicyAssignmentCallbacks,
+    procesarTextoOCRPoliza,
+    procesarMensajeAsignacionLegacy,
+    procesarDocumentoOCRPoliza,
+    procesarDocumentoAsignacionLegacy
+} from './PolicyAssignmentCallbacks';
+
 import type { IBaseHandler, NavigationContext } from './BaseCommand';
-import type { Context } from 'telegraf';
 
 interface TelegramMessage {
     chat: {
@@ -27,7 +49,7 @@ interface BaseAutosHandler extends IBaseHandler {
 
 /**
  * Comando principal para Base de Autos
- * Maneja ambos flujos: registro de autos y asignación de pólizas
+ * Maneja el menú y delega los callbacks a módulos especializados
  */
 class BaseAutosCommand extends BaseCommand {
     constructor(handler: BaseAutosHandler) {
@@ -43,6 +65,23 @@ class BaseAutosCommand extends BaseCommand {
     }
 
     register(): void {
+        // === MENÚ PRINCIPAL ===
+        this.registerMainMenu();
+
+        // === CALLBACKS DE REGISTRO DE VEHÍCULOS ===
+        this.registerVehicleCallbacks();
+
+        // === CALLBACKS DE ASIGNACIÓN DE PÓLIZAS ===
+        this.registerPolicyCallbacks();
+
+        // === NAVEGACIÓN GENERAL ===
+        this.registerNavigationCallbacks();
+    }
+
+    /**
+     * Registra el menú principal de Base de Autos
+     */
+    private registerMainMenu(): void {
         // Acción principal del botón Base de Autos
         this.bot.action('accion:base_autos', async (ctx: NavigationContext) => {
             try {
@@ -67,12 +106,16 @@ class BaseAutosCommand extends BaseCommand {
                 } catch {}
             }
         });
+    }
 
-        // Registrar Auto (Persona 1)
+    /**
+     * Registra todos los callbacks de vehículos
+     */
+    private registerVehicleCallbacks(): void {
+        // Opciones de registro (OCR vs Manual)
         this.bot.action('base_autos:registrar', async (ctx: NavigationContext) => {
             try {
                 await ctx.answerCbQuery();
-                await ctx.deleteMessage();
 
                 const userId = ctx.from?.id;
                 const chatId = ctx.chat?.id;
@@ -83,37 +126,70 @@ class BaseAutosCommand extends BaseCommand {
                     return;
                 }
 
-                // Convertir threadId a string si es necesario
                 const threadIdStr = threadId ? String(threadId) : null;
 
                 // Verificar si ya tiene un registro en proceso
                 if (
-                    VehicleRegistrationHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)
+                    VehicleRegistrationHandler.tieneRegistroEnProceso(
+                        userId,
+                        chatId,
+                        threadIdStr
+                    ) ||
+                    VehicleOCRHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)
                 ) {
                     await ctx.reply(
-                        '⚠️ Ya tienes un registro en proceso. Completalo o cancelalo primero.'
+                        '⚠️ Ya tienes un registro en proceso. Complétalo o cancélalo primero.'
                     );
                     return;
                 }
 
-                // Iniciar registro de vehículo
-                await VehicleRegistrationHandler.iniciarRegistro(
-                    this.bot,
-                    chatId,
-                    userId,
-                    threadIdStr
-                );
+                // Mostrar opciones de registro
+                const mensaje =
+                    '🚗 *REGISTRAR AUTO*\n\n' +
+                    'Elige cómo deseas registrar:\n\n' +
+                    '📸 *Con OCR* - Foto de tarjeta de circulación\n' +
+                    '_Extrae datos automáticamente_\n\n' +
+                    '📝 *Manual* - Ingresa datos uno por uno\n' +
+                    '_Para cuando no tengas la tarjeta_';
 
-                this.logInfo('Registro de vehículo iniciado', {
-                    chatId,
-                    userId
+                await ctx.editMessageText(mensaje, {
+                    parse_mode: 'Markdown',
+                    reply_markup: {
+                        inline_keyboard: [
+                            [
+                                {
+                                    text: '📸 Con OCR (recomendado)',
+                                    callback_data: 'vehiculo_registro_ocr'
+                                }
+                            ],
+                            [{ text: '📝 Manual', callback_data: 'vehiculo_registro_manual' }],
+                            [{ text: '◀️ Volver', callback_data: 'accion:base_autos' }]
+                        ]
+                    }
                 });
+
+                this.logInfo('Opciones de registro mostradas', { chatId, userId });
             } catch (error: any) {
-                this.logError('Error iniciando registro de vehículo:', error);
-                await ctx.reply('❌ Error al iniciar el registro.');
+                this.logError('Error mostrando opciones de registro:', error);
+                await ctx.reply('❌ Error al mostrar opciones.');
             }
         });
 
+        // Registrar callbacks de OCR de vehículos
+        registerVehicleOCRCallbacks(this.bot, this.logInfo.bind(this), this.logError.bind(this));
+
+        // Registrar callbacks de registro manual
+        registerVehicleRegistrationCallbacks(
+            this.bot,
+            this.logInfo.bind(this),
+            this.logError.bind(this)
+        );
+    }
+
+    /**
+     * Registra todos los callbacks de pólizas
+     */
+    private registerPolicyCallbacks(): void {
         // Asegurar Auto (Persona 2)
         this.bot.action('base_autos:asegurar', async (ctx: NavigationContext) => {
             try {
@@ -129,22 +205,10 @@ class BaseAutosCommand extends BaseCommand {
                     return;
                 }
 
-                // Convertir tipos según lo que necesita cada función
-                const threadIdStr = threadId ? String(threadId) : null;
                 const threadIdNum = typeof threadId === 'number' ? threadId : null;
                 const userIdStr = String(userId);
 
-                // Verificar si ya tiene una asignación en proceso
-                if (
-                    PolicyAssignmentHandler.tieneAsignacionEnProceso(userIdStr, chatId, threadIdNum)
-                ) {
-                    await ctx.reply(
-                        '⚠️ Ya tienes una asignación en proceso. Completala o cancelala primero.'
-                    );
-                    return;
-                }
-
-                // Mostrar vehículos disponibles para asegurar
+                // Mostrar vehículos disponibles para asignar póliza
                 await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
                     this.bot,
                     chatId,
@@ -152,314 +216,85 @@ class BaseAutosCommand extends BaseCommand {
                     threadIdNum
                 );
 
-                this.logInfo('Lista de vehículos para asegurar mostrada', {
-                    chatId,
-                    userId
-                });
+                this.logInfo('Asignación OCR iniciada', { chatId, userId });
             } catch (error: any) {
-                this.logError('Error mostrando vehículos para asegurar:', error);
-                await ctx.reply('❌ Error al mostrar vehículos disponibles.');
+                this.logError('Error iniciando asignación OCR:', error);
+                await ctx.reply('❌ Error al iniciar.');
             }
         });
 
+        // Registrar callbacks de asignación de pólizas
+        const handlerWithRegistry = this.handler as BaseAutosHandler;
+        registerPolicyAssignmentCallbacks(
+            this.bot,
+            this.logInfo.bind(this),
+            this.logError.bind(this),
+            handlerWithRegistry.registry
+        );
+    }
+
+    /**
+     * Registra callbacks de navegación general
+     */
+    private registerNavigationCallbacks(): void {
         // Volver al menú principal
         this.bot.action('accion:volver_menu', async (ctx: NavigationContext) => {
             try {
                 await ctx.answerCbQuery();
 
-                const mensaje =
-                    '🤖 **Bot de Pólizas** - Menú Principal\n\nSelecciona una categoría:';
+                const mensaje = '👋 *MENÚ PRINCIPAL*\n\n' + 'Selecciona una opción:';
 
                 await ctx.editMessageText(mensaje, {
                     parse_mode: 'Markdown',
-                    ...getMainKeyboard()
-                });
-            } catch (error: any) {
-                this.logError('Error volviendo al menú principal:', error);
-                await ctx.reply('❌ Error al volver al menú.');
-                try {
-                    await ctx.answerCbQuery('Error');
-                } catch {}
-            }
-        });
-
-        // Manejar selección de vehículo para asegurar
-        this.bot.action(/^asignar_(.+)$/, async (ctx: NavigationContext) => {
-            try {
-                await ctx.answerCbQuery();
-
-                const vehicleId = ctx.match?.[1];
-                const userId = ctx.from?.id;
-                const chatId = ctx.chat?.id;
-
-                if (!vehicleId || !userId || !chatId) {
-                    await ctx.reply('❌ Error: Datos incompletos para la asignación.');
-                    return;
-                }
-
-                await ctx.deleteMessage();
-
-                // Iniciar asignación de póliza
-                const threadId = StateKeyManager.getThreadId(ctx);
-                const threadIdNum = typeof threadId === 'number' ? threadId : null;
-                const userIdStr = String(userId);
-
-                await PolicyAssignmentHandler.iniciarAsignacion(
-                    this.bot,
-                    chatId,
-                    userIdStr,
-                    vehicleId,
-                    threadIdNum
-                );
-
-                this.logInfo('Asignación de póliza iniciada', {
-                    chatId,
-                    userId,
-                    vehicleId
-                });
-            } catch (error: any) {
-                this.logError('Error iniciando asignación de póliza:', error);
-                await ctx.reply('❌ Error al iniciar la asignación de póliza.');
-            }
-        });
-
-        // Manejar paginación de vehículos
-        this.bot.action(/^vehiculos_pag_(\d+)$/, async (ctx: NavigationContext) => {
-            try {
-                await ctx.answerCbQuery();
-
-                const pagina = parseInt(ctx.match?.[1] || '1');
-                const userId = ctx.from?.id;
-                const chatId = ctx.chat?.id;
-
-                if (!userId || !chatId) {
-                    await ctx.reply('❌ Error: No se pudo identificar el usuario o chat.');
-                    return;
-                }
-
-                await ctx.deleteMessage();
-
-                // Mostrar página específica
-                const threadId = StateKeyManager.getThreadId(ctx);
-                const threadIdNum = typeof threadId === 'number' ? threadId : null;
-                const userIdStr = String(userId);
-
-                await PolicyAssignmentHandler.mostrarVehiculosDisponibles(
-                    this.bot,
-                    chatId,
-                    userIdStr,
-                    threadIdNum,
-                    pagina
-                );
-            } catch (error: any) {
-                this.logError('Error en paginación de vehículos:', error);
-                await ctx.reply('❌ Error al cargar la página.');
-            }
-        });
-
-        // Manejar cancelaciones
-        this.bot.action('vehiculo_cancelar', async (ctx: NavigationContext) => {
-            try {
-                await ctx.answerCbQuery();
-                const userId = ctx.from?.id;
-                const chatId = ctx.chat?.id;
-                const threadId = StateKeyManager.getThreadId(ctx);
-
-                if (!userId || !chatId) {
-                    await ctx.reply('❌ Error: No se pudo identificar el usuario o chat.');
-                    return;
-                }
-
-                const threadIdStr = threadId ? String(threadId) : null;
-                VehicleRegistrationHandler.cancelarRegistro(userId, chatId, threadIdStr);
-
-                await ctx.editMessageText('❌ Registro de vehículo cancelado.', {
                     reply_markup: getMainKeyboard().reply_markup
                 });
-
-                this.logInfo('Registro de vehículo cancelado', { userId });
             } catch (error: any) {
-                this.logError('Error cancelando registro de vehículo:', error);
-                await ctx.reply('❌ Error al cancelar.');
+                this.logError('Error volviendo al menú:', error);
             }
         });
-
-        this.bot.action('vehiculo_finalizar', async (ctx: NavigationContext) => {
-            try {
-                await ctx.answerCbQuery();
-                const userId = ctx.from?.id;
-                const chatId = ctx.chat?.id;
-                const threadId = StateKeyManager.getThreadId(ctx);
-
-                if (!userId || !chatId) {
-                    await ctx.reply('❌ Error: No se pudo identificar el usuario o chat.');
-                    return;
-                }
-
-                // Obtener el registro en proceso usando thread-safe key
-                const { vehiculosEnProceso } = require('./VehicleRegistrationHandler');
-                const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
-                const registro = vehiculosEnProceso?.get(stateKey);
-
-                if (!registro) {
-                    await ctx.reply('❌ No hay registro en proceso.');
-                    return;
-                }
-
-                // Finalizar el registro
-                const resultado = await VehicleRegistrationHandler.finalizarRegistro(
-                    this.bot,
-                    chatId,
-                    userId,
-                    registro,
-                    stateKey
-                );
-
-                if (resultado) {
-                    await ctx.deleteMessage();
-                }
-
-                this.logInfo('Registro de vehículo finalizado', { userId });
-            } catch (error: any) {
-                this.logError('Error finalizando registro de vehículo:', error);
-                await ctx.reply('❌ Error al finalizar.');
-            }
-        });
-
-        this.bot.action('poliza_cancelar', async (ctx: NavigationContext) => {
-            try {
-                await ctx.answerCbQuery();
-                const userId = ctx.from?.id;
-                const chatId = ctx.chat?.id;
-                const threadId = StateKeyManager.getThreadId(ctx);
-
-                if (!userId || !chatId) {
-                    await ctx.reply('❌ Error: No se pudo identificar el usuario o chat.');
-                    return;
-                }
-
-                // Limpiar asignación en proceso usando la clave correcta
-                const { asignacionesEnProceso } = require('./PolicyAssignmentHandler');
-                if (asignacionesEnProceso) {
-                    const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
-                    asignacionesEnProceso.delete(stateKey);
-                }
-
-                await ctx.editMessageText('❌ Asignación de póliza cancelada.', {
-                    reply_markup: getMainKeyboard().reply_markup
-                });
-
-                this.logInfo('Asignación de póliza cancelada', { userId });
-            } catch (error: any) {
-                this.logError('Error cancelando asignación de póliza:', error);
-                await ctx.reply('❌ Error al cancelar.');
-            }
-        });
-
-        // Handler para selección de fecha de emisión
-        this.bot.action(/^fecha_emision_(.+)$/, async (ctx: NavigationContext) => {
-            try {
-                await ctx.answerCbQuery();
-
-                const fechaISO = ctx.match?.[1];
-                const userId = ctx.from?.id;
-                const chatId = ctx.chat?.id;
-                const threadId = StateKeyManager.getThreadId(ctx);
-
-                if (!fechaISO || !userId || !chatId) {
-                    await ctx.reply('❌ Error: Datos incompletos para la fecha.');
-                    return;
-                }
-
-                // Verificar que hay asignación en proceso usando thread-safe key
-                const { asignacionesEnProceso } = require('./PolicyAssignmentHandler');
-                const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
-                const asignacion = asignacionesEnProceso.get(stateKey);
-
-                if (!asignacion) {
-                    await ctx.reply('❌ No hay asignación de póliza en proceso.');
-                    return;
-                }
-
-                await ctx.deleteMessage();
-
-                // Procesar la fecha seleccionada
-                await PolicyAssignmentHandler.confirmarFechaEmision(
-                    this.bot,
-                    chatId,
-                    fechaISO,
-                    asignacion,
-                    stateKey
-                );
-
-                this.logInfo('Fecha de emisión seleccionada', {
-                    userId,
-                    chatId,
-                    fechaISO
-                });
-            } catch (error: any) {
-                this.logError('Error procesando selección de fecha:', error);
-                await ctx.reply('❌ Error al procesar la fecha.');
-            }
-        });
-
-        // NO registrar handler global de message aquí
-        // Los mensajes serán procesados por TextMessageHandler que ya existe
-
-        this.logInfo('BaseAutosCommand registrado exitosamente');
     }
 
     /**
-     * Procesa mensajes para flujos activos de Base de Autos
-     * @param message - Mensaje de Telegram
-     * @param userId - ID del usuario
-     * @returns true si el mensaje fue procesado, false si no
+     * Procesa mensajes de texto para flujos activos
      */
     async procesarMensajeBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            const chatId =
-                typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-            const threadId = message.message_thread_id || null;
-            const threadIdStr = threadId ? String(threadId) : null;
-            const threadIdNum = typeof threadId === 'number' ? threadId : null;
-            const userIdNum = parseInt(userId);
-
-            // Verificar si hay registro de vehículo en proceso
-            if (VehicleRegistrationHandler.tieneRegistroEnProceso(userIdNum, chatId, threadIdStr)) {
-                const procesado = await VehicleRegistrationHandler.procesarMensaje(
-                    this.bot,
-                    message as any,
-                    userIdNum
-                );
-                if (procesado) return true;
+            // 1. Flujo de registro manual de vehículos
+            if (await procesarMensajeRegistroManual(this.bot, message, userId)) {
+                return true;
             }
 
-            // Verificar si hay asignación de póliza en proceso
-            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
-                const procesado = await PolicyAssignmentHandler.procesarMensaje(
+            // 2. Flujo OCR de vehículos (datos faltantes)
+            if (await procesarTextoOCRVehiculo(this.bot, message, userId)) {
+                return true;
+            }
+
+            // 3. Flujo OCR de pólizas
+            const handlerWithRegistry = this.handler as BaseAutosHandler;
+            if (
+                await procesarTextoOCRPoliza(
                     this.bot,
                     message,
-                    userId
-                );
-
-                // Si el proceso terminó, limpiar el estado BD AUTOS
-                if (
-                    procesado &&
-                    !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)
-                ) {
-                    const handlerWithRegistry = this.handler as BaseAutosHandler;
-                    if (handlerWithRegistry?.registry?.stateManager) {
-                        await handlerWithRegistry.registry.stateManager.clearUserState(
-                            userId,
-                            'bd_autos_flow'
-                        );
-                    }
-                }
-
-                if (procesado) return true;
+                    userId,
+                    handlerWithRegistry.registry
+                )
+            ) {
+                return true;
             }
 
-            return false; // No se procesó ningún flujo
+            // 4. Flujo legacy de asignación de pólizas
+            if (
+                await procesarMensajeAsignacionLegacy(
+                    this.bot,
+                    message,
+                    userId,
+                    handlerWithRegistry.registry
+                )
+            ) {
+                return true;
+            }
+
+            return false;
         } catch (error: any) {
             this.logError('Error procesando mensaje en BaseAutosCommand:', error);
             return false;
@@ -467,31 +302,45 @@ class BaseAutosCommand extends BaseCommand {
     }
 
     /**
-     * Procesa documentos para flujos activos de Base de Autos
-     * @param message - Mensaje de Telegram con documento
-     * @param userId - ID del usuario
-     * @returns true si el documento fue procesado, false si no
+     * Procesa documentos para flujos activos
      */
     async procesarDocumentoBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            const chatId =
-                typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-            const threadId = message.message_thread_id || null;
-            const threadIdNum = typeof threadId === 'number' ? threadId : null;
-
-            // Solo procesar si hay asignación de póliza en proceso
-            if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
-                const procesado = await PolicyAssignmentHandler.procesarMensaje(
-                    this.bot,
-                    message,
-                    userId
-                );
-                if (procesado) return true;
+            // 1. Flujo OCR de pólizas
+            if (await procesarDocumentoOCRPoliza(this.bot, message, userId)) {
+                return true;
             }
 
-            return false; // No se procesó ningún flujo
+            // 2. Flujo legacy de asignación
+            if (await procesarDocumentoAsignacionLegacy(this.bot, message, userId)) {
+                return true;
+            }
+
+            return false;
         } catch (error: any) {
             this.logError('Error procesando documento en BaseAutosCommand:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Procesa fotos para flujos activos
+     */
+    async procesarFotoBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
+        try {
+            // 1. Flujo OCR de vehículos (tarjeta o fotos)
+            if (await procesarFotoOCRVehiculo(this.bot, message, userId)) {
+                return true;
+            }
+
+            // 2. Flujo de registro manual (fotos del vehículo)
+            if (await procesarMensajeRegistroManual(this.bot, message, userId)) {
+                return true;
+            }
+
+            return false;
+        } catch (error: any) {
+            this.logError('Error procesando foto en BaseAutosCommand:', error);
             return false;
         }
     }
