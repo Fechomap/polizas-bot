@@ -200,7 +200,7 @@ export class PolicyOCRHandler {
      */
     static async procesarArchivoOCR(bot: IBot, msg: any, userId: string): Promise<boolean> {
         const chatId: number = msg.chat.id;
-        const threadId: number | null = msg.message_thread_id || null;
+        const threadId: number | null = msg.message_thread_id ?? null;
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
         const asignacion = asignacionesOCR.get(stateKey);
 
@@ -289,7 +289,7 @@ export class PolicyOCRHandler {
      */
     static async procesarRespuestaTexto(bot: IBot, msg: any, userId: string): Promise<boolean> {
         const chatId: number = msg.chat.id;
-        const threadId: number | null = msg.message_thread_id || null;
+        const threadId: number | null = msg.message_thread_id ?? null;
         const texto: string | undefined = msg.text?.trim();
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
         const asignacion = asignacionesOCR.get(stateKey);
@@ -347,7 +347,7 @@ export class PolicyOCRHandler {
 
         // Remover de faltantes si existe
         asignacion.datosPoliza.camposFaltantes = (
-            asignacion.datosPoliza.camposFaltantes || []
+            asignacion.datosPoliza.camposFaltantes ?? []
         ).filter(c => c !== 'fechaEmision');
 
         asignacionesOCR.set(stateKey, asignacion);
@@ -452,7 +452,7 @@ export class PolicyOCRHandler {
         // Mostrar resumen
         const mensaje = uiService.generarMensajeOCR(
             datosOCR,
-            asignacion.datosPoliza.aseguradora || datosOCR.aseguradora,
+            asignacion.datosPoliza.aseguradora ?? datosOCR.aseguradora,
             camposFaltantes
         );
         await uiService.enviarMensaje(bot, chatId, threadId, mensaje, { parse_mode: 'Markdown' });
@@ -471,7 +471,7 @@ export class PolicyOCRHandler {
         asignacion: IAsignacionEnProceso,
         stateKey: string
     ): Promise<void> {
-        const camposFaltantes = asignacion.datosPoliza.camposFaltantes || [];
+        const camposFaltantes = asignacion.datosPoliza.camposFaltantes ?? [];
 
         if (camposFaltantes.length === 0) {
             // Todos los campos completados - verificar si falta segundo pago
@@ -481,14 +481,14 @@ export class PolicyOCRHandler {
                 if (asignacion.datosPoliza.archivo?.buffer) {
                     // Ya tenemos el PDF, finalizar directamente
                     const total =
-                        (asignacion.datosPoliza.primerPago || 0) +
-                        (asignacion.datosPoliza.segundoPago || 0);
+                        (asignacion.datosPoliza.primerPago ?? 0) +
+                        (asignacion.datosPoliza.segundoPago ?? 0);
                     await uiService.enviarMensaje(
                         bot,
                         chatId,
                         threadId,
                         `✅ *Datos completos*\n\n` +
-                            `💰 Primer pago: $${(asignacion.datosPoliza.primerPago || 0).toLocaleString()}\n` +
+                            `💰 Primer pago: $${(asignacion.datosPoliza.primerPago ?? 0).toLocaleString()}\n` +
                             `💵 Segundo pago: $${asignacion.datosPoliza.segundoPago.toLocaleString()}\n` +
                             `📊 Total: $${total.toLocaleString()}\n\n` +
                             '⏳ Guardando póliza...',
@@ -505,14 +505,14 @@ export class PolicyOCRHandler {
                 asignacionesOCR.set(stateKey, asignacion);
 
                 const total =
-                    (asignacion.datosPoliza.primerPago || 0) +
-                    (asignacion.datosPoliza.segundoPago || 0);
+                    (asignacion.datosPoliza.primerPago ?? 0) +
+                    (asignacion.datosPoliza.segundoPago ?? 0);
                 await uiService.enviarMensaje(
                     bot,
                     chatId,
                     threadId,
                     `✅ *Datos completos*\n\n` +
-                        `💰 Primer pago: $${(asignacion.datosPoliza.primerPago || 0).toLocaleString()}\n` +
+                        `💰 Primer pago: $${(asignacion.datosPoliza.primerPago ?? 0).toLocaleString()}\n` +
                         `💵 Segundo pago: $${asignacion.datosPoliza.segundoPago.toLocaleString()}\n` +
                         `📊 Total: $${total.toLocaleString()}\n\n` +
                         '📄 Ahora envía el *PDF de la póliza* para guardarlo',
@@ -529,7 +529,7 @@ export class PolicyOCRHandler {
                 bot,
                 chatId,
                 threadId,
-                `✅ Primer pago: $${(asignacion.datosPoliza.primerPago || 0).toLocaleString()}\n\n` +
+                `✅ Primer pago: $${(asignacion.datosPoliza.primerPago ?? 0).toLocaleString()}\n\n` +
                     'Ahora ingresa el *SEGUNDO PAGO*\n💰 Solo el monto\n📝 Ejemplo: 3500',
                 { parse_mode: 'Markdown' }
             );
@@ -587,7 +587,7 @@ export class PolicyOCRHandler {
 
         // Remover campo de faltantes
         asignacion.datosPoliza.camposFaltantes = (
-            asignacion.datosPoliza.camposFaltantes || []
+            asignacion.datosPoliza.camposFaltantes ?? []
         ).filter(c => c !== campoActual);
 
         asignacionesOCR.set(stateKey, asignacion);
@@ -745,7 +745,7 @@ export class PolicyOCRHandler {
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PDF_FINAL;
         asignacionesOCR.set(stateKey, asignacion);
 
-        const total = (asignacion.datosPoliza.primerPago || 0) + validacion.valorProcesado;
+        const total = (asignacion.datosPoliza.primerPago ?? 0) + validacion.valorProcesado;
         await uiService.enviarMensaje(
             bot,
             chatId,
@@ -761,7 +761,7 @@ export class PolicyOCRHandler {
      */
     static async procesarPDFFinal(bot: IBot, msg: any, userId: string): Promise<boolean> {
         const chatId: number = msg.chat.id;
-        const threadId: number | null = msg.message_thread_id || null;
+        const threadId: number | null = msg.message_thread_id ?? null;
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
         const asignacion = asignacionesOCR.get(stateKey);
 

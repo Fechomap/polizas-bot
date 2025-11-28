@@ -135,7 +135,7 @@ function isInActiveFlow(ctx: NavigationContext): boolean {
                 PolicyAssignmentHandler
             } = require('../comandos/comandos/PolicyAssignmentHandler');
 
-            const threadId = (ctx.message as any)?.message_thread_id || null;
+            const threadId = (ctx.message as any)?.message_thread_id ?? null;
 
             if (VehicleRegistrationHandler?.tieneRegistroEnProceso?.(userId, chatId, threadId)) {
                 return true;

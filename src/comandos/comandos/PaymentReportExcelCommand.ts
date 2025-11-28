@@ -9,31 +9,19 @@
  * ✅ Filtros automáticos y pivot tables
  * ✅ Navegación persistente integrada
  *
- * Base: PaymentReportPDFCommand (reutiliza lógica de cálculos)
+ * REFACTORIZADO: Usa PaymentCalculatorService para cálculos (DRY)
  */
 
 import BaseCommand from './BaseCommand';
 import ExcelJS from 'exceljs';
 import { promises as fs } from 'fs';
 import path from 'path';
-import Policy from '../../models/policy';
 import logger from '../../utils/logger';
+import {
+    getPaymentCalculatorService,
+    type IPendingPolicy
+} from '../../services/PaymentCalculatorService';
 import type { IBaseHandler, NavigationContext } from './BaseCommand';
-import type { IPolicy, IPago, IServicio } from '../../types/database';
-
-interface PendingPolicy {
-    numeroPoliza: string;
-    diasDeImpago: number;
-    montoRequerido: number;
-    montoReferencia: number | null;
-    fuenteMonto: string;
-    estadoPoliza: string;
-    pagosRealizados: number;
-    diasTranscurridos: number;
-    fechaLimiteCobertura: Date;
-    fechaEmision: Date;
-    servicios: IServicio[];
-}
 
 interface ColorScheme {
     primary: string;
@@ -153,117 +141,10 @@ class PaymentReportExcelCommand extends BaseCommand {
     }
 
     /**
-     * Reutiliza la lógica de cálculo del comando PDF optimizado
-     */
-    async calculatePendingPaymentsPolicies(): Promise<PendingPolicy[]> {
-        try {
-            const policies = await Policy.find({ estado: 'ACTIVO' }).lean();
-            const now = new Date();
-            const pendingPolicies: PendingPolicy[] = [];
-
-            for (const policy of policies) {
-                const {
-                    numeroPoliza,
-                    fechaEmision,
-                    pagos = [],
-                    estadoPoliza,
-                    servicios = []
-                } = policy as IPolicy;
-
-                if (!fechaEmision) continue;
-
-                // Filtrar SOLO pagos REALIZADOS (dinero real recibido)
-                const pagosRealizados = pagos.filter((pago: IPago) => pago.estado === 'REALIZADO');
-                const pagosPlanificados = pagos.filter(
-                    (pago: IPago) => pago.estado === 'PLANIFICADO'
-                );
-
-                // Calcular fecha límite de cobertura basada en pagos realizados
-                const fechaLimiteCobertura = this.calculateMonthsCoveredByPayments(
-                    fechaEmision,
-                    pagosRealizados.length
-                );
-
-                // Calcular días de impago (si la fecha actual supera la cobertura)
-                let diasDeImpago = 0;
-                if (now > fechaLimiteCobertura) {
-                    const msImpago = now.getTime() - fechaLimiteCobertura.getTime();
-                    diasDeImpago = Math.floor(msImpago / (1000 * 60 * 60 * 24));
-                }
-
-                // Solo incluir pólizas con impago > 0
-                if (diasDeImpago > 0) {
-                    let montoRequerido = 0;
-                    let montoReferencia: number | null = null;
-                    let fuenteMonto = 'SIN_DATOS';
-
-                    if (pagosPlanificados.length > 0) {
-                        if (pagosRealizados.length === 0) {
-                            if (pagosPlanificados[0]) {
-                                montoRequerido = pagosPlanificados[0].monto;
-                                fuenteMonto = 'PLANIFICADO_P1';
-                            }
-                        } else {
-                            if (pagosPlanificados[1]) {
-                                montoRequerido = pagosPlanificados[1].monto;
-                                fuenteMonto = 'PLANIFICADO_P2';
-                            } else if (pagosPlanificados[0]) {
-                                montoRequerido = pagosPlanificados[0].monto;
-                                fuenteMonto = 'PLANIFICADO_P1_FALLBACK';
-                            }
-                        }
-                    }
-
-                    if (montoRequerido === 0 && pagosRealizados.length > 0) {
-                        const ultimoPago = pagosRealizados[pagosRealizados.length - 1];
-                        montoReferencia = ultimoPago.monto;
-                        fuenteMonto = 'REFERENCIA_ULTIMO_PAGO';
-                    }
-
-                    const msTranscurridos = now.getTime() - new Date(fechaEmision).getTime();
-                    const diasTranscurridos = Math.floor(msTranscurridos / (1000 * 60 * 60 * 24));
-
-                    pendingPolicies.push({
-                        numeroPoliza,
-                        diasDeImpago,
-                        montoRequerido,
-                        montoReferencia,
-                        fuenteMonto,
-                        estadoPoliza: estadoPoliza || 'SIN_ESTADO',
-                        pagosRealizados: pagosRealizados.length,
-                        diasTranscurridos,
-                        fechaLimiteCobertura,
-                        fechaEmision: new Date(fechaEmision),
-                        servicios: servicios || []
-                    });
-                }
-            }
-
-            return pendingPolicies.sort((a, b) => b.diasDeImpago - a.diasDeImpago);
-        } catch (error: any) {
-            logger.error('Error al calcular pólizas con pagos pendientes:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Calcula correctamente los días cubiertos por meses reales
-     */
-    calculateMonthsCoveredByPayments(emissionDate: Date, paymentsCount: number): Date {
-        const emission = new Date(emissionDate);
-        const coverageEndDate = new Date(emission);
-
-        coverageEndDate.setMonth(coverageEndDate.getMonth() + paymentsCount);
-        coverageEndDate.setDate(coverageEndDate.getDate() - 1);
-
-        return coverageEndDate;
-    }
-
-    /**
      * 📊 HOJA 1: RESUMEN EJECUTIVO
      * Contiene KPIs principales, gráficos y estadísticas clave
      */
-    createSummarySheet(workbook: ExcelJS.Workbook, pendingPolicies: PendingPolicy[]): void {
+    createSummarySheet(workbook: ExcelJS.Workbook, pendingPolicies: IPendingPolicy[]): void {
         const worksheet = workbook.addWorksheet('📊 Resumen Ejecutivo');
 
         // Configurar anchos de columnas
@@ -297,7 +178,7 @@ class PaymentReportExcelCommand extends BaseCommand {
         // ===== KPIs PRINCIPALES =====
         const totalPolicies = pendingPolicies.length;
         const totalAmount = pendingPolicies.reduce(
-            (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+            (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
             0
         );
         const criticalPolicies = pendingPolicies.filter(p => p.diasDeImpago <= 7).length;
@@ -358,7 +239,7 @@ class PaymentReportExcelCommand extends BaseCommand {
             worksheet.getCell(`D${row}`).style = statusStyle;
 
             // Formato de moneda para valores monetarios
-            if (kpi.label.includes('Monto') || kpi.label.includes('Promedio')) {
+            if (kpi.label.includes('Monto') ?? kpi.label.includes('Promedio')) {
                 worksheet.getCell(`B${row}`).style = this.styles.currency;
             }
 
@@ -393,7 +274,7 @@ class PaymentReportExcelCommand extends BaseCommand {
                 count: urgent7.length,
                 percentage: totalPolicies > 0 ? urgent7.length / totalPolicies : 0,
                 amount: urgent7.reduce(
-                    (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                    (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
                     0
                 ),
                 style: this.styles.urgent
@@ -403,7 +284,7 @@ class PaymentReportExcelCommand extends BaseCommand {
                 count: urgent15.length,
                 percentage: totalPolicies > 0 ? urgent15.length / totalPolicies : 0,
                 amount: urgent15.reduce(
-                    (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                    (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
                     0
                 ),
                 style: this.styles.warning
@@ -413,7 +294,7 @@ class PaymentReportExcelCommand extends BaseCommand {
                 count: normal.length,
                 percentage: totalPolicies > 0 ? normal.length / totalPolicies : 0,
                 amount: normal.reduce(
-                    (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                    (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
                     0
                 ),
                 style: this.styles.safe
@@ -446,7 +327,7 @@ class PaymentReportExcelCommand extends BaseCommand {
      * 📋 HOJA 2: DETALLE COMPLETO
      * Contiene todos los datos con filtros automáticos y formato condicional
      */
-    createDetailSheet(workbook: ExcelJS.Workbook, pendingPolicies: PendingPolicy[]): void {
+    createDetailSheet(workbook: ExcelJS.Workbook, pendingPolicies: IPendingPolicy[]): void {
         const worksheet = workbook.addWorksheet('📋 Detalle Completo');
 
         // Configurar anchos de columnas
@@ -493,8 +374,8 @@ class PaymentReportExcelCommand extends BaseCommand {
             worksheet.getCell(row, 4).value = policy.fechaEmision;
             worksheet.getCell(row, 5).value = policy.fechaLimiteCobertura;
             worksheet.getCell(row, 6).value = policy.pagosRealizados;
-            worksheet.getCell(row, 7).value = policy.montoRequerido || 0;
-            worksheet.getCell(row, 8).value = policy.montoReferencia || 0;
+            worksheet.getCell(row, 7).value = policy.montoRequerido ?? 0;
+            worksheet.getCell(row, 8).value = policy.montoReferencia ?? 0;
             worksheet.getCell(row, 9).value = policy.servicios.length;
             worksheet.getCell(row, 10).value = policy.fuenteMonto;
 
@@ -546,7 +427,7 @@ class PaymentReportExcelCommand extends BaseCommand {
      * 🔍 HOJA 3: ANÁLISIS AVANZADO
      * Contiene análisis estadístico y agrupaciones especiales
      */
-    createAnalysisSheet(workbook: ExcelJS.Workbook, pendingPolicies: PendingPolicy[]): void {
+    createAnalysisSheet(workbook: ExcelJS.Workbook, pendingPolicies: IPendingPolicy[]): void {
         const worksheet = workbook.addWorksheet('🔍 Análisis Avanzado');
 
         // Configurar anchos de columnas
@@ -584,7 +465,7 @@ class PaymentReportExcelCommand extends BaseCommand {
         ];
 
         const totalAmount = pendingPolicies.reduce(
-            (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+            (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
             0
         );
 
@@ -595,7 +476,7 @@ class PaymentReportExcelCommand extends BaseCommand {
             );
 
             const rangeAmount = policiesInRange.reduce(
-                (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
                 0
             );
             const rangePercentage = totalAmount > 0 ? rangeAmount / totalAmount : 0;
@@ -637,7 +518,7 @@ class PaymentReportExcelCommand extends BaseCommand {
             worksheet.getCell(cell).style = this.styles.header;
         });
 
-        const sourceGroups: Record<string, PendingPolicy[]> = {};
+        const sourceGroups: Record<string, IPendingPolicy[]> = {};
         pendingPolicies.forEach(policy => {
             const source = policy.fuenteMonto;
             if (!sourceGroups[source]) {
@@ -649,7 +530,7 @@ class PaymentReportExcelCommand extends BaseCommand {
         Object.entries(sourceGroups).forEach(([source, policies], index) => {
             const row = 14 + index;
             const sourceAmount = policies.reduce(
-                (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
                 0
             );
             const sourcePercentage = totalAmount > 0 ? sourceAmount / totalAmount : 0;
@@ -667,7 +548,7 @@ class PaymentReportExcelCommand extends BaseCommand {
     /**
      * 📊 Genera el archivo Excel completo con las 3 hojas
      */
-    async generateExcel(pendingPolicies: PendingPolicy[]): Promise<Buffer> {
+    async generateExcel(pendingPolicies: IPendingPolicy[]): Promise<Buffer> {
         const workbook = new ExcelJS.Workbook();
 
         // Metadata del workbook
@@ -694,8 +575,9 @@ class PaymentReportExcelCommand extends BaseCommand {
         try {
             await ctx.reply('📊 Generando reporte Excel multi-hoja de pagos pendientes...');
 
-            // Calcular datos
-            const pendingPolicies = await this.calculatePendingPaymentsPolicies();
+            // Usar servicio de cálculos (DRY - evita duplicación)
+            const calculatorService = getPaymentCalculatorService();
+            const pendingPolicies = await calculatorService.calculatePendingPaymentsPolicies();
 
             // Generar Excel
             const excelBuffer = await this.generateExcel(pendingPolicies);
@@ -712,7 +594,7 @@ class PaymentReportExcelCommand extends BaseCommand {
 
             // Calcular estadísticas para el mensaje
             const totalAmount = pendingPolicies.reduce(
-                (sum, p) => sum + (p.montoRequerido || p.montoReferencia || 0),
+                (sum, p) => sum + (p.montoRequerido ?? p.montoReferencia ?? 0),
                 0
             );
             const criticalPolicies = pendingPolicies.filter(p => p.diasDeImpago <= 7).length;

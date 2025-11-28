@@ -106,12 +106,12 @@ function normalizarAseguradora(nombre: string): string {
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[^A-Z0-9\s]/g, '');
 
-        if (normalizado.includes(asegNorm) || asegNorm.includes(normalizado)) {
+        if (normalizado.includes(asegNorm) ?? asegNorm.includes(normalizado)) {
             // Retornar versión estandarizada
-            if (asegNorm.includes('GNP') || asegNorm.includes('GRUPO NACIONAL')) return 'GNP';
+            if (asegNorm.includes('GNP') ?? asegNorm.includes('GRUPO NACIONAL')) return 'GNP';
             if (asegNorm.includes('MONTERREY')) return 'SEGUROS MONTERREY';
             if (asegNorm.includes('AXA')) return 'AXA SEGUROS';
-            if (asegNorm.includes('QUALITAS') || asegNorm.includes('QUALITAS')) return 'QUALITAS';
+            if (asegNorm.includes('QUALITAS') ?? asegNorm.includes('QUALITAS')) return 'QUALITAS';
             if (asegNorm.includes('HDI')) return 'HDI SEGUROS';
             if (asegNorm.includes('MAPFRE')) return 'MAPFRE';
             if (asegNorm.includes('ZURICH')) return 'ZURICH';
@@ -251,7 +251,7 @@ class MistralOCRService {
     private model = 'mistral-ocr-latest'; // Modelo especializado en OCR de documentos
 
     constructor() {
-        this.apiKey = process.env.MISTRAL_API_KEY || '';
+        this.apiKey = process.env.MISTRAL_API_KEY ?? '';
         if (!this.apiKey) {
             console.warn('MISTRAL_API_KEY no está configurada');
         }
@@ -285,7 +285,7 @@ class MistralOCRService {
 
         try {
             console.log(
-                `[MistralOCR] Procesando archivo: ${fileName || 'sin nombre'}, tipo: ${mimeType}, tamaño: ${fileBuffer.length} bytes`
+                `[MistralOCR] Procesando archivo: ${fileName ?? 'sin nombre'}, tipo: ${mimeType}, tamaño: ${fileBuffer.length} bytes`
             );
 
             // Convertir buffer a base64
@@ -327,7 +327,7 @@ class MistralOCRService {
                 };
             }
 
-            const ocrResult = (await response.json()) as any;
+            const ocrResult = await response.json();
 
             // El resultado de OCR tiene pages con markdown
             if (!ocrResult.pages || ocrResult.pages.length === 0) {
@@ -340,7 +340,7 @@ class MistralOCRService {
 
             // Combinar el contenido de todas las páginas
             const contenidoCompleto = ocrResult.pages
-                .map((page: any) => page.markdown || '')
+                .map((page: any) => page.markdown ?? '')
                 .join('\n\n');
 
             console.log(
@@ -437,7 +437,7 @@ Responde SOLO con el JSON:
                 return this.parsearMarkdownDirecto(markdown);
             }
 
-            const data = (await response.json()) as any;
+            const data = await response.json();
             const contenido = data.choices?.[0]?.message?.content;
 
             if (!contenido) {
@@ -536,7 +536,7 @@ Responde SOLO con el JSON:
         const matchPlacas = markdown.match(patrones.placas);
         const matchSerie = markdown.match(patrones.serie);
 
-        if (matchMarca || matchModelo || matchAño || matchPlacas || matchSerie) {
+        if (matchMarca ?? matchModelo ?? matchAño ?? matchPlacas ?? matchSerie) {
             vehiculo = {
                 marca: matchMarca ? matchMarca[1].trim().toUpperCase() : null,
                 submarca: matchModelo ? matchModelo[1].trim().toUpperCase() : null,
@@ -593,11 +593,11 @@ Responde SOLO con el JSON:
         }
 
         // Extraer y validar cada campo
-        const numeroPoliza = jsonData.numeroPoliza?.toString()?.trim() || null;
+        const numeroPoliza = jsonData.numeroPoliza?.toString()?.trim() ?? null;
         if (numeroPoliza) datosEncontrados.push('numeroPoliza');
         else datosFaltantes.push('numeroPoliza');
 
-        const aseguradoraRaw = jsonData.aseguradora?.toString()?.trim() || null;
+        const aseguradoraRaw = jsonData.aseguradora?.toString()?.trim() ?? null;
         const aseguradora = aseguradoraRaw ? normalizarAseguradora(aseguradoraRaw) : null;
         if (aseguradora) datosEncontrados.push('aseguradora');
         else datosFaltantes.push('aseguradora');
@@ -624,18 +624,18 @@ Responde SOLO con el JSON:
         const primaTotal = parsearMonto(jsonData.primaTotal?.toString());
         if (primaTotal) datosEncontrados.push('primaTotal');
 
-        const titular = jsonData.titular?.toString()?.trim() || null;
+        const titular = jsonData.titular?.toString()?.trim() ?? null;
         if (titular) datosEncontrados.push('titular');
 
         // Datos del vehículo
         let vehiculo = null;
         if (jsonData.vehiculo) {
             vehiculo = {
-                marca: jsonData.vehiculo.marca?.toString()?.trim()?.toUpperCase() || null,
-                submarca: jsonData.vehiculo.submarca?.toString()?.trim()?.toUpperCase() || null,
-                año: parseInt(jsonData.vehiculo.año) || null,
-                placas: jsonData.vehiculo.placas?.toString()?.trim()?.toUpperCase() || null,
-                serie: jsonData.vehiculo.serie?.toString()?.trim()?.toUpperCase() || null
+                marca: jsonData.vehiculo.marca?.toString()?.trim()?.toUpperCase() ?? null,
+                submarca: jsonData.vehiculo.submarca?.toString()?.trim()?.toUpperCase() ?? null,
+                año: parseInt(jsonData.vehiculo.año) ?? null,
+                placas: jsonData.vehiculo.placas?.toString()?.trim()?.toUpperCase() ?? null,
+                serie: jsonData.vehiculo.serie?.toString()?.trim()?.toUpperCase() ?? null
             };
 
             if (vehiculo.marca) datosEncontrados.push('vehiculo.marca');
@@ -680,7 +680,7 @@ Responde SOLO con el JSON:
      */
     async procesarMultiplesPaginas(
         pages: Buffer[],
-        mimeType: string = 'image/jpeg'
+        mimeType = 'image/jpeg'
     ): Promise<IResultadoOCR> {
         console.log(`[MistralOCR] Procesando ${pages.length} páginas`);
 
@@ -806,9 +806,7 @@ Responde SOLO con el JSON:
 let instance: MistralOCRService | null = null;
 
 export function getInstance(): MistralOCRService {
-    if (!instance) {
-        instance = new MistralOCRService();
-    }
+    instance ??= new MistralOCRService();
     return instance;
 }
 

@@ -11,8 +11,7 @@ class DeleteCommand extends BaseCommand {
 
     constructor(handler: IBaseHandler) {
         super(handler);
-        // Consider making ADMIN_ID configurable or passed via handler if needed elsewhere
-        this.ADMIN_ID = 7143094298; // TODO: Move to config or environment variable
+        this.ADMIN_ID = parseInt(process.env.ADMIN_USER_ID ?? '0');
     }
 
     getCommandName(): string {

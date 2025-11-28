@@ -1,6 +1,9 @@
 // src/comandos/comandos/ReportUsedCommand.ts
+/**
+ * Comando para generar reportes de pólizas prioritarias
+ * REFACTORIZADO: Extracción de métodos para eliminar duplicación
+ */
 import BaseCommand from './BaseCommand';
-import logger from '../../utils/logger';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { Markup, Context } from 'telegraf';
@@ -43,6 +46,28 @@ interface ScriptExecutionOptions {
     stdio: ('ignore' | 'pipe')[];
 }
 
+interface PolicyReportData {
+    numeroPoliza: string;
+    fechaEmision?: Date;
+    fechaFinGracia?: Date;
+    servicios?: unknown[];
+    pagos?: unknown[];
+    diasRestantesGracia?: number | null;
+    calificacion?: number;
+    aseguradora?: string;
+    tipoReporte?: string;
+    mensajeEspecial?: string;
+    marca?: string;
+    submarca?: string;
+    año?: number;
+    color?: string;
+    placas?: string;
+    titular?: string;
+    correo?: string;
+    municipio?: string;
+    estadoRegion?: string;
+}
+
 class ReportUsedCommand extends BaseCommand {
     constructor(handler: any) {
         super(handler);
@@ -57,16 +82,165 @@ class ReportUsedCommand extends BaseCommand {
     }
 
     register(): void {
-        // No longer registering the /reportUsed command directly.
-        // This could be triggered by a button in a future 'Reportes' submenu.
         this.logInfo(`Comando ${this.getCommandName()} cargado, pero no registra /comando aquí.`);
-
-        /* Código anterior eliminado:
-        this.handler.bot.command(this.getCommandName(), async (ctx) => {
-            await this.generateReport(ctx);
-        });
-        */
     }
+
+    // ========== MÉTODOS AUXILIARES (REFACTORIZADO) ==========
+
+    /**
+     * Formatea una fecha a string ISO (YYYY-MM-DD)
+     */
+    private formatDate(date: Date | undefined): string {
+        return date ? new Date(date).toISOString().split('T')[0] : 'No disponible';
+    }
+
+    /**
+     * Calcula días de gracia si no están disponibles
+     */
+    private calculateDiasGracia(
+        diasRestantes: number | null | undefined,
+        fechaFinGracia: Date | undefined
+    ): number | null {
+        if (diasRestantes !== null && diasRestantes !== undefined) {
+            return diasRestantes;
+        }
+        if (fechaFinGracia) {
+            const hoy = new Date();
+            const fechaFin = new Date(fechaFinGracia);
+            return Math.ceil((fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        return null;
+    }
+
+    /**
+     * Determina la alerta de prioridad basada en calificación y días de gracia
+     */
+    private getPriorityAlert(calificacion: number, diasGracia: number | null): string {
+        if (calificacion >= 90 || (diasGracia !== null && diasGracia <= 5)) {
+            return '⚠️ *ALTA PRIORIDAD*\n';
+        }
+        if (calificacion >= 70 || (diasGracia !== null && diasGracia <= 15)) {
+            return '⚠️ *PRIORIDAD MEDIA*\n';
+        }
+        return '';
+    }
+
+    /**
+     * Envía un mensaje con manejo de rate limiting de Telegram
+     */
+    private async sendWithRateLimit(
+        ctx: Context,
+        mensaje: string,
+        inlineKeyboard: any[][]
+    ): Promise<void> {
+        try {
+            await ctx.replyWithMarkdown(mensaje, Markup.inlineKeyboard(inlineKeyboard));
+            await this.delay(1000);
+        } catch (sendError: unknown) {
+            const error = sendError as any;
+            if (error.response?.error_code === 429) {
+                const retryAfter = error.response.parameters?.retry_after ?? 30;
+                this.logInfo(`Rate limited, waiting ${retryAfter} seconds before retry`);
+                await this.delay(retryAfter * 1000);
+                try {
+                    await ctx.replyWithMarkdown(mensaje, Markup.inlineKeyboard(inlineKeyboard));
+                    await this.delay(1000);
+                } catch (retryError) {
+                    this.logError('Retry failed:', retryError as Error);
+                }
+            } else {
+                this.logError('Error al enviar mensaje:', sendError as Error);
+            }
+        }
+    }
+
+    /**
+     * Helper para delays
+     */
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Genera mensaje formateado para póliza regular
+     */
+    private formatRegularPolicyMessage(pol: PolicyReportData): string {
+        const fechaFinGracia = this.formatDate(pol.fechaFinGracia);
+        const totalServicios = (pol.servicios ?? []).length;
+        const totalPagos = (pol.pagos ?? []).length;
+        const diasGracia = this.calculateDiasGracia(pol.diasRestantesGracia, pol.fechaFinGracia);
+        const alertaPrioridad = this.getPriorityAlert(pol.calificacion ?? 0, diasGracia);
+        const diasTexto = diasGracia !== null ? diasGracia.toString() : '0';
+
+        return `${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
+🔧 *Servicios:* ${totalServicios}
+💰 *Pagos:* ${totalPagos}
+*ASEGURADORA:* ${pol.aseguradora ?? 'NO DEFINIDA'}`;
+    }
+
+    /**
+     * Genera mensaje formateado para NIV
+     */
+    private formatNIVMessage(niv: PolicyReportData): string {
+        const fEmision = this.formatDate(niv.fechaEmision);
+        return `⚡ *${niv.mensajeEspecial}*
+🆔 *NIV:* \`${niv.numeroPoliza}\`
+🚗 *Vehículo:* ${niv.marca ?? 'N/A'} ${niv.submarca ?? 'N/A'} ${niv.año ?? 'N/A'}
+🎨 *Color:* ${niv.color ?? 'N/A'}
+🏷️ *Placas:* ${niv.placas ?? 'Sin placas'}
+📅 *Creado:* ${fEmision}
+👤 *Titular:* ${niv.titular ?? 'N/A'}
+📧 *Correo:* ${niv.correo ?? 'Sin correo'}
+📍 *Ubicación:* ${niv.municipio ?? 'N/A'}, ${niv.estadoRegion ?? 'N/A'}
+📊 *Estado:* ACTIVO - Listo para usar`;
+    }
+
+    /**
+     * Envía lista de pólizas regulares con cabecera
+     */
+    private async enviarPolizasRegulares(
+        ctx: Context,
+        polizas: PolicyReportData[],
+        cabecera: string
+    ): Promise<void> {
+        if (polizas.length === 0) return;
+        await ctx.reply(cabecera, { parse_mode: 'Markdown' });
+
+        for (const pol of polizas) {
+            const msg = this.formatRegularPolicyMessage(pol);
+            const inlineKeyboard = [
+                [Markup.button.callback(`📋 ${pol.numeroPoliza}`, `getPoliza:${pol.numeroPoliza}`)]
+            ];
+            await this.sendWithRateLimit(ctx, msg, inlineKeyboard);
+        }
+    }
+
+    /**
+     * Envía lista de NIVs con cabecera
+     */
+    private async enviarNIVs(ctx: Context, nivs: PolicyReportData[]): Promise<void> {
+        if (nivs.length === 0) return;
+
+        await ctx.reply(
+            '⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡\n⚡ *NIVs DISPONIBLES (2023-2026)*\n⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡',
+            { parse_mode: 'Markdown' }
+        );
+
+        for (const niv of nivs) {
+            const msg = this.formatNIVMessage(niv);
+            const inlineKeyboard = [
+                [
+                    Markup.button.callback(
+                        `👀 Consultar NIV ${niv.numeroPoliza}`,
+                        `getPoliza:${niv.numeroPoliza}`
+                    )
+                ]
+            ];
+            await this.sendWithRateLimit(ctx, msg, inlineKeyboard);
+        }
+    }
+
+    // ========== MÉTODO PRINCIPAL ==========
 
     // Method to generate and send the report, callable if needed
     async generateReport(ctx: Context): Promise<void> {
@@ -252,316 +426,77 @@ class ReportUsedCommand extends BaseCommand {
                 return;
             }
 
-            // Separar regulares y NIVs, y además separar por grupos de prioridad
+            // Separar por tipo y prioridad
             const regulares = todasLasPolizas.filter(p => p.tipoReporte !== 'NIV');
             const nivs = todasLasPolizas.filter(p => p.tipoReporte === 'NIV');
-
-            // Separar las regulares por grupo de prioridad (basado en prioridadGrupo)
             const polizasSinServicio = regulares.filter(p => p.prioridadGrupo === 1);
             const polizasConUnServicio = regulares.filter(p => p.prioridadGrupo === 2);
 
             // Mostrar cabecera general
-            let cabecera = '🎯 *SISTEMA ROBUSTO DE CALIFICACIONES*\n\n';
-            if (
-                polizasSinServicio.length > 0 &&
-                polizasConUnServicio.length > 0 &&
-                nivs.length > 0
-            ) {
-                cabecera += `🚫 ${polizasSinServicio.length} sin servicio + 🔧 ${polizasConUnServicio.length} con 1 servicio + ⚡ ${nivs.length} NIVs\n\n`;
-            } else if (polizasSinServicio.length > 0 && polizasConUnServicio.length > 0) {
-                cabecera += `🚫 ${polizasSinServicio.length} sin servicio + 🔧 ${polizasConUnServicio.length} con 1 servicio\n\n`;
-            } else if (polizasSinServicio.length > 0) {
-                cabecera += `🚫 ${polizasSinServicio.length} pólizas sin servicio encontradas\n\n`;
-            } else if (nivs.length > 0) {
-                cabecera += `⚡ ${nivs.length} NIVs disponibles\n\n`;
-            }
-
+            const cabecera = this.generarCabeceraReporte(
+                polizasSinServicio.length,
+                polizasConUnServicio.length,
+                nivs.length
+            );
             await ctx.reply(cabecera, { parse_mode: 'Markdown' });
 
-            // Mostrar pólizas SIN SERVICIO (prioridad 1)
-            if (polizasSinServicio.length > 0) {
-                await ctx.reply(
-                    '🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡\n🚫 *PÓLIZAS SIN SERVICIO (MÁXIMA PRIORIDAD)*\n🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡',
-                    { parse_mode: 'Markdown' }
-                );
+            // Enviar pólizas sin servicio (prioridad 1)
+            await this.enviarPolizasRegulares(
+                ctx,
+                polizasSinServicio,
+                '🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡\n🚫 *PÓLIZAS SIN SERVICIO (MÁXIMA PRIORIDAD)*\n🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡🟡'
+            );
 
-                for (const pol of polizasSinServicio) {
-                    const fEmision: string = pol.fechaEmision
-                        ? new Date(pol.fechaEmision).toISOString().split('T')[0]
-                        : 'No disponible';
-                    const fechaFinCobertura: string = pol.fechaFinCobertura
-                        ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0]
-                        : 'No disponible';
-                    const fechaFinGracia: string = pol.fechaFinGracia
-                        ? new Date(pol.fechaFinGracia).toISOString().split('T')[0]
-                        : 'No disponible';
-                    const totalServicios: number = (pol.servicios || []).length;
-                    const totalPagos: number = (pol.pagos || []).length;
+            // Enviar pólizas con un servicio (prioridad 2)
+            await this.enviarPolizasRegulares(
+                ctx,
+                polizasConUnServicio,
+                '🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠\n🔧 *PÓLIZAS CON UN SERVICIO (SEGUNDA PRIORIDAD)*\n🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠'
+            );
 
-                    // Calcular días restantes si no están disponibles
-                    let diasGracia = pol.diasRestantesGracia;
-                    if ((diasGracia === null || diasGracia === undefined) && pol.fechaFinGracia) {
-                        const hoy = new Date();
-                        const fechaFin = new Date(pol.fechaFinGracia);
-                        diasGracia = Math.ceil(
-                            (fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
-                        );
-                    }
+            // Enviar NIVs
+            await this.enviarNIVs(ctx, nivs);
 
-                    // Determinar prioridad basado en la nueva calificación y días de gracia
-                    let alertaPrioridad = '';
-                    const calificacion: number = pol.calificacion || 0;
-
-                    if (
-                        calificacion >= 90 ||
-                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)
-                    ) {
-                        alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                    } else if (
-                        calificacion >= 70 ||
-                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)
-                    ) {
-                        alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
-                    }
-
-                    const diasTexto =
-                        diasGracia !== null && diasGracia !== undefined
-                            ? diasGracia.toString()
-                            : '0';
-                    const msg: string = `
-${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
-🔧 *Servicios:* ${totalServicios}
-💰 *Pagos:* ${totalPagos}
-*ASEGURADORA:* ${pol.aseguradora || 'NO DEFINIDA'}`.trim();
-
-                    const inlineKeyboard = [
-                        [
-                            Markup.button.callback(
-                                `📋 ${pol.numeroPoliza}`,
-                                `getPoliza:${pol.numeroPoliza}`
-                            )
-                        ]
-                    ];
-
-                    try {
-                        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Optimized pause
-                    } catch (sendError: unknown) {
-                        const error = sendError as any;
-                        if (error.response?.error_code === 429) {
-                            const retryAfter = error.response.parameters?.retry_after || 30;
-                            this.logInfo(
-                                `Rate limited, waiting ${retryAfter} seconds before retry`
-                            );
-                            await new Promise<void>(resolve =>
-                                setTimeout(resolve, retryAfter * 1000)
-                            );
-                            try {
-                                await ctx.replyWithMarkdown(
-                                    msg,
-                                    Markup.inlineKeyboard(inlineKeyboard)
-                                );
-                                await new Promise<void>(resolve => setTimeout(resolve, 1000));
-                            } catch (retryError) {
-                                this.logError(
-                                    `Retry failed for póliza ${pol.numeroPoliza}:`,
-                                    retryError as Error
-                                );
-                            }
-                        } else {
-                            this.logError(
-                                `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
-                                sendError as Error
-                            );
-                        }
-                    }
-                }
-            }
-
-            // Mostrar pólizas CON UN SERVICIO (prioridad 2)
-            if (polizasConUnServicio.length > 0) {
-                await ctx.reply(
-                    '🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠\n🔧 *PÓLIZAS CON UN SERVICIO (SEGUNDA PRIORIDAD)*\n🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠🟠',
-                    { parse_mode: 'Markdown' }
-                );
-
-                for (const pol of polizasConUnServicio) {
-                    const fEmision: string = pol.fechaEmision
-                        ? new Date(pol.fechaEmision).toISOString().split('T')[0]
-                        : 'No disponible';
-                    const fechaFinCobertura: string = pol.fechaFinCobertura
-                        ? new Date(pol.fechaFinCobertura).toISOString().split('T')[0]
-                        : 'No disponible';
-                    const fechaFinGracia: string = pol.fechaFinGracia
-                        ? new Date(pol.fechaFinGracia).toISOString().split('T')[0]
-                        : 'No disponible';
-                    const totalServicios: number = (pol.servicios || []).length;
-                    const totalPagos: number = (pol.pagos || []).length;
-
-                    // Calcular días restantes si no están disponibles
-                    let diasGracia = pol.diasRestantesGracia;
-                    if ((diasGracia === null || diasGracia === undefined) && pol.fechaFinGracia) {
-                        const hoy = new Date();
-                        const fechaFin = new Date(pol.fechaFinGracia);
-                        diasGracia = Math.ceil(
-                            (fechaFin.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
-                        );
-                    }
-
-                    // Determinar prioridad basado en la nueva calificación y días de gracia
-                    let alertaPrioridad = '';
-                    const calificacion: number = pol.calificacion || 0;
-
-                    if (
-                        calificacion >= 90 ||
-                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 5)
-                    ) {
-                        alertaPrioridad = '⚠️ *ALTA PRIORIDAD*\n';
-                    } else if (
-                        calificacion >= 70 ||
-                        (diasGracia !== null && diasGracia !== undefined && diasGracia <= 15)
-                    ) {
-                        alertaPrioridad = '⚠️ *PRIORIDAD MEDIA*\n';
-                    }
-
-                    const diasTexto =
-                        diasGracia !== null && diasGracia !== undefined
-                            ? diasGracia.toString()
-                            : '0';
-                    const msg: string = `
-${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
-🔧 *Servicios:* ${totalServicios}
-💰 *Pagos:* ${totalPagos}
-*ASEGURADORA:* ${pol.aseguradora || 'NO DEFINIDA'}`.trim();
-
-                    const inlineKeyboard = [
-                        [
-                            Markup.button.callback(
-                                `📋 ${pol.numeroPoliza}`,
-                                `getPoliza:${pol.numeroPoliza}`
-                            )
-                        ]
-                    ];
-
-                    try {
-                        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Optimized pause
-                    } catch (sendError: unknown) {
-                        const error = sendError as any;
-                        if (error.response?.error_code === 429) {
-                            const retryAfter = error.response.parameters?.retry_after || 30;
-                            this.logInfo(
-                                `Rate limited, waiting ${retryAfter} seconds before retry`
-                            );
-                            await new Promise<void>(resolve =>
-                                setTimeout(resolve, retryAfter * 1000)
-                            );
-                            try {
-                                await ctx.replyWithMarkdown(
-                                    msg,
-                                    Markup.inlineKeyboard(inlineKeyboard)
-                                );
-                                await new Promise<void>(resolve => setTimeout(resolve, 1000));
-                            } catch (retryError) {
-                                this.logError(
-                                    `Retry failed for póliza ${pol.numeroPoliza}:`,
-                                    retryError as Error
-                                );
-                            }
-                        } else {
-                            this.logError(
-                                `Error al enviar mensaje para póliza ${pol.numeroPoliza}:`,
-                                sendError as Error
-                            );
-                        }
-                    }
-                }
-            }
-
-            // ✅ NUEVO: Mostrar NIVs disponibles
-            if (nivs.length > 0) {
-                await ctx.reply(
-                    '⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡\n⚡ *NIVs DISPONIBLES (2023-2026)*\n⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡',
-                    { parse_mode: 'Markdown' }
-                );
-
-                for (const niv of nivs) {
-                    const fEmision: string = niv.fechaEmision
-                        ? new Date(niv.fechaEmision).toISOString().split('T')[0]
-                        : 'No disponible';
-
-                    const msg: string = `
-⚡ *${niv.mensajeEspecial}*
-🆔 *NIV:* \`${niv.numeroPoliza}\`
-🚗 *Vehículo:* ${niv.marca || 'N/A'} ${niv.submarca || 'N/A'} ${niv.año || 'N/A'}
-🎨 *Color:* ${niv.color || 'N/A'}
-🏷️ *Placas:* ${niv.placas || 'Sin placas'}
-📅 *Creado:* ${fEmision}
-👤 *Titular:* ${niv.titular || 'N/A'}
-📧 *Correo:* ${niv.correo || 'Sin correo'}
-📍 *Ubicación:* ${niv.municipio || 'N/A'}, ${niv.estadoRegion || 'N/A'}
-📊 *Estado:* ACTIVO - Listo para usar`.trim();
-
-                    const inlineKeyboard = [
-                        [
-                            Markup.button.callback(
-                                `👀 Consultar NIV ${niv.numeroPoliza}`,
-                                `getPoliza:${niv.numeroPoliza}`
-                            )
-                        ]
-                    ];
-
-                    try {
-                        await ctx.replyWithMarkdown(msg, Markup.inlineKeyboard(inlineKeyboard));
-                        await new Promise<void>(resolve => setTimeout(resolve, 1000)); // Optimized pause
-                    } catch (sendError: unknown) {
-                        const error = sendError as any;
-                        if (error.response?.error_code === 429) {
-                            const retryAfter = error.response.parameters?.retry_after || 30;
-                            this.logInfo(
-                                `Rate limited, waiting ${retryAfter} seconds before retry`
-                            );
-                            await new Promise<void>(resolve =>
-                                setTimeout(resolve, retryAfter * 1000)
-                            );
-                            try {
-                                await ctx.replyWithMarkdown(
-                                    msg,
-                                    Markup.inlineKeyboard(inlineKeyboard)
-                                );
-                                await new Promise<void>(resolve => setTimeout(resolve, 1000));
-                            } catch (retryError) {
-                                this.logError(
-                                    `Retry failed for NIV ${niv.numeroPoliza}:`,
-                                    retryError as Error
-                                );
-                            }
-                        } else {
-                            this.logError(
-                                `Error al enviar mensaje para NIV ${niv.numeroPoliza}:`,
-                                sendError as Error
-                            );
-                        }
-                    }
-                }
-            }
-
-            // Mensaje final actualizado
-            let mensajeFinal = '✅ Reporte completado.\n\n';
-            if (regulares.length > 0 && nivs.length > 0) {
-                mensajeFinal += `📊 Se mostraron ${regulares.length} pólizas regulares y ${nivs.length} NIVs disponibles.`;
-            } else if (regulares.length > 0) {
-                mensajeFinal += `📊 Se mostraron ${regulares.length} pólizas regulares prioritarias.`;
-            } else if (nivs.length > 0) {
-                mensajeFinal += `⚡ Se mostraron ${nivs.length} NIVs disponibles para uso inmediato.`;
-            }
-
+            // Mensaje final
+            const mensajeFinal = this.generarMensajeFinal(regulares.length, nivs.length);
             await ctx.reply(mensajeFinal, Markup.inlineKeyboard([]));
             this.logInfo(`Reporte ${this.getCommandName()} enviado.`);
         } catch (error: unknown) {
             this.logError(`Error en envío asíncrono:`, error as Error);
             await ctx.reply('❌ Error al generar el reporte completo.');
         }
+    }
+
+    /**
+     * Genera la cabecera del reporte según los conteos
+     */
+    private generarCabeceraReporte(sinServicio: number, conServicio: number, nivs: number): string {
+        let cabecera = '🎯 *SISTEMA ROBUSTO DE CALIFICACIONES*\n\n';
+        if (sinServicio > 0 && conServicio > 0 && nivs > 0) {
+            cabecera += `🚫 ${sinServicio} sin servicio + 🔧 ${conServicio} con 1 servicio + ⚡ ${nivs} NIVs\n\n`;
+        } else if (sinServicio > 0 && conServicio > 0) {
+            cabecera += `🚫 ${sinServicio} sin servicio + 🔧 ${conServicio} con 1 servicio\n\n`;
+        } else if (sinServicio > 0) {
+            cabecera += `🚫 ${sinServicio} pólizas sin servicio encontradas\n\n`;
+        } else if (nivs > 0) {
+            cabecera += `⚡ ${nivs} NIVs disponibles\n\n`;
+        }
+        return cabecera;
+    }
+
+    /**
+     * Genera mensaje final del reporte
+     */
+    private generarMensajeFinal(regulares: number, nivs: number): string {
+        let mensajeFinal = '✅ Reporte completado.\n\n';
+        if (regulares > 0 && nivs > 0) {
+            mensajeFinal += `📊 Se mostraron ${regulares} pólizas regulares y ${nivs} NIVs disponibles.`;
+        } else if (regulares > 0) {
+            mensajeFinal += `📊 Se mostraron ${regulares} pólizas regulares prioritarias.`;
+        } else if (nivs > 0) {
+            mensajeFinal += `⚡ Se mostraron ${nivs} NIVs disponibles para uso inmediato.`;
+        }
+        return mensajeFinal;
     }
 
     private async handleMainError(ctx: Context, error: unknown): Promise<void> {
@@ -584,8 +519,8 @@ ${alertaPrioridad}⏳ *Fin Gracia:* ${fechaFinGracia} (${diasTexto} días)
                     for (const pol of fallbackPolicies) {
                         await ctx.replyWithMarkdown(
                             `*Póliza:* ${pol.numeroPoliza}\n` +
-                                `*Calificación:* ${pol.calificacion || 'No calculada'}\n` +
-                                `*Vehículo:* ${pol.marca || 'N/A'} ${pol.submarca || 'N/A'}`,
+                                `*Calificación:* ${pol.calificacion ?? 'No calculada'}\n` +
+                                `*Vehículo:* ${pol.marca ?? 'N/A'} ${pol.submarca ?? 'N/A'}`,
                             Markup.inlineKeyboard([
                                 [
                                     Markup.button.callback(

@@ -103,7 +103,7 @@ class PlacasValidator {
         } else if (mejorSimilitud > 50) {
             detalles = `⚠️ Posible coincidencia parcial (${mejorSimilitud}%): ${mejorPlaca} vs ${placaReferencia}`;
         } else {
-            detalles = `❌ No coincide: detectada ${mejorPlaca || 'ninguna'} vs referencia ${placaReferencia}`;
+            detalles = `❌ No coincide: detectada ${mejorPlaca ?? 'ninguna'} vs referencia ${placaReferencia}`;
         }
 
         return {
@@ -203,9 +203,7 @@ class PlacasValidator {
 let instance: PlacasValidator | null = null;
 
 export function getInstance(): PlacasValidator {
-    if (!instance) {
-        instance = new PlacasValidator();
-    }
+    instance ??= new PlacasValidator();
     return instance;
 }
 

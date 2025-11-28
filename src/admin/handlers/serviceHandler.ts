@@ -1,29 +1,40 @@
+// src/admin/handlers/serviceHandler.ts
+/**
+ * Handler para gestión de servicios en el módulo admin
+ * REFACTORIZADO: UI delegada a AdminServiceUIService (SRP)
+ */
+
 import { Context } from 'telegraf';
-import { Markup } from 'telegraf';
 import Policy from '../../models/policy';
 import adminStateManager from '../utils/adminStates';
 import { AuditLogger } from '../utils/auditLogger';
 import AdminMenu from '../menus/adminMenu';
 import logger from '../../utils/logger';
+import { getAdminServiceUIService } from '../services/AdminServiceUIService';
+
+// Service
+const uiService = getAdminServiceUIService();
 
 interface IServiceData {
     numeroExpediente: string;
-    fechaServicio: Date;
-    tipoServicio: string;
-    descripcion: string;
-    costo: number;
-    estado: string;
-    proveedor: string;
-    notas: string;
+    fechaServicio?: Date;
+    tipoServicio?: string;
+    descripcion?: string;
+    costo?: number;
+    estado?: string;
+    proveedor?: string;
+    notas?: string;
+    [key: string]: any;
 }
 
 interface IRegistroData {
     numeroExpediente: string;
-    fechaRegistro: Date;
-    tipoRegistro: string;
-    descripcion: string;
-    estado: string;
-    observaciones: string;
+    fechaRegistro?: Date;
+    tipoRegistro?: string;
+    descripcion?: string;
+    estado?: string;
+    observaciones?: string;
+    [key: string]: any;
 }
 
 interface IPolicyWithServices {
@@ -51,10 +62,8 @@ class ServiceHandler {
             switch (action) {
                 case 'menu':
                     return await AdminMenu.showServiceMenu(ctx);
-
                 case 'edit':
                     return await this.handleEditService(ctx);
-
                 default:
                     await ctx.answerCbQuery('Opción no disponible', { show_alert: true });
             }
@@ -73,36 +82,14 @@ class ServiceHandler {
                 'service_search_for_edit'
             );
 
-            const searchText = `
-🔍 *BUSCAR SERVICIO POR EXPEDIENTE*
-━━━━━━━━━━━━━━━━━━━━━━
-
-Escribe el **número de expediente** del servicio:
-
-📄 *Ejemplo:* 1043992
-📄 *Ejemplo:* EXP-2025-001
-📄 *Ejemplo:* SRV123456
-
-💡 **Nota:** Búsqueda directa en servicios y registros
-🔍 **Alcance:** Hasta 12 expedientes por póliza
-
-_El sistema encontrará el servicio específico para editar._
-            `.trim();
-
-            const keyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('❌ Cancelar', 'admin_service_menu')]
-            ]);
-
-            await ctx.editMessageText(searchText, {
+            await ctx.editMessageText(uiService.generarMensajeBusqueda(), {
                 parse_mode: 'Markdown',
-                ...keyboard
+                ...uiService.generarTecladoCancelarBusqueda()
             });
 
             await AuditLogger.log(ctx, 'service_search_initiated', {
                 module: 'service',
-                metadata: {
-                    operation: 'search_for_edit'
-                }
+                metadata: { operation: 'search_for_edit' }
             });
         } catch (error) {
             logger.error('Error al iniciar búsqueda de servicios:', error);
@@ -129,6 +116,7 @@ _El sistema encontrará el servicio específico para editar._
         const results: IServiceSearchResult[] = [];
 
         policies.forEach(policy => {
+            // Buscar en servicios
             const serviciosMatched =
                 policy.servicios?.filter(servicio => {
                     const expedienteServicio = servicio.numeroExpediente?.trim();
@@ -136,7 +124,7 @@ _El sistema encontrará el servicio específico para editar._
                         expedienteServicio &&
                         expedienteServicio.toLowerCase() === cleanTerm.toLowerCase()
                     );
-                }) || [];
+                }) ?? [];
 
             serviciosMatched.forEach(servicio => {
                 const itemIndex = policy.servicios.findIndex(
@@ -152,6 +140,7 @@ _El sistema encontrará el servicio específico para editar._
                 });
             });
 
+            // Buscar en registros
             const registrosMatched =
                 policy.registros?.filter(registro => {
                     const expedienteRegistro = registro.numeroExpediente?.trim();
@@ -159,7 +148,7 @@ _El sistema encontrará el servicio específico para editar._
                         expedienteRegistro &&
                         expedienteRegistro.toLowerCase() === cleanTerm.toLowerCase()
                     );
-                }) || [];
+                }) ?? [];
 
             registrosMatched.forEach(registro => {
                 const itemIndex = policy.registros.findIndex(
@@ -184,34 +173,15 @@ _El sistema encontrará el servicio específico para editar._
             const results = await this.searchByExpediente(searchTerm);
 
             if (results.length === 0) {
-                const noResultsText = `
-❌ *SIN RESULTADOS*
-━━━━━━━━━━━━━━━━━━━━━━
-
-No se encontraron servicios con expediente: "${searchTerm}"
-
-Verifica que:
-• El número de expediente sea correcto
-• Esté escrito exactamente como aparece
-• No tenga espacios adicionales
-
-_Intenta con otro número de expediente._
-                `.trim();
-
-                const keyboard = Markup.inlineKeyboard([
-                    [Markup.button.callback('🔍 Nueva Búsqueda', 'admin_service_edit')],
-                    [Markup.button.callback('⬅️ Volver', 'admin_service_menu')]
-                ]);
-
                 try {
-                    await ctx.editMessageText(noResultsText, {
+                    await ctx.editMessageText(uiService.generarMensajeSinResultados(searchTerm), {
                         parse_mode: 'Markdown',
-                        ...keyboard
+                        ...uiService.generarTecladoSinResultados()
                     });
-                } catch (error) {
-                    await ctx.reply(noResultsText, {
+                } catch {
+                    await ctx.reply(uiService.generarMensajeSinResultados(searchTerm), {
                         parse_mode: 'Markdown',
-                        ...keyboard
+                        ...uiService.generarTecladoSinResultados()
                     });
                 }
                 return;
@@ -225,10 +195,7 @@ _Intenta con otro número de expediente._
 
             await AuditLogger.log(ctx, 'service_search_completed', {
                 module: 'service',
-                metadata: {
-                    searchTerm,
-                    resultsCount: results.length
-                }
+                metadata: { searchTerm, resultsCount: results.length }
             });
         } catch (error) {
             logger.error('Error al buscar servicios:', error);
@@ -240,185 +207,29 @@ _Intenta con otro número de expediente._
         ctx: Context,
         results: IServiceSearchResult[]
     ): Promise<void> {
-        let resultText = `
-🔍 *SERVICIOS ENCONTRADOS*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Encontrados: ${results.length} servicios/registros
-
-Selecciona el que deseas editar:
-
-`;
-
-        const buttons: any[] = [];
-        results.forEach((result, index) => {
-            const item = result.item;
-            const expediente = item.numeroExpediente;
-            const tipoEmoji = result.type === 'servicio' ? '🔧' : '📋';
-            const tipoTexto = result.type === 'servicio' ? 'SERVICIO' : 'REGISTRO';
-            const fecha =
-                result.type === 'servicio'
-                    ? (item as IServiceData).fechaServicio
-                    : (item as IRegistroData).fechaRegistro;
-
-            resultText += `${index + 1}. ${tipoEmoji} **${tipoTexto}** - **${expediente}**\n`;
-            resultText += `   Póliza: ${result.numeroPoliza}\n`;
-            resultText += `   Titular: ${result.titular}\n`;
-            resultText += `   Fecha: ${fecha ? new Date(fecha).toLocaleDateString('es-ES') : 'N/A'}\n\n`;
-
-            const shortId = result.policyId.slice(-8);
-            const typeCode = result.type === 'servicio' ? 's' : 'r';
-            buttons.push([
-                Markup.button.callback(
-                    `${index + 1}. ${tipoEmoji} ${tipoTexto} - ${expediente}`,
-                    `ase:${shortId}:${typeCode}:${result.itemIndex}`
-                )
-            ]);
-        });
-
-        buttons.push([
-            Markup.button.callback('🔍 Nueva Búsqueda', 'admin_service_edit'),
-            Markup.button.callback('⬅️ Volver', 'admin_service_menu')
-        ]);
-
-        const keyboard = Markup.inlineKeyboard(buttons);
+        const message = uiService.generarMensajeListaResultados(results);
+        const keyboard = uiService.generarTecladoListaResultados(results);
 
         try {
-            await ctx.editMessageText(resultText.trim(), {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-        } catch (error) {
-            await ctx.reply(resultText.trim(), {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
+            await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+        } catch {
+            await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
         }
     }
 
     static async showServiceDirectEdit(ctx: Context, result: IServiceSearchResult): Promise<void> {
-        const item = result.item;
-        const isServicio = result.type === 'servicio';
-        const expediente = item.numeroExpediente;
-        const tipo = isServicio ? '🔧 Servicio' : '📋 Registro';
-
-        const escapedTitular = result.titular.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-        const escapedPoliza = result.numeroPoliza.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-        const escapedExpediente = expediente.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
-
-        let detailsText = `
-${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📄 *Expediente:* ${escapedExpediente}
-📅 *Póliza:* ${escapedPoliza}
-👤 *Titular:* ${escapedTitular}
-
-*DETALLES ACTUALES:*
-`;
-
-        if (isServicio) {
-            const servicio = item as IServiceData;
-            const fecha = servicio.fechaServicio
-                ? new Date(servicio.fechaServicio).toLocaleDateString('es-ES')
-                : 'N/A';
-            const tipoServ = servicio.tipoServicio || 'N/A';
-            const desc = servicio.descripcion || 'N/A';
-            const costo = servicio.costo || 0;
-            const estado = servicio.estado || 'N/A';
-            const proveedor = servicio.proveedor || 'N/A';
-
-            detailsText += `• Fecha: ${fecha}\n`;
-            detailsText += `• Tipo: ${tipoServ}\n`;
-            detailsText += `• Descripción: ${desc}\n`;
-            detailsText += `• Costo: $${costo}\n`;
-            detailsText += `• Estado: ${estado}\n`;
-            detailsText += `• Proveedor: ${proveedor}\n`;
-        } else {
-            const registro = item as IRegistroData;
-            const fecha = registro.fechaRegistro
-                ? new Date(registro.fechaRegistro).toLocaleDateString('es-ES')
-                : 'N/A';
-            const tipoReg = registro.tipoRegistro || 'N/A';
-            const desc = registro.descripcion || 'N/A';
-            const estado = registro.estado || 'N/A';
-
-            detailsText += `• Fecha: ${fecha}\n`;
-            detailsText += `• Tipo: ${tipoReg}\n`;
-            detailsText += `• Descripción: ${desc}\n`;
-            detailsText += `• Estado: ${estado}\n`;
-        }
-
-        detailsText += '\n¿Qué deseas editar?';
-
-        const buttons: any[] = [];
-
-        // Create short ID for callback data
-        const shortId = result.policyId.slice(-8); // Use last 8 characters
-
-        if (isServicio) {
-            buttons.push(
-                [Markup.button.callback('📅 Fecha', `asf:${shortId}:s:${result.itemIndex}:fS`)],
-                [Markup.button.callback('🏷️ Tipo', `asf:${shortId}:s:${result.itemIndex}:tS`)],
-                [
-                    Markup.button.callback(
-                        '📝 Descripción',
-                        `asf:${shortId}:s:${result.itemIndex}:d`
-                    )
-                ],
-                [Markup.button.callback('💰 Costo', `asf:${shortId}:s:${result.itemIndex}:c`)],
-                [Markup.button.callback('📊 Estado', `asf:${shortId}:s:${result.itemIndex}:e`)],
-                [Markup.button.callback('🏢 Proveedor', `asf:${shortId}:s:${result.itemIndex}:p`)]
-            );
-        } else {
-            buttons.push(
-                [Markup.button.callback('📅 Fecha', `asf:${shortId}:r:${result.itemIndex}:fR`)],
-                [Markup.button.callback('🏷️ Tipo', `asf:${shortId}:r:${result.itemIndex}:tR`)],
-                [
-                    Markup.button.callback(
-                        '📝 Descripción',
-                        `asf:${shortId}:r:${result.itemIndex}:d`
-                    )
-                ],
-                [Markup.button.callback('📊 Estado', `asf:${shortId}:r:${result.itemIndex}:e`)]
-            );
-        }
-
-        buttons.push([
-            Markup.button.callback('🔍 Nueva Búsqueda', 'admin_service_edit'),
-            Markup.button.callback('⬅️ Volver', 'admin_service_menu')
-        ]);
-
-        const keyboard = Markup.inlineKeyboard(buttons);
+        const message = uiService.generarMensajeDetalleServicio(result);
+        const keyboard = uiService.generarTecladoEdicionServicio(
+            result.policyId,
+            result.type,
+            result.itemIndex
+        );
 
         try {
-            await ctx.editMessageText(detailsText.trim(), {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
-        } catch (error) {
-            await ctx.reply(detailsText.trim(), {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
+            await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+        } catch {
+            await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
         }
-    }
-
-    // Interface compatibility methods
-    static async handlePolicySelection(ctx: Context, policyId: string): Promise<void> {
-        await ctx.reply('Selección de póliza para servicios en desarrollo.');
-    }
-
-    static async showServicesList(ctx: Context, policyId: string): Promise<void> {
-        await ctx.reply('Lista de servicios en desarrollo.');
-    }
-
-    static async showServiceEditMenu(
-        ctx: Context,
-        policyId: string,
-        serviceIndex: string
-    ): Promise<void> {
-        await ctx.reply('Menú de edición de servicio en desarrollo.');
     }
 
     static async showServiceDirectEditShort(
@@ -428,7 +239,6 @@ ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
         itemIndex: number
     ): Promise<void> {
         try {
-            // Find the policy
             const policy = await Policy.findById(policyId);
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
@@ -479,56 +289,14 @@ ${tipo.split(' ')[0]} *EDITAR ${tipo.split(' ')[1].toUpperCase()}*
                 fieldName
             });
 
-            const fieldDisplayNames: { [key: string]: string } = {
-                fechaServicio: 'Fecha de Servicio',
-                tipoServicio: 'Tipo de Servicio',
-                descripcion: 'Descripción',
-                costo: 'Costo',
-                estado: 'Estado',
-                proveedor: 'Proveedor',
-                fechaRegistro: 'Fecha de Registro',
-                tipoRegistro: 'Tipo de Registro'
-            };
+            const message = uiService.generarMensajeEditarCampo(type, fieldName);
+            const keyboard = uiService.generarTecladoCancelarEdicion(policyId, type, itemIndex);
 
-            const fieldDisplayName = fieldDisplayNames[fieldName] || fieldName;
-            const typeDisplayName = type === 'servicio' ? 'Servicio' : 'Registro';
-
-            const editText = `
-✏️ *EDITAR ${typeDisplayName.toUpperCase()}*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🔍 **Campo a editar:** ${fieldDisplayName}
-
-Escribe el nuevo valor para este campo:
-
-💡 **Sugerencias:**
-• Para fechas: DD/MM/AAAA
-• Para costos: solo números (sin $)
-• Para descripciones: texto libre
-• Para estados: ACTIVO, COMPLETADO, PENDIENTE, etc.
-
-_Escribe el nuevo valor y se actualizará automáticamente._
-            `.trim();
-
-            const shortId = policyId.slice(-8);
-            const typeCode = type === 'servicio' ? 's' : 'r';
-            const keyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('❌ Cancelar', `ase:${shortId}:${typeCode}:${itemIndex}`)]
-            ]);
-
-            await ctx.editMessageText(editText, {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
+            await ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
 
             await AuditLogger.log(ctx, 'service_field_edit_started', {
                 module: 'service',
-                metadata: {
-                    policyId,
-                    type,
-                    itemIndex,
-                    fieldName
-                }
+                metadata: { policyId, type, itemIndex, fieldName }
             });
         } catch (error) {
             logger.error('Error al iniciar edición de campo:', error);
@@ -543,10 +311,9 @@ _Escribe el nuevo valor y se actualizará automáticamente._
         itemIndex: number
     ): Promise<void> {
         try {
-            // Find all policies and filter by shortId using JavaScript
-            const policies = await Policy.find({
-                estado: { $ne: 'ELIMINADO' }
-            }).select('_id numeroPoliza titular servicios registros');
+            const policies = await Policy.find({ estado: { $ne: 'ELIMINADO' } }).select(
+                '_id numeroPoliza titular servicios registros'
+            );
 
             const policy = policies.find(p => p._id.toString().slice(-8) === shortId);
 
@@ -570,10 +337,9 @@ _Escribe el nuevo valor y se actualizará automáticamente._
         fieldName: string
     ): Promise<void> {
         try {
-            // Find all policies and filter by shortId using JavaScript
-            const policies = await Policy.find({
-                estado: { $ne: 'ELIMINADO' }
-            }).select('_id numeroPoliza titular servicios registros');
+            const policies = await Policy.find({ estado: { $ne: 'ELIMINADO' } }).select(
+                '_id numeroPoliza titular servicios registros'
+            );
 
             const policy = policies.find(p => p._id.toString().slice(-8) === shortId);
 
@@ -631,17 +397,15 @@ _Escribe el nuevo valor y se actualizará automáticamente._
 
             const { policyId, type, itemIndex, fieldName } = adminState.data;
 
-            // Find the policy
             const policy = await Policy.findById(policyId);
             if (!policy) {
                 await ctx.reply('❌ Error: Póliza no encontrada.');
                 return;
             }
 
-            // Validate and convert value based on field type
+            // Validar y convertir valor según tipo de campo
             let convertedValue: any = value;
             if (fieldName.includes('fecha')) {
-                // Try to parse date
                 const dateMatch = value.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
                 if (dateMatch) {
                     const [, day, month, year] = dateMatch;
@@ -658,7 +422,7 @@ _Escribe el nuevo valor y se actualizará automáticamente._
                 }
             }
 
-            // Update the field
+            // Actualizar campo
             if (type === 'servicio') {
                 if (policy.servicios?.[itemIndex]) {
                     policy.servicios[itemIndex][fieldName] = convertedValue;
@@ -670,46 +434,17 @@ _Escribe el nuevo valor y se actualizará automáticamente._
             }
 
             await policy.save();
-
-            // Clear admin state
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
 
-            const fieldDisplayNames: { [key: string]: string } = {
-                fechaServicio: 'Fecha de Servicio',
-                tipoServicio: 'Tipo de Servicio',
-                descripcion: 'Descripción',
-                costo: 'Costo',
-                estado: 'Estado',
-                proveedor: 'Proveedor',
-                fechaRegistro: 'Fecha de Registro',
-                tipoRegistro: 'Tipo de Registro'
-            };
+            const message = uiService.generarMensajeCampoActualizado(
+                type,
+                policy.numeroPoliza,
+                fieldName,
+                value
+            );
+            const keyboard = uiService.generarTecladoPostActualizacion();
 
-            const fieldDisplayName = fieldDisplayNames[fieldName] || fieldName;
-            const typeDisplayName = type === 'servicio' ? 'Servicio' : 'Registro';
-
-            const successText = `
-✅ *CAMPO ACTUALIZADO*
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📄 **${typeDisplayName}:** ${policy.numeroPoliza}
-✏️ **Campo:** ${fieldDisplayName}
-🔄 **Nuevo valor:** ${value}
-
-✅ El campo se ha actualizado correctamente.
-
-¿Deseas realizar otra acción?
-            `.trim();
-
-            const keyboard = Markup.inlineKeyboard([
-                [Markup.button.callback('🔍 Buscar Otro', 'admin_service_edit')],
-                [Markup.button.callback('⬅️ Menú Principal', 'admin_service_menu')]
-            ]);
-
-            await ctx.reply(successText, {
-                parse_mode: 'Markdown',
-                ...keyboard
-            });
+            await ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
 
             await AuditLogger.log(ctx, 'service_field_updated', {
                 module: 'service',
@@ -719,18 +454,29 @@ _Escribe el nuevo valor y se actualizará automáticamente._
                     before: { [fieldName]: 'valor anterior' },
                     after: { [fieldName]: convertedValue }
                 },
-                metadata: {
-                    policyId,
-                    type,
-                    itemIndex,
-                    fieldName,
-                    newValue: convertedValue
-                }
+                metadata: { policyId, type, itemIndex, fieldName, newValue: convertedValue }
             });
         } catch (error) {
             logger.error('Error al actualizar campo:', error);
             await ctx.reply('❌ Error al actualizar el campo. Intenta nuevamente.');
         }
+    }
+
+    // Métodos de compatibilidad de interfaz
+    static async handlePolicySelection(ctx: Context, _policyId: string): Promise<void> {
+        await ctx.reply('Selección de póliza para servicios en desarrollo.');
+    }
+
+    static async showServicesList(ctx: Context, _policyId: string): Promise<void> {
+        await ctx.reply('Lista de servicios en desarrollo.');
+    }
+
+    static async showServiceEditMenu(
+        ctx: Context,
+        _policyId: string,
+        _serviceIndex: string
+    ): Promise<void> {
+        await ctx.reply('Menú de edición de servicio en desarrollo.');
     }
 }
 

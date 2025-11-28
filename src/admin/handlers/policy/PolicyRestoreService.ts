@@ -101,7 +101,7 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
 **Vehículo:** ${policy.marca} ${policy.submarca} ${policy.año}
 
 📅 **Eliminada:** ${formatDate(policy.fechaEliminacion)}
-📝 **Motivo:** ${policy.motivoEliminacion || 'No especificado'}
+📝 **Motivo:** ${policy.motivoEliminacion ?? 'No especificado'}
 
 ¿Deseas restaurar esta póliza?
             `.trim();
@@ -264,7 +264,7 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
 
         if (!text) return false;
 
-        const action = state.operation || state.data?.action;
+        const action = state.operation ?? state.data?.action;
 
         if (action === 'policy_search_for_restore') {
             const PolicySearchService = (await import('./PolicySearchService')).default;

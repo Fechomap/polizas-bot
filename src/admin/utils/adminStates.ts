@@ -158,7 +158,7 @@ class AdminStateManager {
 
         for (const [key, state] of this.adminStates) {
             const op = state.operation;
-            stats.operations[op] = (stats.operations[op] || 0) + 1;
+            stats.operations[op] = (stats.operations[op] ?? 0) + 1;
         }
 
         return stats;

@@ -45,7 +45,7 @@ class ServiceRegistrationStep {
         this.awaitingServiceData = deps.awaitingServiceData;
         this.awaitingContactTime = deps.awaitingContactTime;
         this.scheduledServiceInfo = deps.scheduledServiceInfo;
-        this.processingCallbacks = deps.processingCallbacks || new Set();
+        this.processingCallbacks = deps.processingCallbacks ?? new Set();
         this.cleanupAllStates = deps.cleanupAllStates;
         this.legendService = new LegendService();
     }
@@ -230,7 +230,7 @@ class ServiceRegistrationStep {
 
         // Calcular horas automáticas
         const fechaBase = new Date();
-        const tiempoTrayecto = registro.rutaInfo?.tiempoMinutos || 0;
+        const tiempoTrayecto = registro.rutaInfo?.tiempoMinutos ?? 0;
         const horasCalculadas = calcularHorasAutomaticas(fechaBase, tiempoTrayecto);
 
         // Convertir registro a servicio
@@ -327,12 +327,12 @@ class ServiceRegistrationStep {
 
             const contactTimeStr = this.formatTime(horasCalculadas.fechaContactoProgramada);
             const terminoTimeStr = this.formatTime(horasCalculadas.fechaTerminoProgramada);
-            const origenDestino = registro.origenDestino || 'Origen - Destino';
+            const origenDestino = registro.origenDestino ?? 'Origen - Destino';
             const marcaModelo = `${policy.marca} ${policy.submarca} (${policy.año})`;
 
             const notificationData = {
                 numeroPoliza,
-                targetGroupId: parseInt(process.env.TELEGRAM_GROUP_ID || '-1002212807945'),
+                targetGroupId: parseInt(process.env.TELEGRAM_GROUP_ID ?? '-1002212807945'),
                 expedienteNum: registro.numeroExpediente,
                 origenDestino,
                 marcaModelo,
@@ -466,7 +466,7 @@ class ServiceRegistrationStep {
             this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);
 
             // Mostrar selección de día
-            await this.showDaySelection(ctx, numeroPoliza || '', messageText);
+            await this.showDaySelection(ctx, numeroPoliza ?? '', messageText);
 
             return true;
         } catch (error) {
@@ -542,12 +542,12 @@ class ServiceRegistrationStep {
                     const enhancedData: IEnhancedLegendData = {
                         origenGeo: flowState.geocoding.origen,
                         destinoGeo: flowState.geocoding.destino,
-                        googleMapsUrl: flowState.googleMapsUrl || flowState.rutaInfo?.googleMapsUrl,
+                        googleMapsUrl: flowState.googleMapsUrl ?? flowState.rutaInfo?.googleMapsUrl,
                         leyenda: ''
                     };
 
                     const targetGroupId = parseInt(
-                        process.env.TELEGRAM_GROUP_ID || '-1002212807945'
+                        process.env.TELEGRAM_GROUP_ID ?? '-1002212807945'
                     );
 
                     await this.legendService.sendBlueLegendWithTypingEffect(

@@ -92,7 +92,7 @@ export async function procesarMensajeRegistroManual(
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-    const threadId = message.message_thread_id || null;
+    const threadId = message.message_thread_id ?? null;
     const threadIdStr = threadId ? String(threadId) : null;
     const userIdNum = parseInt(userId);
 

@@ -60,8 +60,8 @@ class ViewFilesCallbacks extends BaseCommand {
             this.logInfo(`Mostrando fotos de póliza: ${numeroPoliza}`);
 
             // Obtener fotos de R2 y binarios legacy
-            const r2Fotos = policy.archivos?.r2Files?.fotos || [];
-            const legacyFotos = policy.archivos?.fotos || [];
+            const r2Fotos = policy.archivos?.r2Files?.fotos ?? [];
+            const legacyFotos = policy.archivos?.fotos ?? [];
             const totalFotos = r2Fotos.length + legacyFotos.length;
 
             if (totalFotos === 0) {
@@ -130,7 +130,7 @@ class ViewFilesCallbacks extends BaseCommand {
                         }
 
                         await ctx.reply(
-                            `❌ Error al mostrar foto: ${foto.originalName || 'sin nombre'}`
+                            `❌ Error al mostrar foto: ${foto.originalName ?? 'sin nombre'}`
                         );
                     }
                 }
@@ -147,7 +147,7 @@ class ViewFilesCallbacks extends BaseCommand {
                     const fotoBuffer =
                         foto.data instanceof Buffer
                             ? foto.data
-                            : Buffer.from(foto.data.buffer || foto.data);
+                            : Buffer.from(foto.data.buffer ?? foto.data);
                     await ctx.replyWithPhoto(
                         { source: fotoBuffer },
                         { caption: '📸 Foto (formato anterior)' }
@@ -171,8 +171,8 @@ class ViewFilesCallbacks extends BaseCommand {
             const numeroPoliza = policy.numeroPoliza;
 
             // Obtener PDFs de R2 y binarios legacy
-            const r2Pdfs = policy.archivos?.r2Files?.pdfs || [];
-            const legacyPdfs = policy.archivos?.pdfs || [];
+            const r2Pdfs = policy.archivos?.r2Files?.pdfs ?? [];
+            const legacyPdfs = policy.archivos?.pdfs ?? [];
             const totalPdfs = r2Pdfs.length + legacyPdfs.length;
 
             if (totalPdfs === 0) {
@@ -198,7 +198,7 @@ class ViewFilesCallbacks extends BaseCommand {
                         await ctx.replyWithDocument(
                             {
                                 source: buffer,
-                                filename: pdf.originalName || `Documento_${numeroPoliza}.pdf`
+                                filename: pdf.originalName ?? `Documento_${numeroPoliza}.pdf`
                             },
                             {
                                 caption: `📄 PDF subido: ${pdf.uploadDate ? new Date(pdf.uploadDate).toLocaleString('es-MX') : 'Fecha no disponible'}\n📏 Tamaño: ${(pdf.size / 1024).toFixed(1)} KB`
@@ -222,7 +222,7 @@ class ViewFilesCallbacks extends BaseCommand {
                     const fileBuffer =
                         pdf.data instanceof Buffer
                             ? pdf.data
-                            : Buffer.from(pdf.data.buffer || pdf.data);
+                            : Buffer.from(pdf.data.buffer ?? pdf.data);
 
                     await ctx.replyWithDocument(
                         {

@@ -30,8 +30,7 @@ class NotificationCommand extends BaseCommand {
 
     constructor(handler: NotificationHandler) {
         super(handler);
-        // ID del administrador para comandos restringidos
-        this.ADMIN_ID = 7143094298; // Mismo ID que se usa en DeleteCommand
+        this.ADMIN_ID = parseInt(process.env.ADMIN_USER_ID ?? '0');
     }
 
     getCommandName(): string {
@@ -169,9 +168,9 @@ class NotificationCommand extends BaseCommand {
                                       ? '🟩'
                                       : '';
 
-                            const emoji = statusEmoji[notification.status] || '❓';
+                            const emoji = statusEmoji[notification.status] ?? '❓';
 
-                            message += `${emoji}${tipoEmoji} *${formattedTime}* - ${notification.tipoNotificacion || 'MANUAL'}\n`;
+                            message += `${emoji}${tipoEmoji} *${formattedTime}* - ${notification.tipoNotificacion ?? 'MANUAL'}\n`;
                             message += `📝 Póliza: ${notification.numeroPoliza}\n`;
                             message += `📄 Exp: ${notification.expedienteNum}\n`;
 
@@ -270,7 +269,7 @@ class NotificationCommand extends BaseCommand {
 
                         message += `🔹${tipoEmoji} *${formattedTime}* - ${notification.expedienteNum}\n`;
                         message += `📝 Póliza: ${notification.numeroPoliza}\n`;
-                        message += `📋 Tipo: ${notification.tipoNotificacion || 'MANUAL'}\n`;
+                        message += `📋 Tipo: ${notification.tipoNotificacion ?? 'MANUAL'}\n`;
 
                         if (notification.marcaModelo) {
                             message += `🚗 ${notification.marcaModelo}\n`;
@@ -351,7 +350,7 @@ class NotificationCommand extends BaseCommand {
                     const now = new Date();
                     const today = now.toISOString().substring(0, 10);
 
-                    const todayCount = stats[0].byDate.find(item => item._id === today)?.count || 0;
+                    const todayCount = stats[0].byDate.find(item => item._id === today)?.count ?? 0;
 
                     let message = '📊 *Estadísticas de Notificaciones*\n\n';
                     message += `Total: ${totalCount}\n\n`;

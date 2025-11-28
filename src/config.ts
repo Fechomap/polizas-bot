@@ -38,29 +38,29 @@ interface IConfig {
 
 const config: IConfig = {
     telegram: {
-        token: process.env.TELEGRAM_TOKEN || '',
+        token: process.env.TELEGRAM_TOKEN ?? '',
         allowedGroups: [-1002291817096, process.env.TELEGRAM_GROUP_ID]
             .filter((id): id is number | string => id !== undefined && id !== null)
             .map(id => (typeof id === 'string' ? parseInt(id) : id))
     },
     mongodb: {
-        uri: process.env.MONGO_URI || ''
+        uri: process.env.MONGO_URI ?? ''
     },
     redis: {
         url: process.env.REDIS_URL,
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379'),
+        host: process.env.REDIS_HOST ?? 'localhost',
+        port: parseInt(process.env.REDIS_PORT ?? '6379'),
         password: process.env.REDIS_PASSWORD
     },
     session: {
-        ttl: parseInt(process.env.SESSION_TIMEOUT || '1800000')
+        ttl: parseInt(process.env.SESSION_TIMEOUT ?? '1800000')
     },
     uploads: {
-        maxSize: parseInt(process.env.MAX_UPLOAD_SIZE || '20971520')
+        maxSize: parseInt(process.env.MAX_UPLOAD_SIZE ?? '20971520')
     },
     admin: {
         sessionTimeout: 5 * 60 * 1000, // 5 minutos
-        auditRetentionDays: parseInt(process.env.AUDIT_RETENTION_DAYS || '90'),
+        auditRetentionDays: parseInt(process.env.AUDIT_RETENTION_DAYS ?? '90'),
         features: {
             enableAudit: true,
             enableAdvancedStats: false // Se habilitará en Fase 4

@@ -20,7 +20,7 @@ import { ExpressAdapter } from '@bull-board/express';
 import { notificationQueue, initializeNotificationConsumer } from './queues/NotificationQueue';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
     throw new Error('PORT inválido en configuración');

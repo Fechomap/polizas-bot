@@ -35,11 +35,11 @@ export class PolicyUIService {
             `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}*\n` +
             `🎨 Color: ${vehiculo.color}\n` +
             `🔢 Serie: ${vehiculo.serie}\n` +
-            `🚙 Placas: ${vehiculo.placas || 'Sin placas'}\n\n` +
+            `🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n\n` +
             '*Datos del titular:*\n' +
             `👤 ${vehiculo.titular}\n` +
             `🆔 RFC: ${vehiculo.rfc}\n` +
-            `📧 ${vehiculo.correo || 'Sin correo'}`
+            `📧 ${vehiculo.correo ?? 'Sin correo'}`
         );
     }
 
@@ -72,7 +72,7 @@ export class PolicyUIService {
     /**
      * Genera selector de fechas (últimos 7 días)
      */
-    generarSelectorFecha(prefijoCB: string = 'ocr_fecha'): any[][] {
+    generarSelectorFecha(prefijoCB = 'ocr_fecha'): any[][] {
         const hoy = new Date();
         const botones: any[][] = [];
 
@@ -104,7 +104,7 @@ export class PolicyUIService {
      * Genera mensaje de éxito al asignar póliza
      */
     generarMensajeExito(datosPoliza: IDatosPoliza, vehiculo: IVehicle, poliza: IPolicy): string {
-        const total = (datosPoliza.primerPago || 0) + (datosPoliza.segundoPago || 0);
+        const total = (datosPoliza.primerPago ?? 0) + (datosPoliza.segundoPago ?? 0);
         const escapeMarkdown = (t: string) => t.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
 
         return (
@@ -115,8 +115,8 @@ export class PolicyUIService {
             `📅 *Emisión:* ${datosPoliza.fechaEmision!.toLocaleDateString('es-MX')}\n` +
             `📅 *Vence:* ${datosPoliza.fechaFinCobertura!.toLocaleDateString('es-MX')}\n\n` +
             '💰 *Pagos:*\n' +
-            `• Primer pago: $${(datosPoliza.primerPago || 0).toLocaleString()}\n` +
-            `• Segundo pago: $${(datosPoliza.segundoPago || 0).toLocaleString()}\n` +
+            `• Primer pago: $${(datosPoliza.primerPago ?? 0).toLocaleString()}\n` +
+            `• Segundo pago: $${(datosPoliza.segundoPago ?? 0).toLocaleString()}\n` +
             `• Total: $${total.toLocaleString()}\n\n` +
             '🚗 *Vehículo:*\n' +
             `${escapeMarkdown(vehiculo.marca)} ${escapeMarkdown(vehiculo.submarca)} ${vehiculo.año}\n` +
@@ -180,7 +180,7 @@ export class PolicyUIService {
                 segundoPago: 'Segundo pago'
             };
             for (const campo of faltantes) {
-                mensaje += `• ${labels[campo] || campo}\n`;
+                mensaje += `• ${labels[campo] ?? campo}\n`;
             }
         }
 

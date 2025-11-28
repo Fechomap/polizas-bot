@@ -1,29 +1,84 @@
 // src/comandos/comandos/ExcelUploadHandler.ts
+/**
+ * Manejador de carga de archivos Excel para registro masivo de pólizas
+ * REFACTORIZADO: Constantes centralizadas para evitar duplicación
+ */
 import { BaseCommand } from './BaseCommand';
 import ExcelJS from 'exceljs';
-import {
-    savePolicy,
-    DuplicatePolicyError,
-    savePoliciesBatch
-} from '../../controllers/policyController';
-import { Markup } from 'telegraf';
-import logger from '../../utils/logger';
-import StateKeyManager from '../../utils/StateKeyManager';
+import { savePolicy, DuplicatePolicyError } from '../../controllers/policyController';
 import type {
     IContextBot,
     IPolicyData,
     IProcessingResults,
-    IProcessingDetail,
     IValidationResult
 } from '../../../types/index';
 
-interface IHeaderMapping {
-    [key: string]: keyof IPolicyData;
-}
+// ========== CONFIGURACIÓN CENTRALIZADA ==========
 
-interface IFieldNames {
-    [key: string]: string;
-}
+/** Campos obligatorios en el Excel */
+const REQUIRED_EXCEL_FIELDS = [
+    'TITULAR',
+    'RFC',
+    'MARCA',
+    'SUBMARCA',
+    'AÑO',
+    'COLOR',
+    'SERIE',
+    'PLACAS',
+    'AGENTE COTIZADOR',
+    'ASEGURADORA',
+    '# DE POLIZA',
+    'FECHA DE EMISION'
+] as const;
+
+/** Mapeo de encabezados Excel a campos del modelo */
+const HEADER_TO_FIELD_MAP: Record<string, keyof IPolicyData> = {
+    TITULAR: 'titular',
+    'CORREO ELECTRONICO': 'correo',
+    CONTRASEÑA: 'contraseña',
+    TELEFONO: 'telefono',
+    CALLE: 'calle',
+    COLONIA: 'colonia',
+    MUNICIPIO: 'municipio',
+    ESTADO: 'estadoRegion',
+    CP: 'cp',
+    RFC: 'rfc',
+    MARCA: 'marca',
+    SUBMARCA: 'submarca',
+    AÑO: 'año',
+    COLOR: 'color',
+    SERIE: 'serie',
+    PLACAS: 'placas',
+    'AGENTE COTIZADOR': 'agenteCotizador',
+    ASEGURADORA: 'aseguradora',
+    '# DE POLIZA': 'numeroPoliza',
+    'FECHA DE EMISION': 'fechaEmision'
+};
+
+/** Campos que deben estar en mayúsculas */
+const UPPERCASE_FIELDS = [
+    'RFC',
+    'MARCA',
+    'SUBMARCA',
+    'COLOR',
+    'SERIE',
+    'PLACAS',
+    'ASEGURADORA',
+    '# DE POLIZA'
+];
+
+/** MIME types válidos para archivos Excel */
+const VALID_EXCEL_MIME_TYPES = [
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/octet-stream',
+    'application/msexcel',
+    'application/x-msexcel',
+    'application/excel',
+    'application/x-excel',
+    'application/x-dos_ms_excel',
+    'application/xls'
+];
 
 class ExcelUploadHandler extends BaseCommand {
     private awaitingExcelUpload: Map<number, boolean> = new Map(); // chatId => true cuando esperamos un Excel
@@ -52,33 +107,15 @@ class ExcelUploadHandler extends BaseCommand {
     isExcelFile(mimeType: string, fileName: string): boolean {
         this.logInfo(`Verificando si es Excel: ${fileName} (${mimeType})`);
 
-        // Lista ampliada de MIME types que Telegram puede asignar a archivos Excel
-        const validMimeTypes: string[] = [
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/octet-stream',
-            'application/msexcel',
-            'application/x-msexcel',
-            'application/excel',
-            'application/x-excel',
-            'application/x-dos_ms_excel',
-            'application/xls'
-        ];
-
-        // Verificar extensión del archivo (debería funcionar mejor que el mimetype)
+        const lowerName = fileName.toLowerCase();
         const isExcelExtension =
-            fileName.toLowerCase().endsWith('.xlsx') ||
-            fileName.toLowerCase().endsWith('.xls') ||
-            fileName.toLowerCase().endsWith('.xlsm');
+            lowerName.endsWith('.xlsx') ||
+            lowerName.endsWith('.xls') ||
+            lowerName.endsWith('.xlsm');
+        const isExcelMimeType = VALID_EXCEL_MIME_TYPES.includes(mimeType);
+        const isExcel = isExcelExtension ?? isExcelMimeType;
 
-        // Verificar mimetype (menos confiable pero es un respaldo)
-        const isExcelMimeType = validMimeTypes.includes(mimeType);
-
-        const isExcel = isExcelExtension || isExcelMimeType;
-        this.logInfo(
-            `Es Excel: ${isExcel} (extensión: ${isExcelExtension}, mimeType: ${isExcelMimeType})`
-        );
-
+        this.logInfo(`Es Excel: ${isExcel} (ext: ${isExcelExtension}, mime: ${isExcelMimeType})`);
         return isExcel;
     }
 
@@ -194,7 +231,7 @@ class ExcelUploadHandler extends BaseCommand {
                         if (!validation.isValid) {
                             results.failed++;
                             results.details.push({
-                                numeroPoliza: policyData.numeroPoliza || 'Desconocido',
+                                numeroPoliza: policyData.numeroPoliza ?? 'Desconocido',
                                 status: 'ERROR',
                                 message: validation.errors.join(', ')
                             });
@@ -219,13 +256,13 @@ class ExcelUploadHandler extends BaseCommand {
                         } else if (error.name === 'ValidationError') {
                             errorMessage =
                                 'Error de validación: ' +
-                                Object.keys(error.errors || {}).join(', ');
+                                Object.keys(error.errors ?? {}).join(', ');
                         } else {
                             errorMessage = error.message;
                         }
 
                         results.details.push({
-                            numeroPoliza: row[headers.indexOf('# DE POLIZA')] || 'Desconocido',
+                            numeroPoliza: row[headers.indexOf('# DE POLIZA')] ?? 'Desconocido',
                             status: 'ERROR',
                             message: errorMessage
                         });
@@ -263,24 +300,7 @@ class ExcelUploadHandler extends BaseCommand {
             return false;
         }
 
-        // Campos obligatorios que deben estar en el Excel
-        const requiredFields = [
-            'TITULAR',
-            'RFC',
-            'MARCA',
-            'SUBMARCA',
-            'AÑO',
-            'COLOR',
-            'SERIE',
-            'PLACAS',
-            'AGENTE COTIZADOR',
-            'ASEGURADORA',
-            '# DE POLIZA',
-            'FECHA DE EMISION'
-        ];
-
-        // Verificar que todos los campos requeridos estén presentes
-        for (const field of requiredFields) {
+        for (const field of REQUIRED_EXCEL_FIELDS) {
             if (!headers.includes(field)) {
                 this.logError(`Falta el campo ${field} en los encabezados`, {
                     headers: headers.join(', ')
@@ -288,75 +308,35 @@ class ExcelUploadHandler extends BaseCommand {
                 return false;
             }
         }
-
         return true;
     }
 
     // Mapear fila a objeto de póliza
     private mapRowToPolicy(headers: string[], row: any[]): Partial<IPolicyData> {
-        // Objeto para mapear los encabezados del Excel a los campos del modelo
-        const headerMapping: IHeaderMapping = {
-            TITULAR: 'titular',
-            'CORREO ELECTRONICO': 'correo',
-            CONTRASEÑA: 'contraseña',
-            TELEFONO: 'telefono',
-            CALLE: 'calle',
-            COLONIA: 'colonia',
-            MUNICIPIO: 'municipio',
-            ESTADO: 'estadoRegion',
-            CP: 'cp',
-            RFC: 'rfc',
-            MARCA: 'marca',
-            SUBMARCA: 'submarca',
-            AÑO: 'año',
-            COLOR: 'color',
-            SERIE: 'serie',
-            PLACAS: 'placas',
-            'AGENTE COTIZADOR': 'agenteCotizador',
-            ASEGURADORA: 'aseguradora',
-            '# DE POLIZA': 'numeroPoliza',
-            'FECHA DE EMISION': 'fechaEmision'
-        };
-
         const policyData: Partial<IPolicyData> = {};
 
-        // Mapear cada campo del Excel al objeto policyData
         headers.forEach((header, index) => {
-            if (headerMapping[header]) {
-                const value = row[index];
+            const fieldName = HEADER_TO_FIELD_MAP[header];
+            if (!fieldName) return;
 
-                // Procesamiento especial para ciertos campos
-                if (header === 'AÑO') {
-                    // Convertir año a número
-                    (policyData as any)[headerMapping[header]] = parseInt(value, 10);
-                } else if (header === 'FECHA DE EMISION') {
-                    // Convertir fecha a objeto Date
-                    if (value) {
-                        (policyData as any)[headerMapping[header]] = this.parseDate(value);
-                    }
-                } else if (header === 'CORREO ELECTRONICO') {
-                    // Manejar correo electrónico (convertir 'sin correo' a '')
-                    (policyData as any)[headerMapping[header]] =
-                        value && value.toLowerCase() === 'sin correo' ? '' : value;
-                } else {
-                    // Para campos de texto, asegurar que sean string y transformar según las reglas
-                    (policyData as any)[headerMapping[header]] = this.formatFieldValue(
-                        header,
-                        value
-                    );
-                }
+            const value = row[index];
+
+            // Procesamiento especial según el tipo de campo
+            if (header === 'AÑO') {
+                (policyData as any)[fieldName] = parseInt(value, 10);
+            } else if (header === 'FECHA DE EMISION') {
+                if (value) (policyData as any)[fieldName] = this.parseDate(value);
+            } else if (header === 'CORREO ELECTRONICO') {
+                (policyData as any)[fieldName] =
+                    value && value.toLowerCase() === 'sin correo' ? '' : value;
+            } else {
+                (policyData as any)[fieldName] = this.formatFieldValue(header, value);
             }
         });
 
-        // Establecer estado como ACTIVO por defecto
+        // Valores por defecto
         policyData.estado = 'ACTIVO';
-
-        // Inicializar arreglos vacíos para archivos, pagos y servicios
-        policyData.archivos = {
-            fotos: [],
-            pdfs: [],
-            r2Files: { fotos: [], pdfs: [] }
-        };
+        policyData.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
         policyData.pagos = [];
         policyData.servicios = [];
 
@@ -365,28 +345,9 @@ class ExcelUploadHandler extends BaseCommand {
 
     // Formatear valores de campo según el tipo
     private formatFieldValue(header: string, value: any): string {
-        if (value === undefined || value === null) {
-            return '';
-        }
-
-        const stringValue = String(value);
-
-        // Campos que deben ser en mayúsculas
-        const upperCaseFields = [
-            'RFC',
-            'MARCA',
-            'SUBMARCA',
-            'COLOR',
-            'SERIE',
-            'PLACAS',
-            'ASEGURADORA',
-            '# DE POLIZA'
-        ];
-        if (upperCaseFields.includes(header)) {
-            return stringValue.toUpperCase().trim();
-        }
-
-        return stringValue.trim();
+        if (value === undefined || value === null) return '';
+        const stringValue = String(value).trim();
+        return UPPERCASE_FIELDS.includes(header) ? stringValue.toUpperCase() : stringValue;
     }
 
     // Analizar y convertir fecha desde varios formatos
@@ -445,42 +406,21 @@ class ExcelUploadHandler extends BaseCommand {
     private validatePolicyData(policyData: Partial<IPolicyData>): IValidationResult {
         const errors: string[] = [];
 
-        // Mapeo de campos técnicos a nombres amigables
-        const fieldNames: IFieldNames = {
-            titular: 'TITULAR',
-            rfc: 'RFC',
-            marca: 'MARCA',
-            submarca: 'SUBMARCA',
-            año: 'AÑO',
-            color: 'COLOR',
-            serie: 'SERIE',
-            placas: 'PLACAS',
-            agenteCotizador: 'AGENTE COTIZADOR',
-            aseguradora: 'ASEGURADORA',
-            numeroPoliza: '# DE POLIZA',
-            fechaEmision: 'FECHA DE EMISION'
-        };
+        // Invertir el mapeo para obtener nombres amigables
+        const fieldToHeader: Record<string, string> = {};
+        for (const [header, field] of Object.entries(HEADER_TO_FIELD_MAP)) {
+            fieldToHeader[field] = header;
+        }
 
-        // Campos obligatorios
-        const requiredFields: (keyof IPolicyData)[] = [
-            'titular',
-            'rfc',
-            'marca',
-            'submarca',
-            'año',
-            'color',
-            'serie',
-            'placas',
-            'agenteCotizador',
-            'aseguradora',
-            'numeroPoliza',
-            'fechaEmision'
-        ];
+        // Campos requeridos basados en REQUIRED_EXCEL_FIELDS
+        const requiredModelFields: (keyof IPolicyData)[] = REQUIRED_EXCEL_FIELDS.map(
+            header => HEADER_TO_FIELD_MAP[header]
+        );
 
         // Verificar campos faltantes
-        for (const field of requiredFields) {
+        for (const field of requiredModelFields) {
             if (!policyData[field]) {
-                errors.push(`Falta ${fieldNames[field]}`);
+                errors.push(`Falta ${fieldToHeader[field]}`);
             }
         }
 
@@ -493,12 +433,7 @@ class ExcelUploadHandler extends BaseCommand {
             errors.push('FECHA DE EMISION no es válida');
         }
 
-        // Retornar el resultado de validación
-        if (errors.length > 0) {
-            return { isValid: false, errors: errors };
-        }
-
-        return { isValid: true, errors: [] };
+        return errors.length > 0 ? { isValid: false, errors } : { isValid: true, errors: [] };
     }
 
     // Mostrar resultados del procesamiento

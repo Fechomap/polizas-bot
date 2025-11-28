@@ -119,7 +119,7 @@ class FileHandler {
             }
 
             // Convertir el Buffer a un formato que Telegram pueda manejar
-            const fileBuffer = Buffer.from(file.data.buffer || file.data);
+            const fileBuffer = Buffer.from(file.data.buffer ?? file.data);
 
             logger.info('Enviando archivo:', {
                 tieneData: !!file.data,

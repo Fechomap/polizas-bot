@@ -90,15 +90,15 @@ export class VehicleController {
             if (vehicleData.titular) {
                 datosTemporal = {
                     titular: vehicleData.titular,
-                    rfc: vehicleData.rfc || '',
-                    telefono: vehicleData.telefono || '',
-                    correo: vehicleData.correo || '',
-                    calle: vehicleData.calle || '',
-                    colonia: vehicleData.colonia || '',
-                    municipio: vehicleData.municipio || '',
-                    estado: vehicleData.estado || vehicleData.estadoRegion || '',
-                    estadoRegion: vehicleData.estadoRegion || '',
-                    cp: vehicleData.cp || ''
+                    rfc: vehicleData.rfc ?? '',
+                    telefono: vehicleData.telefono ?? '',
+                    correo: vehicleData.correo ?? '',
+                    calle: vehicleData.calle ?? '',
+                    colonia: vehicleData.colonia ?? '',
+                    municipio: vehicleData.municipio ?? '',
+                    estado: vehicleData.estado ?? vehicleData.estadoRegion ?? '',
+                    estadoRegion: vehicleData.estadoRegion ?? '',
+                    cp: vehicleData.cp ?? ''
                 };
             } else {
                 datosTemporal = await generarDatosMexicanosCompletos();
@@ -128,7 +128,7 @@ export class VehicleController {
                 // Metadatos
                 creadoPor: userId,
                 creadoVia: via,
-                notas: vehicleData.notas || '',
+                notas: vehicleData.notas ?? '',
 
                 // Estado inicial
                 estado: 'SIN_POLIZA'
@@ -172,16 +172,16 @@ export class VehicleController {
                     // Subir a Cloudflare R2
                     const cloudflareService = new CloudflareStorage();
                     const uploadResult = await cloudflareService.uploadFile(
-                        file.buffer || Buffer.from([]),
-                        file.originalname || file.name || 'unknown',
-                        file.mimetype || file.type || 'image/jpeg'
+                        file.buffer ?? Buffer.from([]),
+                        file.originalname ?? file.name ?? 'unknown',
+                        file.mimetype ?? file.type ?? 'image/jpeg'
                     );
 
                     const r2File: IR2File = {
                         url: uploadResult.url,
                         key: uploadResult.key,
-                        originalName: file.originalname || file.name || 'unknown',
-                        contentType: file.mimetype || file.type || 'image/jpeg',
+                        originalName: file.originalname ?? file.name ?? 'unknown',
+                        contentType: file.mimetype ?? file.type ?? 'image/jpeg',
                         size: file.size,
                         uploadDate: new Date()
                     };
@@ -191,8 +191,8 @@ export class VehicleController {
                 } else {
                     // Guardar en MongoDB (sistema legacy) - este es un método dummy por ahora
                     const mongoFile: IFileObject = {
-                        data: file.buffer || Buffer.from([]),
-                        contentType: file.mimetype || file.type || 'image/jpeg'
+                        data: file.buffer ?? Buffer.from([]),
+                        contentType: file.mimetype ?? file.type ?? 'image/jpeg'
                     };
                     vehiculoTyped.archivos.fotos.push(mongoFile);
                     fotosGuardadas.push(mongoFile);
@@ -240,8 +240,8 @@ export class VehicleController {
                     key: foto.key,
                     originalName: foto.originalname,
                     contentType: 'image/jpeg',
-                    size: foto.size || 0,
-                    uploadDate: foto.uploadedAt || new Date()
+                    size: foto.size ?? 0,
+                    uploadDate: foto.uploadedAt ?? new Date()
                 };
 
                 vehiculoTyped.archivos.r2Files.fotos.push(r2File);
@@ -344,7 +344,7 @@ export class VehicleController {
 
             return {
                 success: true,
-                vehiculo: vehiculo || undefined
+                vehiculo: vehiculo ?? undefined
             };
         } catch (error: any) {
             console.error('Error al buscar vehículo:', error);

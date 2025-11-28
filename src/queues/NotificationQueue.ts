@@ -42,7 +42,7 @@ async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void
         const policy = await getPolicyByNumber(notification.numeroPoliza);
         if (!policy) return;
 
-        const fotos = policy.archivos?.r2Files?.fotos || [];
+        const fotos = policy.archivos?.r2Files?.fotos ?? [];
         if (fotos.length === 0) return;
 
         const storage = getStorageInstance();
@@ -50,7 +50,7 @@ async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void
 
         for (let i = 0; i < fotosAEnviar.length; i++) {
             const foto = fotosAEnviar[i];
-            const caption = `📸 ${notification.numeroPoliza} - ${notification.marcaModelo || 'Vehículo'} (${i + 1}/${fotosAEnviar.length})`;
+            const caption = `📸 ${notification.numeroPoliza} - ${notification.marcaModelo ?? 'Vehículo'} (${i + 1}/${fotosAEnviar.length})`;
 
             // Usar URL firmada (válida por 1 hora) en lugar de URL pública
             const signedUrl = await storage.getSignedUrl(foto.key, 3600);
@@ -88,11 +88,11 @@ async function sendNotificationToTelegram(notification: any, bot: Telegraf): Pro
         message = '🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n✅ SERVICIO EN TÉRMINO ✅\n🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩\n';
         message += `🔸 <b><u>${notification.expedienteNum}</u></b>\n`;
         if (notification.marcaModelo)
-            message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo || ''}\n`;
+            message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo ?? ''}\n`;
         if (notification.placas) message += `🔸 ${notification.placas}\n`;
         if (notification.origenDestino) {
             const destino =
-                notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                notification.origenDestino.split(' - ').pop() ?? notification.origenDestino;
             message += `🔸 ➡️ ${destino}\n`;
         }
         message += '✅ Confirmar cierre ✅';
@@ -100,11 +100,11 @@ async function sendNotificationToTelegram(notification: any, bot: Telegraf): Pro
         message = '🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n⚠️ SERVICIO EN CONTACTO ⚠️\n🟨🟨🟨🟨🟨🟨🟨🟨🟨🟨\n';
         message += `🔸 <b><u>${notification.expedienteNum}</u></b>\n`;
         if (notification.marcaModelo)
-            message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo || ''}\n`;
+            message += `🔸 ${notification.marcaModelo} ${notification.colorVehiculo ?? ''}\n`;
         if (notification.placas) message += `🔸 ${notification.placas}\n`;
         if (notification.origenDestino) {
             const destino =
-                notification.origenDestino.split(' - ').pop() || notification.origenDestino;
+                notification.origenDestino.split(' - ').pop() ?? notification.origenDestino;
             message += `🔸 ➡️ ${destino}\n`;
         }
         message += '⚠️ Seguimiento en chat ⚠️';

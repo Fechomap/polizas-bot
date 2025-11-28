@@ -35,7 +35,7 @@ export class VehicleCreationService {
                 submarca: datos.submarca,
                 año: datos.año,
                 color: datos.color,
-                placas: datos.placas || 'SIN PLACAS',
+                placas: datos.placas ?? 'SIN PLACAS',
                 estado: 'SIN_POLIZA',
                 ...datosTitular,
                 archivos: {

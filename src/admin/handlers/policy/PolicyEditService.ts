@@ -79,8 +79,8 @@ class PolicyEditService {
             }
 
             const fieldMapping = FIELD_MAPPINGS[fieldName];
-            const displayName = fieldMapping?.displayName || fieldName;
-            const currentValue = (policy as any)[fieldName] || 'No definido';
+            const displayName = fieldMapping?.displayName ?? fieldName;
+            const currentValue = (policy as any)[fieldName] ?? 'No definido';
 
             adminStateManager.createAdminState(ctx.from!.id, ctx.chat!.id, 'edit_field', {
                 editField: fieldName,
@@ -133,13 +133,13 @@ Escribe el nuevo valor:
             await policy.save();
 
             const fieldMapping = FIELD_MAPPINGS[fieldName];
-            const displayName = fieldMapping?.displayName || fieldName;
+            const displayName = fieldMapping?.displayName ?? fieldName;
 
             await ctx.reply(
                 `✅ *Campo actualizado exitosamente*\n\n` +
                     `**Póliza:** ${policy.numeroPoliza}\n` +
                     `**Campo:** ${displayName}\n` +
-                    `**Anterior:** ${oldValue || 'No definido'}\n` +
+                    `**Anterior:** ${oldValue ?? 'No definido'}\n` +
                     `**Nuevo:** ${newValue}`,
                 {
                     parse_mode: 'Markdown',
@@ -187,7 +187,7 @@ Escribe el nuevo valor:
 
         if (!state) return false;
 
-        const action = state.operation || state.data?.action;
+        const action = state.operation ?? state.data?.action;
 
         if (action !== 'edit_field') {
             return false;

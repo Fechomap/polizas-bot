@@ -148,7 +148,7 @@ class LocationStep {
             // Obtener póliza
             const policyCacheData = this.polizaCache.get(chatId, threadId);
             const policy =
-                policyCacheData?.policy || ((await getPolicyByNumber(numeroPoliza)) as IPolicy);
+                policyCacheData?.policy ?? ((await getPolicyByNumber(numeroPoliza)) as IPolicy);
 
             if (!policy) {
                 await ctx.reply('❌ Error: Póliza no encontrada.');
@@ -193,7 +193,7 @@ class LocationStep {
             const responseMessage = this.buildDestinationResponse(enhancedData, rutaInfo);
 
             // Generar URLs de WhatsApp directamente
-            const telefono = policy.telefono || '';
+            const telefono = policy.telefono ?? '';
 
             // URLs para coordenadas
             const waOrigenCoordsUrl = whatsAppService.generateWhatsAppUrl(
@@ -314,7 +314,7 @@ class LocationStep {
         policy: IPolicy,
         enhancedData: IEnhancedLegendData
     ): void {
-        const targetGroupId = parseInt(process.env.TELEGRAM_GROUP_ID || '-1002212807945');
+        const targetGroupId = parseInt(process.env.TELEGRAM_GROUP_ID ?? '-1002212807945');
 
         setImmediate(async () => {
             try {
@@ -339,7 +339,7 @@ class LocationStep {
         let responseMessage = '';
 
         // Mostrar direcciones geocodificadas (dirección completa)
-        if (enhancedData.origenGeo || enhancedData.destinoGeo) {
+        if (enhancedData.origenGeo ?? enhancedData.destinoGeo) {
             responseMessage = '📍 *Ubicaciones:*\n';
             if (enhancedData.origenGeo) {
                 const origenText =

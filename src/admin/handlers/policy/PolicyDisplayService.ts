@@ -43,8 +43,8 @@ class PolicyDisplayService {
                 return;
             }
 
-            const serviciosReales = policy.servicios?.length || 0;
-            const registrosReales = policy.registros?.length || 0;
+            const serviciosReales = policy.servicios?.length ?? 0;
+            const registrosReales = policy.registros?.length ?? 0;
 
             const detailsText = `
 📋 *DETALLES DE PÓLIZA*
@@ -54,25 +54,25 @@ class PolicyDisplayService {
 🔖 Número: ${policy.numeroPoliza}
 👤 Titular: ${policy.titular}
 🆔 RFC: ${policy.rfc}
-📧 Email: ${policy.correo || 'No definido'}
+📧 Email: ${policy.correo ?? 'No definido'}
 📞 Teléfono: ${this.formatPhone(policy.telefono)}
 
 **DOMICILIO**
-🏠 ${policy.calle || 'Sin calle'}, ${policy.colonia || 'Sin colonia'}
-📍 ${policy.municipio || 'Sin municipio'}, ${policy.estadoRegion || 'Sin estado'}
-📮 CP: ${policy.cp || 'Sin CP'}
+🏠 ${policy.calle ?? 'Sin calle'}, ${policy.colonia ?? 'Sin colonia'}
+📍 ${policy.municipio ?? 'Sin municipio'}, ${policy.estadoRegion ?? 'Sin estado'}
+📮 CP: ${policy.cp ?? 'Sin CP'}
 
 **VEHÍCULO**
-🚗 ${policy.marca || 'Sin marca'} ${policy.submarca || 'Sin submarca'} ${policy.año || 'Sin año'}
-🏷️ Placas: ${policy.placas || 'Sin placas'}
-🔢 Serie: ${policy.serie || 'Sin serie'}
-🎨 Color: ${policy.color || 'Sin color'}
+🚗 ${policy.marca ?? 'Sin marca'} ${policy.submarca ?? 'Sin submarca'} ${policy.año ?? 'Sin año'}
+🏷️ Placas: ${policy.placas ?? 'Sin placas'}
+🔢 Serie: ${policy.serie ?? 'Sin serie'}
+🎨 Color: ${policy.color ?? 'Sin color'}
 
 **PÓLIZA**
 📅 Emisión: ${this.formatDate(policy.fechaEmision)}
 📅 Fin Cobertura: ${this.formatDate(policy.fechaFinCobertura)}
-🛡️ Estado: ${policy.estadoPoliza || 'Sin definir'}
-🏢 Aseguradora: ${policy.aseguradora || 'Sin aseguradora'}
+🛡️ Estado: ${policy.estadoPoliza ?? 'Sin definir'}
+🏢 Aseguradora: ${policy.aseguradora ?? 'Sin aseguradora'}
 
 **SERVICIOS Y REGISTROS**
 🚗 Servicios: ${serviciosReales}
@@ -129,7 +129,7 @@ class PolicyDisplayService {
      */
     static async showPolicyDetails(ctx: Context, policy: any): Promise<void> {
         try {
-            const totalServicios = policy.servicios?.length || 0;
+            const totalServicios = policy.servicios?.length ?? 0;
 
             const detailsText = `
 📋 *DETALLES DE PÓLIZA*
@@ -137,27 +137,27 @@ class PolicyDisplayService {
 
 📝 *Número:* ${policy.numeroPoliza}
 👤 *Titular:* ${policy.titular}
-🆔 *RFC:* ${policy.rfc || 'No definido'}
+🆔 *RFC:* ${policy.rfc ?? 'No definido'}
 📞 *Teléfono:* ${this.formatPhone(policy.telefono)}
-📧 *Email:* ${policy.correo || 'No definido'}
+📧 *Email:* ${policy.correo ?? 'No definido'}
 
 🏠 *Dirección:*
-${policy.calle || ''} ${policy.colonia || ''}
-${policy.municipio || ''}, ${policy.estadoRegion || ''} ${policy.cp || ''}
+${policy.calle ?? ''} ${policy.colonia ?? ''}
+${policy.municipio ?? ''}, ${policy.estadoRegion ?? ''} ${policy.cp ?? ''}
 
 🚗 *Vehículo:*
-${policy.marca || ''} ${policy.submarca || ''} ${policy.año || ''}
-Placas: ${policy.placas || 'Sin placas'}
-Serie: ${policy.serie || 'Sin serie'}
-Color: ${policy.color || 'Sin color'}
+${policy.marca ?? ''} ${policy.submarca ?? ''} ${policy.año ?? ''}
+Placas: ${policy.placas ?? 'Sin placas'}
+Serie: ${policy.serie ?? 'Sin serie'}
+Color: ${policy.color ?? 'Sin color'}
 
-🏢 *Aseguradora:* ${policy.aseguradora || 'Sin aseguradora'}
-👤 *Agente:* ${policy.agenteCotizador || 'Sin agente'}
+🏢 *Aseguradora:* ${policy.aseguradora ?? 'Sin aseguradora'}
+👤 *Agente:* ${policy.agenteCotizador ?? 'Sin agente'}
 📅 *Emisión:* ${this.formatDate(policy.fechaEmision)}
 📅 *Vencimiento:* ${this.formatDate(policy.fechaFinCobertura)}
 
 📊 *Servicios:* ${totalServicios}
-⭐ *Calificación:* ${policy.calificacion || 'Sin calificar'}
+⭐ *Calificación:* ${policy.calificacion ?? 'Sin calificar'}
             `.trim();
 
             const buttons = [

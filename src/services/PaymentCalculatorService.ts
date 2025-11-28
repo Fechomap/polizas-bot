@@ -131,12 +131,12 @@ export class PaymentCalculatorService {
                         montoRequerido,
                         montoReferencia,
                         fuenteMonto,
-                        estadoPoliza: estadoPoliza || 'SIN_ESTADO',
+                        estadoPoliza: estadoPoliza ?? 'SIN_ESTADO',
                         pagosRealizados: pagosRealizados.length,
                         diasTranscurridos,
                         fechaLimiteCobertura,
                         fechaEmision: new Date(fechaEmision),
-                        servicios: servicios || []
+                        servicios: servicios ?? []
                     });
                 }
             }
@@ -197,7 +197,7 @@ export class PaymentCalculatorService {
         let polizasConCosto = 0;
 
         pendingPolicies.forEach(policy => {
-            const amount = policy.montoRequerido || policy.montoReferencia || 0;
+            const amount = policy.montoRequerido ?? policy.montoReferencia ?? 0;
             totalAmount += amount;
 
             if (amount > 0) {
@@ -262,7 +262,7 @@ export class PaymentCalculatorService {
 
         // Ordenar cada grupo
         Object.keys(grupos).forEach(key => {
-            grupos[key].sort((a, b) => (a.diasHastaVencer || 0) - (b.diasHastaVencer || 0));
+            grupos[key].sort((a, b) => (a.diasHastaVencer ?? 0) - (b.diasHastaVencer ?? 0));
         });
 
         return grupos;
@@ -273,7 +273,7 @@ export class PaymentCalculatorService {
      */
     calculateTotalAmount(pendingPolicies: IPendingPolicy[]): number {
         return pendingPolicies.reduce((total, policy) => {
-            return total + (policy.montoRequerido || policy.montoReferencia || 0);
+            return total + (policy.montoRequerido ?? policy.montoReferencia ?? 0);
         }, 0);
     }
 }
@@ -282,9 +282,7 @@ export class PaymentCalculatorService {
 let instance: PaymentCalculatorService | null = null;
 
 export function getPaymentCalculatorService(): PaymentCalculatorService {
-    if (!instance) {
-        instance = new PaymentCalculatorService();
-    }
+    instance ??= new PaymentCalculatorService();
     return instance;
 }
 

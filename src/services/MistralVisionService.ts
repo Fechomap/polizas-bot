@@ -63,10 +63,45 @@ class MistralVisionService {
     private modelVision = 'pixtral-12b-latest'; // Visión para fotos de vehículos
 
     constructor() {
-        this.apiKey = process.env.MISTRAL_API_KEY || '';
+        this.apiKey = process.env.MISTRAL_API_KEY ?? '';
         if (!this.apiKey) {
             console.warn('[MistralVision] MISTRAL_API_KEY no está configurada');
         }
+    }
+
+    /**
+     * Detecta si un string tiene formato de RFC mexicano
+     * RFC persona física: 4 letras + 6 dígitos (fecha) + 3 caracteres = 13 chars
+     * RFC persona moral: 3 letras + 6 dígitos + 3 caracteres = 12 chars
+     */
+    private esRFC(valor: string): boolean {
+        if (!valor) return false;
+        const clean = valor.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        // RFC tiene 12-13 caracteres con formato específico
+        if (clean.length < 12 || clean.length > 13) return false;
+        // Patrón RFC: letras iniciales + 6 dígitos de fecha + homoclave
+        // Persona física: XXXX000000XXX
+        // Persona moral: XXX000000XXX
+        const rfcPattern = /^[A-Z]{3,4}\d{6}[A-Z0-9]{3}$/;
+        return rfcPattern.test(clean);
+    }
+
+    /**
+     * Valida si un string es una placa vehicular mexicana válida
+     * Placas mexicanas: máximo 7-8 caracteres alfanuméricos
+     * Formatos comunes: ABC-123, ABC-1234, AB-123-C, 123-ABC
+     */
+    private esPlacaValida(valor: string): boolean {
+        if (!valor) return false;
+        const clean = valor.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        // Placas tienen entre 5 y 8 caracteres
+        if (clean.length < 5 || clean.length > 8) return false;
+        // No debe ser un RFC
+        if (this.esRFC(valor)) return false;
+        // Debe tener al menos una letra y un número
+        const tieneLetras = /[A-Z]/.test(clean);
+        const tieneNumeros = /[0-9]/.test(clean);
+        return tieneLetras && tieneNumeros;
     }
 
     /**
@@ -84,7 +119,7 @@ class MistralVisionService {
      */
     async extraerDatosTarjetaCirculacion(
         imageBuffer: Buffer,
-        mimeType: string = 'image/jpeg'
+        mimeType = 'image/jpeg'
     ): Promise<IResultadoVision> {
         if (!this.isConfigured()) {
             return {
@@ -160,7 +195,7 @@ class MistralVisionService {
                 return { success: false, texto: null, error: `Error OCR: ${response.status}` };
             }
 
-            const data = (await response.json()) as any;
+            const data = await response.json();
 
             // El OCR devuelve páginas con contenido markdown
             let textoExtraido = '';
@@ -212,9 +247,9 @@ ${textoOCR}
 - submarca: Modelo/Línea del vehículo (NP300, SENTRA, etc.)
 - año: Año modelo (4 dígitos)
 - color: Color del vehículo (SOLO si está explícitamente indicado, NO inferir)
-- placas: Número de placa vehicular
+- placas: Número de placa vehicular (MÁXIMO 7-8 caracteres, formato: ABC-123 o ABC-1234)
 - titular: Nombre del propietario (puede ser persona física o razón social)
-- rfc: RFC del propietario (10-13 caracteres)
+- rfc: RFC del propietario (12-13 caracteres, formato: XXXX000000XXX)
 - calle, colonia, municipio, estadoRegion, cp: Datos de dirección si están presentes
 </fields>
 
@@ -224,6 +259,10 @@ ${textoOCR}
 - Si un campo no está en el texto, usa null
 - El NIV/SERIE debe tener exactamente 17 caracteres
 - Transcribe EXACTAMENTE como aparece, sin corregir
+- IMPORTANTE: NO confundir PLACAS con RFC:
+  * PLACAS: Máximo 7-8 caracteres (ej: ABC-123, NXE-7642, 123-ABC)
+  * RFC: 12-13 caracteres con formato XXXX000000XXX (ej: CÁPC880515GA5, PELJ850101ABC)
+  * Si un valor tiene 12-13 caracteres y sigue patrón de RFC, es RFC, NO placas
 </rules>
 
 <output>
@@ -281,7 +320,7 @@ Responde SOLO con JSON válido:
                 };
             }
 
-            const data = (await response.json()) as any;
+            const data = await response.json();
             const contenido = data.choices?.[0]?.message?.content;
 
             if (!contenido) {
@@ -358,7 +397,7 @@ Responde SOLO con JSON válido:
                 };
             }
 
-            const data = (await response.json()) as any;
+            const data = await response.json();
             const contenido = data.choices?.[0]?.message?.content;
 
             if (!contenido) {
@@ -395,7 +434,7 @@ Responde SOLO con JSON válido:
      */
     async detectarPlacasEnFoto(
         imageBuffer: Buffer,
-        mimeType: string = 'image/jpeg'
+        mimeType = 'image/jpeg'
     ): Promise<IResultadoDeteccionPlacas> {
         if (!this.isConfigured()) {
             return {
@@ -473,8 +512,8 @@ Si no se detectan placas:
                 };
             }
 
-            const data = (await response.json()) as any;
-            const contenido = data.choices?.[0]?.message?.content || '';
+            const data = await response.json();
+            const contenido = data.choices?.[0]?.message?.content ?? '';
 
             return this.parsearRespuestaPlacas(contenido);
         } catch (error) {
@@ -529,9 +568,10 @@ Extrae EXACTAMENTE estos campos de la imagen:
    - IMPORTANTE: Busca específicamente el COLOR, NO confundir con "ORIGEN" (NACIONAL/EXTRANJERO)
    - Ejemplos: BLANCO, NEGRO, ROJO, GRIS, AZUL, PLATA
 
-6. **PLACAS**: Número de placa
+6. **PLACAS**: Número de placa vehicular
    - Ubicación: Sección derecha inferior, etiquetado como "PLACA"
-   - Formato variable: ABC-123-D, ABC-1234, 123-ABC
+   - Formato: MÁXIMO 7-8 caracteres (ej: ABC-123, ABC-1234, NXE-7642, 123-ABC)
+   - IMPORTANTE: NO confundir con RFC (que tiene 12-13 caracteres)
 
 7. **TITULAR/NOMBRE**: Propietario del vehículo
    - Ubicación: PARTE SUPERIOR del documento (encabezado), etiquetado como "NOMBRE"
@@ -541,7 +581,8 @@ Extrae EXACTAMENTE estos campos de la imagen:
 
 8. **RFC**: Registro Federal de Contribuyentes
    - Ubicación: Debajo del nombre, etiquetado como "R.F.C."
-   - Formato: 12-13 caracteres alfanuméricos
+   - Formato: 12-13 caracteres con patrón XXXX000000XXX (ej: PELJ850101ABC, CÁPC880515GA5)
+   - IMPORTANTE: El RFC tiene 12-13 caracteres y contiene una fecha (6 dígitos en medio). NO es una placa.
 </fields_to_extract>
 
 <example>
@@ -596,6 +637,10 @@ Responde SOLO con JSON válido, sin explicaciones ni markdown:
 - El COLOR es diferente al ORIGEN (NACIONAL/EXTRANJERO no son colores)
 - Transcribe EXACTAMENTE lo que ves, sin corregir ortografía
 - Convierte todo texto a MAYÚSCULAS
+- CRÍTICO: NO confundir PLACAS con RFC:
+  * PLACAS: Máximo 7-8 caracteres (ej: ABC-123, NXE-7642)
+  * RFC: 12-13 caracteres con formato XXXX000000XXX (ej: PELJ850101ABC)
+  * Si un valor tiene 12-13 caracteres, es RFC y NO debe ir en placas
 </rules>`;
     }
 
@@ -637,12 +682,12 @@ Responde SOLO con JSON válido, sin explicaciones ni markdown:
         if (!serie) datosFaltantes.push('serie');
 
         // Marca
-        const marca = jsonData.marca?.toString()?.trim()?.toUpperCase() || null;
+        const marca = jsonData.marca?.toString()?.trim()?.toUpperCase() ?? null;
         if (marca) datosEncontrados.push('marca');
         else datosFaltantes.push('marca');
 
         // Submarca
-        const submarca = jsonData.submarca?.toString()?.trim()?.toUpperCase() || null;
+        const submarca = jsonData.submarca?.toString()?.trim()?.toUpperCase() ?? null;
         if (submarca) datosEncontrados.push('submarca');
         else datosFaltantes.push('submarca');
 
@@ -653,24 +698,12 @@ Responde SOLO con JSON válido, sin explicaciones ni markdown:
         else datosFaltantes.push('año');
 
         // Color
-        const color = jsonData.color?.toString()?.trim()?.toUpperCase() || null;
+        const color = jsonData.color?.toString()?.trim()?.toUpperCase() ?? null;
         if (color) datosEncontrados.push('color');
         else datosFaltantes.push('color');
 
-        // Placas - normalizar formato
-        let placas: string | null = null;
-        if (jsonData.placas) {
-            placas = jsonData.placas.toString().trim().toUpperCase().replace(/\s+/g, '-');
-            datosEncontrados.push('placas');
-        } else {
-            datosFaltantes.push('placas');
-        }
-
-        // Titular
-        const titular = jsonData.titular?.toString()?.trim()?.toUpperCase() || null;
-        if (titular) datosEncontrados.push('titular');
-
         // RFC - validar longitud (10-13 chars: algunos documentos tienen RFC parcial)
+        // NOTA: Se procesa ANTES de placas para poder reasignar si hay confusión
         let rfc: string | null = null;
         if (jsonData.rfc) {
             const rfcClean = jsonData.rfc
@@ -685,12 +718,42 @@ Responde SOLO con JSON válido, sin explicaciones ni markdown:
             }
         }
 
+        // Placas - normalizar formato y validar que no sea RFC
+        let placas: string | null = null;
+        if (jsonData.placas) {
+            const placasRaw = jsonData.placas.toString().trim().toUpperCase().replace(/\s+/g, '-');
+
+            // Verificar si lo que viene como "placas" es en realidad un RFC
+            if (this.esRFC(placasRaw)) {
+                console.warn(`[MistralVision] Se detectó RFC en campo placas: ${placasRaw}`);
+                // Si no tenemos RFC aún, usar este valor como RFC
+                if (!rfc) {
+                    rfc = placasRaw.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                    datosEncontrados.push('rfc');
+                    console.log(`[MistralVision] RFC reasignado desde placas: ${rfc}`);
+                }
+                datosFaltantes.push('placas');
+            } else if (this.esPlacaValida(placasRaw)) {
+                placas = placasRaw;
+                datosEncontrados.push('placas');
+            } else {
+                console.warn(`[MistralVision] Placa inválida descartada: ${placasRaw}`);
+                datosFaltantes.push('placas');
+            }
+        } else {
+            datosFaltantes.push('placas');
+        }
+
+        // Titular
+        const titular = jsonData.titular?.toString()?.trim()?.toUpperCase() ?? null;
+        if (titular) datosEncontrados.push('titular');
+
         // Dirección (opcional)
-        const calle = jsonData.calle?.toString()?.trim() || null;
-        const colonia = jsonData.colonia?.toString()?.trim() || null;
-        const municipio = jsonData.municipio?.toString()?.trim() || null;
-        const estadoRegion = jsonData.estadoRegion?.toString()?.trim() || null;
-        const cp = jsonData.cp?.toString()?.trim() || null;
+        const calle = jsonData.calle?.toString()?.trim() ?? null;
+        const colonia = jsonData.colonia?.toString()?.trim() ?? null;
+        const municipio = jsonData.municipio?.toString()?.trim() ?? null;
+        const estadoRegion = jsonData.estadoRegion?.toString()?.trim() ?? null;
+        const cp = jsonData.cp?.toString()?.trim() ?? null;
 
         // Calcular confianza basada en campos esenciales
         const camposEsenciales = ['serie', 'marca', 'submarca', 'año', 'color', 'placas'];
@@ -730,7 +793,7 @@ Responde SOLO con JSON válido, sin explicaciones ni markdown:
                     placasDetectadas: Array.isArray(data.placasDetectadas)
                         ? data.placasDetectadas.map((p: string) => p.toUpperCase().trim())
                         : [],
-                    confianza: data.confianza || 0
+                    confianza: data.confianza ?? 0
                 };
             }
         } catch (e) {
@@ -750,9 +813,7 @@ Responde SOLO con JSON válido, sin explicaciones ni markdown:
 let instance: MistralVisionService | null = null;
 
 export function getInstance(): MistralVisionService {
-    if (!instance) {
-        instance = new MistralVisionService();
-    }
+    instance ??= new MistralVisionService();
     return instance;
 }
 

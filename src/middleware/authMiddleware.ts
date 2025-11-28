@@ -16,7 +16,7 @@ const authMiddleware =
             if (!chatId || !userId) return next();
 
             // ID del administrador principal del .env
-            const ADMIN_USER_ID = parseInt(process.env.ADMIN_USER_ID as string) || 7143094298;
+            const ADMIN_USER_ID = parseInt(process.env.ADMIN_USER_ID ?? '0');
 
             // ID del grupo autorizado del .env (opcional)
             const AUTHORIZED_GROUP_ID = process.env.AUTHORIZED_GROUP_ID
@@ -42,7 +42,7 @@ const authMiddleware =
             if (chatType === 'private') {
                 logger.warn('Acceso denegado: Chat privado no autorizado', {
                     userId,
-                    username: ctx.from?.username || 'sin_username'
+                    username: ctx.from?.username ?? 'sin_username'
                 });
 
                 await ctx.reply(

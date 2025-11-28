@@ -303,12 +303,12 @@ class HereMapsService {
 
             // Extraer información relevante
             const resultado: IGeocodeResult = {
-                colonia: address.district || address.subDistrict || '',
-                municipio: address.city || address.county || '',
-                estado: address.state || '',
-                pais: address.countryName || '',
-                codigoPostal: address.postalCode || '',
-                direccionCompleta: item.title || '',
+                colonia: address.district ?? address.subDistrict ?? '',
+                municipio: address.city ?? address.county ?? '',
+                estado: address.state ?? '',
+                pais: address.countryName ?? '',
+                codigoPostal: address.postalCode ?? '',
+                direccionCompleta: item.title ?? '',
                 // Formato simplificado para mostrar
                 ubicacionCorta: this.formatUbicacionCorta(address)
             };
@@ -339,8 +339,8 @@ class HereMapsService {
      */
     private formatUbicacionCorta(address: IGeocodeResponse['items'][0]['address']): string {
         // Priorizar colonia y municipio
-        const colonia = address.district || address.subDistrict || '';
-        const municipio = address.city || address.county || '';
+        const colonia = address.district ?? address.subDistrict ?? '';
+        const municipio = address.city ?? address.county ?? '';
 
         if (colonia && municipio) {
             return `${colonia} - ${municipio}`;
@@ -350,7 +350,7 @@ class HereMapsService {
             return colonia;
         } else {
             // Fallback si no hay datos específicos
-            return address.label || address.title || 'Ubicación desconocida';
+            return address.label ?? address.title ?? 'Ubicación desconocida';
         }
     }
 

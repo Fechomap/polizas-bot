@@ -40,10 +40,10 @@ export class PolicyEntity {
         this.titular = props.titular;
         this.estado = props.estado;
         this.diasRestantesGracia = props.diasRestantesGracia;
-        this._servicios = props.servicios || [];
-        this._registros = props.registros || [];
-        this._pagos = props.pagos || [];
-        this._servicioCounter = props.servicioCounter || 0;
+        this._servicios = props.servicios ?? [];
+        this._registros = props.registros ?? [];
+        this._pagos = props.pagos ?? [];
+        this._servicioCounter = props.servicioCounter ?? 0;
     }
 
     /**

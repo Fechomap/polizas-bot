@@ -164,10 +164,10 @@ class LegendService {
             const mensajes = [
                 '🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣🟣',
                 '🔥 PENDIENTES',
-                `🔥 ALERTA ${policy.aseguradora || 'DESCONOCIDA'}`,
-                `🔥 ${policy.marca || 'MARCA'} - ${policy.submarca || 'SUBMARCA'} - ${policy.año || 'AÑO'}`,
-                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta?.toUpperCase() || 'ORIGEN DESCONOCIDO'}`,
-                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta?.toUpperCase() || 'DESTINO DESCONOCIDO'}`
+                `🔥 ALERTA ${policy.aseguradora ?? 'DESCONOCIDA'}`,
+                `🔥 ${policy.marca ?? 'MARCA'} - ${policy.submarca ?? 'SUBMARCA'} - ${policy.año ?? 'AÑO'}`,
+                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta?.toUpperCase() ?? 'ORIGEN DESCONOCIDO'}`,
+                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta?.toUpperCase() ?? 'DESTINO DESCONOCIDO'}`
             ];
 
             for (let i = 0; i < mensajes.length; i++) {
@@ -185,7 +185,7 @@ class LegendService {
             await delay(250);
             await telegram.sendMessage(
                 targetGroupId,
-                `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`
+                `🗺️ ${enhancedData.googleMapsUrl ?? 'URL no disponible'}`
             );
 
             await delay(250);
@@ -218,10 +218,10 @@ class LegendService {
             const mensajes = [
                 '🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵🔵',
                 '🔥 PENDIENTES',
-                `🔥 ALERTA ${policy.aseguradora || 'DESCONOCIDA'}`,
-                `🔥 ${policy.marca || 'MARCA'} - ${policy.submarca || 'SUBMARCA'} - ${policy.año || 'AÑO'}`,
-                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta?.toUpperCase() || 'ORIGEN DESCONOCIDO'}`,
-                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta?.toUpperCase() || 'DESTINO DESCONOCIDO'}`
+                `🔥 ALERTA ${policy.aseguradora ?? 'DESCONOCIDA'}`,
+                `🔥 ${policy.marca ?? 'MARCA'} - ${policy.submarca ?? 'SUBMARCA'} - ${policy.año ?? 'AÑO'}`,
+                `🔥 ORIGEN: ${enhancedData.origenGeo.ubicacionCorta?.toUpperCase() ?? 'ORIGEN DESCONOCIDO'}`,
+                `🔥 DESTINO: ${enhancedData.destinoGeo.ubicacionCorta?.toUpperCase() ?? 'DESTINO DESCONOCIDO'}`
             ];
 
             for (let i = 0; i < mensajes.length; i++) {
@@ -239,7 +239,7 @@ class LegendService {
             await delay(250);
             await telegram.sendMessage(
                 targetGroupId,
-                `🗺️ ${enhancedData.googleMapsUrl || 'URL no disponible'}`
+                `🗺️ ${enhancedData.googleMapsUrl ?? 'URL no disponible'}`
             );
 
             await delay(250);

@@ -70,7 +70,7 @@ async function handleServiceData(
 
         if (!policyData) {
             logger.warn(
-                `Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}, threadId: ${threadIdRaw || 'ninguno'}`
+                `Se recibieron datos de servicio sin una póliza en espera para chatId: ${chatId}, threadId: ${threadIdRaw ?? 'ninguno'}`
             );
             await ctx.reply(
                 '❌ Hubo un problema. Por favor, inicia el proceso de añadir servicio desde el menú principal.'
@@ -83,7 +83,7 @@ async function handleServiceData(
 
         logger.info(`Procesando datos de servicio para póliza: ${numeroPoliza}`, {
             chatId,
-            threadId: threadIdRaw || 'ninguno'
+            threadId: threadIdRaw ?? 'ninguno'
         });
         const origenDestinoGuardado =
             typeof policyData === 'object' ? policyData.origenDestino : null;
@@ -111,7 +111,7 @@ async function handleServiceData(
 
             // Validar costo
             const costo = parseFloat(costoStr.replace(',', '.'));
-            if (isNaN(costo) || costo <= 0) {
+            if (isNaN(0) || costo <= 0) {
                 await ctx.reply('❌ Costo inválido. Ingresa un número mayor a 0.');
                 return null;
             }
@@ -149,8 +149,8 @@ async function handleServiceData(
                 numeroPoliza,
                 threadId
             ) as ISavedState;
-            const coordenadas = savedState?.coordenadas || null;
-            let rutaInfo = savedState?.rutaInfo || null;
+            const coordenadas = savedState?.coordenadas ?? null;
+            let rutaInfo = savedState?.rutaInfo ?? null;
 
             // Añadir URL de Google Maps desde geocoding si está disponible
             if (savedState?.googleMapsUrl && rutaInfo) {
@@ -253,10 +253,10 @@ async function handleServiceData(
             }
 
             let rutaInfo = savedState.rutaInfo;
-            const coordenadas = savedState.coordenadas || null;
+            const coordenadas = savedState.coordenadas ?? null;
 
             // 3. Calcular costo automáticamente: km × 20 + 650
-            const distanciaKm = rutaInfo.distanciaKm || 0;
+            const distanciaKm = rutaInfo.distanciaKm ?? 0;
             const costo = Math.round((distanciaKm * 20 + 650) * 100) / 100; // Redondear a 2 decimales
 
             // 4. Obtener origen/destino desde datos guardados
@@ -279,7 +279,7 @@ async function handleServiceData(
                 // Fallback: usar coordenadas
                 const origen = coordenadas?.origen;
                 const destino = coordenadas?.destino;
-                origenDestino = `${origen?.lat || 0}, ${origen?.lng || 0} - ${destino?.lat || 0}, ${destino?.lng || 0}`;
+                origenDestino = `${origen?.lat ?? 0}, ${origen?.lng ?? 0} - ${destino?.lat ?? 0}, ${destino?.lng ?? 0}`;
             }
 
             // Añadir URL de Google Maps desde geocoding si está disponible

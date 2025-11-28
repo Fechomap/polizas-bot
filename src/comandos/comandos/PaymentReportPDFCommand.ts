@@ -385,7 +385,7 @@ class PaymentReportPDFCommand extends BaseCommand {
                     doc.fontSize(8).font('Helvetica');
                 }
 
-                const monto = item.montoRequerido || item.montoReferencia || 0;
+                const monto = item.montoRequerido ?? item.montoReferencia ?? 0;
                 totalGrupo += monto;
                 totalGeneral += monto;
 
@@ -393,7 +393,7 @@ class PaymentReportPDFCommand extends BaseCommand {
                     width: colWidths.poliza - 6
                 });
                 doc.text(
-                    (item.diasHastaVencer || 0).toString(),
+                    (item.diasHastaVencer ?? 0).toString(),
                     tableLeft + colWidths.poliza + 3,
                     currentY + 3,
                     { width: colWidths.diasVencer - 6, align: 'center' }
@@ -405,7 +405,7 @@ class PaymentReportPDFCommand extends BaseCommand {
                     { width: colWidths.monto - 6, align: 'right' }
                 );
                 doc.text(
-                    (item.servicios?.length || 0).toString(),
+                    (item.servicios?.length ?? 0).toString(),
                     tableLeft + colWidths.poliza + colWidths.diasVencer + colWidths.monto + 3,
                     currentY + 3,
                     { width: colWidths.servicios - 6, align: 'center' }

@@ -1,12 +1,10 @@
 import BaseCommand, { NavigationContext, IBaseHandler } from './BaseCommand';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getPersistentMenuKeyboard } from '../teclados';
-import { vehiculosEnProceso } from './VehicleRegistrationHandler';
-import { asignacionesEnProceso } from './PolicyAssignmentHandler';
-import flowStateManager from '../../utils/FlowStateManager';
+import { getStateCleanupService } from '../../services/StateCleanupService';
 
-// Import AdminStateManager
-const AdminStateManager = require('../../admin/utils/adminStates').default;
+// Service - Limpieza centralizada de estados
+const cleanupService = getStateCleanupService();
 
 class StartCommand extends BaseCommand {
     constructor(handler: IBaseHandler) {
@@ -28,44 +26,17 @@ class StartCommand extends BaseCommand {
                 const chatId = ctx.chat?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                // Limpiar estados admin problemáticos
-                AdminStateManager.clearAdminState(ctx.from?.id, ctx.chat?.id);
-                this.logInfo('Estados admin limpiados al ejecutar /start', {
-                    userId: ctx.from?.id,
-                    chatId: ctx.chat?.id,
-                    threadId: threadId
-                });
-
-                // LIMPIAR ESTADOS DE BASE DE AUTOS (vehiculosEnProceso y asignacionesEnProceso)
-                const userId = ctx.from?.id;
-                if (userId && chatId) {
-                    const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
-                    if (vehiculosEnProceso.has(stateKey)) {
-                        vehiculosEnProceso.delete(stateKey);
-                        this.logInfo('🚗 Estado de registro de vehículo limpiado', { stateKey });
-                    }
-                    if (asignacionesEnProceso.has(stateKey)) {
-                        asignacionesEnProceso.delete(stateKey);
-                        this.logInfo('📄 Estado de asignación de póliza limpiado', { stateKey });
-                    }
-                }
-
-                // LIMPIAR ESTADOS DE FLUJO OCUPAR PÓLIZA (FlowStateManager)
+                // LIMPIEZA CENTRALIZADA DE TODOS LOS ESTADOS
                 if (chatId) {
-                    const threadIdStr = threadId ? String(threadId) : null;
-                    flowStateManager.clearAllStates(chatId, threadIdStr);
-                    this.logInfo('🔄 Estados de flujo Ocupar Póliza limpiados', {
+                    cleanupService.limpiarTodosLosEstados(
                         chatId,
-                        threadId: threadIdStr || 'ninguno'
-                    });
-                }
-
-                // LIMPIAR TODOS LOS PROCESOS DEL HILO ESPECÍFICO
-                if (chatId && this.handler.clearChatState) {
-                    this.handler.clearChatState(chatId, threadId);
-                    this.logInfo('🧹 Todos los procesos del hilo limpiados completamente', {
-                        chatId: chatId,
-                        threadId: threadId || 'ninguno'
+                        threadId,
+                        ctx.from?.id,
+                        this.handler
+                    );
+                    this.logInfo('🧹 Todos los estados limpiados vía /start', {
+                        chatId,
+                        threadId: threadId ?? 'ninguno'
                     });
                 }
 
@@ -88,9 +59,6 @@ class StartCommand extends BaseCommand {
             }
         });
     }
-
-    // Este método ahora está heredado de BaseCommand con navegación persistente
-    // Mantener para compatibilidad pero usar el padre
 }
 
 export default StartCommand;

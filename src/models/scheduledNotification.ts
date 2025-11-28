@@ -193,7 +193,7 @@ scheduledNotificationSchema.methods.markAsFailed = async function (
 ): Promise<IScheduledNotificationDocument> {
     this.status = 'FAILED';
     this.error = errorMsg;
-    this.retryCount = (this.retryCount || 0) + 1;
+    this.retryCount = (this.retryCount ?? 0) + 1;
     this.lastRetryAt = new Date();
     return await this.save();
 };

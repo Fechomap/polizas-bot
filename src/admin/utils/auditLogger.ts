@@ -143,21 +143,21 @@ class AuditLogger {
                 firstName: user.first_name,
                 chatId,
                 action,
-                module: details.module || 'system',
+                module: details.module ?? 'system',
                 entityType: details.entityType,
                 entityId: details.entityId,
                 changes: details.changes,
                 metadata: {
                     additional: details.metadata
                 },
-                result: details.result || 'success',
+                result: details.result ?? 'success',
                 errorMessage: details.errorMessage
             });
 
             await logEntry.save();
 
             logger.info(
-                `Auditoría: ${action} por @${user.username || user.first_name} (${user.id})`,
+                `Auditoría: ${action} por @${user.username ?? user.first_name} (${user.id})`,
                 {
                     module: details.module,
                     entityId: details.entityId,
@@ -209,7 +209,8 @@ class AuditLogger {
         error: Error | string,
         details: IAuditLogOptions = {}
     ): Promise<IAuditLogDocument | null> {
-        const errorMessage = typeof error === 'string' ? error : error.message || error.toString();
+        const errorMessage =
+            typeof error === 'string' ? error : (error.message ?? error.toString());
 
         return await this.log(ctx, action, {
             ...details,
@@ -237,7 +238,7 @@ class AuditLogger {
         }
         if (module) query.module = module;
 
-        if (startDate || endDate) {
+        if (startDate ?? endDate) {
             query.timestamp = {};
             if (startDate) query.timestamp.$gte = startDate;
             if (endDate) query.timestamp.$lte = endDate;
@@ -311,7 +312,7 @@ class AuditLogger {
 
         logger.info(`Limpieza de auditoría: ${result.deletedCount} registros eliminados`);
 
-        return result.deletedCount || 0;
+        return result.deletedCount ?? 0;
     }
 
     static async getUserActivity(userId: number, days = 30): Promise<IAuditLogEntry[]> {

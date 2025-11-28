@@ -170,15 +170,15 @@ export const addServiceToPolicy = async (
         estado: 'ACTIVO'
     });
     if (!policy) return null;
-    policy.servicioCounter = (policy.servicioCounter || 0) + 1;
+    policy.servicioCounter = (policy.servicioCounter ?? 0) + 1;
     const serviceData: IServicio = {
         numeroServicio: policy.servicioCounter,
         costo,
         fechaServicio,
         numeroExpediente,
         origenDestino,
-        coordenadas: coordenadas || undefined,
-        rutaInfo: rutaInfo || undefined
+        coordenadas: coordenadas ?? undefined,
+        rutaInfo: rutaInfo ?? undefined
     };
     policy.servicios.push(serviceData);
     const updatedPolicy = await policy.save();
@@ -231,7 +231,7 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
         let descartadasPorServicios = 0;
 
         for (const policy of allActivePolicies) {
-            const totalServicios = (policy.servicios || []).length;
+            const totalServicios = (policy.servicios ?? []).length;
             if (totalServicios === 0) {
                 polizasConCeroServicios.push(policy);
             } else if (totalServicios === 1) {
@@ -416,7 +416,7 @@ export const savePoliciesBatch = async (policiesData: IPolicyData[]): Promise<Ba
         } catch (error: any) {
             results.failed++;
             results.details.push({
-                numeroPoliza: policyData?.numeroPoliza || 'Desconocido',
+                numeroPoliza: policyData?.numeroPoliza ?? 'Desconocido',
                 status: 'ERROR',
                 message: error.message
             });
@@ -440,7 +440,7 @@ export const addRegistroToPolicy = async (
         estado: 'ACTIVO'
     });
     if (!policy) return null;
-    policy.registroCounter = (policy.registroCounter || 0) + 1;
+    policy.registroCounter = (policy.registroCounter ?? 0) + 1;
     const registroData: IRegistro = {
         numeroRegistro: policy.registroCounter,
         costo,
@@ -448,8 +448,8 @@ export const addRegistroToPolicy = async (
         numeroExpediente,
         origenDestino,
         estado: 'PENDIENTE',
-        coordenadas: coordenadas || undefined,
-        rutaInfo: rutaInfo || undefined
+        coordenadas: coordenadas ?? undefined,
+        rutaInfo: rutaInfo ?? undefined
     };
     policy.registros.push(registroData);
     const updatedPolicy = await policy.save();
@@ -471,7 +471,7 @@ export const convertirRegistroAServicio = async (
     const registro = policy.registros.find((r: IRegistro) => r.numeroRegistro === numeroRegistro);
     if (!registro) return null;
     registro.estado = 'ASIGNADO';
-    policy.servicioCounter = (policy.servicioCounter || 0) + 1;
+    policy.servicioCounter = (policy.servicioCounter ?? 0) + 1;
     const servicioData: IServicio = {
         ...registro,
         numeroServicio: policy.servicioCounter,

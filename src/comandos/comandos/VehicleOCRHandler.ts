@@ -7,23 +7,28 @@ import {
 } from '../../services/MistralVisionService';
 import { getInstance as getPlacasValidator } from '../../services/PlacasValidator';
 import { getInstance as getCloudflareStorage } from '../../services/CloudflareStorage';
+import { getVehicleOCRUIService } from '../../services/VehicleOCRUIService';
+import { getVehicleValidationService } from '../../services/VehicleValidationService';
 import { VehicleController } from '../../controllers/vehicleController';
 import { generarDatosMexicanosReales } from '../../utils/mexicanDataGenerator';
 import StateKeyManager from '../../utils/StateKeyManager';
-// No usamos getMainKeyboard directamente aquí para evitar problemas de tipos
 import logger from '../../utils/logger';
 import type { Telegraf } from 'telegraf';
 import type { Message } from 'telegraf/typings/core/types/typegram';
+
+// Servicios
+const uiService = getVehicleOCRUIService();
+const validationService = getVehicleValidationService();
 
 /**
  * Estados del flujo de registro con OCR
  */
 export const ESTADOS_OCR_VEHICULO = {
-    ESPERANDO_TARJETA: 'esperando_tarjeta', // Esperando foto de tarjeta de circulación
-    CONFIRMANDO_DATOS: 'confirmando_datos', // Usuario revisa datos extraídos
-    ESPERANDO_DATO_FALTANTE: 'esperando_dato', // Pidiendo dato que no se pudo extraer
-    ESPERANDO_FOTOS_VEHICULO: 'esperando_fotos', // Esperando fotos del vehículo
-    VALIDANDO_PLACAS: 'validando_placas', // Validando placas en fotos
+    ESPERANDO_TARJETA: 'esperando_tarjeta',
+    CONFIRMANDO_DATOS: 'confirmando_datos',
+    ESPERANDO_DATO_FALTANTE: 'esperando_dato',
+    ESPERANDO_FOTOS_VEHICULO: 'esperando_fotos',
+    VALIDANDO_PLACAS: 'validando_placas',
     COMPLETADO: 'completado'
 } as const;
 
@@ -36,9 +41,7 @@ interface IRegistroOCR {
     estado: EstadoOCRVehiculo;
     chatId: number;
     threadId: string | null;
-    // Datos de la tarjeta de circulación
     datosOCR: Partial<IDatosTarjetaCirculacion>;
-    // Datos corregidos/completados por el usuario
     datosConfirmados: {
         serie?: string;
         marca?: string;
@@ -47,7 +50,6 @@ interface IRegistroOCR {
         color?: string;
         placas?: string;
     };
-    // Fotos del vehículo
     fotos: Array<{
         url: string;
         key: string;
@@ -55,25 +57,16 @@ interface IRegistroOCR {
         size: number;
         uploadedAt: Date;
     }>;
-    // Campo actual que se está pidiendo
     campoActual?: string;
-    // Lista de campos faltantes por pedir
     camposFaltantes: string[];
-    // Datos generados para el titular
     datosGenerados?: any;
-    // ID del mensaje de estado (para editar)
     mensajeEstadoId: number | null;
-    // Timestamp de inicio
     iniciado: Date;
-    // Validación de placas
     placasValidadas: boolean;
     resultadoValidacionPlacas?: string;
-}
-
-interface ISendOptions {
-    parse_mode?: 'Markdown' | 'HTML';
-    message_thread_id?: number;
-    reply_markup?: any;
+    // Batch de fotos pendientes
+    fotosEnBatch: number;
+    batchTimeout?: NodeJS.Timeout;
 }
 
 /**
@@ -85,18 +78,6 @@ export const registrosOCR = StateKeyManager.createThreadSafeStateMap<IRegistroOC
  * Campos esenciales que deben estar presentes
  */
 const CAMPOS_ESENCIALES = ['serie', 'marca', 'submarca', 'año', 'color', 'placas'];
-
-/**
- * Nombres amigables para los campos
- */
-const NOMBRES_CAMPOS: Record<string, string> = {
-    serie: 'Número de Serie (VIN)',
-    marca: 'Marca',
-    submarca: 'Modelo',
-    año: 'Año',
-    color: 'Color',
-    placas: 'Placas'
-};
 
 /**
  * Handler para registro de vehículos con OCR de tarjeta de circulación
@@ -117,14 +98,12 @@ export class VehicleOCRHandler {
             // Verificar si Mistral Vision está configurado
             const mistralVision = getMistralVision();
             if (!mistralVision.isConfigured()) {
-                const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-                if (threadId) sendOptions.message_thread_id = parseInt(threadId);
-
-                await bot.telegram.sendMessage(
+                await uiService.enviarMensaje(
+                    bot,
                     chatId,
-                    '⚠️ *El servicio de OCR no está disponible.*\n\n' +
-                        'Por favor, usa el registro manual.',
-                    sendOptions
+                    threadId,
+                    '⚠️ *El servicio de OCR no está disponible.*\n\nPor favor, usa el registro manual.',
+                    { parse_mode: 'Markdown' }
                 );
                 return false;
             }
@@ -132,33 +111,11 @@ export class VehicleOCRHandler {
             // Limpiar registro previo
             registrosOCR.delete(stateKey);
 
-            // Mensaje inicial pidiendo la tarjeta de circulación
-            const mensaje =
-                '📸 *REGISTRO DE AUTO CON OCR*\n\n' +
-                '1️⃣ Envía una *foto clara* de la *Tarjeta de Circulación*\n\n' +
-                '💡 *Tips para mejor resultado:*\n' +
-                '• Buena iluminación\n' +
-                '• Imagen nítida y enfocada\n' +
-                '• Que se lean todos los datos\n\n' +
-                '_Extraeré automáticamente los datos del vehículo_';
-
-            const sendOptions: ISendOptions = {
+            // Mensaje inicial
+            await uiService.enviarMensaje(bot, chatId, threadId, uiService.generarMensajeInicio(), {
                 parse_mode: 'Markdown',
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {
-                                text: '📝 Mejor registro manual',
-                                callback_data: 'vehiculo_ocr_manual'
-                            }
-                        ],
-                        [{ text: '❌ Cancelar', callback_data: 'vehiculo_ocr_cancelar' }]
-                    ]
-                }
-            };
-            if (threadId) sendOptions.message_thread_id = parseInt(threadId);
-
-            await bot.telegram.sendMessage(chatId, mensaje, sendOptions);
+                reply_markup: { inline_keyboard: uiService.generarTecladoInicio() }
+            });
 
             // Inicializar estado
             registrosOCR.set(stateKey, {
@@ -171,7 +128,8 @@ export class VehicleOCRHandler {
                 camposFaltantes: [],
                 mensajeEstadoId: null,
                 iniciado: new Date(),
-                placasValidadas: false
+                placasValidadas: false,
+                fotosEnBatch: 0
             });
 
             logger.info(`Registro OCR iniciado para usuario ${userId}`);
@@ -187,21 +145,17 @@ export class VehicleOCRHandler {
      */
     static async procesarImagen(bot: Telegraf, msg: Message, userId: number): Promise<boolean> {
         const chatId = msg.chat.id;
-        const threadId = (msg as any).message_thread_id || null;
+        const threadId = (msg as any).message_thread_id ?? null;
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
 
         const registro = registrosOCR.get(stateKey);
         if (!registro) return false;
 
-        // Verificar que es una foto
         const photo = (msg as any).photo;
         if (!photo?.length) return false;
 
         try {
-            // Obtener la foto de mejor calidad
             const mejorFoto = photo[photo.length - 1];
-
-            // Descargar la imagen
             const fileLink = await bot.telegram.getFileLink(mejorFoto.file_id);
             const response = await fetch(fileLink.href);
             if (!response.ok) throw new Error(`Error descargando imagen: ${response.status}`);
@@ -209,41 +163,29 @@ export class VehicleOCRHandler {
             const arrayBuffer = await response.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
 
-            // Procesar según el estado actual
             switch (registro.estado) {
                 case ESTADOS_OCR_VEHICULO.ESPERANDO_TARJETA:
                     return await this.procesarTarjetaCirculacion(
                         bot,
                         chatId,
-                        userId,
                         buffer,
                         registro,
                         stateKey
                     );
 
                 case ESTADOS_OCR_VEHICULO.ESPERANDO_FOTOS_VEHICULO:
-                    return await this.procesarFotoVehiculo(
-                        bot,
-                        chatId,
-                        userId,
-                        buffer,
-                        registro,
-                        stateKey
-                    );
+                    return await this.procesarFotoVehiculo(bot, chatId, buffer, registro, stateKey);
 
                 default:
                     return false;
             }
         } catch (error) {
             logger.error('Error procesando imagen:', error);
-
-            const sendOptions: ISendOptions = {};
-            if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-            await bot.telegram.sendMessage(
+            await uiService.enviarMensaje(
+                bot,
                 chatId,
-                '❌ Error al procesar la imagen. Por favor, intenta nuevamente.',
-                sendOptions
+                registro.threadId,
+                '❌ Error al procesar la imagen. Por favor, intenta nuevamente.'
             );
             return true;
         }
@@ -255,55 +197,35 @@ export class VehicleOCRHandler {
     private static async procesarTarjetaCirculacion(
         bot: Telegraf,
         chatId: number,
-        userId: number,
         imageBuffer: Buffer,
         registro: IRegistroOCR,
         stateKey: string
     ): Promise<boolean> {
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-        // Mensaje de procesamiento
-        const msgProcesando = await bot.telegram.sendMessage(
+        const msgProcesando = await uiService.enviarMensaje(
+            bot,
             chatId,
-            '🔍 *Analizando tarjeta de circulación...*\n\n' + '⏳ Esto puede tomar unos segundos',
-            sendOptions
+            registro.threadId,
+            uiService.generarMensajeProcesando(),
+            { parse_mode: 'Markdown' }
         );
 
         try {
-            // Llamar al servicio de OCR de visión
             const mistralVision = getMistralVision();
             const resultado = await mistralVision.extraerDatosTarjetaCirculacion(imageBuffer);
 
-            // Eliminar mensaje de procesamiento
             try {
                 await bot.telegram.deleteMessage(chatId, msgProcesando.message_id);
             } catch {}
 
             if (!resultado.success || !resultado.datos) {
-                await bot.telegram.sendMessage(
+                await uiService.enviarMensaje(
+                    bot,
                     chatId,
-                    '❌ *No se pudieron extraer los datos*\n\n' +
-                        'Por favor, intenta con otra foto más clara o usa el registro manual.',
+                    registro.threadId,
+                    uiService.generarMensajeErrorOCR(),
                     {
-                        ...sendOptions,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [
-                                    {
-                                        text: '📷 Enviar otra foto',
-                                        callback_data: 'vehiculo_ocr_reintentar'
-                                    }
-                                ],
-                                [
-                                    {
-                                        text: '📝 Registro manual',
-                                        callback_data: 'vehiculo_ocr_manual'
-                                    }
-                                ],
-                                [{ text: '❌ Cancelar', callback_data: 'vehiculo_ocr_cancelar' }]
-                            ]
-                        }
+                        parse_mode: 'Markdown',
+                        reply_markup: { inline_keyboard: uiService.generarTecladoReintentar() }
                     }
                 );
                 return true;
@@ -312,12 +234,12 @@ export class VehicleOCRHandler {
             // Guardar datos extraídos
             registro.datosOCR = resultado.datos;
             registro.datosConfirmados = {
-                serie: resultado.datos.serie || undefined,
-                marca: resultado.datos.marca || undefined,
-                submarca: resultado.datos.submarca || undefined,
-                año: resultado.datos.año || undefined,
-                color: resultado.datos.color || undefined,
-                placas: resultado.datos.placas || undefined
+                serie: resultado.datos.serie ?? undefined,
+                marca: resultado.datos.marca ?? undefined,
+                submarca: resultado.datos.submarca ?? undefined,
+                año: resultado.datos.año ?? undefined,
+                color: resultado.datos.color ?? undefined,
+                placas: resultado.datos.placas ?? undefined
             };
 
             // Determinar campos faltantes
@@ -330,21 +252,40 @@ export class VehicleOCRHandler {
                     `${registro.camposFaltantes.length} faltantes`
             );
 
-            // Si hay campos faltantes, pedirlos
             if (registro.camposFaltantes.length > 0) {
                 registro.estado = ESTADOS_OCR_VEHICULO.ESPERANDO_DATO_FALTANTE;
                 registro.campoActual = registro.camposFaltantes[0];
                 registrosOCR.set(stateKey, registro);
 
-                await this.mostrarResumenYPedirFaltante(bot, chatId, registro);
+                await uiService.enviarMensaje(
+                    bot,
+                    chatId,
+                    registro.threadId,
+                    uiService.generarResumenConFaltante(
+                        registro.datosConfirmados,
+                        registro.campoActual
+                    ),
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: { inline_keyboard: uiService.generarTecladoCancelar() }
+                    }
+                );
                 return true;
             }
 
-            // Si todos los datos están completos, pedir confirmación
             registro.estado = ESTADOS_OCR_VEHICULO.CONFIRMANDO_DATOS;
             registrosOCR.set(stateKey, registro);
 
-            await this.pedirConfirmacionDatos(bot, chatId, registro);
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                registro.threadId,
+                uiService.generarMensajeConfirmacion(registro.datosConfirmados),
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard: uiService.generarTecladoConfirmacion() }
+                }
+            );
             return true;
         } catch (error) {
             logger.error('Error en OCR de tarjeta:', error);
@@ -353,12 +294,13 @@ export class VehicleOCRHandler {
                 await bot.telegram.deleteMessage(chatId, msgProcesando.message_id);
             } catch {}
 
-            await bot.telegram.sendMessage(
+            await uiService.enviarMensaje(
+                bot,
                 chatId,
-                '❌ *Error al procesar la tarjeta*\n\n' +
-                    'Por favor, intenta nuevamente o usa el registro manual.',
+                registro.threadId,
+                '❌ *Error al procesar la tarjeta*\n\nPor favor, intenta nuevamente o usa el registro manual.',
                 {
-                    ...sendOptions,
+                    parse_mode: 'Markdown',
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: '📷 Reintentar', callback_data: 'vehiculo_ocr_reintentar' }],
@@ -372,94 +314,11 @@ export class VehicleOCRHandler {
     }
 
     /**
-     * Muestra resumen de datos y pide el primer dato faltante
-     */
-    private static async mostrarResumenYPedirFaltante(
-        bot: Telegraf,
-        chatId: number,
-        registro: IRegistroOCR
-    ): Promise<void> {
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-        const datos = registro.datosConfirmados;
-        const campoFaltante = registro.campoActual!;
-        const nombreCampo = NOMBRES_CAMPOS[campoFaltante];
-
-        // Construir resumen de datos encontrados
-        let resumen = '📋 *DATOS EXTRAÍDOS:*\n\n';
-
-        if (datos.serie) resumen += `✅ Serie: \`${datos.serie}\`\n`;
-        else resumen += '❌ Serie: _falta_\n';
-
-        if (datos.marca) resumen += `✅ Marca: ${datos.marca}\n`;
-        else resumen += '❌ Marca: _falta_\n';
-
-        if (datos.submarca) resumen += `✅ Modelo: ${datos.submarca}\n`;
-        else resumen += '❌ Modelo: _falta_\n';
-
-        if (datos.año) resumen += `✅ Año: ${datos.año}\n`;
-        else resumen += '❌ Año: _falta_\n';
-
-        if (datos.color) resumen += `✅ Color: ${datos.color}\n`;
-        else resumen += '❌ Color: _falta_\n';
-
-        if (datos.placas) resumen += `✅ Placas: ${datos.placas}\n`;
-        else resumen += '❌ Placas: _falta_\n';
-
-        resumen += `\n📝 *Por favor, ingresa ${nombreCampo}:*`;
-
-        await bot.telegram.sendMessage(chatId, resumen, {
-            ...sendOptions,
-            reply_markup: {
-                inline_keyboard: [[{ text: '❌ Cancelar', callback_data: 'vehiculo_ocr_cancelar' }]]
-            }
-        });
-    }
-
-    /**
-     * Pide confirmación de todos los datos
-     */
-    private static async pedirConfirmacionDatos(
-        bot: Telegraf,
-        chatId: number,
-        registro: IRegistroOCR
-    ): Promise<void> {
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-        const datos = registro.datosConfirmados;
-
-        const mensaje =
-            '✅ *DATOS COMPLETOS*\n\n' +
-            `🔢 *Serie:* \`${datos.serie}\`\n` +
-            `🚗 *Marca:* ${datos.marca}\n` +
-            `📋 *Modelo:* ${datos.submarca}\n` +
-            `📅 *Año:* ${datos.año}\n` +
-            `🎨 *Color:* ${datos.color}\n` +
-            `🔖 *Placas:* ${datos.placas}\n\n` +
-            '¿Los datos son correctos?';
-
-        await bot.telegram.sendMessage(chatId, mensaje, {
-            ...sendOptions,
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: '✅ Confirmar', callback_data: 'vehiculo_ocr_confirmar' },
-                        { text: '✏️ Corregir', callback_data: 'vehiculo_ocr_corregir' }
-                    ],
-                    [{ text: '❌ Cancelar', callback_data: 'vehiculo_ocr_cancelar' }]
-                ]
-            }
-        });
-    }
-
-    /**
      * Procesa respuesta de texto (para datos faltantes)
      */
     static async procesarTexto(bot: Telegraf, msg: Message, userId: number): Promise<boolean> {
         const chatId = msg.chat.id;
-        const threadId = (msg as any).message_thread_id || null;
+        const threadId = (msg as any).message_thread_id ?? null;
         const texto = (msg as any).text?.trim();
 
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
@@ -471,110 +330,53 @@ export class VehicleOCRHandler {
 
         if (!texto) return false;
 
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
         const campoActual = registro.campoActual!;
+        const validacion = validationService.validarCampoDinamico(campoActual, texto);
 
-        // Validar el dato según el campo
-        const validacion = this.validarDato(campoActual, texto);
         if (!validacion.valido) {
-            await bot.telegram.sendMessage(
+            await uiService.enviarMensaje(
+                bot,
                 chatId,
-                `❌ ${validacion.error}\n\nPor favor, ingresa ${NOMBRES_CAMPOS[campoActual]} nuevamente:`,
-                sendOptions
+                registro.threadId,
+                `❌ ${validacion.error}\n\nPor favor, ingresa ${uiService.getNombreCampo(campoActual)} nuevamente:`,
+                { parse_mode: 'Markdown' }
             );
             return true;
         }
 
         // Guardar el dato
         (registro.datosConfirmados as any)[campoActual] = validacion.valor;
-
-        // Quitar de la lista de faltantes
         registro.camposFaltantes = registro.camposFaltantes.filter(c => c !== campoActual);
 
-        // Si hay más campos faltantes, pedir el siguiente
         if (registro.camposFaltantes.length > 0) {
             registro.campoActual = registro.camposFaltantes[0];
             registrosOCR.set(stateKey, registro);
 
-            await bot.telegram.sendMessage(
+            await uiService.enviarMensaje(
+                bot,
                 chatId,
-                `✅ ${NOMBRES_CAMPOS[campoActual]}: *${validacion.valor}*\n\n` +
-                    `📝 Ahora ingresa ${NOMBRES_CAMPOS[registro.campoActual]}:`,
-                sendOptions
+                registro.threadId,
+                `✅ ${uiService.getNombreCampo(campoActual)}: *${validacion.valor}*\n\n` +
+                    `📝 Ahora ingresa ${uiService.getNombreCampo(registro.campoActual)}:`,
+                { parse_mode: 'Markdown' }
             );
             return true;
         }
 
-        // Todos los datos completos, pedir confirmación
         registro.estado = ESTADOS_OCR_VEHICULO.CONFIRMANDO_DATOS;
         registrosOCR.set(stateKey, registro);
 
-        await this.pedirConfirmacionDatos(bot, chatId, registro);
+        await uiService.enviarMensaje(
+            bot,
+            chatId,
+            registro.threadId,
+            uiService.generarMensajeConfirmacion(registro.datosConfirmados),
+            {
+                parse_mode: 'Markdown',
+                reply_markup: { inline_keyboard: uiService.generarTecladoConfirmacion() }
+            }
+        );
         return true;
-    }
-
-    /**
-     * Valida un dato según el campo
-     */
-    private static validarDato(
-        campo: string,
-        valor: string
-    ): { valido: boolean; error?: string; valor?: any } {
-        switch (campo) {
-            case 'serie':
-                const serie = valor.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                if (serie.length !== 17) {
-                    return {
-                        valido: false,
-                        error: 'El número de serie debe tener exactamente 17 caracteres.'
-                    };
-                }
-                return { valido: true, valor: serie };
-
-            case 'marca':
-                if (valor.length < 2) {
-                    return { valido: false, error: 'La marca debe tener al menos 2 caracteres.' };
-                }
-                return { valido: true, valor: valor.toUpperCase() };
-
-            case 'submarca':
-                if (valor.length < 2) {
-                    return { valido: false, error: 'El modelo debe tener al menos 2 caracteres.' };
-                }
-                return { valido: true, valor: valor.toUpperCase() };
-
-            case 'año':
-                const año = parseInt(valor);
-                const añoActual = new Date().getFullYear();
-                if (isNaN(año) || año < 1900 || año > añoActual + 2) {
-                    return {
-                        valido: false,
-                        error: `El año debe ser un número entre 1900 y ${añoActual + 2}.`
-                    };
-                }
-                return { valido: true, valor: año };
-
-            case 'color':
-                if (valor.length < 3) {
-                    return { valido: false, error: 'El color debe tener al menos 3 caracteres.' };
-                }
-                return { valido: true, valor: valor.toUpperCase() };
-
-            case 'placas':
-                const placas = valor.toUpperCase().replace(/\s+/g, '');
-                if (placas.length < 3) {
-                    return {
-                        valido: false,
-                        error: 'Las placas deben tener al menos 3 caracteres.'
-                    };
-                }
-                return { valido: true, valor: placas };
-
-            default:
-                return { valido: true, valor };
-        }
     }
 
     /**
@@ -591,54 +393,39 @@ export class VehicleOCRHandler {
 
         if (!registro) return false;
 
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-        // Generar datos del titular
         registro.datosGenerados = await generarDatosMexicanosReales();
-
-        // Cambiar estado a esperando fotos
         registro.estado = ESTADOS_OCR_VEHICULO.ESPERANDO_FOTOS_VEHICULO;
         registrosOCR.set(stateKey, registro);
 
-        const mensaje =
-            '✅ *DATOS CONFIRMADOS*\n\n' +
-            `👤 *Titular generado:* ${registro.datosGenerados.titular}\n` +
-            `📱 *Teléfono:* ${registro.datosGenerados.telefono}\n\n` +
-            '📸 *AHORA:* Envía fotos del vehículo\n\n' +
-            '💡 *Tip:* Si la foto muestra las placas, validaré que coincidan con *' +
-            registro.datosConfirmados.placas +
-            '*';
-
-        await bot.telegram.sendMessage(chatId, mensaje, {
-            ...sendOptions,
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: '⏭️ Omitir fotos', callback_data: 'vehiculo_ocr_omitir_fotos' }],
-                    [{ text: '❌ Cancelar', callback_data: 'vehiculo_ocr_cancelar' }]
-                ]
+        await uiService.enviarMensaje(
+            bot,
+            chatId,
+            registro.threadId,
+            uiService.generarMensajeSolicitarFotos(
+                registro.datosGenerados,
+                registro.datosConfirmados.placas!
+            ),
+            {
+                parse_mode: 'Markdown',
+                reply_markup: { inline_keyboard: uiService.generarTecladoFotos() }
             }
-        });
+        );
 
         return true;
     }
 
     /**
-     * Procesa una foto del vehículo
+     * Procesa una foto del vehículo (con sistema de batch)
+     * Las fotos se acumulan y se envía UN solo mensaje después de 2 segundos
      */
     private static async procesarFotoVehiculo(
         bot: Telegraf,
         chatId: number,
-        userId: number,
         imageBuffer: Buffer,
         registro: IRegistroOCR,
         stateKey: string
     ): Promise<boolean> {
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
         try {
-            // Subir foto a Cloudflare R2
             const storage = getCloudflareStorage();
             const serie = registro.datosConfirmados.serie!;
             const timestamp = Date.now();
@@ -651,81 +438,106 @@ export class VehicleOCRHandler {
             });
 
             if (!uploadResult.url) {
-                await bot.telegram.sendMessage(
-                    chatId,
-                    '❌ Error al subir la foto. Intenta nuevamente.',
-                    sendOptions
-                );
+                logger.warn('Error al subir foto, continuando sin guardar');
                 return true;
             }
 
-            // Guardar referencia de la foto
             registro.fotos.push({
                 url: uploadResult.url,
                 key: uploadResult.key,
                 originalname: `foto_${registro.fotos.length + 1}.jpg`,
-                size: uploadResult.size || imageBuffer.length,
+                size: uploadResult.size ?? imageBuffer.length,
                 uploadedAt: new Date()
             });
 
-            // Intentar detectar y validar placas en la foto
-            let mensajeValidacion = '';
+            // Intentar validar placas (silenciosamente)
             if (!registro.placasValidadas) {
                 const validacionResult = await this.validarPlacasEnFoto(
                     imageBuffer,
                     registro.datosConfirmados.placas!
                 );
 
-                if (validacionResult.detectadas) {
-                    registro.placasValidadas = validacionResult.coinciden;
+                if (validacionResult.detectadas && validacionResult.coinciden) {
+                    registro.placasValidadas = true;
                     registro.resultadoValidacionPlacas = validacionResult.mensaje;
-                    mensajeValidacion = `\n\n${validacionResult.mensaje}`;
-
-                    if (validacionResult.coinciden) {
-                        logger.info(
-                            `Placas validadas exitosamente: ${registro.datosConfirmados.placas}`
-                        );
-                    }
+                    logger.info(`Placas validadas: ${registro.datosConfirmados.placas}`);
                 }
             }
 
-            registrosOCR.set(stateKey, registro);
+            // Incrementar contador de batch
+            registro.fotosEnBatch++;
 
-            // Mensaje de confirmación
-            const mensaje =
-                `✅ *Foto ${registro.fotos.length} subida*` +
-                mensajeValidacion +
-                '\n\nPuedes enviar más fotos o finalizar el registro.';
+            // Cancelar timeout anterior si existe
+            if (registro.batchTimeout) {
+                clearTimeout(registro.batchTimeout);
+            }
 
-            await bot.telegram.sendMessage(chatId, mensaje, {
-                ...sendOptions,
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {
-                                text: `✅ Finalizar (${registro.fotos.length} fotos)`,
-                                callback_data: 'vehiculo_ocr_finalizar'
-                            }
-                        ],
-                        [{ text: '❌ Cancelar', callback_data: 'vehiculo_ocr_cancelar' }]
-                    ]
+            // Establecer nuevo timeout para enviar mensaje consolidado (2 segundos)
+            registro.batchTimeout = setTimeout(async () => {
+                try {
+                    await this.enviarMensajeBatchFotos(bot, chatId, stateKey);
+                } catch (error) {
+                    logger.error('Error enviando mensaje batch de fotos:', error);
                 }
-            });
+            }, 2000);
 
+            registrosOCR.set(stateKey, registro);
             return true;
         } catch (error) {
             logger.error('Error procesando foto de vehículo:', error);
-            await bot.telegram.sendMessage(
-                chatId,
-                '❌ Error al procesar la foto. Intenta nuevamente.',
-                sendOptions
-            );
             return true;
         }
     }
 
     /**
-     * Valida placas detectadas en una foto contra las de referencia
+     * Envía mensaje consolidado después de recibir batch de fotos
+     */
+    private static async enviarMensajeBatchFotos(
+        bot: Telegraf,
+        chatId: number,
+        stateKey: string
+    ): Promise<void> {
+        const registro = registrosOCR.get(stateKey);
+        if (!registro) return;
+
+        const fotosEnEsteBatch = registro.fotosEnBatch;
+        const totalFotos = registro.fotos.length;
+
+        // Construir mensaje de validación de placas
+        let mensajeValidacion = '';
+        if (registro.placasValidadas) {
+            mensajeValidacion = `\n\n${registro.resultadoValidacionPlacas}`;
+        } else if (totalFotos > 0) {
+            mensajeValidacion = '\n\n📷 _No se detectaron placas coincidentes_';
+        }
+
+        // Resetear contador de batch
+        registro.fotosEnBatch = 0;
+        registro.batchTimeout = undefined;
+        registrosOCR.set(stateKey, registro);
+
+        // Generar mensaje personalizado para batch
+        const mensajeFotos =
+            fotosEnEsteBatch === 1
+                ? `✅ *Foto ${totalFotos} subida*`
+                : `✅ *${fotosEnEsteBatch} fotos subidas* (Total: ${totalFotos})`;
+
+        await uiService.enviarMensaje(
+            bot,
+            chatId,
+            registro.threadId,
+            `${mensajeFotos}${mensajeValidacion}\n\nPuedes enviar más fotos o finalizar el registro.`,
+            {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: uiService.generarTecladoFotoSubida(totalFotos)
+                }
+            }
+        );
+    }
+
+    /**
+     * Valida placas detectadas en una foto
      */
     private static async validarPlacasEnFoto(
         imageBuffer: Buffer,
@@ -743,7 +555,6 @@ export class VehicleOCRHandler {
                 };
             }
 
-            // Comparar con placas de referencia
             const validator = getPlacasValidator();
             const comparacion = validator.compararConReferencia(
                 placasReferencia,
@@ -779,40 +590,35 @@ export class VehicleOCRHandler {
 
         if (!registro) return false;
 
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-        // Validar que haya al menos 1 foto
         if (registro.fotos.length === 0) {
-            await bot.telegram.sendMessage(
+            await uiService.enviarMensaje(
+                bot,
                 chatId,
-                '❌ *Debes enviar al menos 1 foto del vehículo*\n\n' +
-                    'Envía una foto o presiona "Omitir fotos" si no tienes.',
-                sendOptions
+                registro.threadId,
+                '❌ *Debes enviar al menos 1 foto del vehículo*\n\nEnvía una foto o presiona "Omitir fotos" si no tienes.',
+                { parse_mode: 'Markdown' }
             );
             return false;
         }
 
         try {
-            // Combinar datos del vehículo con datos del titular
             const datosCompletos = {
                 ...registro.datosConfirmados,
                 ...registro.datosGenerados
             };
 
-            // Crear el vehículo
             const resultado = await VehicleController.registrarVehiculo(datosCompletos, userId);
 
             if (!resultado.success || !resultado.vehicle) {
-                await bot.telegram.sendMessage(
+                await uiService.enviarMensaje(
+                    bot,
                     chatId,
-                    `❌ Error al crear vehículo: ${resultado.error}`,
-                    sendOptions
+                    registro.threadId,
+                    `❌ Error al crear vehículo: ${resultado.error}`
                 );
                 return false;
             }
 
-            // Vincular fotos al vehículo
             if (registro.fotos.length > 0) {
                 await VehicleController.vincularFotosCloudflare(
                     String(resultado.vehicle._id),
@@ -820,41 +626,32 @@ export class VehicleOCRHandler {
                 );
             }
 
-            // Mensaje de éxito
-            const placasInfo = registro.placasValidadas
-                ? '✅ Placas validadas en fotos'
-                : '⚠️ Placas no validadas (no visibles en fotos)';
-
-            const mensaje =
-                '🎉 *REGISTRO COMPLETADO*\n\n' +
-                `🚗 *${registro.datosConfirmados.marca} ${registro.datosConfirmados.submarca} ${registro.datosConfirmados.año}*\n` +
-                `🔢 Serie: \`${registro.datosConfirmados.serie}\`\n` +
-                `🔖 Placas: ${registro.datosConfirmados.placas}\n` +
-                `👤 ${registro.datosGenerados.titular}\n` +
-                `📷 Fotos: ${registro.fotos.length}\n\n` +
-                `${placasInfo}\n\n` +
-                '✅ Vehículo listo para asignar póliza';
-
-            await bot.telegram.sendMessage(chatId, mensaje, {
-                ...sendOptions,
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: '🏠 Menú Principal', callback_data: 'accion:volver_menu' }]
-                    ]
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                registro.threadId,
+                uiService.generarMensajeExito(
+                    registro.datosConfirmados,
+                    registro.datosGenerados,
+                    registro.fotos.length,
+                    registro.placasValidadas
+                ),
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard: uiService.generarTecladoFinal() }
                 }
-            });
+            );
 
-            // Limpiar registro
             registrosOCR.delete(stateKey);
-
             logger.info(`Vehículo registrado con OCR: ${registro.datosConfirmados.serie}`);
             return true;
         } catch (error) {
             logger.error('Error finalizando registro OCR:', error);
-            await bot.telegram.sendMessage(
+            await uiService.enviarMensaje(
+                bot,
                 chatId,
-                '❌ Error al guardar el vehículo. Intenta nuevamente.',
-                sendOptions
+                registro.threadId,
+                '❌ Error al guardar el vehículo. Intenta nuevamente.'
             );
             return false;
         }
@@ -913,22 +710,19 @@ export class VehicleOCRHandler {
 
         if (!registro) return false;
 
-        // Resetear a estado inicial
         registro.estado = ESTADOS_OCR_VEHICULO.ESPERANDO_TARJETA;
         registro.datosOCR = {};
         registro.datosConfirmados = {};
         registro.camposFaltantes = [];
         registrosOCR.set(stateKey, registro);
 
-        const sendOptions: ISendOptions = { parse_mode: 'Markdown' };
-        if (registro.threadId) sendOptions.message_thread_id = parseInt(registro.threadId);
-
-        await bot.telegram.sendMessage(
+        await uiService.enviarMensaje(
+            bot,
             chatId,
-            '📸 *Envía otra foto de la tarjeta de circulación*\n\n' +
-                'Asegúrate de que la imagen sea clara y legible.',
+            registro.threadId,
+            uiService.generarMensajeReintentarTarjeta(),
             {
-                ...sendOptions,
+                parse_mode: 'Markdown',
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: '📝 Registro manual', callback_data: 'vehiculo_ocr_manual' }],

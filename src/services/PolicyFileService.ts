@@ -99,8 +99,8 @@ export class PolicyFileService {
             const r2File: IR2FileRecord = {
                 url: uploadResult.url!,
                 key: uploadResult.key!,
-                size: uploadResult.size || 0,
-                contentType: uploadResult.contentType || archivo.mime_type,
+                size: uploadResult.size ?? 0,
+                contentType: uploadResult.contentType ?? archivo.mime_type,
                 uploadDate: new Date(),
                 originalName: archivo.file_name
             };
@@ -151,9 +151,9 @@ export class PolicyFileService {
                     url: foto.url,
                     key: foto.key,
                     size: foto.size,
-                    contentType: foto.contentType || 'image/jpeg',
-                    uploadDate: foto.uploadDate || new Date(),
-                    originalName: foto.originalName || 'foto_vehiculo.jpg',
+                    contentType: foto.contentType ?? 'image/jpeg',
+                    uploadDate: foto.uploadDate ?? new Date(),
+                    originalName: foto.originalName ?? 'foto_vehiculo.jpg',
                     fuenteOriginal: 'vehiculo_bd_autos'
                 });
             }

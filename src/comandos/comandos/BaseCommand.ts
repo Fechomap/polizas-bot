@@ -84,13 +84,13 @@ abstract class BaseCommand {
      */
     public static getThreadId(ctx: ChatContext): number | null {
         if (ctx.message) {
-            return ctx.message.message_thread_id || null;
+            return ctx.message.message_thread_id ?? null;
         }
         if (ctx.callbackQuery && 'message' in ctx.callbackQuery) {
             const msg = ctx.callbackQuery.message;
             if (msg && 'date' in msg) {
                 // Type guard for accessible message
-                return (msg as Message.ServiceMessage).message_thread_id || null;
+                return (msg as Message.ServiceMessage).message_thread_id ?? null;
             }
         }
         return null;

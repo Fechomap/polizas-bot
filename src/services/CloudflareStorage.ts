@@ -49,11 +49,11 @@ class CloudflareStorage {
             region: 'auto', // R2 usa 'auto'
             endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
             credentials: {
-                accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY || '',
-                secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_KEY || ''
+                accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY ?? '',
+                secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_KEY ?? ''
             }
         });
-        this.bucket = process.env.CLOUDFLARE_R2_BUCKET || '';
+        this.bucket = process.env.CLOUDFLARE_R2_BUCKET ?? '';
         this.publicUrl = process.env.CLOUDFLARE_R2_PUBLIC_URL;
     }
 
@@ -236,7 +236,7 @@ class CloudflareStorage {
             '.gif': 'image/gif',
             '.webp': 'image/webp'
         };
-        return mimeTypes[ext] || 'image/jpeg';
+        return mimeTypes[ext] ?? 'image/jpeg';
     }
 
     /**

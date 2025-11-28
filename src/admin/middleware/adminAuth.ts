@@ -24,7 +24,7 @@ class AdminAuth {
             if (!userId || !chatId) return false;
 
             // ADMINISTRADOR PRINCIPAL - ID específico para acceso total
-            const MAIN_ADMIN_ID = parseInt(process.env.ADMIN_USER_ID || '0');
+            const MAIN_ADMIN_ID = parseInt(process.env.ADMIN_USER_ID ?? '0');
             if (!MAIN_ADMIN_ID) {
                 logger.error('ADMIN_USER_ID no configurado en variables de entorno');
                 return false;
@@ -97,8 +97,8 @@ class AdminAuth {
             (ctx.message as any)?.text?.startsWith('/admin')
         ) {
             const userId = ctx.from?.id;
-            const username = ctx.from?.username || ctx.from?.first_name || 'Unknown';
-            const action = (ctx.update as any).callback_query?.data || (ctx.message as any)?.text;
+            const username = ctx.from?.username ?? ctx.from?.first_name ?? 'Unknown';
+            const action = (ctx.update as any).callback_query?.data ?? (ctx.message as any)?.text;
 
             logger.info(`Acción admin solicitada: ${action} por @${username} (${userId})`);
         }

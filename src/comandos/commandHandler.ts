@@ -246,8 +246,8 @@ class CommandHandler {
 
     // Mostrar información de póliza encontrada (formato original)
     private async showPolicyInfo(ctx: any, policy: any): Promise<void> {
-        const servicios = policy.servicios || [];
-        const pagos = policy.pagos || [];
+        const servicios = policy.servicios ?? [];
+        const pagos = policy.pagos ?? [];
         const totalServicios = servicios.length;
         const totalPagos = pagos.length;
 
@@ -258,7 +258,7 @@ class CommandHandler {
             const fechaServStr = ultimoServicio.fechaServicio
                 ? new Date(ultimoServicio.fechaServicio).toISOString().split('T')[0]
                 : '??';
-            const origenDestino = ultimoServicio.origenDestino || '(Sin Origen/Destino)';
+            const origenDestino = ultimoServicio.origenDestino ?? '(Sin Origen/Destino)';
             serviciosInfo =
                 `*Servicios:* ${totalServicios}\n` +
                 `*Último Servicio:* ${fechaServStr}\n` +
@@ -275,7 +275,7 @@ class CommandHandler {
 📋 *Información de la Póliza*
 *Número:* ${policy.numeroPoliza}
 *Titular:* ${policy.titular}
-📞 *Cel:* ${policy.telefono || 'SIN NÚMERO'}
+📞 *Cel:* ${policy.telefono ?? 'SIN NÚMERO'}
 
 🚗 *Datos del Vehículo:*
 *Marca:* ${policy.marca}

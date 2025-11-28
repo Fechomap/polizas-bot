@@ -91,7 +91,7 @@ export class VehicleRegistrationHandler {
         userId: string | number
     ): Promise<boolean> {
         const chatId: number = msg.chat.id;
-        const threadId: number | null = msg.message_thread_id || null;
+        const threadId: number | null = msg.message_thread_id ?? null;
         const texto: string | undefined = msg.text?.trim();
 
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
@@ -351,7 +351,7 @@ export class VehicleRegistrationHandler {
         stateKey: string
     ): Promise<boolean> {
         const chatId = msg.chat.id;
-        const threadId = msg.message_thread_id || null;
+        const threadId = msg.message_thread_id ?? null;
 
         // Si no es foto, ignorar
         const validacion = validationService.validarFoto(msg);

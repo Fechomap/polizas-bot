@@ -310,7 +310,7 @@ class AdminModule {
                 try {
                     // Obtener nuevo valor del estado admin
                     const state = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
-                    const newValue = state?.data?.newValue || '';
+                    const newValue = state?.data?.newValue ?? '';
                     await this.handlers.policy.executeFieldChange(
                         ctx,
                         policyId,
@@ -420,7 +420,7 @@ class AdminModule {
                         fR: 'fechaRegistro',
                         tR: 'tipoRegistro'
                     };
-                    const fieldName = fieldMap[fieldCode] || fieldCode;
+                    const fieldName = fieldMap[fieldCode] ?? fieldCode;
                     await this.handlers.service.handleServiceFieldEditShort(
                         ctx,
                         shortId,

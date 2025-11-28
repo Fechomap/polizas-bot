@@ -174,7 +174,7 @@ class NavigationManager {
             return {
                 text: originalText,
                 markup: keyboard,
-                parseMode: options.parseMode || 'Markdown'
+                parseMode: options.parseMode ?? 'Markdown'
             };
         } catch (error: any) {
             logger.error('Error agregando navegación persistente:', error);
@@ -252,7 +252,7 @@ class NavigationManager {
      * @returns Breadcrumbs formateados
      */
     getBreadcrumbs(userId: string): string {
-        const userStack = this.navigationStack.get(userId) || [];
+        const userStack = this.navigationStack.get(userId) ?? [];
         if (userStack.length <= 1) return '';
 
         const breadcrumbs = userStack
@@ -325,7 +325,7 @@ class NavigationManager {
             administracion: 'Administración',
             base_autos: 'Base de Autos'
         };
-        return labels[menuKey] || menuKey;
+        return labels[menuKey] ?? menuKey;
     }
 
     /**

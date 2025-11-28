@@ -18,7 +18,7 @@ const handleGroupUpdate = async (ctx: Context, next: () => Promise<void>): Promi
         logger.info('Chat access:', {
             chatId,
             chatType: ctx.chat?.type,
-            threadId: threadId || 'ninguno',
+            threadId: threadId ?? 'ninguno',
             messageType: ctx.updateType
         });
 
@@ -26,7 +26,7 @@ const handleGroupUpdate = async (ctx: Context, next: () => Promise<void>): Promi
         if ((ctx.update as any).my_chat_member) {
             logger.info('Actualización de estado en grupo', {
                 chatId,
-                threadId: threadId || 'ninguno'
+                threadId: threadId ?? 'ninguno'
             });
             return next();
         }

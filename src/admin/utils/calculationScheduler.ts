@@ -45,8 +45,8 @@ class CalculationScheduler {
     constructor(bot: Telegraf) {
         this.bot = bot;
         this.scriptsPath = path.join(__dirname, '../../../scripts');
-        this.adminChatId = process.env.ADMIN_CHAT_ID || '';
-        this.adminThreadId = process.env.ADMIN_THREAD_ID || '';
+        this.adminChatId = process.env.ADMIN_CHAT_ID ?? '';
+        this.adminThreadId = process.env.ADMIN_THREAD_ID ?? '';
         this.jobs = new Map();
         this.autoCleanupService = new AutoCleanupService();
     }

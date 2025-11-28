@@ -122,7 +122,7 @@ class PolicyHandler {
         if (!text) return false;
 
         // Delegar según el tipo de acción (operation o data.action)
-        const action = state.operation || state.data?.action;
+        const action = state.operation ?? state.data?.action;
 
         switch (action) {
             case 'policy_unified_search':

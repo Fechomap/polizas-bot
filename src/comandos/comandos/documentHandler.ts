@@ -55,10 +55,10 @@ class DocumentHandler {
             try {
                 if (!ctx.chat) return;
                 const chatId = ctx.chat.id;
-                const documentInfo = (ctx.message as any)?.document || {};
-                const fileName = documentInfo.file_name || '';
-                const mimeType = documentInfo.mime_type || '';
-                const fileSize = documentInfo.file_size || 0;
+                const documentInfo = (ctx.message as any)?.document ?? {};
+                const fileName = documentInfo.file_name ?? '';
+                const mimeType = documentInfo.mime_type ?? '';
+                const fileSize = documentInfo.file_size ?? 0;
 
                 logger.info(`Documento recibido: ${fileName} (${mimeType}, ${fileSize} bytes)`, {
                     chatId
@@ -136,7 +136,7 @@ class DocumentHandler {
                 const numeroPoliza = this.handler.uploadTargets.get(chatId, threadIdStr);
                 const esperandoExcel = this.excelUploadHandler?.awaitingExcelUpload?.get(chatId);
 
-                if (numeroPoliza || esperandoExcel) {
+                if (numeroPoliza ?? esperandoExcel) {
                     logger.error('Error al procesar documento:', error);
                     await ctx.reply('❌ Error al procesar el documento.');
                 }
@@ -255,7 +255,7 @@ class DocumentHandler {
             // Subir PDF a Cloudflare R2
             const storage = getInstance();
             const originalName =
-                (ctx.message as any).document.file_name || `documento_${Date.now()}.pdf`;
+                (ctx.message as any).document.file_name ?? `documento_${Date.now()}.pdf`;
             const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
 
             // Crear objeto de archivo R2 compatible con IR2File
@@ -325,7 +325,7 @@ class DocumentHandler {
 
         const isExcelMimeType = validMimeTypes.includes(mimeType);
 
-        return isExcelExtension || isExcelMimeType;
+        return isExcelExtension ?? isExcelMimeType;
     }
 }
 

@@ -30,7 +30,7 @@ export class PolicyValidationService {
         try {
             // Buscar en catálogo de aseguradoras
             const aseguradoraDB = await Aseguradora.buscarPorNombre(aseguradora);
-            const nombreNormalizado = aseguradoraDB?.nombreCorto || aseguradora.toUpperCase();
+            const nombreNormalizado = aseguradoraDB?.nombreCorto ?? aseguradora.toUpperCase();
 
             return { valido: true, valorProcesado: nombreNormalizado };
         } catch (error) {
@@ -60,7 +60,7 @@ export class PolicyValidationService {
         // Limpiar caracteres no numéricos
         const monto = parseFloat(texto.replace(/[$,]/g, ''));
 
-        if (isNaN(monto) || monto <= 0) {
+        if (isNaN(0) || monto <= 0) {
             return { valido: false, error: 'Ingresa un monto válido (solo números).' };
         }
 
@@ -119,7 +119,7 @@ export class PolicyValidationService {
                 valorProcesado: {
                     type: 'pdf',
                     fileId: msg.document.file_id,
-                    fileName: msg.document.file_name || 'documento.pdf',
+                    fileName: msg.document.file_name ?? 'documento.pdf',
                     mimeType: 'application/pdf',
                     fileSize: msg.document.file_size
                 }
@@ -176,9 +176,7 @@ export class PolicyValidationService {
 let instance: PolicyValidationService | null = null;
 
 export function getPolicyValidationService(): PolicyValidationService {
-    if (!instance) {
-        instance = new PolicyValidationService();
-    }
+    instance ??= new PolicyValidationService();
     return instance;
 }
 

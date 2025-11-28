@@ -162,7 +162,7 @@ export class PolicyAssignmentHandler {
      */
     static async procesarMensaje(bot: IBot, msg: any, userId: string): Promise<boolean> {
         const chatId: number = msg.chat.id;
-        const threadId: number | null = msg.message_thread_id || null;
+        const threadId: number | null = msg.message_thread_id ?? null;
         const texto: string | undefined = msg.text?.trim();
 
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
@@ -404,7 +404,7 @@ export class PolicyAssignmentHandler {
         asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PDF;
         asignacionesEnProceso.set(stateKey, asignacion);
 
-        const total = (asignacion.datosPoliza.primerPago || 0) + validacion.valorProcesado;
+        const total = (asignacion.datosPoliza.primerPago ?? 0) + validacion.valorProcesado;
 
         await this.enviarMensaje(
             bot,
@@ -603,8 +603,8 @@ export class PolicyAssignmentHandler {
             mensaje += `*${numero}.* 🚗 ${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}\n`;
             mensaje += `   🎨 Color: ${vehiculo.color}\n`;
             mensaje += `   🔢 Serie: ${vehiculo.serie}\n`;
-            mensaje += `   🚙 Placas: ${vehiculo.placas || 'Sin placas'}\n`;
-            mensaje += `   👤 Titular: ${vehiculo.titular || 'Sin titular'}\n\n`;
+            mensaje += `   🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n`;
+            mensaje += `   👤 Titular: ${vehiculo.titular ?? 'Sin titular'}\n\n`;
 
             botones.push([
                 {
@@ -635,16 +635,16 @@ export class PolicyAssignmentHandler {
             `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}*\n` +
             `🎨 Color: ${vehiculo.color}\n` +
             `🔢 Serie: ${vehiculo.serie}\n` +
-            `🚙 Placas: ${vehiculo.placas || 'Sin placas'}\n\n` +
+            `🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n\n` +
             '*Datos del titular:*\n' +
             `👤 ${vehiculo.titular}\n` +
             `🆔 RFC: ${vehiculo.rfc}\n` +
-            `📧 ${vehiculo.correo || 'Sin correo'}\n\n` +
+            `📧 ${vehiculo.correo ?? 'Sin correo'}\n\n` +
             '*Domicilio:*\n' +
-            `🏠 ${vehiculo.calle || 'Sin calle'}\n` +
-            `🏘️ ${vehiculo.colonia || 'Sin colonia'}\n` +
-            `🏙️ ${vehiculo.municipio || ''}, ${vehiculo.estadoRegion || ''}\n` +
-            `📮 CP: ${vehiculo.cp || 'Sin código postal'}\n\n` +
+            `🏠 ${vehiculo.calle ?? 'Sin calle'}\n` +
+            `🏘️ ${vehiculo.colonia ?? 'Sin colonia'}\n` +
+            `🏙️ ${vehiculo.municipio ?? ''}, ${vehiculo.estadoRegion ?? ''}\n` +
+            `📮 CP: ${vehiculo.cp ?? 'Sin código postal'}\n\n` +
             '💼 *INICIAR ASIGNACIÓN DE PÓLIZA*\n\n' +
             '*Paso 1/5:* Ingresa el *número de póliza*'
         );

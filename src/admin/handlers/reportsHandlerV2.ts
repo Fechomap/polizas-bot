@@ -170,7 +170,7 @@ class ReportsHandlerV2 {
                 const servicesInPeriod =
                     policy.servicios?.filter(
                         s => s.fechaServicio >= startDate && s.fechaServicio <= endDate
-                    ) || [];
+                    ) ?? [];
 
                 totalServices += servicesInPeriod.length;
 
@@ -199,25 +199,25 @@ class ReportsHandlerV2 {
                 }
 
                 // Insurer statistics
-                const insurerName = policy.aseguradora || 'Sin aseguradora';
-                insurerStats.set(insurerName, (insurerStats.get(insurerName) || 0) + 1);
+                const insurerName = policy.aseguradora ?? 'Sin aseguradora';
+                insurerStats.set(insurerName, (insurerStats.get(insurerName) ?? 0) + 1);
 
                 // Service type distribution
                 servicesInPeriod.forEach(service => {
-                    const serviceType = service.tipoServicio || 'Sin tipo';
-                    serviceStats.set(serviceType, (serviceStats.get(serviceType) || 0) + 1);
+                    const serviceType = service.tipoServicio ?? 'Sin tipo';
+                    serviceStats.set(serviceType, (serviceStats.get(serviceType) ?? 0) + 1);
                 });
 
                 // Daily statistics
                 servicesInPeriod.forEach(service => {
                     const dateKey = service.fechaServicio.toISOString().split('T')[0];
-                    const dayStats = dailyStats.get(dateKey) || {
+                    const dayStats = dailyStats.get(dateKey) ?? {
                         policies: 0,
                         services: 0,
                         revenue: 0
                     };
                     dayStats.services++;
-                    dayStats.revenue += service.costo || 0;
+                    dayStats.revenue += service.costo ?? 0;
                     dailyStats.set(dateKey, dayStats);
                 });
             });

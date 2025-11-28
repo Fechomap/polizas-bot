@@ -102,6 +102,15 @@ export class VehicleValidationService {
         }
 
         const colorNormalizado = color.trim().toUpperCase();
+
+        // Rechazar si es solo números (ej: "54321" no es un color válido)
+        if (/^\d+$/.test(colorNormalizado)) {
+            return {
+                valida: false,
+                error: 'El color no puede ser solo números. Ingresa un color válido (ej: ROJO, BLANCO, NEGRO).'
+            };
+        }
+
         return { valida: true, valor: colorNormalizado };
     }
 
@@ -161,6 +170,90 @@ export class VehicleValidationService {
             fileId: foto.file_id,
             fileName: `vehiculo_${Date.now()}.jpg`
         };
+    }
+
+    /**
+     * Valida serie VIN estricta (17 caracteres exactos para OCR)
+     */
+    validarSerieVIN(serie: string | undefined): {
+        valido: boolean;
+        error?: string;
+        valor?: string;
+    } {
+        if (!serie) {
+            return { valido: false, error: 'El número de serie es requerido.' };
+        }
+
+        const serieNormalizada = serie.toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+        if (serieNormalizada.length !== 17) {
+            return {
+                valido: false,
+                error: 'El número de serie debe tener exactamente 17 caracteres.'
+            };
+        }
+
+        return { valido: true, valor: serieNormalizada };
+    }
+
+    /**
+     * Valida placas simples (sin validación de formato complejo)
+     */
+    validarPlacasSimple(placas: string | undefined): {
+        valido: boolean;
+        error?: string;
+        valor?: string;
+    } {
+        if (!placas) {
+            return { valido: false, error: 'Las placas son requeridas.' };
+        }
+
+        const placasNormalizadas = placas.toUpperCase().replace(/\s+/g, '');
+
+        if (placasNormalizadas.length < 3) {
+            return { valido: false, error: 'Las placas deben tener al menos 3 caracteres.' };
+        }
+
+        return { valido: true, valor: placasNormalizadas };
+    }
+
+    /**
+     * Valida un dato de vehículo por nombre de campo (para flujo OCR)
+     */
+    validarCampoDinamico(
+        campo: string,
+        valor: string
+    ): { valido: boolean; error?: string; valor?: any } {
+        switch (campo) {
+            case 'serie':
+                return this.validarSerieVIN(valor);
+
+            case 'marca': {
+                const resMarca = this.validarMarca(valor);
+                return { valido: resMarca.valida, error: resMarca.error, valor: resMarca.valor };
+            }
+
+            case 'submarca': {
+                const resSub = this.validarSubmarca(valor);
+                return { valido: resSub.valida, error: resSub.error, valor: resSub.valor };
+            }
+
+            case 'año': {
+                const resAño = this.validarAño(valor);
+                return { valido: resAño.valida, error: resAño.error, valor: resAño.valor };
+            }
+
+            case 'color': {
+                const resColor = this.validarColor(valor);
+                return { valido: resColor.valida, error: resColor.error, valor: resColor.valor };
+            }
+
+            case 'placas':
+                return this.validarPlacasSimple(valor);
+
+            default:
+                return { valido: true, valor };
+        }
     }
 }
 

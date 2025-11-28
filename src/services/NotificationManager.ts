@@ -43,7 +43,7 @@ class NotificationManager {
     private editingLocks: Set<string>;
 
     constructor(bot?: Telegraf) {
-        this.bot = bot || null;
+        this.bot = bot ?? null;
         this.isInitialized = false;
         this.processingLocks = new Set();
         this.editingLocks = new Set();
@@ -67,7 +67,7 @@ class NotificationManager {
                     throw new Error('Datos incompletos para programar notificación');
                 if (!data.targetGroupId)
                     data.targetGroupId = parseInt(
-                        process.env.TELEGRAM_GROUP_ID || '-1002212807945'
+                        process.env.TELEGRAM_GROUP_ID ?? '-1002212807945'
                     );
 
                 let policyData: IPolicyData = {};
@@ -76,9 +76,9 @@ class NotificationManager {
                     if (policy) {
                         policyData = {
                             marcaModelo: `${policy.marca} ${policy.submarca} (${policy.año})`,
-                            colorVehiculo: policy.color || '',
-                            placas: policy.placas || '',
-                            telefono: policy.telefono || ''
+                            colorVehiculo: policy.color ?? '',
+                            placas: policy.placas ?? '',
+                            telefono: policy.telefono ?? ''
                         };
                     }
                 } catch (err) {
@@ -270,7 +270,7 @@ class NotificationManager {
 
         const validation = await this.validateEditableNotification(notification, newDate);
         if (!validation.canEdit)
-            return { success: false, message: validation.reason || 'No se puede editar' };
+            return { success: false, message: validation.reason ?? 'No se puede editar' };
 
         if (validation.editMode === 'CANCEL_AND_CREATE') {
             return this.cancelAndRecreate(notificationId, newDate);

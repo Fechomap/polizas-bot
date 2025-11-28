@@ -170,7 +170,7 @@ class AutoCleanupService {
                 titular: poliza.titular,
                 aseguradora: poliza.aseguradora,
                 fechaEmision: poliza.fechaEmision,
-                estadoPoliza: poliza.estadoPoliza || 'DESCONOCIDO',
+                estadoPoliza: poliza.estadoPoliza ?? 'DESCONOCIDO',
                 servicios: poliza.servicios ? poliza.servicios.length : 0,
                 diasVencida: this.calculateDaysExpired(poliza.fechaEmision)
             }));
@@ -279,7 +279,7 @@ class AutoCleanupService {
                     exampleExpired: exampleExpired.map(p => ({
                         numeroPoliza: p.numeroPoliza,
                         titular: p.titular,
-                        estado: p.estadoPoliza || 'DESCONOCIDO'
+                        estado: p.estadoPoliza ?? 'DESCONOCIDO'
                     }))
                 }
             };

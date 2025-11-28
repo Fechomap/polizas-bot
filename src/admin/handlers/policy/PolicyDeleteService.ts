@@ -78,7 +78,7 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
 **Titular:** ${policy.titular}
 **RFC:** ${policy.rfc}
 **Vehículo:** ${policy.marca} ${policy.submarca} ${policy.año}
-**Placas:** ${policy.placas || 'Sin placas'}
+**Placas:** ${policy.placas ?? 'Sin placas'}
 
 🗑️ **Selecciona el motivo de eliminación:**
             `.trim();
@@ -122,7 +122,7 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
             }
 
             // Mapear código a texto completo
-            const reason = DELETION_REASONS_MAP[reasonCode] || reasonCode;
+            const reason = DELETION_REASONS_MAP[reasonCode] ?? reasonCode;
 
             // Ejecutar eliminación (soft delete)
             const success = await markPolicyAsDeleted(policy.numeroPoliza, reason);
@@ -183,7 +183,7 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
 
         if (!text) return false;
 
-        const action = state.operation || state.data?.action;
+        const action = state.operation ?? state.data?.action;
 
         if (action === 'policy_search_for_delete') {
             const PolicySearchService = (await import('./PolicySearchService')).default;

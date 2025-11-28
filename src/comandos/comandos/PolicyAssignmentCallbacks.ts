@@ -97,7 +97,7 @@ export function registerPolicyAssignmentCallbacks(
     bot.action(/^vehiculos_pag_(\d+)$/, async ctx => {
         try {
             await ctx.answerCbQuery();
-            const pagina = parseInt(ctx.match?.[1] || '1');
+            const pagina = parseInt(ctx.match?.[1] ?? '1');
             const userId = ctx.from?.id;
             const chatId = ctx.chat?.id;
             const threadId = StateKeyManager.getThreadId(ctx);
@@ -282,7 +282,7 @@ export async function procesarTextoOCRPoliza(
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-    const threadId = message.message_thread_id || null;
+    const threadId = message.message_thread_id ?? null;
     const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
     if (PolicyOCRHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
@@ -312,7 +312,7 @@ export async function procesarMensajeAsignacionLegacy(
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-    const threadId = message.message_thread_id || null;
+    const threadId = message.message_thread_id ?? null;
     const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
     if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
@@ -344,7 +344,7 @@ export async function procesarDocumentoOCRPoliza(
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-    const threadId = message.message_thread_id || null;
+    const threadId = message.message_thread_id ?? null;
     const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
     if (PolicyOCRHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
@@ -374,7 +374,7 @@ export async function procesarDocumentoAsignacionLegacy(
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
-    const threadId = message.message_thread_id || null;
+    const threadId = message.message_thread_id ?? null;
     const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
     if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {

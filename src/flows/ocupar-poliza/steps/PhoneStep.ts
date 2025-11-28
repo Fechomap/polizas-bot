@@ -148,7 +148,7 @@ class PhoneStep {
         // Validar formato del teléfono
         const regexTel = /^\d{10}$/;
         if (!regexTel.test(messageText)) {
-            const attempts = (this.phoneAttempts.get(chatId, threadId) || 0) + 1;
+            const attempts = (this.phoneAttempts.get(chatId, threadId) ?? 0) + 1;
             this.phoneAttempts.set(chatId, attempts, threadId);
 
             if (attempts >= 2) {
@@ -202,7 +202,7 @@ class PhoneStep {
 
             if (polizasConMismoTelefono.length > 0) {
                 const polizasInfo = polizasConMismoTelefono
-                    .map(p => `• *${p.numeroPoliza}* - ${p.titular || 'Sin titular'}`)
+                    .map(p => `• *${p.numeroPoliza}* - ${p.titular ?? 'Sin titular'}`)
                     .join('\n');
 
                 await ctx.reply(`⚠️ *Teléfono en uso:*\n${polizasInfo}`, {
@@ -230,7 +230,7 @@ class PhoneStep {
 
             // Limpiar estado de teléfono y establecer estado de origen
             this.awaitingPhoneNumber.delete(chatId, threadId);
-            this.awaitingOrigen.set(chatId, numeroPoliza || '', threadId);
+            this.awaitingOrigen.set(chatId, numeroPoliza ?? '', threadId);
 
             logger.info(`Teléfono actualizado para póliza ${numeroPoliza}: ${messageText}`);
 
@@ -258,16 +258,16 @@ class PhoneStep {
                 telefono: messageText,
                 marca: policy.marca,
                 submarca: policy.submarca,
-                año: String(policy.año || ''),
+                año: String(policy.año ?? ''),
                 color: policy.color,
                 serie: policy.serie,
                 placas: policy.placas,
                 aseguradora: policy.aseguradora,
                 agenteCotizador: policy.agenteCotizador,
-                totalServicios: policy.totalServicios || 0,
+                totalServicios: policy.totalServicios ?? 0,
                 ultimoServicio: ultimoServicio?.fechaServicio,
                 origenDestinoUltimo,
-                totalPagos: policy.pagos?.length || 0
+                totalPagos: policy.pagos?.length ?? 0
             };
 
             const whatsappData = whatsAppService.generatePolicyWhatsApp(policyInfo);
@@ -313,19 +313,19 @@ class PhoneStep {
         const policyInfo: IPolicyInfo = {
             numeroPoliza: policy.numeroPoliza,
             titular: policy.titular,
-            telefono: policy.telefono || '',
+            telefono: policy.telefono ?? '',
             marca: policy.marca,
             submarca: policy.submarca,
-            año: String(policy.año || ''),
+            año: String(policy.año ?? ''),
             color: policy.color,
             serie: policy.serie,
             placas: policy.placas,
             aseguradora: policy.aseguradora,
             agenteCotizador: policy.agenteCotizador,
-            totalServicios: policy.totalServicios || 0,
+            totalServicios: policy.totalServicios ?? 0,
             ultimoServicio: ultimoServicio?.fechaServicio,
             origenDestinoUltimo,
-            totalPagos: policy.pagos?.length || 0
+            totalPagos: policy.pagos?.length ?? 0
         };
 
         return whatsAppService.generatePolicyWhatsApp(policyInfo);

@@ -355,7 +355,7 @@ class MexicanDataGenerator {
      *          [Fecha AAMMDD][Homoclave XXX]
      */
     generateRFC(nombreCompleto?: string): string {
-        const nombre = nombreCompleto || this.generateNombre();
+        const nombre = nombreCompleto ?? this.generateNombre();
         const partes = nombre.split(' ');
 
         // Extraer componentes del nombre (CORRECCIÓN: formato mexicano)
@@ -371,8 +371,8 @@ class MexicanDataGenerator {
             primerNombre = partes[0];
         } else {
             // Fallback para nombres cortos
-            primerNombre = partes[0] || 'JOSE';
-            apellidoPaterno = partes[1] || 'GARCIA';
+            primerNombre = partes[0] ?? 'JOSE';
+            apellidoPaterno = partes[1] ?? 'GARCIA';
             apellidoMaterno = 'LOPEZ';
         }
 
@@ -511,11 +511,11 @@ class MexicanDataGenerator {
             }
 
             return {
-                calle: calle || `${this.randomFromArray(CALLES)} ${this.randomBetween(1, 999)}`,
-                colonia: geocodeResult.colonia || this.randomFromArray(COLONIAS),
-                municipio: geocodeResult.municipio || this.randomFromArray(MUNICIPIOS),
-                estado: geocodeResult.estado || this.randomFromArray(ESTADOS),
-                cp: geocodeResult.codigoPostal || this.randomBetween(10000, 99999).toString(),
+                calle: calle ?? `${this.randomFromArray(CALLES)} ${this.randomBetween(1, 999)}`,
+                colonia: geocodeResult.colonia ?? this.randomFromArray(COLONIAS),
+                municipio: geocodeResult.municipio ?? this.randomFromArray(MUNICIPIOS),
+                estado: geocodeResult.estado ?? this.randomFromArray(ESTADOS),
+                cp: geocodeResult.codigoPostal ?? this.randomBetween(10000, 99999).toString(),
                 coordenadas: coordenadasFinales
             };
         } catch (error) {
