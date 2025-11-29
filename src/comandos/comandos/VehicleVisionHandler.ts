@@ -46,9 +46,9 @@ interface IRegistro {
     fotosBuffer: Buffer[];
     mensajeId?: number;
     // Nuevos campos para tracking
-    placasDeVehiculo: string | null;      // Placas extraidas de fotos del auto
-    placasDeTarjeta: boolean;             // Si las placas vinieron de tarjeta
-    discrepancias: IDiscrepancia[];       // Discrepancias detectadas
+    placasDeVehiculo: string | null; // Placas extraidas de fotos del auto
+    placasDeTarjeta: boolean; // Si las placas vinieron de tarjeta
+    discrepancias: IDiscrepancia[]; // Discrepancias detectadas
 }
 
 // Almacen de registros
@@ -58,7 +58,6 @@ export const registros = StateKeyManager.createThreadSafeStateMap<IRegistro>();
  * Handler principal de Vision para vehiculos
  */
 export class VehicleVisionHandler {
-
     /**
      * Inicia el flujo de registro
      */
@@ -72,8 +71,12 @@ export class VehicleVisionHandler {
 
         const vision = getVehicleVisionService();
         if (!vision.isConfigured()) {
-            await this.enviar(bot, chatId, threadId,
-                '❌ Servicio de IA no disponible. Usa registro manual.');
+            await this.enviar(
+                bot,
+                chatId,
+                threadId,
+                '❌ Servicio de IA no disponible. Usa registro manual.'
+            );
             return false;
         }
 
@@ -85,7 +88,14 @@ export class VehicleVisionHandler {
             estado: ESTADOS.ESPERANDO_FOTOS,
             chatId,
             threadId,
-            datos: { serie: null, marca: null, submarca: null, año: null, color: null, placas: null },
+            datos: {
+                serie: null,
+                marca: null,
+                submarca: null,
+                año: null,
+                color: null,
+                placas: null
+            },
             fotos: [],
             placasValidadas: false,
             fotosBuffer: [],
@@ -94,18 +104,23 @@ export class VehicleVisionHandler {
             discrepancias: []
         });
 
-        await this.enviar(bot, chatId, threadId,
+        await this.enviar(
+            bot,
+            chatId,
+            threadId,
             '📸 *REGISTRO DE VEHICULO*\n\n' +
-            'Envia las fotos:\n' +
-            '• Tarjeta de Circulacion\n' +
-            '• Fotos del auto\n\n' +
-            '_Puedes enviar varias fotos juntas_',
+                'Envia las fotos:\n' +
+                '• Tarjeta de Circulacion\n' +
+                '• Fotos del auto\n\n' +
+                '_Puedes enviar varias fotos juntas_',
             {
                 parse_mode: 'Markdown',
-                reply_markup: { inline_keyboard: [
-                    [{ text: '📝 Registro manual', callback_data: 'vision_manual' }],
-                    [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                ]}
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '📝 Registro manual', callback_data: 'vision_manual' }],
+                        [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                    ]
+                }
             }
         );
 
@@ -129,8 +144,10 @@ export class VehicleVisionHandler {
         if (!registro) return false;
 
         // Solo aceptar fotos en estados validos
-        if (registro.estado !== ESTADOS.ESPERANDO_FOTOS &&
-            registro.estado !== ESTADOS.REINTENTANDO_TARJETA) {
+        if (
+            registro.estado !== ESTADOS.ESPERANDO_FOTOS &&
+            registro.estado !== ESTADOS.REINTENTANDO_TARJETA
+        ) {
             return false;
         }
 
@@ -180,10 +197,9 @@ export class VehicleVisionHandler {
 
         const { chatId, threadId } = registro;
 
-        await this.enviar(bot, chatId, threadId,
-            '🔄 *Analizando tarjeta...*',
-            { parse_mode: 'Markdown' }
-        );
+        await this.enviar(bot, chatId, threadId, '🔄 *Analizando tarjeta...*', {
+            parse_mode: 'Markdown'
+        });
 
         try {
             const vision = getVehicleVisionService();
@@ -191,15 +207,25 @@ export class VehicleVisionHandler {
             const resultado = await vision.analizarImagen(buffer);
 
             if (!resultado.success || resultado.tipo !== 'tarjeta' || !resultado.datos) {
-                await this.enviar(bot, chatId, threadId,
+                await this.enviar(
+                    bot,
+                    chatId,
+                    threadId,
                     '❌ *No se pudo leer la tarjeta*\n\nIntenta con otra foto o corrige manual.',
                     {
                         parse_mode: 'Markdown',
-                        reply_markup: { inline_keyboard: [
-                            [{ text: '📷 Intentar de nuevo', callback_data: 'vision_reintentar' }],
-                            [{ text: '✏️ Corregir manual', callback_data: 'vision_corregir' }],
-                            [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                        ]}
+                        reply_markup: {
+                            inline_keyboard: [
+                                [
+                                    {
+                                        text: '📷 Intentar de nuevo',
+                                        callback_data: 'vision_reintentar'
+                                    }
+                                ],
+                                [{ text: '✏️ Corregir manual', callback_data: 'vision_corregir' }],
+                                [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                            ]
+                        }
                     }
                 );
                 return;
@@ -269,7 +295,10 @@ export class VehicleVisionHandler {
 
             // Mensaje de actualizacion
             if (actualizados > 0) {
-                await this.enviar(bot, chatId, threadId,
+                await this.enviar(
+                    bot,
+                    chatId,
+                    threadId,
                     `✅ *${actualizados} dato${actualizados > 1 ? 's' : ''} actualizado${actualizados > 1 ? 's' : ''}*`,
                     { parse_mode: 'Markdown' }
                 );
@@ -281,16 +310,16 @@ export class VehicleVisionHandler {
             }
 
             await this.mostrarConfirmacion(bot, registro);
-
         } catch (error) {
             logger.error('Error en reintento tarjeta:', error);
-            await this.enviar(bot, chatId, threadId,
-                '❌ Error procesando. Intenta de nuevo.',
-                { reply_markup: { inline_keyboard: [
-                    [{ text: '📷 Reintentar', callback_data: 'vision_reintentar' }],
-                    [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                ]}}
-            );
+            await this.enviar(bot, chatId, threadId, '❌ Error procesando. Intenta de nuevo.', {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '📷 Reintentar', callback_data: 'vision_reintentar' }],
+                        [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                    ]
+                }
+            });
         }
     }
 
@@ -313,13 +342,15 @@ export class VehicleVisionHandler {
             const nombre = nombresAmigables[disc.campo] ?? disc.campo.toUpperCase();
 
             // Mensaje 1: Alerta
-            await this.enviar(bot, chatId, threadId,
-                `⚠️ *ALERTA: ${nombre} detectado diferente*`,
-                { parse_mode: 'Markdown' }
-            );
+            await this.enviar(bot, chatId, threadId, `⚠️ *ALERTA: ${nombre} detectado diferente*`, {
+                parse_mode: 'Markdown'
+            });
 
             // Mensaje 2: Valores separados para facil copiar
-            await this.enviar(bot, chatId, threadId,
+            await this.enviar(
+                bot,
+                chatId,
+                threadId,
                 `Actual: \`${disc.valorAnterior}\`\nDetectado: \`${disc.valorNuevo}\``,
                 { parse_mode: 'Markdown' }
             );
@@ -354,7 +385,10 @@ export class VehicleVisionHandler {
         registros.set(key, registro);
 
         // Mensaje de procesando
-        await this.enviar(bot, chatId, threadId,
+        await this.enviar(
+            bot,
+            chatId,
+            threadId,
             `🔄 *Procesando ${registro.fotosBuffer.length} fotos...*`,
             { parse_mode: 'Markdown' }
         );
@@ -378,7 +412,7 @@ export class VehicleVisionHandler {
                     tarjetaBuffer = buffer;
                     Object.entries(resultado.datos).forEach(([campo, valor]) => {
                         if (valor && !registro.datos[campo as Campo]) {
-                            registro.datos[campo as Campo] = valor as any;
+                            registro.datos[campo as Campo] = valor;
                             // Marcar si placas vienen de tarjeta
                             if (campo === 'placas') {
                                 registro.placasDeTarjeta = true;
@@ -406,7 +440,9 @@ export class VehicleVisionHandler {
                         }
                         // Si SÍ hay placas de tarjeta, validar coincidencia
                         else {
-                            const placasNorm = registro.datos.placas.replace(/-/g, '').toUpperCase();
+                            const placasNorm = registro.datos.placas
+                                .replace(/-/g, '')
+                                .toUpperCase();
                             for (const detectada of resultado.placasDetectadas) {
                                 if (detectada.replace(/-/g, '').toUpperCase() === placasNorm) {
                                     registro.placasValidadas = true;
@@ -444,15 +480,20 @@ export class VehicleVisionHandler {
                 registro.estado = ESTADOS.ESPERANDO_FOTOS;
                 registros.set(key, registro);
 
-                await this.enviar(bot, chatId, threadId,
+                await this.enviar(
+                    bot,
+                    chatId,
+                    threadId,
                     '❌ *No se detecto tarjeta de circulacion*\n\n' +
-                    'Envia una foto clara de la tarjeta.',
+                        'Envia una foto clara de la tarjeta.',
                     {
                         parse_mode: 'Markdown',
-                        reply_markup: { inline_keyboard: [
-                            [{ text: '📝 Registro manual', callback_data: 'vision_manual' }],
-                            [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                        ]}
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: '📝 Registro manual', callback_data: 'vision_manual' }],
+                                [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                            ]
+                        }
                     }
                 );
                 return;
@@ -463,18 +504,24 @@ export class VehicleVisionHandler {
             registros.set(key, registro);
 
             await this.mostrarConfirmacion(bot, registro);
-
         } catch (error) {
             logger.error('Error en procesarBatch:', error);
             registro.estado = ESTADOS.ESPERANDO_FOTOS;
             registro.fotosBuffer = [];
             registros.set(key, registro);
 
-            await this.enviar(bot, chatId, threadId,
+            await this.enviar(
+                bot,
+                chatId,
+                threadId,
                 '❌ Error procesando fotos. Intenta de nuevo.',
-                { reply_markup: { inline_keyboard: [
-                    [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                ]}}
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                        ]
+                    }
+                }
             );
         }
     }
@@ -527,18 +574,19 @@ export class VehicleVisionHandler {
 
         await this.enviar(bot, chatId, threadId, msg, {
             parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard:
-                faltantes.length > 0
-                    ? [
-                        [{ text: '📷 Reenviar tarjeta', callback_data: 'vision_reintentar' }],
-                        [{ text: '✏️ Corregir manual', callback_data: 'vision_corregir' }],
-                        [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                    ]
-                    : [
-                        [{ text: '✅ Confirmar', callback_data: 'vision_confirmar' }],
-                        [{ text: '✏️ Corregir', callback_data: 'vision_corregir' }],
-                        [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                    ]
+            reply_markup: {
+                inline_keyboard:
+                    faltantes.length > 0
+                        ? [
+                              [{ text: '📷 Reenviar tarjeta', callback_data: 'vision_reintentar' }],
+                              [{ text: '✏️ Corregir manual', callback_data: 'vision_corregir' }],
+                              [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                          ]
+                        : [
+                              [{ text: '✅ Confirmar', callback_data: 'vision_confirmar' }],
+                              [{ text: '✏️ Corregir', callback_data: 'vision_corregir' }],
+                              [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                          ]
             }
         });
     }
@@ -554,16 +602,21 @@ export class VehicleVisionHandler {
         registro.fotosBuffer = [];
         registros.set(key, registro);
 
-        await this.enviar(bot, registro.chatId, registro.threadId,
+        await this.enviar(
+            bot,
+            registro.chatId,
+            registro.threadId,
             '📷 *REENVIAR TARJETA*\n\n' +
-            'Envia otra foto de la tarjeta de circulacion.\n' +
-            '_Solo se actualizaran los datos faltantes_',
+                'Envia otra foto de la tarjeta de circulacion.\n' +
+                '_Solo se actualizaran los datos faltantes_',
             {
                 parse_mode: 'Markdown',
-                reply_markup: { inline_keyboard: [
-                    [{ text: '⬅️ Volver', callback_data: 'vision_volver' }],
-                    [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                ]}
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '⬅️ Volver', callback_data: 'vision_volver' }],
+                        [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                    ]
+                }
             }
         );
     }
@@ -589,21 +642,23 @@ export class VehicleVisionHandler {
 
         await this.enviar(bot, chatId, threadId, msg, {
             parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard: [
-                [
-                    { text: '🔢 Serie', callback_data: 'vision_editar:serie' },
-                    { text: '🚗 Marca', callback_data: 'vision_editar:marca' }
-                ],
-                [
-                    { text: '📋 Modelo', callback_data: 'vision_editar:submarca' },
-                    { text: '📅 Año', callback_data: 'vision_editar:año' }
-                ],
-                [
-                    { text: '🎨 Color', callback_data: 'vision_editar:color' },
-                    { text: '🔖 Placas', callback_data: 'vision_editar:placas' }
-                ],
-                [{ text: '⬅️ Volver', callback_data: 'vision_volver' }]
-            ]}
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: '🔢 Serie', callback_data: 'vision_editar:serie' },
+                        { text: '🚗 Marca', callback_data: 'vision_editar:marca' }
+                    ],
+                    [
+                        { text: '📋 Modelo', callback_data: 'vision_editar:submarca' },
+                        { text: '📅 Año', callback_data: 'vision_editar:año' }
+                    ],
+                    [
+                        { text: '🎨 Color', callback_data: 'vision_editar:color' },
+                        { text: '🔖 Placas', callback_data: 'vision_editar:placas' }
+                    ],
+                    [{ text: '⬅️ Volver', callback_data: 'vision_volver' }]
+                ]
+            }
         });
     }
 
@@ -626,10 +681,13 @@ export class VehicleVisionHandler {
             placas: 'Placas'
         };
 
-        await this.enviar(bot, registro.chatId, registro.threadId,
+        await this.enviar(
+            bot,
+            registro.chatId,
+            registro.threadId,
             `✏️ *Editando ${nombres[campo]}*\n\n` +
-            `Valor actual: ${registro.datos[campo] ?? '_sin dato_'}\n\n` +
-            `Escribe el nuevo valor:`,
+                `Valor actual: ${registro.datos[campo] ?? '_sin dato_'}\n\n` +
+                `Escribe el nuevo valor:`,
             { parse_mode: 'Markdown' }
         );
     }
@@ -724,23 +782,36 @@ export class VehicleVisionHandler {
         // Verificar campos obligatorios
         const faltantes = CAMPOS.filter(c => !datos[c]);
         if (faltantes.length > 0) {
-            await this.enviar(bot, chatId, threadId,
+            await this.enviar(
+                bot,
+                chatId,
+                threadId,
                 `❌ Faltan datos: ${faltantes.join(', ')}\n\nCorrige los campos faltantes.`,
-                { reply_markup: { inline_keyboard: [
-                    [{ text: '✏️ Corregir', callback_data: 'vision_corregir' }]
-                ]}}
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '✏️ Corregir', callback_data: 'vision_corregir' }]
+                        ]
+                    }
+                }
             );
             return;
         }
 
         // Verificar minimo 1 foto
         if (fotos.length === 0) {
-            await this.enviar(bot, chatId, threadId,
-                '❌ Se requiere al menos 1 foto del vehiculo.\n\n' +
-                'Envia fotos del auto.',
-                { reply_markup: { inline_keyboard: [
-                    [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                ]}}
+            await this.enviar(
+                bot,
+                chatId,
+                threadId,
+                '❌ Se requiere al menos 1 foto del vehiculo.\n\n' + 'Envia fotos del auto.',
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                        ]
+                    }
+                }
             );
             registro.estado = ESTADOS.ESPERANDO_FOTOS;
             registros.set(key, registro);
@@ -771,7 +842,12 @@ export class VehicleVisionHandler {
             if (fotos.length > 0) {
                 await VehicleController.vincularFotosCloudflare(
                     String(resultado.vehicle._id),
-                    fotos.map(f => ({ ...f, originalname: 'foto.jpg', size: 0, uploadedAt: new Date() }))
+                    fotos.map(f => ({
+                        ...f,
+                        originalname: 'foto.jpg',
+                        size: 0,
+                        uploadedAt: new Date()
+                    }))
                 );
             }
 
@@ -786,23 +862,31 @@ export class VehicleVisionHandler {
 
             await this.enviar(bot, chatId, threadId, msg, {
                 parse_mode: 'Markdown',
-                reply_markup: { inline_keyboard: [
-                    [{ text: '🏠 Menu Principal', callback_data: 'accion:volver_menu' }]
-                ]}
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '🏠 Menu Principal', callback_data: 'accion:volver_menu' }]
+                    ]
+                }
             });
 
             // Limpiar registro
             registros.delete(key);
             logger.info(`Vision: Vehiculo registrado ${datos.serie}`);
-
         } catch (error: any) {
             logger.error('Error guardando vehiculo:', error);
-            await this.enviar(bot, chatId, threadId,
+            await this.enviar(
+                bot,
+                chatId,
+                threadId,
                 `❌ Error: ${error.message ?? 'No se pudo guardar'}`,
-                { reply_markup: { inline_keyboard: [
-                    [{ text: '🔄 Reintentar', callback_data: 'vision_confirmar' }],
-                    [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
-                ]}}
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: '🔄 Reintentar', callback_data: 'vision_confirmar' }],
+                            [{ text: '❌ Cancelar', callback_data: 'vision_cancelar' }]
+                        ]
+                    }
+                }
             );
         }
     }
@@ -827,7 +911,11 @@ export class VehicleVisionHandler {
     /**
      * Obtiene el registro
      */
-    static getRegistro(userId: number, chatId: number, threadId: string | null): IRegistro | undefined {
+    static getRegistro(
+        userId: number,
+        chatId: number,
+        threadId: string | null
+    ): IRegistro | undefined {
         return registros.get(this.getKey(userId, chatId, threadId));
     }
 

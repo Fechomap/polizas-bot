@@ -16,7 +16,6 @@ export function registerVehicleVisionCallbacks(
     logInfo: (msg: string, data?: any) => void,
     logError: (msg: string, error?: any) => void
 ): void {
-
     // Iniciar registro Vision (desde menu de opciones)
     bot.action('vehiculo_registro_ocr', async ctx => {
         try {
@@ -49,7 +48,11 @@ export function registerVehicleVisionCallbacks(
 
             if (!userId || !chatId) return;
 
-            const key = VehicleVisionHandler.getKeyFromIds(userId, chatId, threadId ? String(threadId) : null);
+            const key = VehicleVisionHandler.getKeyFromIds(
+                userId,
+                chatId,
+                threadId ? String(threadId) : null
+            );
             await VehicleVisionHandler.forzarProcesar(bot, key);
 
             logInfo('Vision: batch forzado', { chatId, userId });
@@ -70,7 +73,11 @@ export function registerVehicleVisionCallbacks(
 
             if (!userId || !chatId) return;
 
-            const key = VehicleVisionHandler.getKeyFromIds(userId, chatId, threadId ? String(threadId) : null);
+            const key = VehicleVisionHandler.getKeyFromIds(
+                userId,
+                chatId,
+                threadId ? String(threadId) : null
+            );
             await VehicleVisionHandler.confirmar(bot, key, String(userId));
 
             logInfo('Vision: confirmado', { chatId, userId });
@@ -91,7 +98,11 @@ export function registerVehicleVisionCallbacks(
 
             if (!userId || !chatId) return;
 
-            const key = VehicleVisionHandler.getKeyFromIds(userId, chatId, threadId ? String(threadId) : null);
+            const key = VehicleVisionHandler.getKeyFromIds(
+                userId,
+                chatId,
+                threadId ? String(threadId) : null
+            );
             await VehicleVisionHandler.mostrarMenuCorreccion(bot, key);
 
             logInfo('Vision: menu correccion', { chatId, userId });
@@ -112,7 +123,11 @@ export function registerVehicleVisionCallbacks(
 
             if (!userId || !chatId) return;
 
-            const key = VehicleVisionHandler.getKeyFromIds(userId, chatId, threadId ? String(threadId) : null);
+            const key = VehicleVisionHandler.getKeyFromIds(
+                userId,
+                chatId,
+                threadId ? String(threadId) : null
+            );
             await VehicleVisionHandler.iniciarReintentoTarjeta(bot, key);
 
             logInfo('Vision: reintento tarjeta', { chatId, userId });
@@ -134,7 +149,11 @@ export function registerVehicleVisionCallbacks(
 
             if (!userId || !chatId) return;
 
-            const key = VehicleVisionHandler.getKeyFromIds(userId, chatId, threadId ? String(threadId) : null);
+            const key = VehicleVisionHandler.getKeyFromIds(
+                userId,
+                chatId,
+                threadId ? String(threadId) : null
+            );
             await VehicleVisionHandler.iniciarEdicion(bot, key, campo);
 
             logInfo('Vision: editando campo', { chatId, userId, campo });
@@ -155,7 +174,11 @@ export function registerVehicleVisionCallbacks(
 
             if (!userId || !chatId) return;
 
-            const key = VehicleVisionHandler.getKeyFromIds(userId, chatId, threadId ? String(threadId) : null);
+            const key = VehicleVisionHandler.getKeyFromIds(
+                userId,
+                chatId,
+                threadId ? String(threadId) : null
+            );
             await VehicleVisionHandler.volverConfirmacion(bot, key);
 
             logInfo('Vision: volver confirmacion', { chatId, userId });
@@ -218,7 +241,8 @@ export async function procesarFotoVision(
     message: any,
     userId: string
 ): Promise<boolean> {
-    const chatId = typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
+    const chatId =
+        typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
     const threadId = message.message_thread_id ?? null;
     const threadIdStr = threadId ? String(threadId) : null;
     const userIdNum = parseInt(userId);
@@ -229,8 +253,10 @@ export async function procesarFotoVision(
 
     const registro = VehicleVisionHandler.getRegistro(userIdNum, chatId, threadIdStr);
     // Aceptar fotos en ESPERANDO_FOTOS o REINTENTANDO_TARJETA
-    if (registro?.estado !== ESTADOS.ESPERANDO_FOTOS &&
-        registro?.estado !== ESTADOS.REINTENTANDO_TARJETA) {
+    if (
+        registro?.estado !== ESTADOS.ESPERANDO_FOTOS &&
+        registro?.estado !== ESTADOS.REINTENTANDO_TARJETA
+    ) {
         return false;
     }
 
@@ -239,7 +265,11 @@ export async function procesarFotoVision(
 
     const mejorFoto = photo[photo.length - 1];
     return await VehicleVisionHandler.procesarFoto(
-        bot, chatId, userIdNum, threadIdStr, mejorFoto.file_id
+        bot,
+        chatId,
+        userIdNum,
+        threadIdStr,
+        mejorFoto.file_id
     );
 }
 
@@ -251,7 +281,8 @@ export async function procesarTextoVision(
     message: any,
     userId: string
 ): Promise<boolean> {
-    const chatId = typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
+    const chatId =
+        typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
     const threadId = message.message_thread_id ?? null;
     const threadIdStr = threadId ? String(threadId) : null;
     const userIdNum = parseInt(userId);
@@ -268,7 +299,5 @@ export async function procesarTextoVision(
         return false;
     }
 
-    return await VehicleVisionHandler.procesarTexto(
-        bot, chatId, userIdNum, threadIdStr, texto
-    );
+    return await VehicleVisionHandler.procesarTexto(bot, chatId, userIdNum, threadIdStr, texto);
 }

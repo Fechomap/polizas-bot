@@ -23,6 +23,10 @@ import { getPolicyByNumber } from '../controllers/policyController';
 import type { ChatContext } from './comandos/BaseCommand';
 import StateKeyManager from '../utils/StateKeyManager';
 import AdminMenu from '../admin/menus/adminMenu';
+import { getStateCleanupService } from '../services/StateCleanupService';
+
+// Service - Limpieza centralizada de estados
+const cleanupService = getStateCleanupService();
 
 // Usar StateKeyManager para crear mapas con firma consistente
 const createStateMap = () => StateKeyManager.createThreadSafeStateMap<any>();
@@ -109,11 +113,22 @@ class CommandHandler {
     }
 
     setupActionHandlers(): void {
-        // Volver al menú principal
+        // Volver al menú principal - LIMPIEZA CENTRALIZADA
         this.bot.action('accion:volver_menu', async (ctx: any) => {
             await ctx.answerCbQuery();
+            const chatId = ctx.chat?.id;
             const threadId = BaseCommand.getThreadId(ctx);
-            await this.clearChatState(ctx.chat.id, threadId);
+            const userId = ctx.from?.id;
+
+            // LIMPIEZA CENTRALIZADA DE TODOS LOS ESTADOS
+            if (chatId) {
+                cleanupService.limpiarTodosLosEstados(chatId, threadId, userId, this);
+                logger.info('🧹 Todos los estados limpiados vía accion:volver_menu', {
+                    chatId,
+                    threadId: threadId ?? 'ninguno'
+                });
+            }
+
             await this.startCommandInstance.showMainMenu(ctx);
         });
 

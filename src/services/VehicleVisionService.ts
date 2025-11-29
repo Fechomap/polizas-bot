@@ -79,13 +79,15 @@ Responde SOLO con JSON:
                 },
                 body: JSON.stringify({
                     model: this.model,
-                    messages: [{
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: prompt },
-                            { type: 'image_url', image_url: dataUri }
-                        ]
-                    }],
+                    messages: [
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: prompt },
+                                { type: 'image_url', image_url: dataUri }
+                            ]
+                        }
+                    ],
                     max_tokens: 800,
                     temperature: 0
                 })
