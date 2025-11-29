@@ -36,10 +36,15 @@ export class PolicyUIService {
             `🎨 Color: ${vehiculo.color}\n` +
             `🔢 Serie: ${vehiculo.serie}\n` +
             `🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n\n` +
-            '*Datos del titular:*\n' +
+            '*Datos temporales del titular:*\n' +
             `👤 ${vehiculo.titular}\n` +
             `🆔 RFC: ${vehiculo.rfc}\n` +
-            `📧 ${vehiculo.correo ?? 'Sin correo'}`
+            `📧 ${vehiculo.correo ?? 'Sin correo'}\n\n` +
+            '*Domicilio:*\n' +
+            `🏠 ${vehiculo.calle ?? 'Sin calle'}\n` +
+            `🏘️ ${vehiculo.colonia ?? 'Sin colonia'}\n` +
+            `🏙️ ${vehiculo.municipio ?? ''}, ${vehiculo.estadoRegion ?? ''}\n` +
+            `📮 CP: ${vehiculo.cp ?? 'Sin código postal'}`
         );
     }
 
