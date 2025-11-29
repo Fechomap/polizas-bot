@@ -4,17 +4,17 @@
 
 import BaseCommand from './BaseCommand';
 import { VehicleRegistrationHandler } from './VehicleRegistrationHandler';
-import { VehicleOCRHandler } from './VehicleOCRHandler';
+import { VehicleVisionHandler } from './VehicleVisionHandler';
 import { PolicyAssignmentHandler } from './PolicyAssignmentHandler';
 import { getBaseAutosKeyboard, getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
 
 // Callbacks separados
 import {
-    registerVehicleOCRCallbacks,
-    procesarTextoOCRVehiculo,
-    procesarFotoOCRVehiculo
-} from './VehicleOCRCallbacks';
+    registerVehicleVisionCallbacks,
+    procesarTextoVision,
+    procesarFotoVision
+} from './VehicleVisionCallbacks';
 import {
     registerVehicleRegistrationCallbacks,
     procesarMensajeRegistroManual
@@ -135,7 +135,7 @@ class BaseAutosCommand extends BaseCommand {
                         chatId,
                         threadIdStr
                     ) ||
-                    VehicleOCRHandler.tieneRegistroEnProceso(userId, chatId, threadIdStr)
+                    VehicleVisionHandler.tieneRegistro(userId, chatId, threadIdStr)
                 ) {
                     await ctx.reply(
                         '⚠️ Ya tienes un registro en proceso. Complétalo o cancélalo primero.'
@@ -147,7 +147,7 @@ class BaseAutosCommand extends BaseCommand {
                 const mensaje =
                     '🚗 *REGISTRAR AUTO*\n\n' +
                     'Elige cómo deseas registrar:\n\n' +
-                    '📸 *Con OCR* - Foto de tarjeta de circulación\n' +
+                    '📸 *Con IA* - Fotos de tarjeta y auto\n' +
                     '_Extrae datos automáticamente_\n\n' +
                     '📝 *Manual* - Ingresa datos uno por uno\n' +
                     '_Para cuando no tengas la tarjeta_';
@@ -158,7 +158,7 @@ class BaseAutosCommand extends BaseCommand {
                         inline_keyboard: [
                             [
                                 {
-                                    text: '📸 Con OCR (recomendado)',
+                                    text: '📸 Con IA (recomendado)',
                                     callback_data: 'vehiculo_registro_ocr'
                                 }
                             ],
@@ -175,8 +175,8 @@ class BaseAutosCommand extends BaseCommand {
             }
         });
 
-        // Registrar callbacks de OCR de vehículos
-        registerVehicleOCRCallbacks(this.bot, this.logInfo.bind(this), this.logError.bind(this));
+        // Registrar callbacks de Vision (IA) de vehículos
+        registerVehicleVisionCallbacks(this.bot, this.logInfo.bind(this), this.logError.bind(this));
 
         // Registrar callbacks de registro manual
         registerVehicleRegistrationCallbacks(
@@ -264,8 +264,8 @@ class BaseAutosCommand extends BaseCommand {
                 return true;
             }
 
-            // 2. Flujo OCR de vehículos (datos faltantes)
-            if (await procesarTextoOCRVehiculo(this.bot, message, userId)) {
+            // 2. Flujo Vision de vehículos (edición de campos)
+            if (await procesarTextoVision(this.bot, message, userId)) {
                 return true;
             }
 
@@ -328,8 +328,8 @@ class BaseAutosCommand extends BaseCommand {
      */
     async procesarFotoBaseAutos(message: TelegramMessage, userId: string): Promise<boolean> {
         try {
-            // 1. Flujo OCR de vehículos (tarjeta o fotos)
-            if (await procesarFotoOCRVehiculo(this.bot, message, userId)) {
+            // 1. Flujo Vision de vehículos (fotos)
+            if (await procesarFotoVision(this.bot, message, userId)) {
                 return true;
             }
 

@@ -17,7 +17,7 @@ import logger from '../utils/logger';
 // Importar TODOS los mapas de estado de flujos
 import { vehiculosEnProceso } from '../comandos/comandos/VehicleRegistrationHandler';
 import { asignacionesEnProceso } from '../comandos/comandos/PolicyAssignmentHandler';
-import { registrosOCR } from '../comandos/comandos/VehicleOCRHandler';
+import { registros as registrosVision } from '../comandos/comandos/VehicleVisionHandler';
 
 interface IHandler {
     clearChatState?: (chatId: number, threadId: number | string | null) => void;
@@ -52,8 +52,8 @@ export class StateCleanupService {
         // 3. Limpiar estados de asignación de póliza
         this.limpiarEstadoAsignaciones(userId, chatId, threadId);
 
-        // 4. Limpiar estados de OCR de tarjeta de circulación
-        this.limpiarEstadoOCR(chatId, threadId);
+        // 4. Limpiar estados de Vision IA
+        this.limpiarEstadoVision(userId, chatId, threadId);
 
         // 5. Limpiar estados de flujo Ocupar Póliza
         this.limpiarEstadosOcuparPoliza(chatId, threadId);
@@ -117,14 +117,20 @@ export class StateCleanupService {
     }
 
     /**
-     * Limpia estado de OCR de tarjeta de circulación (VehicleOCRHandler)
+     * Limpia estado de Vision IA (VehicleVisionHandler)
      */
-    private limpiarEstadoOCR(chatId: number, threadId: number | string | null): void {
-        const stateKey = `${chatId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+    private limpiarEstadoVision(
+        userId: number | undefined,
+        chatId: number,
+        threadId: number | string | null
+    ): void {
+        if (!userId) return;
 
-        if (registrosOCR.has(stateKey)) {
-            registrosOCR.delete(stateKey);
-            logger.info('[StateCleanup] Estado de OCR tarjeta circulación limpiado', { stateKey });
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+
+        if (registrosVision.has(stateKey)) {
+            registrosVision.delete(stateKey);
+            logger.info('[StateCleanup] Estado de Vision IA limpiado', { stateKey });
         }
     }
 
