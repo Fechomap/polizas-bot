@@ -53,23 +53,4 @@ function getFinalizarKeyboard() {
     };
 }
 
-/**
- * 🏠 TECLADO PERSISTENTE - Botón que siempre está visible
- * Reemplaza la necesidad de escribir /start
- */
-function getPersistentMenuKeyboard() {
-    return {
-        keyboard: [['🏠 MENÚ PRINCIPAL']],
-        resize_keyboard: true,
-        one_time_keyboard: false,
-        persistent: true
-    };
-}
-
-export {
-    getMainKeyboard,
-    getBaseAutosKeyboard,
-    getCancelKeyboard,
-    getFinalizarKeyboard,
-    getPersistentMenuKeyboard
-};
+export { getMainKeyboard, getBaseAutosKeyboard, getCancelKeyboard, getFinalizarKeyboard };

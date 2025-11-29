@@ -186,171 +186,213 @@ export const addServiceToPolicy = async (
     return updatedPolicy;
 };
 
+/**
+ * Obtiene pólizas susceptibles usando MongoDB Aggregation
+ * OPTIMIZADO: Todo el cálculo se hace en la BD, no bloquea el event loop
+ */
 export const getSusceptiblePolicies = async (): Promise<
     Array<{ numeroPoliza: string; diasDeImpago: number }>
 > => {
     return cacheService.get(
         'susceptiblePolicies',
         async () => {
-            const allPolicies = await Policy.find({ estado: 'ACTIVO' }).lean();
             const now = new Date();
-            const susceptibles: Array<{ numeroPoliza: string; diasDeImpago: number }> = [];
-            for (const policy of allPolicies) {
-                const diasTranscurridos = Math.floor(
-                    (now.getTime() - new Date(policy.fechaEmision).getTime()) / 86400000
-                );
-                if (diasTranscurridos <= 0) continue;
-                const diasCubiertos =
-                    policy.pagos.filter((p: IPago) => p.estado === 'REALIZADO').length * 30;
-                const diasDeImpago = diasTranscurridos - diasCubiertos;
-                if (diasDeImpago > 0) {
-                    susceptibles.push({ numeroPoliza: policy.numeroPoliza, diasDeImpago });
-                }
-            }
-            return susceptibles.sort((a, b) => b.diasDeImpago - a.diasDeImpago);
+
+            const results = await Policy.aggregate([
+                // Solo pólizas activas
+                { $match: { estado: 'ACTIVO' } },
+                // Proyectar campos necesarios y calcular
+                {
+                    $project: {
+                        numeroPoliza: 1,
+                        // Días transcurridos desde emisión
+                        diasTranscurridos: {
+                            $floor: {
+                                $divide: [
+                                    { $subtract: [now, '$fechaEmision'] },
+                                    86400000 // ms por día
+                                ]
+                            }
+                        },
+                        // Contar pagos realizados
+                        pagosRealizados: {
+                            $size: {
+                                $filter: {
+                                    input: { $ifNull: ['$pagos', []] },
+                                    as: 'p',
+                                    cond: { $eq: ['$$p.estado', 'REALIZADO'] }
+                                }
+                            }
+                        }
+                    }
+                },
+                // Filtrar solo los que tienen días transcurridos > 0
+                { $match: { diasTranscurridos: { $gt: 0 } } },
+                // Calcular días de impago
+                {
+                    $project: {
+                        numeroPoliza: 1,
+                        diasDeImpago: {
+                            $subtract: [
+                                '$diasTranscurridos',
+                                { $multiply: ['$pagosRealizados', 30] }
+                            ]
+                        }
+                    }
+                },
+                // Solo los que tienen impago > 0
+                { $match: { diasDeImpago: { $gt: 0 } } },
+                // Ordenar por días de impago descendente
+                { $sort: { diasDeImpago: -1 } },
+                // Proyección final
+                { $project: { _id: 0, numeroPoliza: 1, diasDeImpago: 1 } }
+            ]);
+
+            return results;
         },
         3600 * 4
     );
 };
 
+/**
+ * Obtiene pólizas antiguas sin uso usando MongoDB Aggregation
+ * OPTIMIZADO: Todo el cálculo se hace en la BD, no bloquea el event loop
+ */
 export const getOldUnusedPolicies = async (): Promise<any[]> => {
     try {
-        logger.info('🔄 Iniciando sistema robusto de calificaciones - Pólizas a mandar');
+        logger.info('🔄 Iniciando sistema de calificaciones con Aggregation');
 
-        // 1) Obtener todas las pólizas activas regulares (excluyendo NIVs)
-        const allActivePolicies = await Policy.find({
-            estado: 'ACTIVO',
-            tipoPoliza: { $ne: 'NIV' }
-        }).lean();
-
-        logger.info(`📊 Analizando ${allActivePolicies.length} pólizas activas`);
-
-        // 2) Separar por número de servicios y filtrar las válidas
-        const polizasConCeroServicios: IPolicy[] = [];
-        const polizasConUnServicio: IPolicy[] = [];
-        let descartadasPorServicios = 0;
-
-        for (const policy of allActivePolicies) {
-            const totalServicios = (policy.servicios ?? []).length;
-            if (totalServicios === 0) {
-                polizasConCeroServicios.push(policy);
-            } else if (totalServicios === 1) {
-                polizasConUnServicio.push(policy);
-            } else {
-                descartadasPorServicios++;
+        // Pipeline para pólizas regulares (no NIV)
+        const regularResults = await Policy.aggregate([
+            // Solo activas, no NIV
+            { $match: { estado: 'ACTIVO', tipoPoliza: { $ne: 'NIV' } } },
+            // Calcular campos derivados
+            {
+                $project: {
+                    numeroPoliza: 1,
+                    titular: 1,
+                    diasRestantesGracia: 1,
+                    fechaEmision: 1,
+                    aseguradora: 1,
+                    totalServicios: { $size: { $ifNull: ['$servicios', []] } },
+                    // Calificación basada en días de gracia
+                    calificacion: {
+                        $switch: {
+                            branches: [
+                                {
+                                    case: {
+                                        $or: [
+                                            { $eq: ['$diasRestantesGracia', null] },
+                                            { $eq: [{ $type: '$diasRestantesGracia' }, 'missing'] }
+                                        ]
+                                    },
+                                    then: 10
+                                },
+                                { case: { $lte: ['$diasRestantesGracia', 0] }, then: 100 },
+                                { case: { $lte: ['$diasRestantesGracia', 5] }, then: 90 },
+                                { case: { $lte: ['$diasRestantesGracia', 10] }, then: 80 },
+                                { case: { $lte: ['$diasRestantesGracia', 15] }, then: 70 },
+                                { case: { $lte: ['$diasRestantesGracia', 20] }, then: 60 },
+                                { case: { $lte: ['$diasRestantesGracia', 25] }, then: 50 },
+                                { case: { $lte: ['$diasRestantesGracia', 30] }, then: 40 }
+                            ],
+                            default: 10
+                        }
+                    }
+                }
+            },
+            // Filtrar solo 0 o 1 servicio
+            { $match: { totalServicios: { $lte: 1 } } },
+            // Usar facet para obtener top 10 de cada grupo
+            {
+                $facet: {
+                    ceroServicios: [
+                        { $match: { totalServicios: 0 } },
+                        { $sort: { diasRestantesGracia: 1 } },
+                        { $limit: 10 },
+                        { $addFields: { tipoGrupo: 'SIN_SERVICIOS', prioridadGrupo: 1 } }
+                    ],
+                    unServicio: [
+                        { $match: { totalServicios: 1 } },
+                        { $sort: { diasRestantesGracia: 1 } },
+                        { $limit: 10 },
+                        { $addFields: { tipoGrupo: 'UN_SERVICIO', prioridadGrupo: 2 } }
+                    ]
+                }
             }
-        }
+        ]);
 
-        logger.info(
-            `📋 Análisis: ${polizasConCeroServicios.length} con 0 servicios, ${polizasConUnServicio.length} con 1 servicio, ${descartadasPorServicios} descartadas`
-        );
+        // Obtener NIVs con aggregation
+        const nivResults = await Policy.aggregate([
+            { $match: { estado: 'ACTIVO', tipoPoliza: 'NIV', totalServicios: 0 } },
+            { $sort: { año: 1, createdAt: -1 } },
+            // Agrupar por año y tomar el más antiguo
+            {
+                $group: {
+                    _id: null,
+                    añoMasAntiguo: { $first: '$año' },
+                    todos: { $push: '$$ROOT' }
+                }
+            },
+            // Filtrar solo del año más antiguo
+            {
+                $project: {
+                    nivs: {
+                        $slice: [
+                            {
+                                $filter: {
+                                    input: '$todos',
+                                    as: 'niv',
+                                    cond: { $eq: ['$$niv.año', '$añoMasAntiguo'] }
+                                }
+                            },
+                            4
+                        ]
+                    }
+                }
+            },
+            { $unwind: '$nivs' },
+            { $replaceRoot: { newRoot: '$nivs' } },
+            { $addFields: { tipoGrupo: 'NIV', prioridadGrupo: 3, calificacion: 95 } }
+        ]);
 
-        // 3) Función para calcular calificación basada en días restantes de gracia
-        const calcularCalificacion = (policy: IPolicy): number => {
-            if (policy.diasRestantesGracia === null || policy.diasRestantesGracia === undefined) {
-                return 10;
-            }
-            const diasGracia = policy.diasRestantesGracia;
-            if (diasGracia <= 0) return 100;
-            if (diasGracia <= 5) return 90;
-            if (diasGracia <= 10) return 80;
-            if (diasGracia <= 15) return 70;
-            if (diasGracia <= 20) return 60;
-            if (diasGracia <= 25) return 50;
-            if (diasGracia <= 30) return 40;
-            return Math.max(10, 40 - Math.floor(diasGracia / 5));
-        };
+        // Combinar resultados
+        const data = regularResults[0] || { ceroServicios: [], unServicio: [] };
+        const ceroServicios = data.ceroServicios || [];
+        const unServicio = data.unServicio || [];
 
-        // 4) Procesar y ordenar pólizas con 0 servicios
-        const polizasCeroOrdenadas = polizasConCeroServicios
-            .map(policy => ({
-                ...policy,
-                calificacion: calcularCalificacion(policy),
-                tipoGrupo: 'SIN_SERVICIOS' as const
-            }))
-            .sort((a, b) => {
-                const diasA = a.diasRestantesGracia ?? 999;
-                const diasB = b.diasRestantesGracia ?? 999;
-                return diasA - diasB;
-            });
-
-        // 5) Procesar y ordenar pólizas con 1 servicio
-        const polizasUnoOrdenadas = polizasConUnServicio
-            .map(policy => ({
-                ...policy,
-                calificacion: calcularCalificacion(policy),
-                tipoGrupo: 'UN_SERVICIO' as const
-            }))
-            .sort((a, b) => {
-                const diasA = a.diasRestantesGracia ?? 999;
-                const diasB = b.diasRestantesGracia ?? 999;
-                return diasA - diasB;
-            });
-
-        // 6) Tomar TOP 10 de cada grupo
-        const top10CeroServicios = polizasCeroOrdenadas.slice(0, 10);
-        const top10UnServicio = polizasUnoOrdenadas.slice(0, 10);
-
-        logger.info(
-            `🎯 TOP 10: ${top10CeroServicios.length} sin servicios, ${top10UnServicio.length} con 1 servicio`
-        );
-
-        // 7) Obtener NIVs disponibles ordenados por año
-        const todosLosNivs = await Policy.find({
-            estado: 'ACTIVO',
-            tipoPoliza: 'NIV',
-            totalServicios: 0
-        })
-            .sort({ año: 1, createdAt: -1 })
-            .lean();
-
-        let nivs: any[] = [];
-        if (todosLosNivs.length > 0) {
-            const añoMasAntiguo = todosLosNivs[0].año;
-            const nivsDelAñoMasAntiguo = todosLosNivs.filter(niv => niv.año === añoMasAntiguo);
-            nivs = nivsDelAñoMasAntiguo.slice(0, 4);
-        }
-
-        // 8) Combinar resultados
+        // Formatear resultado final
         const resultadoFinal = [
-            ...top10CeroServicios.map((policy, index) => ({
+            ...ceroServicios.map((policy: any, index: number) => ({
                 ...policy,
                 posicion: index + 1,
-                tipoReporte: 'REGULAR' as const,
-                prioridadGrupo: 1,
+                tipoReporte: 'REGULAR',
                 mensajeEspecial:
-                    policy.diasRestantesGracia !== null &&
-                    policy.diasRestantesGracia !== undefined &&
-                    policy.diasRestantesGracia <= 5
+                    policy.diasRestantesGracia != null && policy.diasRestantesGracia <= 5
                         ? '🚨 URGENTE - PERÍODO DE GRACIA'
                         : null
             })),
-            ...top10UnServicio.map((policy, index) => ({
+            ...unServicio.map((policy: any, index: number) => ({
                 ...policy,
-                posicion: top10CeroServicios.length + index + 1,
-                tipoReporte: 'REGULAR' as const,
-                prioridadGrupo: 2,
+                posicion: ceroServicios.length + index + 1,
+                tipoReporte: 'REGULAR',
                 mensajeEspecial:
-                    policy.diasRestantesGracia !== null &&
-                    policy.diasRestantesGracia !== undefined &&
-                    policy.diasRestantesGracia <= 5
+                    policy.diasRestantesGracia != null && policy.diasRestantesGracia <= 5
                         ? '⚠️ URGENTE - 1 SERVICIO'
                         : null
             })),
-            ...nivs.map((niv, index) => ({
+            ...nivResults.map((niv: any, index: number) => ({
                 ...niv,
-                posicion: top10CeroServicios.length + top10UnServicio.length + index + 1,
-                tipoReporte: 'NIV' as const,
-                prioridadGrupo: 3,
-                mensajeEspecial: '⚡ NIV DISPONIBLE',
-                calificacion: 95
+                posicion: ceroServicios.length + unServicio.length + index + 1,
+                tipoReporte: 'NIV',
+                mensajeEspecial: '⚡ NIV DISPONIBLE'
             }))
         ];
 
-        logger.info(`✅ Sistema robusto completado: ${resultadoFinal.length} resultados`);
+        logger.info(`✅ Sistema completado: ${resultadoFinal.length} resultados`);
         return resultadoFinal;
     } catch (error: any) {
-        logger.error('❌ Error en sistema de calificaciones robusto:', error);
+        logger.error('❌ Error en sistema de calificaciones:', error);
         throw error;
     }
 };

@@ -17,3 +17,6 @@ tests/fixtures/
 
 # Claude AI
 .claude/
+
+# Database backup
+db_backup/

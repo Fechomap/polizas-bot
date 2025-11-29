@@ -71,7 +71,6 @@ class CacheService {
         // 1. Intentar obtener de L1 (memoria)
         const l1Value = this.l1Cache.get<T>(key);
         if (l1Value !== undefined) {
-            logger.debug(`[CACHE L1 HIT] Key: ${key}`);
             return l1Value;
         }
 
@@ -80,9 +79,8 @@ class CacheService {
             try {
                 const l2Data = await this.l2Cache.get(key);
                 if (l2Data) {
-                    logger.debug(`[CACHE L2 HIT] Key: ${key}`);
                     const value = JSON.parse(l2Data) as T;
-                    this.l1Cache.set(key, value, Math.min(300, ttlSeconds)); // Guardar en L1 con TTL más corto
+                    this.l1Cache.set(key, value, Math.min(300, ttlSeconds));
                     return value;
                 }
             } catch (error) {
@@ -93,7 +91,6 @@ class CacheService {
         }
 
         // 3. Si no está en caché, obtener del fetcher
-        logger.debug(`[CACHE MISS] Key: ${key}. Obteniendo desde fetcher.`);
         const value = await fetcher();
 
         // 4. Almacenar en ambas cachés
@@ -122,7 +119,6 @@ class CacheService {
         if (this.isL2Connected) {
             try {
                 await this.l2Cache.del(key);
-                logger.debug(`[CACHE INVALIDATE] Key: ${key} invalidada en L1 y L2.`);
             } catch (error) {
                 logger.error(`[CACHE L2 ERROR] Fallo al invalidar la key ${key} en Redis.`, {
                     error
@@ -148,9 +144,6 @@ class CacheService {
                 stream.on('end', async () => {
                     if (keys.length > 0) {
                         await this.l2Cache.del(keys);
-                        logger.debug(
-                            `[CACHE INVALIDATE] ${keys.length} keys invalidadas en L2 con patrón: ${pattern}`
-                        );
                     }
                 });
             } catch (error) {

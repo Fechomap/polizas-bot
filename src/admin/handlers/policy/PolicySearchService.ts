@@ -93,12 +93,14 @@ _Búsqueda inteligente en pólizas activas._
         }
         // 'all' no agrega filtro de estado
 
+        // Solo campos necesarios para listado (optimizado)
         const policies = await Policy.find(searchQuery)
             .select(
-                'numeroPoliza titular rfc correo contraseña calle colonia municipio estadoRegion cp agenteCotizador aseguradora fechaEmision telefono estadoPoliza fechaFinCobertura fechaFinGracia marca submarca año color serie placas calificacion totalServicios servicios registros estado fechaEliminacion motivoEliminacion'
+                'numeroPoliza titular rfc estado estadoPoliza fechaEmision fechaFinCobertura fechaFinGracia aseguradora'
             )
             .sort({ fechaEmision: -1 })
-            .limit(10);
+            .limit(10)
+            .lean();
 
         return policies as unknown as IPolicySearchResult[];
     }

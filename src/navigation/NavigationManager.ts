@@ -209,12 +209,6 @@ class NavigationManager {
         if (userStack.length > 10) {
             userStack.shift();
         }
-
-        logger.debug('Contexto navegación guardado:', {
-            userId,
-            context: context.menu,
-            stackSize: userStack.length
-        });
     }
 
     /**
@@ -235,12 +229,7 @@ class NavigationManager {
     popContext(userId: string): NavigationContext | null {
         const userStack = this.navigationStack.get(userId);
         if (userStack && userStack.length > 0) {
-            const current = userStack.pop()!;
-            logger.debug('Contexto navegación removido:', {
-                userId,
-                removedContext: current.menu,
-                remainingStackSize: userStack.length
-            });
+            userStack.pop();
             return this.getCurrentContext(userId);
         }
         return null;
@@ -269,7 +258,6 @@ class NavigationManager {
      */
     clearUserNavigation(userId: string): void {
         this.navigationStack.delete(userId);
-        logger.debug('Navegación limpiada para usuario:', { userId });
     }
 
     /**

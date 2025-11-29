@@ -1,6 +1,12 @@
 import logger from '../utils/logger';
 import type { Context } from 'telegraf';
 
+// Cachear valores de env al inicio del módulo (evita parsear en cada request)
+const ADMIN_USER_ID = parseInt(process.env.ADMIN_USER_ID ?? '0');
+const AUTHORIZED_GROUP_ID = process.env.AUTHORIZED_GROUP_ID
+    ? parseInt(process.env.AUTHORIZED_GROUP_ID)
+    : null;
+
 /**
  * Middleware de autorización general del bot
  * Controla quién puede usar el bot según el tipo de chat
@@ -14,14 +20,6 @@ const authMiddleware =
             const chatType = ctx.chat?.type;
 
             if (!chatId || !userId) return next();
-
-            // ID del administrador principal del .env
-            const ADMIN_USER_ID = parseInt(process.env.ADMIN_USER_ID ?? '0');
-
-            // ID del grupo autorizado del .env (opcional)
-            const AUTHORIZED_GROUP_ID = process.env.AUTHORIZED_GROUP_ID
-                ? parseInt(process.env.AUTHORIZED_GROUP_ID)
-                : null;
 
             logger.debug('Verificando autorización', {
                 chatId,

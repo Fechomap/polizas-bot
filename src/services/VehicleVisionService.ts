@@ -22,13 +22,53 @@ export interface IResultadoAnalisis {
     error?: string;
 }
 
+// Configuración de rate limiting
+const RATE_LIMIT = {
+    MAX_CONCURRENT: 3, // Máximo de llamadas concurrentes
+    MIN_INTERVAL_MS: 500, // Mínimo entre llamadas (evita 429)
+    MAX_RETRIES: 2 // Reintentos en caso de error 429
+};
+
 class VehicleVisionService {
     private apiKey: string;
     private baseUrl = 'https://api.mistral.ai/v1';
     private model = 'mistral-large-latest';
 
+    // Rate limiting state
+    private activeRequests = 0;
+    private lastRequestTime = 0;
+    private requestQueue: Array<() => void> = [];
+
     constructor() {
         this.apiKey = process.env.MISTRAL_API_KEY ?? '';
+    }
+
+    /**
+     * Throttle para controlar rate de llamadas a la API
+     */
+    private async throttle(): Promise<void> {
+        // Esperar si hay muchas requests concurrentes
+        while (this.activeRequests >= RATE_LIMIT.MAX_CONCURRENT) {
+            await new Promise<void>(resolve => {
+                this.requestQueue.push(resolve);
+            });
+        }
+
+        // Esperar intervalo mínimo entre requests
+        const now = Date.now();
+        const elapsed = now - this.lastRequestTime;
+        if (elapsed < RATE_LIMIT.MIN_INTERVAL_MS) {
+            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT.MIN_INTERVAL_MS - elapsed));
+        }
+
+        this.activeRequests++;
+        this.lastRequestTime = Date.now();
+    }
+
+    private releaseThrottle(): void {
+        this.activeRequests--;
+        const next = this.requestQueue.shift();
+        if (next) next();
     }
 
     isConfigured(): boolean {
@@ -37,17 +77,17 @@ class VehicleVisionService {
 
     /**
      * Analiza una imagen y extrae datos segun su tipo
+     * Incluye rate limiting y reintentos para errores 429
      */
     async analizarImagen(imageBuffer: Buffer): Promise<IResultadoAnalisis> {
         if (!this.isConfigured()) {
             return { success: false, tipo: 'otro', error: 'API no configurada' };
         }
 
-        try {
-            const base64 = imageBuffer.toString('base64');
-            const dataUri = `data:image/jpeg;base64,${base64}`;
+        const base64 = imageBuffer.toString('base64');
+        const dataUri = `data:image/jpeg;base64,${base64}`;
 
-            const prompt = `Analiza esta imagen y determina si es:
+        const prompt = `Analiza esta imagen y determina si es:
 1. TARJETA DE CIRCULACION - documento oficial de vehiculo
 2. FOTO DE VEHICULO - foto de un auto/camioneta
 
@@ -71,40 +111,65 @@ Responde SOLO con JSON:
   "placasDetectadas": ["ABC-123"]
 }`;
 
-            const response = await fetch(`${this.baseUrl}/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${this.apiKey}`
-                },
-                body: JSON.stringify({
-                    model: this.model,
-                    messages: [
-                        {
-                            role: 'user',
-                            content: [
-                                { type: 'text', text: prompt },
-                                { type: 'image_url', image_url: dataUri }
-                            ]
-                        }
-                    ],
-                    max_tokens: 800,
-                    temperature: 0
-                })
-            });
+        // Intentar con reintentos para errores 429
+        for (let attempt = 0; attempt <= RATE_LIMIT.MAX_RETRIES; attempt++) {
+            try {
+                // Aplicar throttle antes de cada request
+                await this.throttle();
 
-            if (!response.ok) {
-                return { success: false, tipo: 'otro', error: `API error: ${response.status}` };
+                const response = await fetch(`${this.baseUrl}/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${this.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: this.model,
+                        messages: [
+                            {
+                                role: 'user',
+                                content: [
+                                    { type: 'text', text: prompt },
+                                    { type: 'image_url', image_url: dataUri }
+                                ]
+                            }
+                        ],
+                        max_tokens: 800,
+                        temperature: 0
+                    })
+                });
+
+                this.releaseThrottle();
+
+                // Retry en caso de rate limit (429)
+                if (response.status === 429 && attempt < RATE_LIMIT.MAX_RETRIES) {
+                    const retryAfter = parseInt(response.headers.get('retry-after') ?? '2');
+                    await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                    continue;
+                }
+
+                if (!response.ok) {
+                    return { success: false, tipo: 'otro', error: `API error: ${response.status}` };
+                }
+
+                const data = await response.json();
+                const contenido = data.choices?.[0]?.message?.content ?? '';
+
+                return this.parsearRespuesta(contenido);
+            } catch (error) {
+                this.releaseThrottle();
+
+                // Solo reintentar en errores de red
+                if (attempt < RATE_LIMIT.MAX_RETRIES) {
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+                    continue;
+                }
+
+                return { success: false, tipo: 'otro', error: 'Error procesando imagen' };
             }
-
-            const data = await response.json();
-            const contenido = data.choices?.[0]?.message?.content ?? '';
-
-            return this.parsearRespuesta(contenido);
-        } catch (error) {
-            console.error('[VehicleVision] Error:', error);
-            return { success: false, tipo: 'otro', error: 'Error procesando imagen' };
         }
+
+        return { success: false, tipo: 'otro', error: 'Max reintentos excedidos' };
     }
 
     private parsearRespuesta(contenido: string): IResultadoAnalisis {

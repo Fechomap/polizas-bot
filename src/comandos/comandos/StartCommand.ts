@@ -1,10 +1,11 @@
 import BaseCommand, { NavigationContext, IBaseHandler } from './BaseCommand';
 import StateKeyManager from '../../utils/StateKeyManager';
-import { getPersistentMenuKeyboard } from '../teclados';
 import { getStateCleanupService } from '../../services/StateCleanupService';
+import { getInstance as getNavigationManager } from '../../navigation/NavigationManager';
 
-// Service - Limpieza centralizada de estados
+// Services singleton
 const cleanupService = getStateCleanupService();
+const navManager = getNavigationManager();
 
 class StartCommand extends BaseCommand {
     constructor(handler: IBaseHandler) {
@@ -24,38 +25,20 @@ class StartCommand extends BaseCommand {
         this.bot.command(this.getCommandName(), async (ctx: NavigationContext) => {
             try {
                 const chatId = ctx.chat?.id;
+                const userId = ctx.from?.id;
                 const threadId = StateKeyManager.getThreadId(ctx);
 
-                // LIMPIEZA CENTRALIZADA DE TODOS LOS ESTADOS
-                if (chatId) {
-                    cleanupService.limpiarTodosLosEstados(
-                        chatId,
-                        threadId,
-                        ctx.from?.id,
-                        this.handler
-                    );
-                    this.logInfo('🧹 Todos los estados limpiados vía /start', {
-                        chatId,
-                        threadId: threadId ?? 'ninguno'
-                    });
+                // LIMPIEZA TOTAL: estados + navigation stack
+                if (chatId && userId) {
+                    cleanupService.limpiarTodosLosEstados(chatId, threadId, userId, this.handler);
+                    navManager.clearUserNavigation(String(userId));
                 }
 
-                // Configurar teclado persistente primero
-                const persistentKeyboard = getPersistentMenuKeyboard();
-                await ctx.reply('🤖 *Bot de Pólizas iniciado*', {
-                    parse_mode: 'Markdown',
-                    reply_markup: persistentKeyboard
-                });
-
-                // Usar el nuevo sistema de navegación persistente
+                // Mostrar menú principal directamente (sin mensaje redundante)
                 await this.showMainMenu(ctx);
-                this.logInfo('Menú principal mostrado vía /start con navegación persistente', {
-                    chatId: ctx.chat?.id,
-                    threadId: threadId
-                });
             } catch (error: any) {
-                this.logError('Error en comando start al mostrar menú:', error);
-                await ctx.reply('❌ Error al mostrar el menú principal. Intenta nuevamente.');
+                this.logError('Error en /start:', error);
+                await ctx.reply('❌ Error al mostrar el menú. Intenta nuevamente.');
             }
         });
     }

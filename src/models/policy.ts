@@ -340,10 +340,15 @@ const policySchema = new Schema(
     }
 );
 
-// Índices
+// Índices (numeroPoliza ya tiene índice por unique: true)
 policySchema.index({ rfc: 1 });
 policySchema.index({ placas: 1 });
 policySchema.index({ estado: 1 });
+policySchema.index({ telefono: 1 });
+// Índice de texto para búsquedas por titular (case-insensitive)
+policySchema.index({ titular: 'text' });
+// Índice compuesto para búsquedas frecuentes
+policySchema.index({ estado: 1, fechaEmision: -1 });
 
 // Middleware pre-save
 policySchema.pre('save', function (next) {

@@ -19,6 +19,8 @@ import {
     type ISendOptions
 } from '../../types/policy-assignment';
 import type { IVehicle } from '../../types/database';
+import logger from '../../utils/logger';
+import stateCleanupService from '../../utils/StateCleanupService';
 
 // Re-exportar para compatibilidad
 export { ESTADOS_ASIGNACION };
@@ -27,6 +29,28 @@ export type { IAsignacionEnProceso };
 // Almacenamiento de asignaciones (thread-safe)
 export const asignacionesEnProceso =
     StateKeyManager.createThreadSafeStateMap<IAsignacionEnProceso>();
+
+// Registrar cleanup para estados huérfanos
+const assignmentCleanupProvider = {
+    async cleanup(cutoffTime: number): Promise<number> {
+        let removed = 0;
+        const internalMap = asignacionesEnProceso.getInternalMap();
+
+        for (const [key, asignacion] of internalMap.entries()) {
+            const asignacionTime = asignacion.iniciado?.getTime() ?? 0;
+            if (asignacionTime < cutoffTime) {
+                internalMap.delete(key);
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            logger.info(`PolicyAssignmentHandler: ${removed} asignaciones huérfanas limpiadas`);
+        }
+        return removed;
+    }
+};
+stateCleanupService.registerStateProvider(assignmentCleanupProvider, 'PolicyAssignmentHandler');
 
 // Servicios singleton
 const fileService = getPolicyFileService();

@@ -84,179 +84,318 @@ interface IComprehensiveData {
 }
 
 class ReportsHandlerV2 {
+    /**
+     * Obtiene datos comprensivos usando MongoDB Aggregation Pipeline
+     * OPTIMIZADO: Todo el cálculo se hace en la BD, no bloquea el event loop
+     */
     static async getComprehensiveMonthlyDataV2(
         startDate: Date,
         endDate: Date
     ): Promise<IComprehensiveData> {
         try {
-            logger.info('Iniciando análisis V2 de ciclo de vida completo', {
-                startDate,
-                endDate
-            });
+            logger.info('Iniciando análisis V2 con aggregation', { startDate, endDate });
 
             const sixMonthsBeforeStart = new Date(startDate);
             sixMonthsBeforeStart.setMonth(sixMonthsBeforeStart.getMonth() - 6);
+            const today = new Date();
 
-            const relevantPolicies = (await Policy.find({
-                $or: [
-                    {
-                        fechaEmision: { $gte: startDate, $lte: endDate },
-                        estado: { $ne: 'ELIMINADO' }
-                    },
-                    {
-                        fechaEmision: {
-                            $gte: sixMonthsBeforeStart,
-                            $lt: startDate
-                        },
-                        estado: { $ne: 'ELIMINADO' },
+            // Pipeline de agregación - todo se calcula en MongoDB
+            const results = await Policy.aggregate([
+                // Stage 1: Match - filtrar pólizas relevantes
+                {
+                    $match: {
                         $or: [
-                            { 'servicios.fechaServicio': { $gte: startDate, $lte: endDate } },
-                            { 'pagos.fechaPago': { $gte: startDate, $lte: endDate } },
-                            { 'registros.fechaRegistro': { $gte: startDate, $lte: endDate } }
+                            {
+                                fechaEmision: { $gte: startDate, $lte: endDate },
+                                estado: { $ne: 'ELIMINADO' }
+                            },
+                            {
+                                fechaEmision: { $gte: sixMonthsBeforeStart, $lt: startDate },
+                                estado: { $ne: 'ELIMINADO' },
+                                $or: [
+                                    {
+                                        'servicios.fechaServicio': {
+                                            $gte: startDate,
+                                            $lte: endDate
+                                        }
+                                    },
+                                    { 'pagos.fechaPago': { $gte: startDate, $lte: endDate } },
+                                    {
+                                        'registros.fechaRegistro': {
+                                            $gte: startDate,
+                                            $lte: endDate
+                                        }
+                                    }
+                                ]
+                            }
                         ]
                     }
-                ]
-            })) as unknown as IPolicyData[];
+                },
+                // Stage 2: Project - calcular campos derivados
+                {
+                    $project: {
+                        fechaEmision: 1,
+                        aseguradora: { $ifNull: ['$aseguradora', 'Sin aseguradora'] },
+                        calificacion: 1,
+                        fechaFinCobertura: 1,
+                        fechaFinGracia: 1,
+                        estadoPoliza: 1,
+                        estado: 1,
+                        // Filtrar servicios del período
+                        serviciosEnPeriodo: {
+                            $filter: {
+                                input: { $ifNull: ['$servicios', []] },
+                                as: 's',
+                                cond: {
+                                    $and: [
+                                        { $gte: ['$$s.fechaServicio', startDate] },
+                                        { $lte: ['$$s.fechaServicio', endDate] }
+                                    ]
+                                }
+                            }
+                        },
+                        // Filtrar pagos del período
+                        pagosEnPeriodo: {
+                            $filter: {
+                                input: { $ifNull: ['$pagos', []] },
+                                as: 'p',
+                                cond: {
+                                    $and: [
+                                        { $gte: ['$$p.fechaPago', startDate] },
+                                        { $lte: ['$$p.fechaPago', endDate] }
+                                    ]
+                                }
+                            }
+                        },
+                        // Calcular meses de antigüedad
+                        monthsAge: {
+                            $add: [
+                                {
+                                    $multiply: [
+                                        {
+                                            $subtract: [
+                                                { $year: endDate },
+                                                { $year: '$fechaEmision' }
+                                            ]
+                                        },
+                                        12
+                                    ]
+                                },
+                                { $subtract: [{ $month: endDate }, { $month: '$fechaEmision' }] }
+                            ]
+                        },
+                        // Determinar si es nueva (del mes)
+                        isNew: {
+                            $and: [
+                                { $gte: ['$fechaEmision', startDate] },
+                                { $lte: ['$fechaEmision', endDate] }
+                            ]
+                        },
+                        // Determinar si está activa
+                        isActive: {
+                            $or: [
+                                { $gt: ['$fechaFinCobertura', today] },
+                                { $gt: ['$fechaFinGracia', today] },
+                                { $eq: ['$estadoPoliza', 'ACTIVA'] },
+                                { $eq: ['$estado', 'ACTIVO'] }
+                            ]
+                        }
+                    }
+                },
+                // Stage 3: Facet - ejecutar múltiples agregaciones en paralelo
+                {
+                    $facet: {
+                        // Estadísticas generales
+                        general: [
+                            {
+                                $group: {
+                                    _id: null,
+                                    totalPolicies: { $sum: 1 },
+                                    activePolicies: {
+                                        $sum: { $cond: ['$isActive', 1, 0] }
+                                    },
+                                    newPolicies: {
+                                        $sum: { $cond: ['$isNew', 1, 0] }
+                                    },
+                                    previousWithActivity: {
+                                        $sum: { $cond: [{ $not: '$isNew' }, 1, 0] }
+                                    },
+                                    totalRating: {
+                                        $sum: {
+                                            $cond: [
+                                                { $gt: ['$calificacion', 0] },
+                                                '$calificacion',
+                                                0
+                                            ]
+                                        }
+                                    },
+                                    ratingCount: {
+                                        $sum: { $cond: [{ $gt: ['$calificacion', 0] }, 1, 0] }
+                                    },
+                                    totalServices: { $sum: { $size: '$serviciosEnPeriodo' } },
+                                    totalRevenue: {
+                                        $sum: { $sum: '$pagosEnPeriodo.monto' }
+                                    }
+                                }
+                            }
+                        ],
+                        // Distribución por antigüedad
+                        byAge: [
+                            {
+                                $group: {
+                                    _id: {
+                                        $switch: {
+                                            branches: [
+                                                {
+                                                    case: { $eq: ['$monthsAge', 0] },
+                                                    then: 'month0'
+                                                },
+                                                {
+                                                    case: { $eq: ['$monthsAge', 1] },
+                                                    then: 'month1'
+                                                },
+                                                {
+                                                    case: { $eq: ['$monthsAge', 2] },
+                                                    then: 'month2'
+                                                },
+                                                {
+                                                    case: { $eq: ['$monthsAge', 3] },
+                                                    then: 'month3'
+                                                },
+                                                {
+                                                    case: { $eq: ['$monthsAge', 4] },
+                                                    then: 'month4'
+                                                },
+                                                { case: { $eq: ['$monthsAge', 5] }, then: 'month5' }
+                                            ],
+                                            default: 'month6Plus'
+                                        }
+                                    },
+                                    count: { $sum: 1 }
+                                }
+                            }
+                        ],
+                        // Top aseguradoras
+                        insurers: [
+                            { $group: { _id: '$aseguradora', count: { $sum: 1 } } },
+                            { $sort: { count: -1 } },
+                            { $limit: 10 }
+                        ],
+                        // Distribución de servicios por tipo
+                        serviceTypes: [
+                            {
+                                $unwind: {
+                                    path: '$serviciosEnPeriodo',
+                                    preserveNullAndEmptyArrays: false
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: {
+                                        $ifNull: ['$serviciosEnPeriodo.tipoServicio', 'Sin tipo']
+                                    },
+                                    count: { $sum: 1 }
+                                }
+                            },
+                            { $sort: { count: -1 } }
+                        ],
+                        // Estadísticas diarias
+                        dailyStats: [
+                            {
+                                $unwind: {
+                                    path: '$serviciosEnPeriodo',
+                                    preserveNullAndEmptyArrays: false
+                                }
+                            },
+                            {
+                                $group: {
+                                    _id: {
+                                        $dateToString: {
+                                            format: '%Y-%m-%d',
+                                            date: '$serviciosEnPeriodo.fechaServicio'
+                                        }
+                                    },
+                                    services: { $sum: 1 },
+                                    revenue: {
+                                        $sum: { $ifNull: ['$serviciosEnPeriodo.costo', 0] }
+                                    }
+                                }
+                            },
+                            { $sort: { _id: 1 } }
+                        ]
+                    }
+                }
+            ]);
 
-            const totalPoliciesAnalyzed = relevantPolicies.length;
+            // Procesar resultados de agregación
+            const data = results[0];
+            const general = data.general[0] || {
+                totalPolicies: 0,
+                activePolicies: 0,
+                newPolicies: 0,
+                previousWithActivity: 0,
+                totalRating: 0,
+                ratingCount: 0,
+                totalServices: 0,
+                totalRevenue: 0
+            };
+
+            // Construir byAge desde resultados
+            const byAgeMap: Record<string, number> = {};
+            data.byAge.forEach((item: { _id: string; count: number }) => {
+                byAgeMap[item._id] = item.count;
+            });
 
             const policyAnalysis: IPolicyAnalysis = {
-                newPoliciesInMonth: relevantPolicies.filter(
-                    p => p.fechaEmision >= startDate && p.fechaEmision <= endDate
-                ).length,
-
-                previousPoliciesWithActivity: relevantPolicies.filter(
-                    p => p.fechaEmision < startDate
-                ).length,
-
+                newPoliciesInMonth: general.newPolicies,
+                previousPoliciesWithActivity: general.previousWithActivity,
                 byAge: {
-                    month0: 0,
-                    month1: 0,
-                    month2: 0,
-                    month3: 0,
-                    month4: 0,
-                    month5: 0,
-                    month6Plus: 0
+                    month0: byAgeMap['month0'] ?? 0,
+                    month1: byAgeMap['month1'] ?? 0,
+                    month2: byAgeMap['month2'] ?? 0,
+                    month3: byAgeMap['month3'] ?? 0,
+                    month4: byAgeMap['month4'] ?? 0,
+                    month5: byAgeMap['month5'] ?? 0,
+                    month6Plus: byAgeMap['month6Plus'] ?? 0
                 }
             };
 
-            relevantPolicies.forEach(policy => {
-                const monthsDiff = this.getMonthsDifference(policy.fechaEmision, endDate);
-                if (monthsDiff === 0) policyAnalysis.byAge.month0++;
-                else if (monthsDiff === 1) policyAnalysis.byAge.month1++;
-                else if (monthsDiff === 2) policyAnalysis.byAge.month2++;
-                else if (monthsDiff === 3) policyAnalysis.byAge.month3++;
-                else if (monthsDiff === 4) policyAnalysis.byAge.month4++;
-                else if (monthsDiff === 5) policyAnalysis.byAge.month5++;
-                else policyAnalysis.byAge.month6Plus++;
-            });
+            // Top insurers con porcentaje
+            const topInsurers = data.insurers.map((i: { _id: string; count: number }) => ({
+                name: i._id,
+                count: i.count,
+                percentage: general.totalPolicies > 0 ? (i.count / general.totalPolicies) * 100 : 0
+            }));
 
-            let totalServices = 0;
-            let totalRevenue = 0;
-            let totalRating = 0;
-            let ratingCount = 0;
-            let activePolicies = 0;
-            let expiredPolicies = 0;
+            // Service distribution con porcentaje
+            const serviceDistribution = data.serviceTypes.map(
+                (s: { _id: string; count: number }) => ({
+                    type: s._id,
+                    count: s.count,
+                    percentage:
+                        general.totalServices > 0 ? (s.count / general.totalServices) * 100 : 0
+                })
+            );
 
-            const insurerStats = new Map<string, number>();
-            const serviceStats = new Map<string, number>();
-            const dailyStats = new Map<
-                string,
-                { policies: number; services: number; revenue: number }
-            >();
+            // Daily stats
+            const dailyStatsArray = data.dailyStats.map(
+                (d: { _id: string; services: number; revenue: number }) => ({
+                    date: d._id,
+                    policies: 0,
+                    services: d.services,
+                    revenue: d.revenue
+                })
+            );
 
-            relevantPolicies.forEach(policy => {
-                // Count services in the period
-                const servicesInPeriod =
-                    policy.servicios?.filter(
-                        s => s.fechaServicio >= startDate && s.fechaServicio <= endDate
-                    ) ?? [];
-
-                totalServices += servicesInPeriod.length;
-
-                // Count revenue from payments in the period
-                const paymentsInPeriod =
-                    policy.pagos?.filter(p => p.fechaPago >= startDate && p.fechaPago <= endDate) ||
-                    [];
-
-                const policyRevenue = paymentsInPeriod.reduce(
-                    (sum, payment) => sum + payment.monto,
-                    0
-                );
-                totalRevenue += policyRevenue;
-
-                // Rating analysis
-                if (policy.calificacion && policy.calificacion > 0) {
-                    totalRating += policy.calificacion;
-                    ratingCount++;
-                }
-
-                // Policy status analysis
-                if (this.isPolicyActive(policy)) {
-                    activePolicies++;
-                } else {
-                    expiredPolicies++;
-                }
-
-                // Insurer statistics
-                const insurerName = policy.aseguradora ?? 'Sin aseguradora';
-                insurerStats.set(insurerName, (insurerStats.get(insurerName) ?? 0) + 1);
-
-                // Service type distribution
-                servicesInPeriod.forEach(service => {
-                    const serviceType = service.tipoServicio ?? 'Sin tipo';
-                    serviceStats.set(serviceType, (serviceStats.get(serviceType) ?? 0) + 1);
-                });
-
-                // Daily statistics
-                servicesInPeriod.forEach(service => {
-                    const dateKey = service.fechaServicio.toISOString().split('T')[0];
-                    const dayStats = dailyStats.get(dateKey) ?? {
-                        policies: 0,
-                        services: 0,
-                        revenue: 0
-                    };
-                    dayStats.services++;
-                    dayStats.revenue += service.costo ?? 0;
-                    dailyStats.set(dateKey, dayStats);
-                });
-            });
-
-            // Convert maps to arrays for response
-            const topInsurers = Array.from(insurerStats.entries())
-                .map(([name, count]) => ({
-                    name,
-                    count,
-                    percentage: (count / totalPoliciesAnalyzed) * 100
-                }))
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 10);
-
-            const serviceDistribution = Array.from(serviceStats.entries())
-                .map(([type, count]) => ({
-                    type,
-                    count,
-                    percentage: (count / totalServices) * 100
-                }))
-                .sort((a, b) => b.count - a.count);
-
-            const dailyStatsArray = Array.from(dailyStats.entries())
-                .map(([date, stats]) => ({
-                    date,
-                    policies: stats.policies,
-                    services: stats.services,
-                    revenue: stats.revenue
-                }))
-                .sort((a, b) => a.date.localeCompare(b.date));
-
-            const averageRating = ratingCount > 0 ? totalRating / ratingCount : 0;
+            const averageRating =
+                general.ratingCount > 0 ? general.totalRating / general.ratingCount : 0;
 
             const comprehensiveData: IComprehensiveData = {
-                totalPolicies: totalPoliciesAnalyzed,
-                activePolicies,
-                expiredPolicies,
-                totalServices,
-                monthlyRevenue: totalRevenue,
+                totalPolicies: general.totalPolicies,
+                activePolicies: general.activePolicies,
+                expiredPolicies: general.totalPolicies - general.activePolicies,
+                totalServices: general.totalServices,
+                monthlyRevenue: general.totalRevenue,
                 averageRating,
                 topInsurers,
                 serviceDistribution,
@@ -264,11 +403,9 @@ class ReportsHandlerV2 {
                 policyAnalysis
             };
 
-            logger.info('Análisis V2 completado', {
-                totalPolicies: totalPoliciesAnalyzed,
-                totalServices,
-                totalRevenue,
-                averageRating
+            logger.info('Análisis V2 (aggregation) completado', {
+                totalPolicies: general.totalPolicies,
+                totalServices: general.totalServices
             });
 
             return comprehensiveData;

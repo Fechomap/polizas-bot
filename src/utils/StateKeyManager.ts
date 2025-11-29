@@ -1,5 +1,4 @@
 // src/utils/StateKeyManager.ts
-import logger from './logger';
 import { BotContext } from '../../types';
 
 // Interfaces para el StateKeyManager
@@ -78,9 +77,7 @@ class StateKeyManager {
                 value: T,
                 threadId: string | number | null = null
             ): T => {
-                const key = StateKeyManager.getContextKey(chatId, threadId);
-                stateMap.set(key, value);
-                logger.debug(`Estado guardado para key=${key}`, { chatId, threadId, value });
+                stateMap.set(StateKeyManager.getContextKey(chatId, threadId), value);
                 return value;
             },
 
@@ -95,13 +92,7 @@ class StateKeyManager {
 
             // Verifica si existe un valor para una combinación de chatId y threadId
             has: (chatId: string | number, threadId: string | number | null = null): boolean => {
-                const key = StateKeyManager.getContextKey(chatId, threadId);
-                const exists = stateMap.has(key);
-                logger.debug(`Verificando estado para key=${key}, existe=${exists}`, {
-                    chatId,
-                    threadId
-                });
-                return exists;
+                return stateMap.has(StateKeyManager.getContextKey(chatId, threadId));
             },
 
             // Elimina un valor para una combinación de chatId y threadId
@@ -113,22 +104,15 @@ class StateKeyManager {
             // Elimina todos los valores asociados a un chatId, sin importar el threadId
             deleteAll: (chatId: string | number): number => {
                 let count = 0;
-                const keysToDelete: string[] = [];
+                const prefix = `${chatId}`;
 
-                // Primero recopilamos todas las claves a eliminar
                 for (const key of stateMap.keys()) {
-                    if (key === `${chatId}` || key.startsWith(`${chatId}:`)) {
-                        keysToDelete.push(key);
+                    if (key === prefix || key.startsWith(`${prefix}:`)) {
+                        stateMap.delete(key);
+                        count++;
                     }
                 }
 
-                // Luego eliminamos cada clave
-                for (const key of keysToDelete) {
-                    stateMap.delete(key);
-                    count++;
-                }
-
-                logger.debug(`Eliminados ${count} estados para chatId=${chatId}`);
                 return count;
             },
 

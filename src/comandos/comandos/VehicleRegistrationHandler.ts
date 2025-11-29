@@ -16,6 +16,7 @@ import {
     type IFotoVehiculo
 } from '../../types/vehicle-registration';
 import logger from '../../utils/logger';
+import stateCleanupService from '../../utils/StateCleanupService';
 
 // Re-exportar para compatibilidad con código existente
 export const ESTADOS_REGISTRO = ESTADOS_REGISTRO_VEHICULO;
@@ -24,6 +25,31 @@ export type EstadoRegistro = (typeof ESTADOS_REGISTRO)[keyof typeof ESTADOS_REGI
 // Almacenamiento de registros en proceso (thread-safe)
 export const vehiculosEnProceso =
     StateKeyManager.createThreadSafeStateMap<IRegistroVehiculoEnProceso>();
+
+// Registrar cleanup para estados huérfanos
+const registrationCleanupProvider = {
+    async cleanup(cutoffTime: number): Promise<number> {
+        let removed = 0;
+        const internalMap = vehiculosEnProceso.getInternalMap();
+
+        for (const [key, registro] of internalMap.entries()) {
+            const registroTime = registro.iniciado?.getTime() ?? 0;
+            if (registroTime < cutoffTime) {
+                internalMap.delete(key);
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            logger.info(`VehicleRegistrationHandler: ${removed} registros huérfanos limpiados`);
+        }
+        return removed;
+    }
+};
+stateCleanupService.registerStateProvider(
+    registrationCleanupProvider,
+    'VehicleRegistrationHandler'
+);
 
 // Servicios singleton
 const validationService = getVehicleValidationService();

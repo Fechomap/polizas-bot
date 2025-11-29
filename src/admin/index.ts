@@ -681,78 +681,45 @@ class AdminModule {
         });
 
         // Interceptar mensajes de texto para búsquedas admin y edición de campos
+        // OPTIMIZADO: Early return si no hay estado admin activo
         this.bot.on('text', async (ctx: Context, next: () => Promise<void>) => {
-            const messageText = (ctx.message as any).text;
-            logger.info('🔍 [ADMIN-DEBUG] Mensaje de texto recibido', {
-                text: messageText,
-                userId: ctx.from!.id,
-                chatId: ctx.chat!.id
-            });
-
             try {
-                // Verificar estado admin actual
-                const adminStateManager = require('./utils/adminStates').default;
-                const adminState = adminStateManager.getAdminState(ctx.from!.id, ctx.chat!.id);
-                logger.info('🔍 [ADMIN-DEBUG] Estado admin actual:', adminState);
+                const userId = ctx.from?.id;
+                const chatId = ctx.chat?.id;
+                if (!userId || !chatId) return next();
 
-                // PRIORIZAR comandos que empiezan con "/" sobre estados admin
+                // Early return: si no hay estado admin, pasar directamente
+                const adminState = adminStateManager.getAdminState(userId, chatId);
+                if (!adminState) return next();
+
+                const messageText = (ctx.message as any).text;
+
+                // Comandos siempre tienen prioridad
                 if (messageText.startsWith('/')) {
-                    logger.info(
-                        '🔍 [ADMIN-DEBUG] Comando detectado, priorizando sobre estado admin'
-                    );
-                    // Limpiar estado admin si existe
-                    if (adminState) {
-                        adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-                        logger.info('🔍 [ADMIN-DEBUG] Estado admin limpiado por comando');
-                    }
-                    return next(); // Dejar que el comando se procese normalmente
-                }
-
-                // PRIORIZAR botón "MENÚ PRINCIPAL" sobre estados admin
-                const isMenuButton =
-                    messageText === '🏠 MENÚ PRINCIPAL' ||
-                    messageText === 'MENÚ PRINCIPAL' ||
-                    messageText === 'Menu Principal' ||
-                    messageText.toUpperCase().includes('MENÚ PRINCIPAL');
-
-                if (isMenuButton) {
-                    logger.info(
-                        '🔍 [ADMIN-DEBUG] Botón MENÚ PRINCIPAL detectado, escapando de estado admin'
-                    );
-                    // Limpiar estado admin si existe
-                    if (adminState) {
-                        adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
-                        logger.info('🔍 [ADMIN-DEBUG] Estado admin limpiado por botón menú');
-                    }
-                    return next(); // Dejar que TextMessageHandler lo procese
-                }
-
-                // Intentar procesar como búsqueda de póliza o edición de campo
-                let handled = await this.handlers.policy.handleTextMessage(ctx);
-                logger.info('🔍 [ADMIN-DEBUG] Procesado por policy handler:', handled);
-
-                // Si no fue procesado por policy, intentar con service
-                if (!handled) {
-                    handled = await this.handlers.service.handleTextMessage(ctx);
-                    logger.info('🔍 [ADMIN-DEBUG] Procesado por service handler:', handled);
-                }
-
-                // Si no fue procesado, intentar con notifications (hora personalizada)
-                if (!handled && this.handlers.notifications.handleTextMessage) {
-                    handled = await this.handlers.notifications.handleTextMessage(ctx);
-                    logger.info('🔍 [ADMIN-DEBUG] Procesado por notifications handler:', handled);
-                }
-
-                if (!handled) {
-                    logger.info('🔍 [ADMIN-DEBUG] No procesado por admin, pasando a next()');
-                    // Si no fue procesado por admin, continuar con el flujo normal
+                    adminStateManager.clearAdminState(userId, chatId);
                     return next();
                 }
 
-                logger.info('🔍 [ADMIN-DEBUG] Mensaje procesado por admin exitosamente');
+                // Botón MENÚ PRINCIPAL tiene prioridad
+                if (messageText.toUpperCase().includes('MENÚ PRINCIPAL')) {
+                    adminStateManager.clearAdminState(userId, chatId);
+                    return next();
+                }
+
+                // Intentar procesar con handlers admin
+                let handled = await this.handlers.policy.handleTextMessage(ctx);
+
+                if (!handled) {
+                    handled = await this.handlers.service.handleTextMessage(ctx);
+                }
+
+                if (!handled && this.handlers.notifications.handleTextMessage) {
+                    handled = await this.handlers.notifications.handleTextMessage(ctx);
+                }
+
+                if (!handled) return next();
             } catch (error) {
-                logger.error('🔍 [ADMIN-DEBUG] Error al procesar mensaje:', error);
-                logger.error('Error al procesar mensaje de texto en admin:', error);
+                logger.error('Error en admin text handler:', error);
                 return next();
             }
         });

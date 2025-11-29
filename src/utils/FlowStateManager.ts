@@ -94,17 +94,50 @@ class FlowStateManager implements IStateProvider {
     }
 
     /**
+     * Escanea claves de Redis usando SCAN (no bloqueante)
+     * Evita redis.keys() que bloquea el servidor
+     */
+    private async scanKeys(pattern: string): Promise<string[]> {
+        if (!this.redis || !this.isRedisConnected) return [];
+
+        const keys: string[] = [];
+        let cursor = '0';
+
+        do {
+            const [nextCursor, foundKeys] = await this.redis.scan(
+                cursor,
+                'MATCH',
+                pattern,
+                'COUNT',
+                100
+            );
+            cursor = nextCursor;
+            keys.push(...foundKeys);
+        } while (cursor !== '0');
+
+        return keys;
+    }
+
+    /**
      * Carga estados desde Redis al iniciar
+     * OPTIMIZADO: Usa MGET en lugar de múltiples GET (evita N+1)
      */
     private async loadFromRedis(): Promise<void> {
         if (!this.redis || !this.isRedisConnected) return;
 
         try {
-            const keys = await this.redis.keys(`${REDIS_PREFIX}*`);
+            const keys = await this.scanKeys(`${REDIS_PREFIX}*`);
+            if (keys.length === 0) return;
+
             logger.info(`FlowStateManager: Cargando ${keys.length} estados desde Redis`);
 
-            for (const key of keys) {
-                const data = await this.redis.get(key);
+            // OPTIMIZACIÓN: Usar MGET para obtener todos los valores en una sola llamada
+            const values = await this.redis.mget(...keys);
+
+            for (let i = 0; i < keys.length; i++) {
+                const key = keys[i];
+                const data = values[i];
+
                 if (data) {
                     try {
                         const parsed = JSON.parse(data);
@@ -126,8 +159,8 @@ class FlowStateManager implements IStateProvider {
 
                             this.flowStates.get(contextKey)!.set(numeroPoliza, parsed);
                         }
-                    } catch (parseError) {
-                        logger.error('FlowStateManager: Error parseando estado', { key });
+                    } catch {
+                        // Error parseando estado, ignorar
                     }
                 }
             }
@@ -170,13 +203,12 @@ class FlowStateManager implements IStateProvider {
                 });
             });
         } else {
-            // Eliminar todas las keys del contextKey
+            // Eliminar todas las keys del contextKey usando SCAN (no bloqueante)
             const pattern = `${REDIS_PREFIX}${contextKey}:*`;
-            this.redis
-                .keys(pattern)
+            this.scanKeys(pattern)
                 .then(keys => {
-                    if (keys.length > 0) {
-                        this.redis!.del(...keys).catch(err => {
+                    if (keys.length > 0 && this.redis) {
+                        this.redis.del(...keys).catch(err => {
                             logger.error('FlowStateManager: Error eliminando keys de Redis', {
                                 pattern,
                                 error: err.message
@@ -185,7 +217,7 @@ class FlowStateManager implements IStateProvider {
                     }
                 })
                 .catch(err => {
-                    logger.error('FlowStateManager: Error buscando keys en Redis', {
+                    logger.error('FlowStateManager: Error escaneando keys en Redis', {
                         pattern,
                         error: err.message
                     });
@@ -233,7 +265,6 @@ class FlowStateManager implements IStateProvider {
         // Guardar en Redis de forma asíncrona
         this.saveToRedis(contextKey, numeroPoliza, newState);
 
-        logger.debug('Estado guardado:', { chatId, numeroPoliza, threadId, stateData });
         return true;
     }
 
@@ -279,8 +310,15 @@ class FlowStateManager implements IStateProvider {
             this.flowStates.delete(contextKey);
         }
 
-        logger.debug('Estado eliminado:', { chatId, numeroPoliza, threadId, result });
         return result;
+    }
+
+    /**
+     * Verifica si hay algún estado activo para un chat (sin loguear)
+     */
+    hasAnyState(chatId: string | number, threadId?: string | null): boolean {
+        const contextKey = this._getContextKey(chatId, threadId);
+        return this.flowStates.has(contextKey);
     }
 
     /**
@@ -290,10 +328,11 @@ class FlowStateManager implements IStateProvider {
         const contextKey = this._getContextKey(chatId, threadId);
         const result = this.flowStates.delete(contextKey);
 
-        // Eliminar de Redis
-        this.deleteFromRedis(contextKey);
+        // Eliminar de Redis solo si había algo
+        if (result) {
+            this.deleteFromRedis(contextKey);
+        }
 
-        logger.debug('Todos los estados eliminados para contextKey:', { contextKey, result });
         return result;
     }
 
@@ -382,13 +421,6 @@ class FlowStateManager implements IStateProvider {
                     stateMap.delete(flowId);
                     this.deleteFromRedis(contextKey, flowId);
                     removed++;
-                    logger.debug(
-                        `Eliminado contexto antiguo: ${flowId} (contextKey: ${contextKey})`,
-                        {
-                            lastUpdate: new Date(lastUpdate).toISOString(),
-                            age: Math.round((now - lastUpdate) / 1000 / 60) + ' minutos'
-                        }
-                    );
                 }
             }
 

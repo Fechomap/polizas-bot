@@ -8,6 +8,7 @@ import { VehicleController } from '../../controllers/vehicleController';
 import { generarDatosMexicanosReales } from '../../utils/mexicanDataGenerator';
 import StateKeyManager from '../../utils/StateKeyManager';
 import logger from '../../utils/logger';
+import stateCleanupService from '../../utils/StateCleanupService';
 import type { Telegraf } from 'telegraf';
 
 // Estados simples
@@ -25,6 +26,12 @@ type Estado = (typeof ESTADOS)[keyof typeof ESTADOS];
 // Campos del vehiculo
 const CAMPOS = ['serie', 'marca', 'submarca', 'año', 'color', 'placas'] as const;
 type Campo = (typeof CAMPOS)[number];
+
+// Configuración de tiempos (en ms)
+const TIMEOUTS = {
+    BATCH_PROCESS: 3000, // Tiempo de espera para agrupar fotos antes de procesar
+    SESSION_EXPIRE: 10 * 60 * 1000 // Expiración de sesión (10 minutos)
+} as const;
 
 // Discrepancia detectada entre intentos
 interface IDiscrepancia {
@@ -53,6 +60,29 @@ interface IRegistro {
 
 // Almacen de registros
 export const registros = StateKeyManager.createThreadSafeStateMap<IRegistro>();
+
+// Registrar cleanup para estados huérfanos (evita fugas de memoria)
+const visionCleanupProvider = {
+    async cleanup(_cutoffTime: number): Promise<number> {
+        let removed = 0;
+        const internalMap = registros.getInternalMap();
+
+        for (const [key, registro] of internalMap.entries()) {
+            // Eliminar registros sin timeout activo (abandonados)
+            if (!registro.timeout) {
+                if (registro.timeout) clearTimeout(registro.timeout);
+                internalMap.delete(key);
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            logger.info(`VehicleVisionHandler: ${removed} registros huérfanos limpiados`);
+        }
+        return removed;
+    }
+};
+stateCleanupService.registerStateProvider(visionCleanupProvider, 'VehicleVisionHandler');
 
 /**
  * Handler principal de Vision para vehiculos
@@ -169,12 +199,12 @@ export class VehicleVisionHandler {
             // Cancelar timeout anterior
             if (registro.timeout) clearTimeout(registro.timeout);
 
-            // Nuevo timeout de 3 segundos - procesa automaticamente
+            // Timeout configurable para agrupar fotos antes de procesar
             registro.timeout = setTimeout(() => {
                 this.procesarBatch(bot, key).catch(err =>
                     logger.error('Error procesando batch:', err)
                 );
-            }, 3000);
+            }, TIMEOUTS.BATCH_PROCESS);
 
             registros.set(key, registro);
             return true;

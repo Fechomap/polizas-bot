@@ -8,6 +8,8 @@
  * - Comando /start
  *
  * Cada nuevo flujo que use estados debe registrarse aquí.
+ *
+ * OPTIMIZACIÓN: Solo loguea cuando realmente limpia algo
  */
 
 import StateKeyManager from '../utils/StateKeyManager';
@@ -18,6 +20,14 @@ import logger from '../utils/logger';
 import { vehiculosEnProceso } from '../comandos/comandos/VehicleRegistrationHandler';
 import { asignacionesEnProceso } from '../comandos/comandos/PolicyAssignmentHandler';
 import { registros as registrosVision } from '../comandos/comandos/VehicleVisionHandler';
+
+// Cachear AdminStateManager al inicio (evita require() dinámico costoso)
+let AdminStateManager: any = null;
+try {
+    AdminStateManager = require('../admin/utils/adminStates').default;
+} catch {
+    // Módulo admin no disponible
+}
 
 interface IHandler {
     clearChatState?: (chatId: number, threadId: number | string | null) => void;
@@ -37,47 +47,23 @@ export class StateCleanupService {
         userId: number | undefined,
         handler?: IHandler
     ): void {
-        logger.info('[StateCleanup] === INICIANDO LIMPIEZA TOTAL DE ESTADOS ===', {
-            chatId,
-            threadId,
-            userId
-        });
-
-        // 1. Limpiar estados admin
+        // Ejecutar todas las limpiezas (cada una tiene early return si no hay nada)
         this.limpiarEstadosAdmin(userId, chatId);
-
-        // 2. Limpiar estados de Base de Autos (registro manual)
         this.limpiarEstadoVehiculosEnProceso(userId, chatId, threadId);
-
-        // 3. Limpiar estados de asignación de póliza
         this.limpiarEstadoAsignaciones(userId, chatId, threadId);
-
-        // 4. Limpiar estados de Vision IA
         this.limpiarEstadoVision(userId, chatId, threadId);
-
-        // 5. Limpiar estados de flujo Ocupar Póliza
         this.limpiarEstadosOcuparPoliza(chatId, threadId);
 
-        // 6. Limpiar estados del handler (comandos en espera)
-        if (handler?.clearChatState) {
-            handler.clearChatState(chatId, threadId);
-            logger.info('[StateCleanup] Estados del handler limpiados', { chatId, threadId });
-        }
-
-        logger.info('[StateCleanup] === LIMPIEZA TOTAL COMPLETADA ===');
+        // Limpiar estados del handler (comandos en espera)
+        handler?.clearChatState?.(chatId, threadId);
     }
 
     /**
      * Limpia estados del módulo admin
      */
     private limpiarEstadosAdmin(userId: number | undefined, chatId: number): void {
-        try {
-            const AdminStateManager = require('../admin/utils/adminStates').default;
-            AdminStateManager.clearAdminState(userId, chatId);
-            logger.info('[StateCleanup] Estados admin limpiados');
-        } catch {
-            // Módulo admin no disponible
-        }
+        if (!AdminStateManager || !userId) return;
+        AdminStateManager.clearAdminState(userId, chatId);
     }
 
     /**
@@ -91,11 +77,10 @@ export class StateCleanupService {
         if (!userId) return;
 
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        if (!vehiculosEnProceso.has(stateKey)) return;
 
-        if (vehiculosEnProceso.has(stateKey)) {
-            vehiculosEnProceso.delete(stateKey);
-            logger.info('[StateCleanup] Estado de registro de vehículo limpiado', { stateKey });
-        }
+        vehiculosEnProceso.delete(stateKey);
+        logger.info('[StateCleanup] Registro vehículo limpiado', { stateKey });
     }
 
     /**
@@ -109,11 +94,10 @@ export class StateCleanupService {
         if (!userId) return;
 
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        if (!asignacionesEnProceso.has(stateKey)) return;
 
-        if (asignacionesEnProceso.has(stateKey)) {
-            asignacionesEnProceso.delete(stateKey);
-            logger.info('[StateCleanup] Estado de asignación de póliza limpiado', { stateKey });
-        }
+        asignacionesEnProceso.delete(stateKey);
+        logger.info('[StateCleanup] Asignación póliza limpiada', { stateKey });
     }
 
     /**
@@ -127,11 +111,10 @@ export class StateCleanupService {
         if (!userId) return;
 
         const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        if (!registrosVision.has(stateKey)) return;
 
-        if (registrosVision.has(stateKey)) {
-            registrosVision.delete(stateKey);
-            logger.info('[StateCleanup] Estado de Vision IA limpiado', { stateKey });
-        }
+        registrosVision.delete(stateKey);
+        logger.info('[StateCleanup] Vision IA limpiado', { stateKey });
     }
 
     /**
@@ -139,11 +122,13 @@ export class StateCleanupService {
      */
     private limpiarEstadosOcuparPoliza(chatId: number, threadId: number | string | null): void {
         const threadIdStr = threadId ? String(threadId) : null;
+        const contextKey = StateKeyManager.getContextKey(chatId, threadIdStr);
+
+        // Early return si no hay estados que limpiar
+        if (!flowStateManager.hasAnyState(chatId, threadIdStr)) return;
+
         flowStateManager.clearAllStates(chatId, threadIdStr);
-        logger.info('[StateCleanup] Estados de flujo Ocupar Póliza limpiados', {
-            chatId,
-            threadId: threadIdStr ?? 'ninguno'
-        });
+        logger.info('[StateCleanup] Flujo Ocupar Póliza limpiado', { contextKey });
     }
 }
 

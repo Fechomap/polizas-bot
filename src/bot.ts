@@ -12,6 +12,7 @@ import { RedisSessionStore } from './state/RedisSessionStore';
 
 // 🚀 TYPESCRIPT MIGRATION CONFIRMED - DÍA 15 COMPLETADO! 🚀
 import stateCleanupService from './utils/StateCleanupService';
+import flowStateManager from './utils/FlowStateManager';
 import AdminModule from './admin';
 import CalculationScheduler from './admin/utils/calculationScheduler';
 import { createBullBoard } from '@bull-board/api';
@@ -71,6 +72,8 @@ async function initializeBot(): Promise<Telegraf> {
             15 * 60 * 1000, // Ejecutar cada 15 minutos
             30 * 60 * 1000 // Limpiar estados más antiguos de 30 minutos
         );
+        // Registrar FlowStateManager para limpieza periódica de estados huérfanos
+        stateCleanupService.registerStateProvider(flowStateManager, 'FlowStateManager');
         logger.info('✅ Servicio de limpieza de estados iniciado');
 
         // Configurar agente HTTPS con timeouts mejorados para alertas rápidas

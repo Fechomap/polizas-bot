@@ -5,6 +5,28 @@ import dotenv from 'dotenv';
 // Cargar variables de entorno
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
+// Detectar entorno
+const isDevelopment = process.env.NODE_ENV !== 'production';
+
+/**
+ * Configura la URL de Redis con la base de datos correcta
+ * - Producción (NODE_ENV=production): DB 0
+ * - Desarrollo (default): DB 1
+ */
+function getRedisUrl(): string | undefined {
+    const baseUrl = process.env.REDIS_URL;
+    if (!baseUrl) return undefined;
+
+    // Si ya tiene DB especificada (termina en /0, /1, etc.), usar como está
+    if (/\/\d+$/.test(baseUrl)) {
+        return baseUrl;
+    }
+
+    // Agregar DB según entorno: 0 para prod, 1 para dev
+    const db = isDevelopment ? 1 : 0;
+    return `${baseUrl}/${db}`;
+}
+
 // Interfaz para la configuración
 interface IConfig {
     telegram: {
@@ -19,6 +41,7 @@ interface IConfig {
         host: string;
         port: number;
         password?: string;
+        db: number;
     };
     session: {
         ttl: number;
@@ -34,6 +57,7 @@ interface IConfig {
             enableAdvancedStats: boolean;
         };
     };
+    isDevelopment: boolean;
 }
 
 const config: IConfig = {
@@ -47,10 +71,11 @@ const config: IConfig = {
         uri: process.env.MONGO_URI ?? ''
     },
     redis: {
-        url: process.env.REDIS_URL,
+        url: getRedisUrl(),
         host: process.env.REDIS_HOST ?? 'localhost',
         port: parseInt(process.env.REDIS_PORT ?? '6379'),
-        password: process.env.REDIS_PASSWORD
+        password: process.env.REDIS_PASSWORD,
+        db: isDevelopment ? 1 : 0
     },
     session: {
         ttl: parseInt(process.env.SESSION_TIMEOUT ?? '1800000')
@@ -65,7 +90,8 @@ const config: IConfig = {
             enableAudit: true,
             enableAdvancedStats: false // Se habilitará en Fase 4
         }
-    }
+    },
+    isDevelopment
 };
 
 const validateConfig = (): void => {
@@ -92,6 +118,7 @@ const validateConfig = (): void => {
 validateConfig();
 
 // Log de configuración (sin exponer credenciales)
-console.log('Configuración cargada: telegram, mongodb, redis, session, uploads, admin');
+const envLabel = isDevelopment ? 'DESARROLLO' : 'PRODUCCIÓN';
+console.log(`⚙️ Entorno: ${envLabel} | Redis DB: ${config.redis.db}`);
 
 export default config;
