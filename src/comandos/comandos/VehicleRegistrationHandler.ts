@@ -402,9 +402,7 @@ export class VehicleRegistrationHandler {
             const buffer = await response.buffer();
 
             // Agregar a la lista
-            if (!registro.datosVehiculo.fotos) {
-                registro.datosVehiculo.fotos = [];
-            }
+            registro.datosVehiculo.fotos ??= [];
 
             registro.datosVehiculo.fotos.push({
                 fileId: validacion.fileId!,

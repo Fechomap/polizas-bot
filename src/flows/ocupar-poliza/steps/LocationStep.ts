@@ -207,12 +207,12 @@ class LocationStep {
 
             // URLs para direcciones geocodificadas (dirección completa)
             const origenDir =
-                enhancedData.origenGeo?.direccionCompleta ||
-                enhancedData.origenGeo?.ubicacionCorta ||
+                enhancedData.origenGeo?.direccionCompleta ??
+                enhancedData.origenGeo?.ubicacionCorta ??
                 'Origen';
             const destinoDir =
-                enhancedData.destinoGeo?.direccionCompleta ||
-                enhancedData.destinoGeo?.ubicacionCorta ||
+                enhancedData.destinoGeo?.direccionCompleta ??
+                enhancedData.destinoGeo?.ubicacionCorta ??
                 'Destino';
             const waOrigenDirUrl = whatsAppService.generateWhatsAppUrl(telefono, origenDir);
             const waDestinoDirUrl = whatsAppService.generateWhatsAppUrl(telefono, destinoDir);
@@ -343,13 +343,13 @@ class LocationStep {
             responseMessage = '📍 *Ubicaciones:*\n';
             if (enhancedData.origenGeo) {
                 const origenText =
-                    enhancedData.origenGeo.direccionCompleta ||
+                    enhancedData.origenGeo.direccionCompleta ??
                     enhancedData.origenGeo.ubicacionCorta;
                 responseMessage += `🔹 Origen: ${origenText}\n`;
             }
             if (enhancedData.destinoGeo) {
                 const destinoText =
-                    enhancedData.destinoGeo.direccionCompleta ||
+                    enhancedData.destinoGeo.direccionCompleta ??
                     enhancedData.destinoGeo.ubicacionCorta;
                 responseMessage += `🔹 Destino: ${destinoText}\n`;
             }

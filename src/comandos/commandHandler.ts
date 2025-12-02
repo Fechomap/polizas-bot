@@ -209,6 +209,199 @@ class CommandHandler {
                 } catch {}
             }
         });
+
+        // Callback para mostrar menú de "Más Acciones" de la póliza
+        this.bot.action(/masAcciones:(.+)/, async (ctx: any) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                logger.info(`Callback masAcciones para: ${numeroPoliza}`);
+                await ctx.answerCbQuery();
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('💰 Agregar Pago', `addPayment:${numeroPoliza}`)],
+                    [Markup.button.callback('🔧 Agregar Servicio', `addService:${numeroPoliza}`)],
+                    [Markup.button.callback('📁 Subir Archivos', `uploadFiles:${numeroPoliza}`)],
+                    [Markup.button.callback('🗑️ Dar de Baja', `deletePolicy:${numeroPoliza}`)],
+                    [Markup.button.callback('⬅️ Volver', `getPoliza:${numeroPoliza}`)],
+                    [Markup.button.callback('🏠 Menú Principal', 'accion:volver_menu')]
+                ]);
+
+                await ctx.editMessageText(
+                    `⚙️ *MÁS ACCIONES*\n\n` +
+                        `Póliza: *${numeroPoliza}*\n\n` +
+                        `Selecciona una acción:`,
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard.reply_markup
+                    }
+                );
+            } catch (error: any) {
+                logger.error('Error en callback masAcciones:', error);
+                await ctx.reply('❌ Error al mostrar acciones.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
+        // Callback para agregar pago desde el menú de acciones
+        this.bot.action(/addPayment:(.+)/, async (ctx: any) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                logger.info(`Callback addPayment para: ${numeroPoliza}`);
+                await ctx.answerCbQuery();
+
+                const chatId = ctx.chat?.id;
+                const threadId = BaseCommand.getThreadId(ctx);
+
+                // Limpiar estados previos
+                await this.clearChatState(chatId, threadId);
+
+                // Guardar el número de póliza en el mapa de memoria Y en stateManager
+                this.awaitingPaymentData.set(chatId, numeroPoliza, threadId);
+                const stateKey = this._getStateKey(chatId, 'awaitingPaymentData', threadId);
+                await stateManager.setState(stateKey, numeroPoliza, 3600);
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
+                ]);
+
+                await ctx.editMessageText(
+                    `💰 *AGREGAR PAGO*\n\n` +
+                        `Póliza: *${numeroPoliza}*\n\n` +
+                        `Ingresa el monto del pago:`,
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard.reply_markup
+                    }
+                );
+            } catch (error: any) {
+                logger.error('Error en callback addPayment:', error);
+                await ctx.reply('❌ Error al iniciar el proceso de pago.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
+        // Callback para agregar servicio desde el menú de acciones
+        this.bot.action(/addService:(.+)/, async (ctx: any) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                logger.info(`Callback addService para: ${numeroPoliza}`);
+                await ctx.answerCbQuery();
+
+                const chatId = ctx.chat?.id;
+                const threadId = BaseCommand.getThreadId(ctx);
+
+                // Limpiar estados previos
+                await this.clearChatState(chatId, threadId);
+
+                // Guardar el número de póliza en estado para esperar los datos del servicio
+                this.awaitingServiceData.set(chatId, numeroPoliza, threadId);
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
+                ]);
+
+                await ctx.editMessageText(
+                    `🔧 *AGREGAR SERVICIO*\n\n` +
+                        `Póliza: *${numeroPoliza}*\n\n` +
+                        `Ingresa los datos del servicio en el siguiente formato:\n\n` +
+                        `\`Expediente\`\n` +
+                        `\`Origen - Destino\`\n` +
+                        `\`Costo\`\n` +
+                        `\`Fecha (DD/MM/YYYY)\` _(opcional)_`,
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard.reply_markup
+                    }
+                );
+            } catch (error: any) {
+                logger.error('Error en callback addService:', error);
+                await ctx.reply('❌ Error al iniciar el proceso de servicio.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
+        // Callback para subir archivos desde el menú de acciones
+        this.bot.action(/uploadFiles:(.+)/, async (ctx: any) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                logger.info(`Callback uploadFiles para: ${numeroPoliza}`);
+                await ctx.answerCbQuery();
+
+                const chatId = ctx.chat?.id;
+                const threadId = BaseCommand.getThreadId(ctx);
+
+                // Limpiar estados previos
+                await this.clearChatState(chatId, threadId);
+
+                // Guardar el número de póliza para subir archivos
+                this.awaitingUploadPolicyNumber.set(chatId, numeroPoliza, threadId);
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
+                ]);
+
+                await ctx.editMessageText(
+                    `📁 *SUBIR ARCHIVOS*\n\n` +
+                        `Póliza: *${numeroPoliza}*\n\n` +
+                        `Envía las fotos o PDFs que deseas agregar a esta póliza.`,
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard.reply_markup
+                    }
+                );
+            } catch (error: any) {
+                logger.error('Error en callback uploadFiles:', error);
+                await ctx.reply('❌ Error al iniciar la subida de archivos.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
+
+        // Callback para dar de baja/eliminar póliza desde el menú de acciones
+        this.bot.action(/deletePolicy:(.+)/, async (ctx: any) => {
+            try {
+                const numeroPoliza = ctx.match[1];
+                logger.info(`Callback deletePolicy para: ${numeroPoliza}`);
+                await ctx.answerCbQuery();
+
+                const chatId = ctx.chat?.id;
+                const threadId = BaseCommand.getThreadId(ctx);
+
+                // Limpiar estados previos
+                await this.clearChatState(chatId, threadId);
+
+                // Guardar el número de póliza para eliminar (esperar motivo)
+                this.awaitingDeleteReason.set(chatId, [numeroPoliza], threadId);
+
+                const keyboard = Markup.inlineKeyboard([
+                    [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
+                ]);
+
+                await ctx.editMessageText(
+                    `🗑️ *DAR DE BAJA PÓLIZA*\n\n` +
+                        `Póliza: *${numeroPoliza}*\n\n` +
+                        `¿Estás seguro de dar de baja esta póliza?\n\n` +
+                        `Escribe el motivo de la baja (o escribe "ninguno" si no hay motivo):`,
+                    {
+                        parse_mode: 'Markdown',
+                        reply_markup: keyboard.reply_markup
+                    }
+                );
+            } catch (error: any) {
+                logger.error('Error en callback deletePolicy:', error);
+                await ctx.reply('❌ Error al iniciar el proceso de eliminación.');
+                try {
+                    await ctx.answerCbQuery('Error');
+                } catch {}
+            }
+        });
     }
 
     // NUEVO FLUJO: Pedir número de póliza
@@ -264,7 +457,9 @@ class CommandHandler {
         const servicios = policy.servicios ?? [];
         const pagos = policy.pagos ?? [];
         const totalServicios = servicios.length;
-        const totalPagos = pagos.length;
+        // Solo contar pagos REALIZADOS (dinero real recibido)
+        const pagosRealizados = pagos.filter((p: any) => p.estado === 'REALIZADO');
+        const totalPagos = pagosRealizados.length;
 
         // Info de servicios (formato original)
         let serviciosInfo = '*Servicios:* Sin servicios registrados';
@@ -309,7 +504,8 @@ ${pagosInfo}
         `.trim();
 
         const keyboard = Markup.inlineKeyboard([
-            [Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`)]
+            [Markup.button.callback('🚗 Ocupar Póliza', `ocuparPoliza:${policy.numeroPoliza}`)],
+            [Markup.button.callback('⚙️ Más Acciones', `masAcciones:${policy.numeroPoliza}`)]
         ]);
 
         await ctx.replyWithMarkdown(mensaje, keyboard);

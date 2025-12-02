@@ -129,9 +129,11 @@ async function sendNotificationToTelegram(notification: any, bot: Telegraf): Pro
 }
 
 // 1. Inicialización de la cola (soporta REDIS_URL o host/port)
-const redisConfig = config.redis.url
-    ? config.redis.url
-    : { host: config.redis.host, port: config.redis.port, password: config.redis.password };
+const redisConfig = config.redis.url ?? {
+    host: config.redis.host,
+    port: config.redis.port,
+    password: config.redis.password
+};
 
 export const notificationQueue = new Queue('notifications', {
     redis: redisConfig as any,

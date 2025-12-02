@@ -329,7 +329,7 @@ class ReportsHandlerV2 {
 
             // Procesar resultados de agregación
             const data = results[0];
-            const general = data.general[0] || {
+            const general = data.general[0] ?? {
                 totalPolicies: 0,
                 activePolicies: 0,
                 newPolicies: 0,

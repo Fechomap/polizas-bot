@@ -156,9 +156,7 @@ export class PolicyCreationService {
 let instance: PolicyCreationService | null = null;
 
 export function getPolicyCreationService(): PolicyCreationService {
-    if (!instance) {
-        instance = new PolicyCreationService();
-    }
+    instance ??= new PolicyCreationService();
     return instance;
 }
 

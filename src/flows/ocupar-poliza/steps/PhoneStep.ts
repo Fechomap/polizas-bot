@@ -267,7 +267,7 @@ class PhoneStep {
                 totalServicios: policy.totalServicios ?? 0,
                 ultimoServicio: ultimoServicio?.fechaServicio,
                 origenDestinoUltimo,
-                totalPagos: policy.pagos?.length ?? 0
+                totalPagos: policy.pagos?.filter((p: any) => p.estado === 'REALIZADO').length ?? 0
             };
 
             const whatsappData = whatsAppService.generatePolicyWhatsApp(policyInfo);
@@ -325,7 +325,7 @@ class PhoneStep {
             totalServicios: policy.totalServicios ?? 0,
             ultimoServicio: ultimoServicio?.fechaServicio,
             origenDestinoUltimo,
-            totalPagos: policy.pagos?.length ?? 0
+            totalPagos: policy.pagos?.filter((p: any) => p.estado === 'REALIZADO').length ?? 0
         };
 
         return whatsAppService.generatePolicyWhatsApp(policyInfo);

@@ -214,9 +214,7 @@ export class PolicyUIService {
 let instance: PolicyUIService | null = null;
 
 export function getPolicyUIService(): PolicyUIService {
-    if (!instance) {
-        instance = new PolicyUIService();
-    }
+    instance ??= new PolicyUIService();
     return instance;
 }
 

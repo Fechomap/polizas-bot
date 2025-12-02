@@ -264,12 +264,12 @@ async function handleServiceData(
             if (savedState.geocoding?.origen && savedState.geocoding.destino) {
                 // Usar datos de geocoding si están disponibles
                 const origenTexto =
-                    savedState.geocoding.origen.ubicacionCorta ||
-                    savedState.geocoding.origen.direccionCompleta ||
+                    savedState.geocoding.origen.ubicacionCorta ??
+                    savedState.geocoding.origen.direccionCompleta ??
                     'Origen';
                 const destinoTexto =
-                    savedState.geocoding.destino.ubicacionCorta ||
-                    savedState.geocoding.destino.direccionCompleta ||
+                    savedState.geocoding.destino.ubicacionCorta ??
+                    savedState.geocoding.destino.direccionCompleta ??
                     'Destino';
                 origenDestino = `${origenTexto} - ${destinoTexto}`;
             } else if (savedState.origenDestino) {

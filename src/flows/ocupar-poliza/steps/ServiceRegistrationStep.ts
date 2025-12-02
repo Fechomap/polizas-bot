@@ -458,9 +458,7 @@ class ServiceRegistrationStep {
                 return false;
             }
 
-            if (!serviceInfo.expediente) {
-                serviceInfo.expediente = `EXP-${new Date().toISOString().slice(0, 10)}`;
-            }
+            serviceInfo.expediente ??= `EXP-${new Date().toISOString().slice(0, 10)}`;
 
             serviceInfo.contactTime = messageText;
             this.scheduledServiceInfo.set(chatId, serviceInfo, threadId);

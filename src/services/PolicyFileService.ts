@@ -202,9 +202,7 @@ export class PolicyFileService {
 let instance: PolicyFileService | null = null;
 
 export function getPolicyFileService(): PolicyFileService {
-    if (!instance) {
-        instance = new PolicyFileService();
-    }
+    instance ??= new PolicyFileService();
     return instance;
 }
 

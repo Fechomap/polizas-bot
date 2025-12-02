@@ -357,9 +357,9 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
         ]);
 
         // Combinar resultados
-        const data = regularResults[0] || { ceroServicios: [], unServicio: [] };
-        const ceroServicios = data.ceroServicios || [];
-        const unServicio = data.unServicio || [];
+        const data = regularResults[0] ?? { ceroServicios: [], unServicio: [] };
+        const ceroServicios = data.ceroServicios ?? [];
+        const unServicio = data.unServicio ?? [];
 
         // Formatear resultado final
         const resultadoFinal = [

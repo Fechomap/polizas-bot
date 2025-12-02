@@ -190,16 +190,16 @@ Responde SOLO con JSON:
             if (tipo === 'tarjeta' && json.datos) {
                 resultado.datos = {
                     serie: this.limpiarSerie(json.datos.serie),
-                    marca: json.datos.marca?.toUpperCase()?.trim() || null,
-                    submarca: json.datos.submarca?.toUpperCase()?.trim() || null,
+                    marca: json.datos.marca?.toUpperCase()?.trim() ?? null,
+                    submarca: json.datos.submarca?.toUpperCase()?.trim() ?? null,
                     año: this.validarAño(json.datos.año),
-                    color: json.datos.color?.toUpperCase()?.trim() || null,
+                    color: json.datos.color?.toUpperCase()?.trim() ?? null,
                     placas: this.limpiarPlacas(json.datos.placas)
                 };
             }
 
             if (tipo === 'vehiculo') {
-                resultado.colorDetectado = json.colorDetectado?.toUpperCase()?.trim() || null;
+                resultado.colorDetectado = json.colorDetectado?.toUpperCase()?.trim() ?? null;
                 resultado.placasDetectadas = Array.isArray(json.placasDetectadas)
                     ? json.placasDetectadas.map((p: string) => p.toUpperCase().trim())
                     : [];

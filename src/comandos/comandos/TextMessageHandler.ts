@@ -346,9 +346,7 @@ export class TextMessageHandler extends BaseCommand {
     // ============ HELPER METHODS ============
 
     private lazyLoadOcuparPoliza(): void {
-        if (!this.ocuparPolizaCallback) {
-            this.ocuparPolizaCallback = this.handler.ocuparPolizaCallback ?? null;
-        }
+        this.ocuparPolizaCallback ??= this.handler.ocuparPolizaCallback ?? null;
     }
 
     private esMenuPrincipal(text: string): boolean {

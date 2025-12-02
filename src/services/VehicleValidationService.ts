@@ -261,9 +261,7 @@ export class VehicleValidationService {
 let instance: VehicleValidationService | null = null;
 
 export function getVehicleValidationService(): VehicleValidationService {
-    if (!instance) {
-        instance = new VehicleValidationService();
-    }
+    instance ??= new VehicleValidationService();
     return instance;
 }
 

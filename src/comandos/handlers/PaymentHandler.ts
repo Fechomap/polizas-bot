@@ -79,7 +79,7 @@ class PaymentHandler extends BaseCommand {
                 return;
             }
             const monto = parseFloat(messageText.trim().replace(',', '.'));
-            if (isNaN(0) || monto <= 0) {
+            if (isNaN(monto) || monto <= 0) {
                 await ctx.reply('❌ Monto inválido. Ingresa un número mayor a 0.');
                 return;
             }

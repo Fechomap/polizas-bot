@@ -162,9 +162,7 @@ export class VehicleCreationService {
 let instance: VehicleCreationService | null = null;
 
 export function getVehicleCreationService(): VehicleCreationService {
-    if (!instance) {
-        instance = new VehicleCreationService();
-    }
+    instance ??= new VehicleCreationService();
     return instance;
 }
 

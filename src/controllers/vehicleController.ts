@@ -325,9 +325,7 @@ export class VehicleController {
             }
 
             // Si no se encuentra por serie, buscar por placas
-            if (!vehiculo) {
-                vehiculo = (await Vehicle.findByPlacas(termino)) as IVehicle | null;
-            }
+            vehiculo ??= (await Vehicle.findByPlacas(termino)) as IVehicle | null;
 
             // Búsqueda más amplia si no se encuentra exactamente
             if (!vehiculo) {

@@ -65,10 +65,7 @@ class NotificationManager {
             try {
                 if (!data.numeroPoliza || !data.expedienteNum)
                     throw new Error('Datos incompletos para programar notificación');
-                if (!data.targetGroupId)
-                    data.targetGroupId = parseInt(
-                        process.env.TELEGRAM_GROUP_ID ?? '-1002212807945'
-                    );
+                data.targetGroupId ??= parseInt(process.env.TELEGRAM_GROUP_ID ?? '-1002212807945');
 
                 let policyData: IPolicyData = {};
                 try {
