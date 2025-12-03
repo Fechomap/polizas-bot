@@ -6,6 +6,7 @@
 
 import { Context, Markup } from 'telegraf';
 import logger from '../../../utils/logger';
+import withTelegramRetry from '../../../utils/telegramRetry';
 import {
     getPolicyByNumber,
     updatePolicyPhone,
@@ -83,15 +84,22 @@ class PhoneStep {
                 const whatsappData = this.generateWhatsAppData(policy);
                 const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
-                await ctx.reply('📍indica *ORIGEN*', {
-                    parse_mode: 'Markdown',
-                    ...Markup.inlineKeyboard([
-                        [Markup.button.url(whatsappButton.text, whatsappButton.url)]
-                    ])
-                });
+                await withTelegramRetry(
+                    () =>
+                        ctx.reply('📍indica *ORIGEN*', {
+                            parse_mode: 'Markdown',
+                            ...Markup.inlineKeyboard([
+                                [Markup.button.url(whatsappButton.text, whatsappButton.url)]
+                            ])
+                        }),
+                    `keepPhone - póliza ${numeroPoliza}`
+                );
             } catch (error) {
                 logger.error('Error en callback keepPhone:', error);
-                await ctx.reply('❌ Error al procesar la acción.');
+                await withTelegramRetry(
+                    () => ctx.reply('❌ Error al procesar la acción.'),
+                    'keepPhone - error reply'
+                );
             } finally {
                 await ctx.answerCbQuery();
             }
@@ -273,18 +281,25 @@ class PhoneStep {
             const whatsappData = whatsAppService.generatePolicyWhatsApp(policyInfo);
             const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
-            await ctx.reply('📍indica *ORIGEN*', {
-                parse_mode: 'Markdown',
-                ...Markup.inlineKeyboard([
-                    [Markup.button.url(whatsappButton.text, whatsappButton.url)]
-                ])
-            });
+            await withTelegramRetry(
+                () =>
+                    ctx.reply('📍indica *ORIGEN*', {
+                        parse_mode: 'Markdown',
+                        ...Markup.inlineKeyboard([
+                            [Markup.button.url(whatsappButton.text, whatsappButton.url)]
+                        ])
+                    }),
+                `PhoneStep.handlePhoneNumber - póliza ${numeroPoliza}`
+            );
 
             return true;
         } catch (error) {
             logger.error(`Error guardando teléfono para póliza ${numeroPoliza}:`, error);
             this.awaitingPhoneNumber.delete(chatId, threadId);
-            await ctx.reply('❌ Error al guardar el teléfono. Operación cancelada.');
+            await withTelegramRetry(
+                () => ctx.reply('❌ Error al guardar el teléfono. Operación cancelada.'),
+                'PhoneStep.handlePhoneNumber - error reply'
+            );
             return true;
         }
     }
