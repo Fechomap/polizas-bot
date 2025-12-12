@@ -1,7 +1,7 @@
 import { Telegraf, Context, session } from 'telegraf';
 import express from 'express';
 import https from 'https';
-import connectDB from './database';
+import connectDB, { closeDB } from './database';
 import logger from './utils/logger';
 import config from './config';
 import CommandHandler from './comandos/commandHandler';
@@ -18,7 +18,14 @@ import CalculationScheduler from './admin/utils/calculationScheduler';
 import { createBullBoard } from '@bull-board/api';
 import { BullAdapter } from '@bull-board/api/bullAdapter';
 import { ExpressAdapter } from '@bull-board/express';
-import { notificationQueue, initializeNotificationConsumer } from './queues/NotificationQueue';
+import {
+    notificationQueue,
+    initializeNotificationConsumer,
+    closeNotificationQueue
+} from './queues/NotificationQueue';
+import RedisConnectionPool from './infrastructure/RedisConnectionPool';
+import { stopInstance as stopNavigationManager } from './navigation/NavigationManager';
+import adminStateManager from './admin/utils/adminStates';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
@@ -238,6 +245,46 @@ async function initializeBot(): Promise<Telegraf> {
                 logger.info('✅ Servicio de limpieza de estados detenido correctamente');
             } catch (stopError) {
                 logger.error('Error al detener servicio de limpieza de estados:', stopError);
+            }
+
+            // Detener AdminStateManager
+            try {
+                adminStateManager.stop();
+                logger.info('✅ AdminStateManager detenido correctamente');
+            } catch (stopError) {
+                logger.error('Error al detener AdminStateManager:', stopError);
+            }
+
+            // Detener NavigationManager
+            try {
+                stopNavigationManager();
+                logger.info('✅ NavigationManager detenido correctamente');
+            } catch (stopError) {
+                logger.error('Error al detener NavigationManager:', stopError);
+            }
+
+            // Cerrar conexión MongoDB
+            try {
+                await closeDB();
+                logger.info('✅ Conexión MongoDB cerrada correctamente');
+            } catch (dbError) {
+                logger.error('Error cerrando MongoDB:', dbError);
+            }
+
+            // Cerrar cola de notificaciones (Bull - tiene su propia conexión Redis)
+            try {
+                await closeNotificationQueue();
+                logger.info('✅ Cola de notificaciones cerrada correctamente');
+            } catch (queueError) {
+                logger.error('Error cerrando cola de notificaciones:', queueError);
+            }
+
+            // Cerrar pool de conexiones Redis (principal)
+            try {
+                await RedisConnectionPool.disconnect();
+                logger.info('✅ Pool de conexiones Redis cerrado correctamente');
+            } catch (redisError) {
+                logger.error('Error cerrando pool Redis:', redisError);
             }
 
             setTimeout(async () => {

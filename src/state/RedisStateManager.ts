@@ -2,68 +2,77 @@
 
 import Redis from 'ioredis';
 import { IStateManager } from './IStateManager';
-import config from '../config';
+import RedisConnectionPool from '../infrastructure/RedisConnectionPool';
 import logger from '../utils/logger';
 
 /**
  * Implementación de IStateManager utilizando Redis.
- * Proporciona una gestión de estado persistente y compartida entre múltiples instancias.
+ * Usa el pool de conexiones centralizado para evitar múltiples conexiones.
  */
 export class RedisStateManager implements IStateManager {
-    private redis: Redis;
+    private redis: Redis | null = null;
+    private isInitialized = false;
 
     constructor() {
-        const redisOptions = {
-            retryStrategy: (times: number) => {
-                const delay = Math.min(times * 50, 2000);
-                logger.warn(`Redis: Reintentando conectar (intento ${times})...`);
-                return delay;
-            },
-            maxRetriesPerRequest: 3
-        };
-        this.redis = config.redis.url
-            ? new Redis(config.redis.url, redisOptions)
-            : new Redis({
-                  host: config.redis.host,
-                  port: config.redis.port,
-                  password: config.redis.password,
-                  ...redisOptions
-              });
+        this.initializeRedis();
+    }
 
-        this.redis.on('error', err => {
-            logger.error('Redis: Error de conexión', { error: err.message });
-        });
+    /**
+     * Inicializa la conexión Redis usando el pool compartido
+     */
+    private async initializeRedis(): Promise<void> {
+        try {
+            this.redis = await RedisConnectionPool.getInstance();
+            this.isInitialized = true;
+            logger.info('RedisStateManager: Usando pool de conexiones compartido');
+        } catch (error) {
+            logger.error('RedisStateManager: Error inicializando Redis', { error });
+        }
+    }
 
-        this.redis.on('connect', () => {
-            logger.info('Redis: Conectado exitosamente.');
-        });
+    /**
+     * Asegura que Redis esté inicializado antes de operaciones
+     */
+    private async ensureConnection(): Promise<Redis> {
+        if (!this.redis || !RedisConnectionPool.isReady()) {
+            this.redis = await RedisConnectionPool.getInstance();
+        }
+        return this.redis;
     }
 
     async setState(key: string, value: any, ttl?: number): Promise<void> {
+        const redis = await this.ensureConnection();
         const stringValue = JSON.stringify(value);
         if (ttl) {
-            await this.redis.setex(key, ttl, stringValue);
+            await redis.setex(key, ttl, stringValue);
         } else {
-            await this.redis.set(key, stringValue);
+            await redis.set(key, stringValue);
         }
     }
 
     async getState<T>(key: string): Promise<T | null> {
-        const data = await this.redis.get(key);
+        const redis = await this.ensureConnection();
+        const data = await redis.get(key);
         return data ? (JSON.parse(data) as T) : null;
     }
 
     async deleteState(key: string): Promise<void> {
-        await this.redis.del(key);
+        const redis = await this.ensureConnection();
+        await redis.del(key);
     }
 
     async hasState(key: string): Promise<boolean> {
-        const result = await this.redis.exists(key);
+        const redis = await this.ensureConnection();
+        const result = await redis.exists(key);
         return result === 1;
     }
 
+    /**
+     * Desconecta (no hace nada porque usa pool compartido)
+     * La desconexión real se hace desde el shutdown handler
+     */
     async disconnect(): Promise<void> {
-        await this.redis.quit();
-        logger.info('Redis: Desconectado exitosamente.');
+        // No desconectar aquí - el pool se desconecta globalmente
+        logger.info('RedisStateManager: disconnect() llamado (pool manejado globalmente)');
     }
 }

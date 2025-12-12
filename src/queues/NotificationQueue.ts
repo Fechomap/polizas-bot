@@ -213,3 +213,22 @@ export function initializeNotificationConsumer(bot: Telegraf): void {
 
     logger.info('✅ Consumidor de notificaciones inicializado.');
 }
+
+/**
+ * Cierra la cola de notificaciones y sus conexiones Redis
+ * Debe llamarse en el shutdown handler del bot
+ */
+export async function closeNotificationQueue(): Promise<void> {
+    try {
+        // Pausar procesamiento de nuevos jobs
+        await notificationQueue.pause();
+
+        // Cerrar la cola (cierra conexiones Redis internas de Bull)
+        await notificationQueue.close();
+
+        logger.info('✅ Cola de notificaciones cerrada correctamente');
+    } catch (error) {
+        logger.error('Error cerrando cola de notificaciones:', error);
+        throw error;
+    }
+}

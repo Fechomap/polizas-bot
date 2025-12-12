@@ -1,5 +1,6 @@
 // src/utils/StateCleanupService.ts
 import logger from './logger';
+import config from '../config';
 
 // Interfaces para el servicio de limpieza
 interface IStateProvider {
@@ -20,6 +21,7 @@ interface ICleanupResult {
 /**
  * Servicio para limpieza periódica de estados huérfanos
  * Evita acumulación de estados que pueden causar problemas en la operación del bot
+ * TTL y intervalos configurados desde config.ttl centralizado
  */
 class StateCleanupService {
     private isRunning: boolean;
@@ -31,20 +33,23 @@ class StateCleanupService {
         this.isRunning = false;
         this.cleanupInterval = null;
         this.stateProviders = [];
-        // Tiempo límite para considerar un estado como huérfano (en milisegundos)
-        this.stateTimeoutMs = 30 * 60 * 1000; // 30 minutos por defecto
+        // TTL centralizado desde config (usa session como TTL principal)
+        this.stateTimeoutMs = config.ttl.session;
     }
 
     /**
      * Inicializa el servicio de limpieza periódica
+     * Usa TTL centralizados desde config si no se especifican
      */
-    start(intervalMs: number = 15 * 60 * 1000, timeoutMs: number = 30 * 60 * 1000): void {
+    start(intervalMs?: number, timeoutMs?: number): void {
         if (this.isRunning) {
             logger.warn('StateCleanupService ya está en ejecución');
             return;
         }
 
-        this.stateTimeoutMs = timeoutMs;
+        // Usar TTL centralizados desde config si no se especifican
+        const cleanupIntervalMs = intervalMs ?? config.ttl.cleanupInterval;
+        this.stateTimeoutMs = timeoutMs ?? config.ttl.session;
         this.isRunning = true;
 
         // Programar limpieza periódica
@@ -52,11 +57,11 @@ class StateCleanupService {
             this.runCleanup().catch(err =>
                 logger.error('Error en limpieza periódica de estados:', err)
             );
-        }, intervalMs);
+        }, cleanupIntervalMs);
 
         logger.info('✅ StateCleanupService iniciado', {
-            intervalMs,
-            timeoutMs
+            intervalMs: cleanupIntervalMs,
+            timeoutMs: this.stateTimeoutMs
         });
     }
 

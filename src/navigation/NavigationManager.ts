@@ -1,5 +1,6 @@
 import { Markup } from 'telegraf';
 import logger from '../utils/logger';
+import config from '../config';
 
 interface NavigationButton {
     text: string;
@@ -31,22 +32,37 @@ interface NavigationStats {
     activeUsers: number;
     totalContexts: number;
     averageStackSize: string;
+    lruHits: number;
+    lruEvictions: number;
 }
 
+// Constantes de configuración - TTL centralizado desde config
+const MAX_USERS_IN_CACHE = 1000; // Límite máximo de usuarios en memoria
+const MAX_STACK_SIZE = 10; // Máximo de contextos por usuario
+// TTL y cleanup interval desde config centralizado (session = TTL principal)
+const getNavigationTTL = (): number => config.ttl.session;
+const getCleanupInterval = (): number => config.ttl.cleanupInterval;
+
 /**
- * 🧭 NavigationManager - Sistema de Navegación Persistente
+ * 🧭 NavigationManager - Sistema de Navegación Persistente con LRU Cache
  *
  * Elimina la necesidad de escribir /start repetidamente
  * Proporciona menús contextuales y breadcrumbs
  * Preserva estado de navegación durante la sesión
+ * Implementa LRU cache con TTL para evitar memory leaks
  */
 class NavigationManager {
     private navigationStack: Map<string, NavigationContext[]>;
+    private accessOrder: string[]; // Para LRU: orden de acceso reciente
     private menuConfig: Record<string, MenuConfig>;
+    private cleanupInterval: NodeJS.Timeout | null = null;
+    private stats: { hits: number; evictions: number };
 
     constructor() {
-        // Stack de navegación por usuario
+        // Stack de navegación por usuario con LRU
         this.navigationStack = new Map();
+        this.accessOrder = [];
+        this.stats = { hits: 0, evictions: 0 };
 
         // Configuración de menús
         this.menuConfig = {
@@ -80,6 +96,95 @@ class NavigationManager {
                 ]
             }
         };
+
+        // Iniciar limpieza periódica
+        this.startCleanupInterval();
+    }
+
+    /**
+     * Inicia el interval de limpieza periódica
+     */
+    private startCleanupInterval(): void {
+        this.cleanupInterval = setInterval(() => {
+            this.cleanupExpiredUsers();
+        }, getCleanupInterval());
+
+        // Permitir que el proceso termine aunque el interval esté activo
+        if (this.cleanupInterval.unref) {
+            this.cleanupInterval.unref();
+        }
+    }
+
+    /**
+     * Detiene el interval de limpieza (llamar en shutdown)
+     */
+    public stop(): void {
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+            logger.info('NavigationManager: Interval de limpieza detenido');
+        }
+    }
+
+    /**
+     * Marca un usuario como recientemente usado (LRU)
+     */
+    private touchUser(userId: string): void {
+        // Remover de posición actual
+        const index = this.accessOrder.indexOf(userId);
+        if (index > -1) {
+            this.accessOrder.splice(index, 1);
+            this.stats.hits++;
+        }
+        // Agregar al final (más reciente)
+        this.accessOrder.push(userId);
+
+        // Evictar usuarios antiguos si excedemos el límite
+        this.evictIfNeeded();
+    }
+
+    /**
+     * Evicta usuarios menos usados si excedemos el límite
+     */
+    private evictIfNeeded(): void {
+        while (this.navigationStack.size > MAX_USERS_IN_CACHE && this.accessOrder.length > 0) {
+            const oldestUser = this.accessOrder.shift();
+            if (oldestUser) {
+                this.navigationStack.delete(oldestUser);
+                this.stats.evictions++;
+            }
+        }
+    }
+
+    /**
+     * Limpia usuarios expirados por TTL
+     */
+    private cleanupExpiredUsers(): void {
+        const now = Date.now();
+        let cleaned = 0;
+
+        for (const [userId, stack] of this.navigationStack.entries()) {
+            if (stack.length === 0) {
+                this.navigationStack.delete(userId);
+                const index = this.accessOrder.indexOf(userId);
+                if (index > -1) this.accessOrder.splice(index, 1);
+                cleaned++;
+                continue;
+            }
+
+            // Verificar último acceso usando TTL centralizado
+            const lastContext = stack[stack.length - 1];
+            if (lastContext && now - lastContext.timestamp.getTime() > getNavigationTTL()) {
+                this.navigationStack.delete(userId);
+                const index = this.accessOrder.indexOf(userId);
+                if (index > -1) this.accessOrder.splice(index, 1);
+                cleaned++;
+            }
+        }
+
+        if (cleaned > 0) {
+            logger.info(`NavigationManager: Limpiados ${cleaned} usuarios expirados`);
+        }
     }
 
     /**
@@ -189,11 +294,14 @@ class NavigationManager {
     }
 
     /**
-     * 📌 Guarda contexto de navegación
+     * 📌 Guarda contexto de navegación con LRU
      * @param userId - ID del usuario
      * @param context - Contexto a guardar
      */
     pushContext(userId: string, context: NavigationContext): void {
+        // Marcar usuario como recientemente usado
+        this.touchUser(userId);
+
         if (!this.navigationStack.has(userId)) {
             this.navigationStack.set(userId, []);
         }
@@ -205,8 +313,8 @@ class NavigationManager {
             timestamp: new Date()
         });
 
-        // Limitar a últimos 10 contextos para evitar memory leaks
-        if (userStack.length > 10) {
+        // Limitar a últimos MAX_STACK_SIZE contextos para evitar memory leaks
+        if (userStack.length > MAX_STACK_SIZE) {
             userStack.shift();
         }
     }
@@ -218,7 +326,11 @@ class NavigationManager {
      */
     getCurrentContext(userId: string): NavigationContext | null {
         const userStack = this.navigationStack.get(userId);
-        return userStack && userStack.length > 0 ? userStack[userStack.length - 1] : null;
+        if (userStack && userStack.length > 0) {
+            this.touchUser(userId); // Actualizar LRU
+            return userStack[userStack.length - 1];
+        }
+        return null;
     }
 
     /**
@@ -229,6 +341,7 @@ class NavigationManager {
     popContext(userId: string): NavigationContext | null {
         const userStack = this.navigationStack.get(userId);
         if (userStack && userStack.length > 0) {
+            this.touchUser(userId);
             userStack.pop();
             return this.getCurrentContext(userId);
         }
@@ -258,6 +371,10 @@ class NavigationManager {
      */
     clearUserNavigation(userId: string): void {
         this.navigationStack.delete(userId);
+        const index = this.accessOrder.indexOf(userId);
+        if (index > -1) {
+            this.accessOrder.splice(index, 1);
+        }
     }
 
     /**
@@ -273,9 +390,12 @@ class NavigationManager {
         for (const [, stack] of this.navigationStack.entries()) {
             totalContexts += stack.length;
 
-            // Usuario activo si tiene contexto de últimos 30 minutos
+            // Usuario activo si tiene contexto dentro del TTL centralizado
             const lastContext = stack[stack.length - 1];
-            if (lastContext && now.getTime() - lastContext.timestamp.getTime() < 30 * 60 * 1000) {
+            if (
+                lastContext &&
+                now.getTime() - lastContext.timestamp.getTime() < getNavigationTTL()
+            ) {
                 activeUsers++;
             }
         }
@@ -284,7 +404,9 @@ class NavigationManager {
             totalUsers,
             activeUsers,
             totalContexts,
-            averageStackSize: totalUsers > 0 ? (totalContexts / totalUsers).toFixed(2) : '0'
+            averageStackSize: totalUsers > 0 ? (totalContexts / totalUsers).toFixed(2) : '0',
+            lruHits: this.stats.hits,
+            lruEvictions: this.stats.evictions
         };
     }
 
@@ -341,10 +463,19 @@ let navigationManager: NavigationManager | undefined;
 function getInstance(): NavigationManager {
     if (!navigationManager) {
         navigationManager = new NavigationManager();
-        logger.info('NavigationManager inicializado');
+        logger.info('NavigationManager inicializado con LRU cache');
     }
     return navigationManager;
 }
 
-export { NavigationManager, getInstance };
+/**
+ * Detiene el NavigationManager (llamar en shutdown)
+ */
+function stopInstance(): void {
+    if (navigationManager) {
+        navigationManager.stop();
+    }
+}
+
+export { NavigationManager, getInstance, stopInstance };
 export default getInstance;

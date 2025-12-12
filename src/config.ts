@@ -27,6 +27,10 @@ function getRedisUrl(): string | undefined {
     return `${baseUrl}/${db}`;
 }
 
+// Constantes internas (no configurables)
+const CACHE_MEMORY_TTL_MS = 5 * 60 * 1000; // 5 minutos - caché en memoria (fijo)
+const CLEANUP_INTERVAL_MS = 15 * 60 * 1000; // 15 minutos - intervalo de limpieza (fijo)
+
 // Interfaz para la configuración
 interface IConfig {
     telegram: {
@@ -43,14 +47,22 @@ interface IConfig {
         password?: string;
         db: number;
     };
-    session: {
-        ttl: number;
+    /**
+     * TTL simplificado - UN solo valor para todo
+     * Configurable via TTL_SESSION (default: 12 horas)
+     */
+    ttl: {
+        /** TTL principal para sesiones, estados, caché Redis, navegación, admin (default: 12 horas) */
+        session: number;
+        /** TTL de caché en memoria - FIJO 5 minutos (no configurable, para no consumir RAM) */
+        cacheMemory: number;
+        /** Intervalo de limpieza - FIJO 15 minutos (no configurable) */
+        cleanupInterval: number;
     };
     uploads: {
         maxSize: number;
     };
     admin: {
-        sessionTimeout: number;
         auditRetentionDays: number;
         features: {
             enableAudit: boolean;
@@ -77,18 +89,22 @@ const config: IConfig = {
         password: process.env.REDIS_PASSWORD,
         db: isDevelopment ? 1 : 0
     },
-    session: {
-        ttl: parseInt(process.env.SESSION_TIMEOUT ?? '1800000')
+    ttl: {
+        // TTL principal: 12 horas por defecto (en ms) - usado para TODO
+        session: parseInt(process.env.TTL_SESSION ?? '43200000'),
+        // Caché en memoria: 5 minutos FIJO (no consumir RAM)
+        cacheMemory: CACHE_MEMORY_TTL_MS,
+        // Intervalo de limpieza: 15 minutos FIJO
+        cleanupInterval: CLEANUP_INTERVAL_MS
     },
     uploads: {
         maxSize: parseInt(process.env.MAX_UPLOAD_SIZE ?? '20971520')
     },
     admin: {
-        sessionTimeout: 5 * 60 * 1000, // 5 minutos
         auditRetentionDays: parseInt(process.env.AUDIT_RETENTION_DAYS ?? '90'),
         features: {
             enableAudit: true,
-            enableAdvancedStats: false // Se habilitará en Fase 4
+            enableAdvancedStats: false
         }
     },
     isDevelopment

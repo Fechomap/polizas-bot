@@ -24,8 +24,9 @@ const connectDB = async (): Promise<void> => {
         const conn = await mongoose.connect(mongoURI, {
             // Opciones de conexión modernas
             maxPoolSize: 10,
-            serverSelectionTimeoutMS: 5000,
+            serverSelectionTimeoutMS: 15000, // 15 segundos para Railway proxy
             socketTimeoutMS: 45000,
+            connectTimeoutMS: 15000,
             family: 4 // Use IPv4, skip trying IPv6
         });
 

@@ -2,6 +2,7 @@
 import Redis from 'ioredis';
 import logger from './logger';
 import StateKeyManager from './StateKeyManager';
+import RedisConnectionPool from '../infrastructure/RedisConnectionPool';
 import config from '../config';
 
 // Interfaces para el manejo de estados
@@ -21,10 +22,13 @@ interface IStateProvider {
 }
 
 const REDIS_PREFIX = 'flow:';
+// TTL centralizado (convertir ms a segundos)
+const getFlowTTLSeconds = (): number => Math.ceil(config.ttl.session / 1000);
 
 /**
  * Clase para gestionar estados de flujos concurrentes en el bot
- * Usa caché local + Redis para persistencia
+ * Usa caché local + Redis (pool compartido) para persistencia
+ * Implementa TTL automático en Redis para evitar estados huérfanos
  */
 class FlowStateManager implements IStateProvider {
     // Caché local para operaciones rápidas
@@ -38,66 +42,45 @@ class FlowStateManager implements IStateProvider {
     }
 
     /**
-     * Inicializa conexión a Redis
+     * Inicializa conexión a Redis usando el pool compartido
      */
-    private initRedis(): void {
+    private async initRedis(): Promise<void> {
         try {
-            const redisUrl = config.redis.url;
-            if (!redisUrl && !config.redis.host) {
-                logger.warn('FlowStateManager: Redis no configurado, usando solo memoria');
-                return;
+            this.redis = await RedisConnectionPool.getInstance();
+            this.isRedisConnected = RedisConnectionPool.isReady();
+
+            // Verificar estado periódicamente
+            if (this.redis) {
+                this.redis.on('ready', () => {
+                    this.isRedisConnected = true;
+                    this.loadFromRedis();
+                });
+
+                this.redis.on('error', () => {
+                    this.isRedisConnected = false;
+                });
+
+                this.redis.on('close', () => {
+                    this.isRedisConnected = false;
+                });
+
+                // Si ya está conectado, cargar estados
+                if (RedisConnectionPool.isReady()) {
+                    await this.loadFromRedis();
+                }
             }
 
-            const redisOptions = {
-                retryStrategy: (times: number) => {
-                    if (times > 3) {
-                        logger.warn('FlowStateManager: Redis no disponible, usando solo memoria');
-                        return null;
-                    }
-                    return Math.min(times * 100, 2000);
-                },
-                maxRetriesPerRequest: 3,
-                lazyConnect: true
-            };
-
-            this.redis = redisUrl
-                ? new Redis(redisUrl, redisOptions)
-                : new Redis({
-                      host: config.redis.host,
-                      port: config.redis.port,
-                      password: config.redis.password,
-                      ...redisOptions
-                  });
-
-            this.redis.on('connect', () => {
-                this.isRedisConnected = true;
-                logger.info('FlowStateManager: Redis conectado');
-                this.loadFromRedis();
-            });
-
-            this.redis.on('error', err => {
-                this.isRedisConnected = false;
-                logger.error('FlowStateManager: Error Redis', { error: err.message });
-            });
-
-            this.redis.on('close', () => {
-                this.isRedisConnected = false;
-            });
-
-            // Conectar
-            this.redis.connect().catch(() => {
-                logger.warn('FlowStateManager: No se pudo conectar a Redis, usando memoria');
-            });
+            logger.info('FlowStateManager: Usando pool de conexiones compartido');
         } catch (error) {
-            logger.error('FlowStateManager: Error inicializando Redis', { error });
+            logger.warn('FlowStateManager: Redis no disponible, usando solo memoria');
         }
     }
 
     /**
      * Escanea claves de Redis usando SCAN (no bloqueante)
-     * Evita redis.keys() que bloquea el servidor
+     * Limitado a MAX_KEYS para evitar consumir mucha memoria
      */
-    private async scanKeys(pattern: string): Promise<string[]> {
+    private async scanKeys(pattern: string, maxKeys = 10000): Promise<string[]> {
         if (!this.redis || !this.isRedisConnected) return [];
 
         const keys: string[] = [];
@@ -113,6 +96,12 @@ class FlowStateManager implements IStateProvider {
             );
             cursor = nextCursor;
             keys.push(...foundKeys);
+
+            // Límite de seguridad
+            if (keys.length >= maxKeys) {
+                logger.warn(`FlowStateManager: Límite de ${maxKeys} keys alcanzado en scan`);
+                break;
+            }
         } while (cursor !== '0');
 
         return keys;
@@ -172,7 +161,7 @@ class FlowStateManager implements IStateProvider {
     }
 
     /**
-     * Guarda en Redis de forma asíncrona (fire and forget)
+     * Guarda en Redis con TTL automático (fire and forget)
      */
     private saveToRedis(contextKey: string, numeroPoliza: string, data: IStateData): void {
         if (!this.redis || !this.isRedisConnected) return;
@@ -180,7 +169,8 @@ class FlowStateManager implements IStateProvider {
         const redisKey = `${REDIS_PREFIX}${contextKey}:${numeroPoliza}`;
         const serialized = JSON.stringify(data);
 
-        this.redis.set(redisKey, serialized).catch(err => {
+        // Usar SETEX con TTL centralizado para evitar estados huérfanos
+        this.redis.setex(redisKey, getFlowTTLSeconds(), serialized).catch(err => {
             logger.error('FlowStateManager: Error guardando en Redis', {
                 redisKey,
                 error: err.message
@@ -262,7 +252,7 @@ class FlowStateManager implements IStateProvider {
 
         this.flowStates.get(contextKey)!.set(numeroPoliza, newState);
 
-        // Guardar en Redis de forma asíncrona
+        // Guardar en Redis con TTL
         this.saveToRedis(contextKey, numeroPoliza, newState);
 
         return true;
@@ -404,20 +394,19 @@ class FlowStateManager implements IStateProvider {
 
     /**
      * Limpia contextos antiguos basado en un timestamp de corte
+     * También limpia en Redis
      */
     async cleanup(cutoffTime?: number): Promise<number> {
         let removed = 0;
         const now = Date.now();
 
-        if (!cutoffTime) {
-            const TWO_HOURS = 2 * 60 * 60 * 1000;
-            cutoffTime = now - TWO_HOURS;
-        }
+        // Usar TTL centralizado
+        const effectiveCutoffTime = cutoffTime ?? now - config.ttl.session;
 
         for (const [contextKey, stateMap] of this.flowStates.entries()) {
             for (const [flowId, data] of stateMap.entries()) {
                 const lastUpdate = data.createdAt ? data.createdAt.getTime() : 0;
-                if (lastUpdate < cutoffTime) {
+                if (lastUpdate < effectiveCutoffTime) {
                     stateMap.delete(flowId);
                     this.deleteFromRedis(contextKey, flowId);
                     removed++;

@@ -1,4 +1,5 @@
 import logger from '../../utils/logger';
+import config from '../../config';
 
 interface IAdminState {
     operation: string;
@@ -17,14 +18,62 @@ interface IAdminStats {
 }
 
 class AdminStateManager {
-    private ADMIN_TIMEOUT: number;
     private adminStates: Map<string, IAdminState>;
     private timeouts: Map<string, NodeJS.Timeout>;
+    private cleanupInterval: NodeJS.Timeout | null = null;
 
     constructor() {
-        this.ADMIN_TIMEOUT = 5 * 60 * 1000; // 5 minutos para operaciones admin
         this.adminStates = new Map();
         this.timeouts = new Map();
+    }
+
+    /**
+     * Obtiene el TTL de admin desde config centralizado (usa session TTL principal)
+     */
+    private getAdminTimeout(): number {
+        return config.ttl.session;
+    }
+
+    /**
+     * Inicia la limpieza periódica (debe llamarse explícitamente)
+     */
+    start(): void {
+        if (this.cleanupInterval) {
+            return; // Ya está corriendo
+        }
+
+        this.cleanupInterval = setInterval(() => {
+            this.cleanupOldAdminStates();
+        }, 60 * 1000); // Cada minuto (frecuencia de cleanup, no TTL)
+
+        // Permitir que el proceso termine aunque el interval esté activo
+        if (this.cleanupInterval.unref) {
+            this.cleanupInterval.unref();
+        }
+
+        logger.info('AdminStateManager: Limpieza periódica iniciada');
+    }
+
+    /**
+     * Detiene la limpieza periódica (llamar en shutdown)
+     */
+    stop(): void {
+        // Limpiar interval de cleanup
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
+
+        // Limpiar todos los timeouts individuales
+        for (const [key, timeout] of this.timeouts.entries()) {
+            clearTimeout(timeout);
+            this.timeouts.delete(key);
+        }
+
+        // Limpiar estados
+        this.adminStates.clear();
+
+        logger.info('AdminStateManager: Detenido y limpiado');
     }
 
     /**
@@ -142,7 +191,7 @@ class AdminStateManager {
                 this.adminStates.delete(stateKey);
             }
             this.timeouts.delete(stateKey);
-        }, this.ADMIN_TIMEOUT);
+        }, this.getAdminTimeout());
 
         this.timeouts.set(stateKey, timeout);
     }
@@ -156,7 +205,7 @@ class AdminStateManager {
             operations: {}
         };
 
-        for (const [key, state] of this.adminStates) {
+        for (const [, state] of this.adminStates) {
             const op = state.operation;
             stats.operations[op] = (stats.operations[op] ?? 0) + 1;
         }
@@ -172,7 +221,7 @@ class AdminStateManager {
         let cleaned = 0;
 
         for (const [key, state] of this.adminStates) {
-            if (now - state.lastActivity > this.ADMIN_TIMEOUT) {
+            if (now - state.lastActivity > this.getAdminTimeout()) {
                 this.adminStates.delete(key);
                 // Limpiar timeout asociado
                 if (this.timeouts.has(key)) {
@@ -194,9 +243,7 @@ class AdminStateManager {
 // Singleton
 const adminStateManager = new AdminStateManager();
 
-// Limpieza periódica
-setInterval(() => {
-    adminStateManager.cleanupOldAdminStates();
-}, 60 * 1000); // Cada minuto
+// Iniciar limpieza periódica automáticamente
+adminStateManager.start();
 
 export default adminStateManager;

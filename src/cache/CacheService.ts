@@ -2,60 +2,84 @@
 
 import NodeCache from 'node-cache';
 import Redis from 'ioredis';
+import RedisConnectionPool from '../infrastructure/RedisConnectionPool';
 import config from '../config';
 import logger from '../utils/logger';
 
 /**
  * Servicio de caché de dos niveles (L1 en memoria, L2 en Redis).
- * - L1 (node-cache): Caché local, muy rápida, para datos accedidos frecuentemente. TTL corto.
- * - L2 (Redis): Caché compartida, persistente, para una consistencia mayor entre instancias. TTL más largo.
+ * - L1 (node-cache): Caché local, TTL fijo 5 min (no consumir RAM)
+ * - L2 (Redis): Caché compartida, TTL centralizado desde config
  */
 class CacheService {
     private l1Cache: NodeCache;
-    private l2Cache: Redis;
+    private l2Cache: Redis | null = null;
     private isL2Connected = false;
+    private readonly l1TtlSeconds: number;
+    private readonly l2TtlSeconds: number;
 
     constructor() {
+        // L1: TTL fijo para memoria (no consumir RAM)
+        this.l1TtlSeconds = Math.ceil(config.ttl.cacheMemory / 1000);
+        // L2: TTL centralizado desde config.ttl.session
+        this.l2TtlSeconds = Math.ceil(config.ttl.session / 1000);
+
         // Configuración de L1 Cache (en memoria)
         this.l1Cache = new NodeCache({
-            stdTTL: 300, // 5 minutos TTL por defecto
-            checkperiod: 60, // Revisa expirados cada minuto
-            useClones: false // Mejora performance al no clonar objetos
+            stdTTL: this.l1TtlSeconds,
+            checkperiod: 60,
+            useClones: false
         });
 
-        // Configuración de L2 Cache (Redis - soporta URL o host/port)
-        const redisConfig = config.redis.url
-            ? { lazyConnect: true, maxRetriesPerRequest: 3, connectTimeout: 10000 }
-            : {
-                  host: config.redis.host,
-                  port: config.redis.port,
-                  password: config.redis.password,
-                  maxRetriesPerRequest: 3,
-                  connectTimeout: 10000,
-                  lazyConnect: true
-              };
-        this.l2Cache = config.redis.url
-            ? new Redis(config.redis.url, redisConfig)
-            : new Redis(redisConfig);
+        // Inicializar L2 Cache usando pool compartido
+        this.initializeL2Cache();
 
-        this.l2Cache.on('connect', () => {
-            this.isL2Connected = true;
-            logger.info('CacheService: Conectado a Redis (L2).');
-        });
+        logger.info('CacheService inicializado (L1: en memoria, L2: Redis pool compartido).');
+    }
 
-        this.l2Cache.on('error', err => {
-            this.isL2Connected = false;
-            logger.error('CacheService: Error de conexión con Redis (L2).', { error: err.message });
-        });
+    /**
+     * Inicializa L2 Cache usando el pool de conexiones compartido
+     */
+    private async initializeL2Cache(): Promise<void> {
+        try {
+            this.l2Cache = await RedisConnectionPool.getInstance();
+            this.isL2Connected = RedisConnectionPool.isReady();
 
-        // Conectar a Redis
-        this.l2Cache.connect().catch(err => {
-            logger.error('CacheService: Fallo en la conexión inicial a Redis.', {
-                error: err.message
-            });
-        });
+            // Escuchar eventos de conexión
+            if (this.l2Cache) {
+                this.l2Cache.on('ready', () => {
+                    this.isL2Connected = true;
+                    logger.info('CacheService: L2 (Redis) conectado via pool compartido');
+                });
 
-        logger.info('CacheService inicializado (L1: en memoria, L2: Redis).');
+                this.l2Cache.on('error', () => {
+                    this.isL2Connected = false;
+                });
+
+                this.l2Cache.on('close', () => {
+                    this.isL2Connected = false;
+                });
+            }
+
+            logger.info('CacheService: Usando pool de conexiones compartido para L2');
+        } catch (error) {
+            logger.error('CacheService: Error inicializando L2 cache', { error });
+        }
+    }
+
+    /**
+     * Asegura conexión L2
+     */
+    private async ensureL2Connection(): Promise<Redis | null> {
+        if (!this.l2Cache || !RedisConnectionPool.isReady()) {
+            try {
+                this.l2Cache = await RedisConnectionPool.getInstance();
+                this.isL2Connected = RedisConnectionPool.isReady();
+            } catch {
+                this.isL2Connected = false;
+            }
+        }
+        return this.l2Cache;
     }
 
     /**
@@ -64,10 +88,13 @@ class CacheService {
      * y lo almacena en ambas cachés.
      * @param key - La clave única de la caché.
      * @param fetcher - Una función asíncrona que obtiene el dato si no está en caché.
-     * @param ttlSeconds - TTL en segundos para este item específico.
+     * @param ttlSeconds - TTL en segundos para este item específico (usa L2 TTL centralizado por defecto).
      * @returns El dato desde la caché o el fetcher.
      */
-    async get<T>(key: string, fetcher: () => Promise<T>, ttlSeconds = 3600): Promise<T> {
+    async get<T>(key: string, fetcher: () => Promise<T>, ttlSeconds?: number): Promise<T> {
+        // Usar TTL centralizado si no se especifica
+        const l2Ttl = ttlSeconds ?? this.l2TtlSeconds;
+
         // 1. Intentar obtener de L1 (memoria)
         const l1Value = this.l1Cache.get<T>(key);
         if (l1Value !== undefined) {
@@ -75,12 +102,14 @@ class CacheService {
         }
 
         // 2. Intentar obtener de L2 (Redis) si está conectado
-        if (this.isL2Connected) {
+        const l2 = await this.ensureL2Connection();
+        if (l2 && this.isL2Connected) {
             try {
-                const l2Data = await this.l2Cache.get(key);
+                const l2Data = await l2.get(key);
                 if (l2Data) {
                     const value = JSON.parse(l2Data) as T;
-                    this.l1Cache.set(key, value, Math.min(300, ttlSeconds));
+                    // Usar L1 TTL centralizado
+                    this.l1Cache.set(key, value, Math.min(this.l1TtlSeconds, l2Ttl));
                     return value;
                 }
             } catch (error) {
@@ -93,12 +122,12 @@ class CacheService {
         // 3. Si no está en caché, obtener del fetcher
         const value = await fetcher();
 
-        // 4. Almacenar en ambas cachés
+        // 4. Almacenar en ambas cachés con TTL centralizados
         if (value !== null && value !== undefined) {
-            this.l1Cache.set(key, value, Math.min(300, ttlSeconds));
-            if (this.isL2Connected) {
+            this.l1Cache.set(key, value, Math.min(this.l1TtlSeconds, l2Ttl));
+            if (l2 && this.isL2Connected) {
                 try {
-                    await this.l2Cache.setex(key, ttlSeconds, JSON.stringify(value));
+                    await l2.setex(key, l2Ttl, JSON.stringify(value));
                 } catch (error) {
                     logger.error(`[CACHE L2 ERROR] Fallo al guardar la key ${key} en Redis.`, {
                         error
@@ -116,9 +145,10 @@ class CacheService {
      */
     async invalidate(key: string): Promise<void> {
         this.l1Cache.del(key);
-        if (this.isL2Connected) {
+        const l2 = await this.ensureL2Connection();
+        if (l2 && this.isL2Connected) {
             try {
-                await this.l2Cache.del(key);
+                await l2.del(key);
             } catch (error) {
                 logger.error(`[CACHE L2 ERROR] Fallo al invalidar la key ${key} en Redis.`, {
                     error
@@ -129,22 +159,52 @@ class CacheService {
 
     /**
      * Invalida todas las claves que coincidan con un patrón en L2, y limpia toda la L1.
-     * ¡Usar con precaución! La búsqueda de patrones puede ser lenta en Redis.
+     * Procesa las keys en chunks para evitar picos de memoria.
      * @param pattern - El patrón a buscar (ej. "policy:*").
      */
     async invalidatePattern(pattern: string): Promise<void> {
         this.l1Cache.flushAll(); // L1 no soporta patrones, así que la limpiamos toda
-        if (this.isL2Connected) {
+
+        const l2 = await this.ensureL2Connection();
+        if (l2 && this.isL2Connected) {
             try {
-                const stream = this.l2Cache.scanStream({ match: pattern, count: 100 });
-                const keys: string[] = [];
-                stream.on('data', resultKeys => {
-                    keys.push(...resultKeys);
-                });
-                stream.on('end', async () => {
-                    if (keys.length > 0) {
-                        await this.l2Cache.del(keys);
+                const CHUNK_SIZE = 1000;
+                const stream = l2.scanStream({ match: pattern, count: 100 });
+                let keysBuffer: string[] = [];
+
+                stream.on('data', async (resultKeys: string[]) => {
+                    keysBuffer.push(...resultKeys);
+
+                    // Procesar en chunks para evitar picos de memoria
+                    if (keysBuffer.length >= CHUNK_SIZE) {
+                        stream.pause();
+                        try {
+                            await l2.del(...keysBuffer);
+                        } catch (error) {
+                            logger.error('[CACHE L2 ERROR] Error eliminando chunk de keys', {
+                                error
+                            });
+                        }
+                        keysBuffer = [];
+                        stream.resume();
                     }
+                });
+
+                stream.on('end', async () => {
+                    // Eliminar keys restantes
+                    if (keysBuffer.length > 0) {
+                        try {
+                            await l2.del(...keysBuffer);
+                        } catch (error) {
+                            logger.error('[CACHE L2 ERROR] Error eliminando keys finales', {
+                                error
+                            });
+                        }
+                    }
+                });
+
+                stream.on('error', (error: Error) => {
+                    logger.error(`[CACHE L2 ERROR] Error en stream de invalidación`, { error });
                 });
             } catch (error) {
                 logger.error(
