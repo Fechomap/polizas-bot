@@ -29,7 +29,7 @@ import adminStateManager from './admin/utils/adminStates';
 const app = express();
 app.use(express.json());
 
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Detectar entorno de producción (Railway)
 const isProduction = process.env.NODE_ENV === 'production';
