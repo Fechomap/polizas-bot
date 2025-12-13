@@ -29,11 +29,7 @@ import adminStateManager from './admin/utils/adminStates';
 const app = express();
 app.use(express.json());
 
-const PORT = parseInt(process.env.PORT ?? '3000', 10);
-
-if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
-    throw new Error('PORT inválido en configuración');
-}
+const PORT = 3000;
 
 // Detectar entorno de producción (Railway)
 const isProduction = process.env.NODE_ENV === 'production';
