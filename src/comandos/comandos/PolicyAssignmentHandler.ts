@@ -7,7 +7,7 @@
 import { VehicleController } from '../../controllers/vehicleController';
 import { getMainKeyboard } from '../teclados';
 import StateKeyManager from '../../utils/StateKeyManager';
-import Vehicle from '../../models/vehicle';
+import { prisma } from '../../database/prisma';
 import { getPolicyFileService } from '../../services/PolicyFileService';
 import { getPolicyCreationService } from '../../services/PolicyCreationService';
 import { getPolicyValidationService } from '../../services/PolicyValidationService';
@@ -547,8 +547,8 @@ export class PolicyAssignmentHandler {
 
             // Marcar vehículo con póliza
             await creationService.marcarVehiculoConPoliza(
-                asignacion.vehiculo._id.toString(),
-                poliza._id.toString()
+                asignacion.vehiculo.id.toString(),
+                poliza.id.toString()
             );
 
             // Transferir fotos del vehículo
@@ -562,7 +562,7 @@ export class PolicyAssignmentHandler {
                 );
                 if (uploadResult.success) {
                     await fileService.guardarReferenciaArchivo(
-                        poliza._id.toString(),
+                        poliza.id.toString(),
                         asignacion.datosPoliza.archivo,
                         uploadResult
                     );
@@ -600,8 +600,10 @@ export class PolicyAssignmentHandler {
 
     private static async buscarVehiculo(vehicleId: string): Promise<IVehicle | null> {
         try {
-            const foundVehicle = await Vehicle.findById(vehicleId);
-            if (foundVehicle) return foundVehicle;
+            const foundVehicle = await prisma.vehicle.findUnique({
+                where: { id: vehicleId }
+            });
+            if (foundVehicle) return foundVehicle as unknown as IVehicle;
         } catch {
             const result = await VehicleController.buscarVehiculo(vehicleId);
             if (result.success && result.vehiculo) return result.vehiculo;
@@ -633,7 +635,7 @@ export class PolicyAssignmentHandler {
             botones.push([
                 {
                     text: `${numero}. ${vehiculo.marca} ${vehiculo.submarca}`,
-                    callback_data: `asignar_${vehiculo._id}`
+                    callback_data: `asignar_${vehiculo.id}`
                 }
             ]);
         });

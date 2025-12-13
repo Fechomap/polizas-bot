@@ -64,7 +64,7 @@ export class PolicyCreationService {
                 pagos: this.construirPagos(datosPoliza),
 
                 // Metadatos
-                vehicleId: vehiculo._id,
+                vehicleId: vehiculo.id,
                 creadoViaOBD: true,
                 asignadoPor: userId
             };

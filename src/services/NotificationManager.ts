@@ -1,6 +1,6 @@
 // src/services/NotificationManager.ts
 import logger from '../utils/logger';
-import ScheduledNotification from '../models/scheduledNotification';
+import { prisma } from '../database/prisma';
 import { getPolicyByNumber } from '../controllers/policyController';
 import moment from 'moment-timezone';
 import { Telegraf } from 'telegraf';
@@ -9,6 +9,7 @@ import {
     scheduleNotification as scheduleNotificationInQueue,
     notificationQueue
 } from '../queues/NotificationQueue';
+import type { NotificationStatus, NotificationType } from '../generated/prisma';
 
 moment.tz.setDefault('America/Mexico_City');
 
@@ -72,7 +73,7 @@ class NotificationManager {
                     const policy = (await getPolicyByNumber(data.numeroPoliza)) as any;
                     if (policy) {
                         policyData = {
-                            marcaModelo: `${policy.marca} ${policy.submarca} (${policy.año})`,
+                            marcaModelo: `${policy.marca} ${policy.submarca} (${policy.anio ?? policy.año})`,
                             colorVehiculo: policy.color ?? '',
                             placas: policy.placas ?? '',
                             telefono: policy.telefono ?? ''
@@ -94,44 +95,47 @@ class NotificationManager {
                     throw new Error('Se requiere scheduledDate o contactTime');
                 }
 
-                const existingNotification = await ScheduledNotification.findOneAndUpdate(
-                    {
+                // Buscar notificación existente
+                const existingNotification = await prisma.scheduledNotification.findFirst({
+                    where: {
                         numeroPoliza: data.numeroPoliza,
                         expedienteNum: data.expedienteNum,
-                        tipoNotificacion: data.tipoNotificacion,
-                        status: { $in: ['PENDING', 'SCHEDULED', 'PROCESSING'] }
-                    },
-                    {
-                        $setOnInsert: {
-                            ...data,
-                            ...policyData,
-                            scheduledDate,
-                            status: 'PENDING',
-                            retryCount: 0
-                        }
-                    },
-                    { upsert: true, new: true, setDefaultsOnInsert: true }
-                );
+                        tipoNotificacion: data.tipoNotificacion as NotificationType,
+                        status: { in: ['PENDING', 'SCHEDULED', 'PROCESSING'] }
+                    }
+                });
 
-                const isNewNotification =
-                    !existingNotification.createdAt ||
-                    new Date().getTime() - new Date(existingNotification.createdAt).getTime() <
-                        1000;
-                if (!isNewNotification) {
+                if (existingNotification) {
                     logger.warn('[DUPLICATE_CREATION_PREVENTED] Ya existe notificación activa', {
-                        existingId: existingNotification._id
+                        existingId: existingNotification.id
                     });
-                    return existingNotification;
+                    return existingNotification as unknown as IScheduledNotification;
                 }
 
-                logger.info(`[CREATED] Notificación ${existingNotification._id} creada en BD.`);
-                await scheduleNotificationInQueue(
-                    existingNotification._id.toString(),
-                    scheduledDate
-                );
-                return existingNotification;
+                // Crear nueva notificación
+                const newNotification = await prisma.scheduledNotification.create({
+                    data: {
+                        numeroPoliza: data.numeroPoliza,
+                        expedienteNum: data.expedienteNum,
+                        tipoNotificacion: data.tipoNotificacion as NotificationType,
+                        targetGroupId: BigInt(data.targetGroupId),
+                        scheduledDate,
+                        status: 'PENDING',
+                        retryCount: 0,
+                        origenDestino: data.origenDestino ?? null,
+                        marcaModelo: policyData.marcaModelo ?? null,
+                        colorVehiculo: policyData.colorVehiculo ?? null,
+                        placas: policyData.placas ?? null,
+                        telefono: policyData.telefono ?? null,
+                        contactTime: data.contactTime ?? scheduledDate.toISOString()
+                    }
+                });
+
+                logger.info(`[CREATED] Notificación ${newNotification.id} creada en BD.`);
+                await scheduleNotificationInQueue(newNotification.id, scheduledDate);
+                return newNotification as unknown as IScheduledNotification;
             } catch (error: any) {
-                if (error.code === 11000 && attempt < MAX_RETRIES) {
+                if (error.code === 'P2002' && attempt < MAX_RETRIES) {
                     logger.warn(
                         `[RETRY] Intento ${attempt}/${MAX_RETRIES} falló por duplicado, reintentando...`
                     );
@@ -206,9 +210,9 @@ class NotificationManager {
                 logger.info(`[FORCE_CANCEL] Job ${notificationId} eliminado de la cola.`);
             }
 
-            await ScheduledNotification.findByIdAndUpdate(notificationId, {
-                status: 'EDITING',
-                editingStartedAt: new Date()
+            await prisma.scheduledNotification.update({
+                where: { id: notificationId },
+                data: { status: 'PROCESSING' }
             });
 
             this.editingLocks.delete(notificationId);
@@ -224,14 +228,19 @@ class NotificationManager {
         originalId: string,
         newDate: Date
     ): Promise<{ success: boolean; message: string; originalId: string; newId?: string }> {
-        const original = await ScheduledNotification.findById(originalId);
+        const original = await prisma.scheduledNotification.findUnique({
+            where: { id: originalId }
+        });
         if (!original)
             return { success: false, message: 'Notificación original no encontrada', originalId };
 
         await this.forceJobCancel(originalId);
-        await ScheduledNotification.findByIdAndUpdate(originalId, {
-            status: 'CANCELLED',
-            cancelReason: 'Editada en tiempo crítico'
+        await prisma.scheduledNotification.update({
+            where: { id: originalId },
+            data: {
+                status: 'CANCELLED',
+                error: 'Editada en tiempo crítico'
+            }
         });
 
         const newNotificationData = {
@@ -239,12 +248,12 @@ class NotificationManager {
             expedienteNum: original.expedienteNum,
             tipoNotificacion: original.tipoNotificacion,
             contactTime: newDate.toISOString(),
-            targetGroupId: original.targetGroupId,
-            origenDestino: original.origenDestino,
-            marcaModelo: original.marcaModelo,
-            colorVehiculo: original.colorVehiculo,
-            placas: original.placas,
-            telefono: original.telefono,
+            targetGroupId: Number(original.targetGroupId),
+            origenDestino: original.origenDestino ?? undefined,
+            marcaModelo: original.marcaModelo ?? undefined,
+            colorVehiculo: original.colorVehiculo ?? undefined,
+            placas: original.placas ?? undefined,
+            telefono: original.telefono ?? undefined,
             scheduledDate: newDate
         };
 
@@ -254,7 +263,7 @@ class NotificationManager {
             success: true,
             message: `✅ Notificación crítica recreada para ${newTime}`,
             originalId,
-            newId: newNotification._id.toString()
+            newId: (newNotification as any).id?.toString()
         };
     }
 
@@ -262,7 +271,9 @@ class NotificationManager {
         notificationId: string,
         newDate: Date
     ): Promise<{ success: boolean; message: string; affectedNotifications?: string[] }> {
-        const notification = await ScheduledNotification.findById(notificationId);
+        const notification = await prisma.scheduledNotification.findUnique({
+            where: { id: notificationId }
+        });
         if (!notification) return { success: false, message: 'Notificación no encontrada' };
 
         const validation = await this.validateEditableNotification(notification, newDate);
@@ -289,11 +300,13 @@ class NotificationManager {
         contactoNotification: any,
         newContactoDate: Date
     ): Promise<{ success: boolean; message: string; affectedNotifications?: string[] }> {
-        const terminoNotification = await ScheduledNotification.findOne({
-            numeroPoliza: contactoNotification.numeroPoliza,
-            expedienteNum: contactoNotification.expedienteNum,
-            tipoNotificacion: 'TERMINO',
-            status: { $in: ['PENDING', 'SCHEDULED'] }
+        const terminoNotification = await prisma.scheduledNotification.findFirst({
+            where: {
+                numeroPoliza: contactoNotification.numeroPoliza,
+                expedienteNum: contactoNotification.expedienteNum,
+                tipoNotificacion: 'TERMINO',
+                status: { in: ['PENDING', 'SCHEDULED'] }
+            }
         });
         if (!terminoNotification)
             return this.editSingleNotification(contactoNotification, newContactoDate);
@@ -313,34 +326,32 @@ class NotificationManager {
                 message: `No se puede mover TERMINO: ${terminoValidation.reason}`
             };
 
-        const contactoJob = await notificationQueue.getJob(contactoNotification._id.toString());
+        const contactoJob = await notificationQueue.getJob(contactoNotification.id);
         if (contactoJob) await contactoJob.remove();
-        const terminoJob = await notificationQueue.getJob(terminoNotification._id.toString());
+        const terminoJob = await notificationQueue.getJob(terminoNotification.id);
         if (terminoJob) await terminoJob.remove();
 
         await Promise.all([
-            ScheduledNotification.findByIdAndUpdate(contactoNotification._id, {
-                scheduledDate: newContactoDate,
-                status: 'PENDING'
+            prisma.scheduledNotification.update({
+                where: { id: contactoNotification.id },
+                data: { scheduledDate: newContactoDate, status: 'PENDING' }
             }),
-            ScheduledNotification.findByIdAndUpdate(terminoNotification._id, {
-                scheduledDate: newTerminoDate,
-                status: 'PENDING'
+            prisma.scheduledNotification.update({
+                where: { id: terminoNotification.id },
+                data: { scheduledDate: newTerminoDate, status: 'PENDING' }
             })
         ]);
 
-        const updatedContacto = await ScheduledNotification.findById(contactoNotification._id);
-        const updatedTermino = await ScheduledNotification.findById(terminoNotification._id);
+        const updatedContacto = await prisma.scheduledNotification.findUnique({
+            where: { id: contactoNotification.id }
+        });
+        const updatedTermino = await prisma.scheduledNotification.findUnique({
+            where: { id: terminoNotification.id }
+        });
         if (updatedContacto)
-            await scheduleNotificationInQueue(
-                updatedContacto._id.toString(),
-                new Date(updatedContacto.scheduledDate)
-            );
+            await scheduleNotificationInQueue(updatedContacto.id, new Date(updatedContacto.scheduledDate));
         if (updatedTermino)
-            await scheduleNotificationInQueue(
-                updatedTermino._id.toString(),
-                new Date(updatedTermino.scheduledDate)
-            );
+            await scheduleNotificationInQueue(updatedTermino.id, new Date(updatedTermino.scheduledDate));
 
         const contactoTime = moment(newContactoDate)
             .tz('America/Mexico_City')
@@ -352,10 +363,7 @@ class NotificationManager {
         return {
             success: true,
             message: `✅ CONTACTO reprogramado a ${contactoTime} y TERMINO a ${terminoTime}`,
-            affectedNotifications: [
-                contactoNotification._id.toString(),
-                terminoNotification._id.toString()
-            ]
+            affectedNotifications: [contactoNotification.id, terminoNotification.id]
         };
     }
 
@@ -363,51 +371,58 @@ class NotificationManager {
         notification: any,
         newDate: Date
     ): Promise<{ success: boolean; message: string; affectedNotifications?: string[] }> {
-        const job = await notificationQueue.getJob(notification._id.toString());
+        const job = await notificationQueue.getJob(notification.id);
         if (job) await job.remove();
 
-        await ScheduledNotification.findByIdAndUpdate(notification._id, {
-            scheduledDate: newDate,
-            status: 'PENDING'
+        await prisma.scheduledNotification.update({
+            where: { id: notification.id },
+            data: { scheduledDate: newDate, status: 'PENDING' }
         });
 
-        const updatedNotification = await ScheduledNotification.findById(notification._id);
+        const updatedNotification = await prisma.scheduledNotification.findUnique({
+            where: { id: notification.id }
+        });
         if (updatedNotification)
-            await scheduleNotificationInQueue(
-                updatedNotification._id.toString(),
-                new Date(updatedNotification.scheduledDate)
-            );
+            await scheduleNotificationInQueue(updatedNotification.id, new Date(updatedNotification.scheduledDate));
 
         const newTime = moment(newDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
         return {
             success: true,
             message: `✅ Notificación reprogramada a ${newTime}`,
-            affectedNotifications: [notification._id.toString()]
+            affectedNotifications: [notification.id]
         };
     }
 
     async cancelNotification(notificationId: string): Promise<boolean> {
-        const notification = await ScheduledNotification.findById(notificationId);
+        const notification = await prisma.scheduledNotification.findUnique({
+            where: { id: notificationId }
+        });
         if (!notification || !['PENDING', 'SCHEDULED'].includes(notification.status)) return false;
 
         const job = await notificationQueue.getJob(notificationId);
         if (job) await job.remove();
 
-        await (notification as any).cancel();
+        await prisma.scheduledNotification.update({
+            where: { id: notificationId },
+            data: { status: 'CANCELLED' }
+        });
+
         logger.info(`✅ Notificación ${notificationId} cancelada`);
         return true;
     }
 
     async cancelNotificationsByExpediente(expedienteNum: string): Promise<number> {
         try {
-            const notifications = await ScheduledNotification.find({
-                expedienteNum,
-                status: { $in: ['PENDING', 'SCHEDULED'] }
+            const notifications = await prisma.scheduledNotification.findMany({
+                where: {
+                    expedienteNum,
+                    status: { in: ['PENDING', 'SCHEDULED'] }
+                }
             });
 
             let cancelledCount = 0;
             for (const notification of notifications) {
-                if (await this.cancelNotification(notification._id.toString())) {
+                if (await this.cancelNotification(notification.id)) {
                     cancelledCount++;
                 }
             }
@@ -434,12 +449,14 @@ class NotificationManager {
                 return [];
             }
 
-            const notifications = await ScheduledNotification.find({
-                _id: { $in: notificationIds },
-                status: { $in: ['PENDING', 'SCHEDULED'] }
-            }).lean();
+            const notifications = await prisma.scheduledNotification.findMany({
+                where: {
+                    id: { in: notificationIds },
+                    status: { in: ['PENDING', 'SCHEDULED'] }
+                }
+            });
 
-            return notifications as IScheduledNotification[];
+            return notifications as unknown as IScheduledNotification[];
         } catch (error) {
             logger.error('Error obteniendo notificaciones pendientes de la cola:', error);
             return [];
@@ -473,25 +490,47 @@ class NotificationManager {
 
     async getStats(): Promise<INotificationStats | null> {
         const queueStats = await notificationQueue.getJobCounts();
-        const dbStats = await ScheduledNotification.aggregate([
-            { $group: { _id: '$status', count: { $sum: 1 } } }
-        ]);
-        const statuses = dbStats.reduce((acc, stat) => ({ ...acc, [stat._id]: stat.count }), {});
+
+        // Agrupar por estado usando Prisma
+        const dbStats = await prisma.scheduledNotification.groupBy({
+            by: ['status'],
+            _count: { status: true }
+        });
+
+        const statuses = dbStats.reduce((acc, stat) => ({
+            ...acc,
+            [stat.status]: stat._count.status
+        }), {} as Record<string, number>);
 
         return {
-            activeJobs: queueStats.active + queueStats.waiting,
+            activeJobs: queueStats.active + queueStats.waiting + queueStats.delayed,
             processingLocks: this.processingLocks.size,
             statuses
         };
     }
 }
 
+// Singleton instance
 let instance: NotificationManager | null = null;
-export const getInstance = (bot?: Telegraf): NotificationManager => {
-    if (!instance) instance = new NotificationManager(bot);
-    else if (bot && !instance.bot) instance.bot = bot;
-    return instance;
-};
 
-export { NotificationManager };
+/**
+ * Obtiene la instancia del NotificationManager.
+ * Si se proporciona un bot y no existe instancia, la crea.
+ */
+export function getInstance(bot?: Telegraf): NotificationManager | null {
+    if (!instance && bot) {
+        instance = new NotificationManager(bot);
+    }
+    return instance;
+}
+
+export function setInstance(manager: NotificationManager): void {
+    instance = manager;
+}
+
+export function createInstance(bot?: Telegraf): NotificationManager {
+    instance = new NotificationManager(bot);
+    return instance;
+}
+
 export default NotificationManager;

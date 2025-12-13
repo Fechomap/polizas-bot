@@ -68,11 +68,12 @@ const visionCleanupProvider = {
         const internalMap = registros.getInternalMap();
 
         for (const [key, registro] of internalMap.entries()) {
-            // Eliminar registros sin timeout activo (abandonados)
+            // Eliminar registros sin timeout activo (abandonados/huérfanos)
+            // Un registro sin timeout es uno que perdió su temporizador de expiración
             if (!registro.timeout) {
-                if (registro.timeout) clearTimeout(registro.timeout);
                 internalMap.delete(key);
                 removed++;
+                logger.debug(`VehicleVisionHandler: Registro huérfano eliminado: ${key}`);
             }
         }
 
@@ -871,7 +872,7 @@ export class VehicleVisionHandler {
             // Vincular fotos
             if (fotos.length > 0) {
                 await VehicleController.vincularFotosCloudflare(
-                    String(resultado.vehicle._id),
+                    String(resultado.vehicle.id),
                     fotos.map(f => ({
                         ...f,
                         originalname: 'foto.jpg',

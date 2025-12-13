@@ -12,10 +12,3 @@ if (!process.env.JEST_INTEGRATION_TEST) {
         config: jest.fn()
     }));
 }
-
-// Mock para mongoose (solo para evitar errores de conexión en tests)
-jest.mock('mongoose', () => ({
-    connect: jest.fn().mockResolvedValue({}),
-    Schema: jest.fn(),
-    model: jest.fn()
-}));

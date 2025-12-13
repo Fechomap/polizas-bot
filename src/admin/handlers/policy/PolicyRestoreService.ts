@@ -2,10 +2,11 @@
  * PolicyRestoreService - Servicio para restauración de pólizas
  *
  * Responsabilidad: Restaurar pólizas eliminadas
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context, Markup } from 'telegraf';
-import Policy from '../../../models/policy';
+import { prisma } from '../../../database/prisma';
 import adminStateManager from '../../utils/adminStates';
 import { AuditLogger } from '../../utils/auditLogger';
 import logger from '../../../utils/logger';
@@ -63,7 +64,9 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
      */
     static async handleRestoreConfirmation(ctx: Context, policyId: string): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
             const isCallback = !!ctx.callbackQuery;
 
             if (!policy) {
@@ -98,7 +101,7 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
 **Póliza:** ${policy.numeroPoliza}
 **Titular:** ${policy.titular}
 **RFC:** ${policy.rfc}
-**Vehículo:** ${policy.marca} ${policy.submarca} ${policy.año}
+**Vehículo:** ${policy.marca} ${policy.submarca} ${policy.anio}
 
 📅 **Eliminada:** ${formatDate(policy.fechaEliminacion)}
 📝 **Motivo:** ${policy.motivoEliminacion ?? 'No especificado'}
@@ -152,7 +155,9 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
      */
     static async handleRestoreExecution(ctx: Context, policyId: string): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
 
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
@@ -201,10 +206,18 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
      */
     static async showRecentDeletedPolicies(ctx: Context): Promise<void> {
         try {
-            const deletedPolicies = await Policy.find({ estado: 'ELIMINADO' })
-                .sort({ fechaEliminacion: -1 })
-                .limit(10)
-                .select('numeroPoliza titular fechaEliminacion motivoEliminacion');
+            const deletedPolicies = await prisma.policy.findMany({
+                where: { estado: 'ELIMINADO' },
+                orderBy: { fechaEliminacion: 'desc' },
+                take: 10,
+                select: {
+                    id: true,
+                    numeroPoliza: true,
+                    titular: true,
+                    fechaEliminacion: true,
+                    motivoEliminacion: true
+                }
+            });
 
             if (deletedPolicies.length === 0) {
                 await ctx.editMessageText('📋 No hay pólizas eliminadas recientemente.', {
@@ -234,7 +247,7 @@ _Solo se mostrarán pólizas que hayan sido eliminadas previamente._
                 buttons.push([
                     Markup.button.callback(
                         `♻️ ${policy.numeroPoliza}`,
-                        `admin_policy_restore_confirm:${policy._id}`
+                        `admin_policy_restore_confirm:${policy.id}`
                     )
                 ]);
             });

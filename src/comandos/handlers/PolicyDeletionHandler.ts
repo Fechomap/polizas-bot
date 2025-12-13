@@ -1,14 +1,13 @@
 // src/comandos/handlers/PolicyDeletionHandler.ts
+// Migrado a UnifiedStateManager - elimina dependencia de StateFactory
 
 import { Markup } from 'telegraf';
 import BaseCommand from '../comandos/BaseCommand';
-import { stateManager } from '../../state/StateFactory';
+import { STATE_TYPES } from '../commandHandler';
 import { getPolicyByNumber, markPolicyAsDeleted } from '../../controllers/policyController';
 import type { IBaseHandler, ChatContext } from '../comandos/BaseCommand';
 
 class PolicyDeletionHandler extends BaseCommand {
-    private readonly STATE_TTL = 3600;
-
     constructor(handler: IBaseHandler) {
         super(handler);
     }
@@ -24,12 +23,12 @@ class PolicyDeletionHandler extends BaseCommand {
             const threadId = BaseCommand.getThreadId(ctx);
             await this.handler.clearChatState(chatId, threadId);
 
-            const stateKey = this.handler._getStateKey(
+            await this.handler.setAwaitingState(
                 chatId,
-                'awaitingDeletePolicyNumber',
+                STATE_TYPES.AWAITING_DELETE_POLICY_NUMBER,
+                true,
                 threadId
             );
-            await stateManager.setState(stateKey, true, this.STATE_TTL);
 
             await ctx.reply(
                 '🗑️ **ELIMINAR PÓLIZA**\n\nPuedes enviar uno o varios números de póliza separados por comas o saltos de línea.',
@@ -43,7 +42,6 @@ class PolicyDeletionHandler extends BaseCommand {
     public async handleDeletePolicyFlow(ctx: ChatContext, messageText: string): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const stateKey = this.handler._getStateKey(chatId, 'awaitingDeletePolicyNumber', threadId);
 
         try {
             const numeroPolizas = messageText
@@ -66,7 +64,11 @@ class PolicyDeletionHandler extends BaseCommand {
                 await ctx.reply(`❌ Pólizas no encontradas: ${noEncontradas.join(', ')}`);
             }
             if (encontradas.length === 0) {
-                await stateManager.deleteState(stateKey);
+                await this.handler.deleteAwaitingState(
+                    chatId,
+                    STATE_TYPES.AWAITING_DELETE_POLICY_NUMBER,
+                    threadId
+                );
                 return;
             }
 
@@ -74,27 +76,35 @@ class PolicyDeletionHandler extends BaseCommand {
                 `🗑️ Vas a eliminar ${encontradas.length} póliza(s). Ingresa el motivo:`
             );
 
-            const reasonStateKey = this.handler._getStateKey(
+            // Guardar pólizas encontradas para siguiente paso
+            await this.handler.setAwaitingState(
                 chatId,
-                'awaitingDeleteReason',
+                STATE_TYPES.AWAITING_DELETE_REASON,
+                encontradas,
                 threadId
             );
-            await stateManager.setState(reasonStateKey, encontradas, this.STATE_TTL);
         } catch (error) {
             this.logError('Error en handleDeletePolicyFlow', error);
             await ctx.reply('❌ Error al procesar la eliminación.');
         } finally {
-            await stateManager.deleteState(stateKey);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_DELETE_POLICY_NUMBER,
+                threadId
+            );
         }
     }
 
     public async handleDeleteReason(ctx: ChatContext, messageText: string): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const reasonStateKey = this.handler._getStateKey(chatId, 'awaitingDeleteReason', threadId);
 
         try {
-            const numeroPolizas = await stateManager.getState<string[]>(reasonStateKey);
+            const numeroPolizas = await this.handler.getAwaitingState<string[]>(
+                chatId,
+                STATE_TYPES.AWAITING_DELETE_REASON,
+                threadId
+            );
             if (!numeroPolizas || numeroPolizas.length === 0) return;
 
             const motivo = messageText.trim();
@@ -105,7 +115,11 @@ class PolicyDeletionHandler extends BaseCommand {
         } catch (error) {
             this.logError('Error en handleDeleteReason', error);
         } finally {
-            await stateManager.deleteState(reasonStateKey);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_DELETE_REASON,
+                threadId
+            );
         }
     }
 

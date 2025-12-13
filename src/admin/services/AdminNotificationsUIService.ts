@@ -8,7 +8,8 @@ import { Markup } from 'telegraf';
 import moment from 'moment-timezone';
 
 interface INotification {
-    _id: any; // ObjectId or string
+    _id?: any; // ObjectId or string (legacy)
+    id?: string; // Prisma UUID
     numeroPoliza: string;
     expedienteNum?: string;
     tipoNotificacion: string;
@@ -99,10 +100,11 @@ export class AdminNotificationsUIService {
 
         notifications.forEach((notification, index) => {
             const tipoEmoji = this.getTipoColorEmoji(notification.tipoNotificacion);
+            const notifId = notification.id ?? notification._id;
             buttons.push([
                 Markup.button.callback(
                     `${index + 1}. ${tipoEmoji} ${notification.expedienteNum}`,
-                    `admin_notifications_edit_date_${notification._id}`
+                    `admin_notifications_edit_date_${notifId}`
                 )
             ]);
         });

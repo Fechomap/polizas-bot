@@ -2,10 +2,11 @@
 /**
  * Handler para gestión de servicios en el módulo admin
  * REFACTORIZADO: UI delegada a AdminServiceUIService (SRP)
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context } from 'telegraf';
-import Policy from '../../models/policy';
+import { prisma } from '../../database/prisma';
 import adminStateManager from '../utils/adminStates';
 import { AuditLogger } from '../utils/auditLogger';
 import AdminMenu from '../menus/adminMenu';
@@ -98,70 +99,73 @@ class ServiceHandler {
     }
 
     static async searchByExpediente(expediente: string): Promise<IServiceSearchResult[]> {
-        const cleanTerm = expediente.trim();
+        const cleanTerm = expediente.trim().toUpperCase();
 
-        const searchQuery = {
-            estado: { $ne: 'ELIMINADO' },
-            $or: [
-                { 'servicios.numeroExpediente': { $regex: `^${cleanTerm}$`, $options: 'i' } },
-                { 'registros.numeroExpediente': { $regex: `^${cleanTerm}$`, $options: 'i' } }
-            ]
-        };
-
-        const policies = (await Policy.find(searchQuery)
-            .select('numeroPoliza titular rfc servicios registros estado')
-            .sort({ fechaEmision: -1 })
-            .limit(20)) as unknown as IPolicyWithServices[];
+        // Search in both servicios and registros tables using Prisma
+        const [serviciosResults, registrosResults] = await Promise.all([
+            prisma.servicio.findMany({
+                where: {
+                    numeroExpediente: { equals: cleanTerm, mode: 'insensitive' },
+                    policy: { estado: { not: 'ELIMINADO' } }
+                },
+                include: {
+                    policy: {
+                        select: { id: true, numeroPoliza: true, titular: true }
+                    }
+                },
+                take: 20
+            }),
+            prisma.registro.findMany({
+                where: {
+                    numeroExpediente: { equals: cleanTerm, mode: 'insensitive' },
+                    policy: { estado: { not: 'ELIMINADO' } }
+                },
+                include: {
+                    policy: {
+                        select: { id: true, numeroPoliza: true, titular: true }
+                    }
+                },
+                take: 20
+            })
+        ]);
 
         const results: IServiceSearchResult[] = [];
 
-        policies.forEach(policy => {
-            // Buscar en servicios
-            const serviciosMatched =
-                policy.servicios?.filter(servicio => {
-                    const expedienteServicio = servicio.numeroExpediente?.trim();
-                    return (
-                        expedienteServicio &&
-                        expedienteServicio.toLowerCase() === cleanTerm.toLowerCase()
-                    );
-                }) ?? [];
-
-            serviciosMatched.forEach(servicio => {
-                const itemIndex = policy.servicios.findIndex(
-                    s => s.numeroExpediente === servicio.numeroExpediente
-                );
-                results.push({
-                    policyId: policy._id.toString(),
-                    numeroPoliza: policy.numeroPoliza,
-                    titular: policy.titular,
-                    type: 'servicio',
-                    item: servicio,
-                    itemIndex
-                });
+        // Map servicios results
+        serviciosResults.forEach((servicio, index) => {
+            results.push({
+                policyId: servicio.policy.id,
+                numeroPoliza: servicio.policy.numeroPoliza,
+                titular: servicio.policy.titular,
+                type: 'servicio',
+                item: {
+                    numeroExpediente: servicio.numeroExpediente ?? '',
+                    fechaServicio: servicio.fechaServicio ?? undefined,
+                    tipoServicio: servicio.numeroServicio?.toString() ?? undefined,
+                    descripcion: servicio.origenDestino ?? undefined,
+                    estado: undefined, // Servicio no tiene estado en Prisma
+                    notas: undefined
+                },
+                itemIndex: index
             });
+        });
 
-            // Buscar en registros
-            const registrosMatched =
-                policy.registros?.filter(registro => {
-                    const expedienteRegistro = registro.numeroExpediente?.trim();
-                    return (
-                        expedienteRegistro &&
-                        expedienteRegistro.toLowerCase() === cleanTerm.toLowerCase()
-                    );
-                }) ?? [];
-
-            registrosMatched.forEach(registro => {
-                const itemIndex = policy.registros.findIndex(
-                    r => r.numeroExpediente === registro.numeroExpediente
-                );
-                results.push({
-                    policyId: policy._id.toString(),
-                    numeroPoliza: policy.numeroPoliza,
-                    titular: policy.titular,
-                    type: 'registro',
-                    item: registro,
-                    itemIndex
-                });
+        // Map registros results
+        registrosResults.forEach((registro, index) => {
+            results.push({
+                policyId: registro.policy.id,
+                numeroPoliza: registro.policy.numeroPoliza,
+                titular: registro.policy.titular,
+                type: 'registro',
+                item: {
+                    numeroExpediente: registro.numeroExpediente ?? '',
+                    fechaRegistro: registro.fechaRegistro ?? undefined,
+                    tipoRegistro: registro.numeroRegistro?.toString() ?? undefined,
+                    descripcion: registro.origenDestino ?? undefined,
+                    estado: registro.estado ?? undefined,
+                    observaciones: undefined
+                },
+                itemIndex: index
             });
         });
 
@@ -239,7 +243,13 @@ class ServiceHandler {
         itemIndex: number
     ): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId },
+                include: {
+                    servicios: true,
+                    registros: true
+                }
+            });
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
                 return;
@@ -247,9 +257,29 @@ class ServiceHandler {
 
             let item: IServiceData | IRegistroData | undefined;
             if (type === 'servicio') {
-                item = policy.servicios?.[itemIndex];
+                const servicio = policy.servicios?.[itemIndex];
+                if (servicio) {
+                    item = {
+                        numeroExpediente: servicio.numeroExpediente ?? '',
+                        fechaServicio: servicio.fechaServicio ?? undefined,
+                        tipoServicio: servicio.numeroServicio?.toString() ?? undefined,
+                        descripcion: servicio.origenDestino ?? undefined,
+                        estado: undefined,
+                        notas: undefined
+                    };
+                }
             } else {
-                item = policy.registros?.[itemIndex];
+                const registro = policy.registros?.[itemIndex];
+                if (registro) {
+                    item = {
+                        numeroExpediente: registro.numeroExpediente ?? '',
+                        fechaRegistro: registro.fechaRegistro ?? undefined,
+                        tipoRegistro: registro.numeroRegistro?.toString() ?? undefined,
+                        descripcion: registro.origenDestino ?? undefined,
+                        estado: registro.estado ?? undefined,
+                        observaciones: undefined
+                    };
+                }
             }
 
             if (!item) {
@@ -258,7 +288,7 @@ class ServiceHandler {
             }
 
             const result: IServiceSearchResult = {
-                policyId: policy._id.toString(),
+                policyId: policy.id,
                 numeroPoliza: policy.numeroPoliza,
                 titular: policy.titular,
                 type: type as 'servicio' | 'registro',
@@ -311,18 +341,20 @@ class ServiceHandler {
         itemIndex: number
     ): Promise<void> {
         try {
-            const policies = await Policy.find({ estado: { $ne: 'ELIMINADO' } }).select(
-                '_id numeroPoliza titular servicios registros'
-            );
+            // Find policy by matching last 8 characters of ID
+            const policies = await prisma.policy.findMany({
+                where: { estado: { not: 'ELIMINADO' } },
+                select: { id: true, numeroPoliza: true, titular: true }
+            });
 
-            const policy = policies.find(p => p._id.toString().slice(-8) === shortId);
+            const policy = policies.find(p => p.id.slice(-8) === shortId);
 
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
                 return;
             }
 
-            await this.showServiceDirectEditShort(ctx, policy._id.toString(), type, itemIndex);
+            await this.showServiceDirectEditShort(ctx, policy.id, type, itemIndex);
         } catch (error) {
             logger.error('Error en handleServiceDirectEditShort:', error);
             await ctx.answerCbQuery('❌ Error al cargar la edición', { show_alert: true });
@@ -337,18 +369,20 @@ class ServiceHandler {
         fieldName: string
     ): Promise<void> {
         try {
-            const policies = await Policy.find({ estado: { $ne: 'ELIMINADO' } }).select(
-                '_id numeroPoliza titular servicios registros'
-            );
+            // Find policy by matching last 8 characters of ID
+            const policies = await prisma.policy.findMany({
+                where: { estado: { not: 'ELIMINADO' } },
+                select: { id: true, numeroPoliza: true, titular: true }
+            });
 
-            const policy = policies.find(p => p._id.toString().slice(-8) === shortId);
+            const policy = policies.find(p => p.id.slice(-8) === shortId);
 
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
                 return;
             }
 
-            await this.startFieldEdit(ctx, policy._id.toString(), type, itemIndex, fieldName);
+            await this.startFieldEdit(ctx, policy.id, type, itemIndex, fieldName);
         } catch (error) {
             logger.error('Error en handleServiceFieldEditShort:', error);
             await ctx.answerCbQuery('❌ Error al iniciar edición', { show_alert: true });
@@ -397,7 +431,13 @@ class ServiceHandler {
 
             const { policyId, type, itemIndex, fieldName } = adminState.data;
 
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId },
+                include: {
+                    servicios: true,
+                    registros: true
+                }
+            });
             if (!policy) {
                 await ctx.reply('❌ Error: Póliza no encontrada.');
                 return;
@@ -422,18 +462,34 @@ class ServiceHandler {
                 }
             }
 
-            // Actualizar campo
+            // Map field names from UI to Prisma schema
+            const fieldMapping: Record<string, string> = {
+                'fechaServicio': 'fecha',
+                'tipoServicio': 'tipo',
+                'fechaRegistro': 'fecha',
+                'tipoRegistro': 'tipo'
+            };
+            const prismaFieldName = fieldMapping[fieldName] ?? fieldName;
+
+            // Actualizar campo usando Prisma
             if (type === 'servicio') {
-                if (policy.servicios?.[itemIndex]) {
-                    policy.servicios[itemIndex][fieldName] = convertedValue;
+                const servicio = policy.servicios?.[itemIndex];
+                if (servicio) {
+                    await prisma.servicio.update({
+                        where: { id: servicio.id },
+                        data: { [prismaFieldName]: convertedValue }
+                    });
                 }
             } else {
-                if (policy.registros?.[itemIndex]) {
-                    policy.registros[itemIndex][fieldName] = convertedValue;
+                const registro = policy.registros?.[itemIndex];
+                if (registro) {
+                    await prisma.registro.update({
+                        where: { id: registro.id },
+                        data: { [prismaFieldName]: convertedValue }
+                    });
                 }
             }
 
-            await policy.save();
             adminStateManager.clearAdminState(ctx.from!.id, ctx.chat!.id);
 
             const message = uiService.generarMensajeCampoActualizado(

@@ -37,22 +37,12 @@ interface TelegramMessage {
     [key: string]: any;
 }
 
-interface RegistryWithStateManager {
-    stateManager?: {
-        clearUserState(userId: string, flowType: string): Promise<void>;
-    };
-}
-
-interface BaseAutosHandler extends IBaseHandler {
-    registry?: RegistryWithStateManager;
-}
-
 /**
  * Comando principal para Base de Autos
  * Maneja el menú y delega los callbacks a módulos especializados
  */
 class BaseAutosCommand extends BaseCommand {
-    constructor(handler: BaseAutosHandler) {
+    constructor(handler: IBaseHandler) {
         super(handler);
     }
 
@@ -224,12 +214,10 @@ class BaseAutosCommand extends BaseCommand {
         });
 
         // Registrar callbacks de asignación de pólizas
-        const handlerWithRegistry = this.handler as BaseAutosHandler;
         registerPolicyAssignmentCallbacks(
             this.bot,
             this.logInfo.bind(this),
-            this.logError.bind(this),
-            handlerWithRegistry.registry
+            this.logError.bind(this)
         );
     }
 
@@ -270,27 +258,12 @@ class BaseAutosCommand extends BaseCommand {
             }
 
             // 3. Flujo OCR de pólizas
-            const handlerWithRegistry = this.handler as BaseAutosHandler;
-            if (
-                await procesarTextoOCRPoliza(
-                    this.bot,
-                    message,
-                    userId,
-                    handlerWithRegistry.registry
-                )
-            ) {
+            if (await procesarTextoOCRPoliza(this.bot, message, userId)) {
                 return true;
             }
 
             // 4. Flujo legacy de asignación de pólizas
-            if (
-                await procesarMensajeAsignacionLegacy(
-                    this.bot,
-                    message,
-                    userId,
-                    handlerWithRegistry.registry
-                )
-            ) {
+            if (await procesarMensajeAsignacionLegacy(this.bot, message, userId)) {
                 return true;
             }
 

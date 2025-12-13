@@ -8,20 +8,13 @@ import StateKeyManager from '../../utils/StateKeyManager';
 import type { Telegraf } from 'telegraf';
 import type { NavigationContext } from './BaseCommand';
 
-interface RegistryWithStateManager {
-    stateManager?: {
-        clearUserState(userId: string, flowType: string): Promise<void>;
-    };
-}
-
 /**
  * Registra callbacks para el flujo de asignación de pólizas
  */
 export function registerPolicyAssignmentCallbacks(
     bot: Telegraf<NavigationContext>,
     logInfo: (msg: string, data?: any) => void,
-    logError: (msg: string, error?: any) => void,
-    registry?: RegistryWithStateManager
+    logError: (msg: string, error?: any) => void
 ): void {
     // Cancelar asignación de póliza
     bot.action('poliza_cancelar', async ctx => {
@@ -229,6 +222,138 @@ export function registerPolicyAssignmentCallbacks(
         }
     });
 
+    // ==================== CALLBACKS DE EDICIÓN OCR ====================
+
+    // Handler para confirmar datos OCR
+    bot.action('ocr_edit_confirmar', async ctx => {
+        try {
+            await ctx.answerCbQuery('Confirmando datos...');
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!userId || !chatId) {
+                await ctx.reply('❌ Error: No se pudo identificar el usuario.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.confirmarDatosOCR(bot as any, chatId, userIdStr, threadIdNum);
+
+            logInfo('Datos OCR confirmados', { userId });
+        } catch (error: any) {
+            logError('Error confirmando datos OCR:', error);
+            await ctx.reply('❌ Error al confirmar datos.');
+        }
+    });
+
+    // Handler para volver al resumen desde edición
+    bot.action('ocr_edit_volver', async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!userId || !chatId) {
+                await ctx.reply('❌ Error: No se pudo identificar el usuario.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.volverAResumen(bot as any, chatId, userIdStr, threadIdNum);
+
+            logInfo('Volviendo al resumen OCR', { userId });
+        } catch (error: any) {
+            logError('Error volviendo al resumen:', error);
+            await ctx.reply('❌ Error al volver al resumen.');
+        }
+    });
+
+    // Handler para selección de fecha en edición
+    bot.action(/^ocr_edit_fecha_(.+)_(\d{4}-\d{2}-\d{2})$/, async ctx => {
+        try {
+            await ctx.answerCbQuery();
+            const campo = ctx.match?.[1];
+            const fechaISO = ctx.match?.[2];
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!campo || !fechaISO || !userId || !chatId) {
+                await ctx.reply('❌ Error: Datos incompletos.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.procesarEdicionFecha(
+                bot as any,
+                chatId,
+                userIdStr,
+                campo,
+                fechaISO,
+                threadIdNum
+            );
+
+            logInfo('Fecha de edición seleccionada', { userId, campo, fechaISO });
+        } catch (error: any) {
+            logError('Error seleccionando fecha de edición:', error);
+            await ctx.reply('❌ Error al seleccionar fecha.');
+        }
+    });
+
+    // Handler para editar campo específico
+    bot.action(/^ocr_edit_(.+)$/, async ctx => {
+        try {
+            const campo = ctx.match?.[1];
+
+            // Ignorar si es un callback que ya fue manejado
+            if (campo === 'confirmar' || campo === 'volver' || campo?.startsWith('fecha_')) {
+                return;
+            }
+
+            await ctx.answerCbQuery();
+            const userId = ctx.from?.id;
+            const chatId = ctx.chat?.id;
+            const threadId = StateKeyManager.getThreadId(ctx);
+
+            if (!campo || !userId || !chatId) {
+                await ctx.reply('❌ Error: Datos incompletos.');
+                return;
+            }
+
+            const threadIdNum = typeof threadId === 'number' ? threadId : null;
+            const userIdStr = String(userId);
+
+            await ctx.deleteMessage();
+
+            await PolicyOCRHandler.iniciarEdicionCampo(
+                bot as any,
+                chatId,
+                userIdStr,
+                campo,
+                threadIdNum
+            );
+
+            logInfo('Iniciando edición de campo', { userId, campo });
+        } catch (error: any) {
+            logError('Error iniciando edición:', error);
+            await ctx.reply('❌ Error al iniciar edición.');
+        }
+    });
+
     // Handler para selección de fecha de emisión (flujo legacy)
     bot.action(/^fecha_emision_(.+)$/, async ctx => {
         try {
@@ -277,8 +402,7 @@ export function registerPolicyAssignmentCallbacks(
 export async function procesarTextoOCRPoliza(
     bot: Telegraf<any>,
     message: any,
-    userId: string,
-    registry?: RegistryWithStateManager
+    userId: string
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
@@ -286,16 +410,7 @@ export async function procesarTextoOCRPoliza(
     const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
     if (PolicyOCRHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
-        const procesado = await PolicyOCRHandler.procesarRespuestaTexto(bot, message, userId);
-
-        // Limpiar estado si el proceso terminó
-        if (procesado && !PolicyOCRHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
-            if (registry?.stateManager) {
-                await registry.stateManager.clearUserState(userId, 'bd_autos_flow');
-            }
-        }
-
-        return procesado;
+        return await PolicyOCRHandler.procesarRespuestaTexto(bot, message, userId);
     }
 
     return false;
@@ -307,8 +422,7 @@ export async function procesarTextoOCRPoliza(
 export async function procesarMensajeAsignacionLegacy(
     bot: Telegraf<any>,
     message: any,
-    userId: string,
-    registry?: RegistryWithStateManager
+    userId: string
 ): Promise<boolean> {
     const chatId =
         typeof message.chat.id === 'string' ? parseInt(message.chat.id) : message.chat.id;
@@ -316,19 +430,7 @@ export async function procesarMensajeAsignacionLegacy(
     const threadIdNum = typeof threadId === 'number' ? threadId : null;
 
     if (PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)) {
-        const procesado = await PolicyAssignmentHandler.procesarMensaje(bot, message, userId);
-
-        // Limpiar estado si el proceso terminó
-        if (
-            procesado &&
-            !PolicyAssignmentHandler.tieneAsignacionEnProceso(userId, chatId, threadIdNum)
-        ) {
-            if (registry?.stateManager) {
-                await registry.stateManager.clearUserState(userId, 'bd_autos_flow');
-            }
-        }
-
-        return procesado;
+        return await PolicyAssignmentHandler.procesarMensaje(bot, message, userId);
     }
 
     return false;

@@ -53,7 +53,8 @@
     "tests",
     "scripts",
     "logs",
-    "temp"
+    "temp",
+    "src/generated"
   ],
   "ts-node": {
     "esm": false,

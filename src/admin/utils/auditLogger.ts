@@ -1,31 +1,30 @@
-import mongoose from 'mongoose';
+// src/admin/utils/auditLogger.ts
+/**
+ * Sistema de auditoría para el módulo de administración
+ * Migrado de Mongoose a Prisma/PostgreSQL
+ */
+
 import { Context } from 'telegraf';
+import { prisma } from '../../database/prisma';
 import logger from '../../utils/logger';
+import type { AuditModule, AuditResult, AuditLog } from '../../generated/prisma';
 
 interface IAuditLogEntry {
-    userId: number;
-    username?: string;
-    firstName?: string;
-    chatId: number;
+    id: string;
+    userId: bigint;
+    username?: string | null;
+    firstName?: string | null;
+    chatId: bigint;
     action: string;
-    module: 'policy' | 'service' | 'database' | 'system';
-    entityType?: string;
-    entityId?: string;
-    changes?: {
-        before: any;
-        after: any;
-    };
-    metadata?: {
-        ip?: string;
-        userAgent?: string;
-        additional?: any;
-    };
-    result: 'success' | 'failure' | 'partial';
-    errorMessage?: string;
+    module: AuditModule;
+    entityType?: string | null;
+    entityId?: string | null;
+    changes?: any;
+    metadata?: any;
+    result: AuditResult;
+    errorMessage?: string | null;
     timestamp: Date;
 }
-
-interface IAuditLogDocument extends mongoose.Document, IAuditLogEntry {}
 
 interface IAuditLogFilters {
     userId?: number;
@@ -58,10 +57,8 @@ interface IAuditLogOptions {
 }
 
 interface IAuditStats {
-    _id: {
-        module: string;
-        action: string;
-    };
+    module: string;
+    action: string;
     total: number;
     results: Array<{
         result: string;
@@ -69,65 +66,26 @@ interface IAuditStats {
     }>;
 }
 
-const auditLogSchema = new mongoose.Schema<IAuditLogDocument>({
-    userId: {
-        type: Number,
-        required: true,
-        index: true
-    },
-    username: String,
-    firstName: String,
-    chatId: {
-        type: Number,
-        required: true
-    },
-    action: {
-        type: String,
-        required: true,
-        index: true
-    },
-    module: {
-        type: String,
-        required: true,
-        enum: ['policy', 'service', 'database', 'system']
-    },
-    entityType: String,
-    entityId: String,
-    changes: {
-        before: mongoose.Schema.Types.Mixed,
-        after: mongoose.Schema.Types.Mixed
-    },
-    metadata: {
-        ip: String,
-        userAgent: String,
-        additional: mongoose.Schema.Types.Mixed
-    },
-    result: {
-        type: String,
-        enum: ['success', 'failure', 'partial'],
-        default: 'success'
-    },
-    errorMessage: String,
-    timestamp: {
-        type: Date,
-        default: Date.now,
-        index: true
-    }
-});
+// Mapeo de strings a enums de Prisma
+const moduleMap: Record<string, AuditModule> = {
+    policy: 'POLICY',
+    service: 'SERVICE',
+    database: 'DATABASE',
+    system: 'SYSTEM'
+};
 
-// Compound indexes for efficient queries
-auditLogSchema.index({ userId: 1, timestamp: -1 });
-auditLogSchema.index({ action: 1, timestamp: -1 });
-auditLogSchema.index({ module: 1, timestamp: -1 });
-
-const AuditLog = mongoose.model<IAuditLogDocument>('AuditLog', auditLogSchema);
+const resultMap: Record<string, AuditResult> = {
+    success: 'SUCCESS',
+    failure: 'FAILURE',
+    partial: 'PARTIAL'
+};
 
 class AuditLogger {
     static async log(
         ctx: Context,
         action: string,
         details: IAuditLogOptions = {}
-    ): Promise<IAuditLogDocument | null> {
+    ): Promise<AuditLog | null> {
         try {
             const user = ctx.from;
             const chatId = ctx.chat?.id;
@@ -137,24 +95,25 @@ class AuditLogger {
                 return null;
             }
 
-            const logEntry = new AuditLog({
-                userId: user.id,
-                username: user.username,
-                firstName: user.first_name,
-                chatId,
-                action,
-                module: details.module ?? 'system',
-                entityType: details.entityType,
-                entityId: details.entityId,
-                changes: details.changes,
-                metadata: {
-                    additional: details.metadata
-                },
-                result: details.result ?? 'success',
-                errorMessage: details.errorMessage
-            });
+            const moduleValue = moduleMap[details.module ?? 'system'] ?? 'SYSTEM';
+            const resultValue = resultMap[details.result ?? 'success'] ?? 'SUCCESS';
 
-            await logEntry.save();
+            const logEntry = await prisma.auditLog.create({
+                data: {
+                    userId: BigInt(user.id),
+                    username: user.username ?? null,
+                    firstName: user.first_name ?? null,
+                    chatId: BigInt(chatId),
+                    action,
+                    module: moduleValue,
+                    entityType: details.entityType ?? null,
+                    entityId: details.entityId ?? null,
+                    changes: details.changes ?? undefined,
+                    metadata: details.metadata ? { additional: details.metadata } : undefined,
+                    result: resultValue,
+                    errorMessage: details.errorMessage ?? null
+                }
+            });
 
             logger.info(
                 `Auditoría: ${action} por @${user.username ?? user.first_name} (${user.id})`,
@@ -179,7 +138,7 @@ class AuditLogger {
         beforeData: any,
         afterData: any,
         module: string
-    ): Promise<IAuditLogDocument | null> {
+    ): Promise<AuditLog | null> {
         const changes = {
             before: beforeData,
             after: afterData
@@ -194,8 +153,8 @@ class AuditLogger {
 
         return await this.log(ctx, action, {
             module: module as any,
-            entityType: entity.constructor.name,
-            entityId: entity._id?.toString(),
+            entityType: entity.constructor?.name ?? 'Unknown',
+            entityId: entity.id?.toString() ?? entity._id?.toString(),
             changes,
             metadata: {
                 modifiedFields
@@ -208,7 +167,7 @@ class AuditLogger {
         action: string,
         error: Error | string,
         details: IAuditLogOptions = {}
-    ): Promise<IAuditLogDocument | null> {
+    ): Promise<AuditLog | null> {
         const errorMessage =
             typeof error === 'string' ? error : (error.message ?? error.toString());
 
@@ -219,36 +178,35 @@ class AuditLogger {
         });
     }
 
-    /**
-     * Escapa caracteres especiales para RegExp
-     */
-    private static escapeRegExp(string: string): string {
-        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
     static async getLogs(filters: IAuditLogFilters = {}): Promise<IAuditLogResult> {
         const { userId, action, module, startDate, endDate, page = 1, limit = 20 } = filters;
 
-        const query: any = {};
+        const where: any = {};
 
-        if (userId) query.userId = userId;
+        if (userId) where.userId = BigInt(userId);
         if (action) {
-            const escapedAction = this.escapeRegExp(action);
-            query.action = new RegExp(escapedAction, 'i');
+            where.action = { contains: action, mode: 'insensitive' };
         }
-        if (module) query.module = module;
+        if (module) {
+            where.module = moduleMap[module] ?? module;
+        }
 
-        if (startDate ?? endDate) {
-            query.timestamp = {};
-            if (startDate) query.timestamp.$gte = startDate;
-            if (endDate) query.timestamp.$lte = endDate;
+        if (startDate || endDate) {
+            where.timestamp = {};
+            if (startDate) where.timestamp.gte = startDate;
+            if (endDate) where.timestamp.lte = endDate;
         }
 
         const skip = (page - 1) * limit;
 
         const [logs, total] = await Promise.all([
-            AuditLog.find(query).sort({ timestamp: -1 }).skip(skip).limit(limit).lean(),
-            AuditLog.countDocuments(query)
+            prisma.auditLog.findMany({
+                where,
+                orderBy: { timestamp: 'desc' },
+                skip,
+                take: limit
+            }),
+            prisma.auditLog.count({ where })
         ]);
 
         return {
@@ -263,69 +221,70 @@ class AuditLogger {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const stats = await AuditLog.aggregate([
-            {
-                $match: {
-                    timestamp: { $gte: startDate }
-                }
+        // Prisma no tiene aggregation pipeline como MongoDB,
+        // usamos groupBy y luego procesamos los resultados
+        const rawStats = await prisma.auditLog.groupBy({
+            by: ['module', 'action', 'result'],
+            where: {
+                timestamp: { gte: startDate }
             },
-            {
-                $group: {
-                    _id: {
-                        module: '$module',
-                        action: '$action',
-                        result: '$result'
-                    },
-                    count: { $sum: 1 }
-                }
-            },
-            {
-                $group: {
-                    _id: {
-                        module: '$_id.module',
-                        action: '$_id.action'
-                    },
-                    total: { $sum: '$count' },
-                    results: {
-                        $push: {
-                            result: '$_id.result',
-                            count: '$count'
-                        }
-                    }
-                }
-            },
-            {
-                $sort: { total: -1 }
-            }
-        ]);
+            _count: { id: true }
+        });
 
-        return stats as IAuditStats[];
+        // Procesar resultados para agrupar por module/action
+        const statsMap = new Map<string, IAuditStats>();
+
+        for (const stat of rawStats) {
+            const key = `${stat.module}:${stat.action}`;
+
+            if (!statsMap.has(key)) {
+                statsMap.set(key, {
+                    module: stat.module,
+                    action: stat.action,
+                    total: 0,
+                    results: []
+                });
+            }
+
+            const entry = statsMap.get(key)!;
+            entry.total += stat._count.id;
+            entry.results.push({
+                result: stat.result,
+                count: stat._count.id
+            });
+        }
+
+        // Convertir a array y ordenar por total
+        return Array.from(statsMap.values()).sort((a, b) => b.total - a.total);
     }
 
     static async cleanup(daysToKeep = 90): Promise<number> {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-        const result = await AuditLog.deleteMany({
-            timestamp: { $lt: cutoffDate }
+        const result = await prisma.auditLog.deleteMany({
+            where: {
+                timestamp: { lt: cutoffDate }
+            }
         });
 
-        logger.info(`Limpieza de auditoría: ${result.deletedCount} registros eliminados`);
+        logger.info(`Limpieza de auditoría: ${result.count} registros eliminados`);
 
-        return result.deletedCount ?? 0;
+        return result.count;
     }
 
     static async getUserActivity(userId: number, days = 30): Promise<IAuditLogEntry[]> {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const logs = await AuditLog.find({
-            userId,
-            timestamp: { $gte: startDate }
-        })
-            .sort({ timestamp: -1 })
-            .limit(50)
-            .lean();
+        const logs = await prisma.auditLog.findMany({
+            where: {
+                userId: BigInt(userId),
+                timestamp: { gte: startDate }
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 50
+        });
 
         return logs as IAuditLogEntry[];
     }
@@ -334,13 +293,16 @@ class AuditLogger {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const logs = await AuditLog.find({
-            module,
-            timestamp: { $gte: startDate }
-        })
-            .sort({ timestamp: -1 })
-            .limit(100)
-            .lean();
+        const moduleValue = moduleMap[module] ?? module;
+
+        const logs = await prisma.auditLog.findMany({
+            where: {
+                module: moduleValue as AuditModule,
+                timestamp: { gte: startDate }
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 100
+        });
 
         return logs as IAuditLogEntry[];
     }
@@ -349,17 +311,18 @@ class AuditLogger {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const logs = await AuditLog.find({
-            result: 'failure',
-            timestamp: { $gte: startDate }
-        })
-            .sort({ timestamp: -1 })
-            .limit(50)
-            .lean();
+        const logs = await prisma.auditLog.findMany({
+            where: {
+                result: 'FAILURE',
+                timestamp: { gte: startDate }
+            },
+            orderBy: { timestamp: 'desc' },
+            take: 50
+        });
 
         return logs as IAuditLogEntry[];
     }
 }
 
-export { AuditLogger, AuditLog };
+export { AuditLogger };
 export type { IAuditLogEntry, IAuditLogFilters, IAuditLogResult, IAuditLogOptions, IAuditStats };

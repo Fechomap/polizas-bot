@@ -370,44 +370,75 @@ class MistralOCRService {
 
     /**
      * Extrae datos estructurados del markdown usando el chat API
+     * Prompt optimizado para pólizas de seguros mexicanas (Zurich, GNP, AXA, Qualitas, etc.)
      */
     private async extraerDatosDeMarkdown(markdown: string): Promise<IDatosPolizaExtraidos> {
-        const prompt = `Analiza el siguiente texto extraído de una póliza de seguro de auto mexicana y extrae los datos en formato JSON.
+        const prompt = `Eres un experto en pólizas de seguros de autos mexicanas. Analiza el siguiente documento y extrae datos estructurados.
 
-TEXTO DE LA PÓLIZA:
+TEXTO DEL DOCUMENTO:
 ${markdown}
 
-Extrae los siguientes datos:
-1. numeroPoliza: El número de póliza o contrato (busca "Póliza", "No.", "Contrato", "Número")
-2. aseguradora: Nombre de la compañía aseguradora
-3. fechaInicioVigencia: Fecha de inicio de vigencia (formato YYYY-MM-DD)
-4. fechaFinVigencia: Fecha de fin de vigencia (formato YYYY-MM-DD)
-5. primerPago: Monto del primer pago o prima inicial
-6. segundoPago: Monto del segundo pago o pagos subsecuentes (recibos posteriores al primero)
-7. primaMensual: Prima mensual si aparece
-8. primaTotal: Prima total anual
-9. titular: Nombre del asegurado/contratante
-10. vehiculo: Datos del vehículo (marca, submarca, año, placas, serie/VIN)
+INSTRUCCIONES DE BÚSQUEDA POR CAMPO:
 
-IMPORTANTE: Si no encuentras un dato, pon null. Los montos deben ser números sin símbolo de moneda.
+1. **NÚMERO DE PÓLIZA** - Busca en este orden de prioridad:
+   - "PÓLIZA No." o "POLIZA No." seguido de números
+   - "No. de Póliza:" o "Número de Póliza:"
+   - "Contrato:" o "No. Contrato:"
+   - Cualquier número de 8-12 dígitos cerca de "póliza"
 
-Responde SOLO con el JSON:
+2. **ASEGURADORA** - Identifica por:
+   - Logos o encabezados: ZURICH, GNP, AXA, QUALITAS, HDI, MAPFRE, CHUBB, INBURSA, MONTERREY, ATLAS, ALLIANZ, BANORTE, AFIRME, ANA, SURA, PRIMERO
+   - "Zurich Santander", "Grupo Nacional Provincial", "AXA Seguros", etc.
+
+3. **VIGENCIA** - Busca:
+   - "Desde:" y "Hasta:" con fechas
+   - "Vigencia:" con rango de fechas
+   - "Inicio de Vigencia:" y "Fin de Vigencia:"
+   - Formato común: DD/MM/YYYY (ej: 02/12/2025)
+   - CONVIERTE siempre a formato YYYY-MM-DD en la respuesta
+
+4. **PAGOS** - MUY IMPORTANTE distinguir:
+   - "1er. Pago" o "Primer Pago" o "Pago Inicial" = primerPago
+   - "Subsecuentes" o "Recibos Subsecuentes" o "Pagos Posteriores" = segundoPago
+   - "Prima Total" o "Total a Pagar" = primaTotal
+   - "Prima Mensual" = primaMensual
+   - Extrae solo el número sin símbolos ($, MXN, comas)
+
+5. **TITULAR/ASEGURADO** - Busca:
+   - "Asegurado:" o "Contratante:" o "Nombre:"
+   - El nombre completo de la persona
+
+6. **DATOS DEL VEHÍCULO** - Busca sección "Descripción del Vehículo" o similar:
+   - "Marca:" = marca (ej: MAZDA, NISSAN, TOYOTA)
+   - "Modelo:" o "Descripción:" o "Tipo:" = submarca (ej: MAZDA 3 S GT, VERSA SENSE)
+   - "Año:" o "Modelo:" (cuando es número de 4 dígitos 2010-2030) = año
+   - "Placas:" = placas (ej: PBJ3565, ABC-12-34)
+   - "No. de Serie:" o "VIN:" o "Serie:" = serie (exactamente 17 caracteres alfanuméricos)
+
+REGLAS:
+- Si un dato no se encuentra claramente, usa null
+- Los montos deben ser números decimales (ej: 1545.09, no "1,545.09")
+- Las fechas SIEMPRE en formato YYYY-MM-DD
+- VIN/Serie debe tener exactamente 17 caracteres
+- No inventes datos, solo extrae lo que está en el documento
+
+Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
 {
-  "numeroPoliza": "...",
-  "aseguradora": "...",
-  "fechaInicioVigencia": "YYYY-MM-DD",
-  "fechaFinVigencia": "YYYY-MM-DD",
-  "primerPago": 0,
-  "segundoPago": 0,
-  "primaMensual": 0,
-  "primaTotal": 0,
-  "titular": "...",
+  "numeroPoliza": "string o null",
+  "aseguradora": "string o null",
+  "fechaInicioVigencia": "YYYY-MM-DD o null",
+  "fechaFinVigencia": "YYYY-MM-DD o null",
+  "primerPago": "number o null",
+  "segundoPago": "number o null",
+  "primaMensual": "number o null",
+  "primaTotal": "number o null",
+  "titular": "string o null",
   "vehiculo": {
-    "marca": "...",
-    "submarca": "...",
-    "año": 0,
-    "placas": "...",
-    "serie": "..."
+    "marca": "string o null",
+    "submarca": "string o null",
+    "año": "number o null",
+    "placas": "string o null",
+    "serie": "string o null"
   }
 }`;
 
@@ -453,25 +484,73 @@ Responde SOLO con el JSON:
 
     /**
      * Intenta parsear datos directamente del markdown sin IA
+     * Patrones optimizados para pólizas mexicanas (Zurich, GNP, AXA, etc.)
      */
     private parsearMarkdownDirecto(markdown: string): IDatosPolizaExtraidos {
         const datosEncontrados: string[] = [];
         const datosFaltantes: string[] = [];
 
-        // Patrones de búsqueda para datos comunes en pólizas mexicanas
+        // Patrones de búsqueda optimizados para pólizas mexicanas
         const patrones = {
-            numeroPoliza: /(?:p[oó]liza|contrato|no\.?\s*de\s*p[oó]liza)[:\s#]*([A-Z0-9\-]+)/i,
+            // Número de póliza - múltiples formatos
+            numeroPoliza: [
+                /P[OÓ]LIZA\s*No\.?\s*:?\s*(\d{6,12})/i,
+                /No\.?\s*de\s*P[oó]liza[:\s]*(\d{6,12})/i,
+                /Contrato[:\s#]*([A-Z0-9\-]{6,15})/i,
+                /N[úu]mero\s*de\s*P[oó]liza[:\s]*(\d{6,12})/i
+            ],
+            // Aseguradoras conocidas
             aseguradora:
-                /(?:gnp|axa|qualitas|hdi|mapfre|zurich|chubb|inbursa|monterrey|atlas|allianz|banorte|afirme)/i,
-            fechaInicio: /(?:vigencia|inicio|desde)[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i,
-            fechaFin: /(?:hasta|vencimiento|fin)[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i,
-            monto: /(?:prima|pago|total)[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
-            titular: /(?:asegurado|contratante|nombre)[:\s]*([A-ZÁÉÍÓÚÑ\s]+)/i,
-            marca: /(?:marca)[:\s]*([A-ZÁÉÍÓÚÑ\s]+)/i,
-            modelo: /(?:modelo|submarca|tipo)[:\s]*([A-ZÁÉÍÓÚÑ0-9\s]+)/i,
-            año: /(?:a[ñn]o|modelo)[:\s]*(\d{4})/i,
-            placas: /(?:placas?)[:\s]*([A-Z0-9\-]+)/i,
-            serie: /(?:serie|vin|n[úu]mero\s*de\s*serie)[:\s]*([A-Z0-9]{17})/i
+                /\b(ZURICH|GNP|AXA|QUALITAS|QUÁLITAS|HDI|MAPFRE|CHUBB|INBURSA|MONTERREY|ATLAS|ALLIANZ|BANORTE|AFIRME|ANA|SURA|PRIMERO)\b/i,
+            // Fechas de vigencia
+            fechaInicio: [
+                /Desde[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i,
+                /Inicio\s*(?:de\s*)?Vigencia[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i,
+                /Vigencia[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i
+            ],
+            fechaFin: [
+                /Hasta[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i,
+                /Fin\s*(?:de\s*)?Vigencia[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i,
+                /Vencimiento[:\s]*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4})/i
+            ],
+            // Pagos - distinguir primer pago de subsecuentes
+            primerPago: [
+                /1er\.?\s*Pago[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
+                /Primer\s*Pago[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
+                /Pago\s*Inicial[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i
+            ],
+            segundoPago: [
+                /Subsecuentes?[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
+                /Recibos?\s*Subsecuentes?[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
+                /Pagos?\s*Posteriores?[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i
+            ],
+            primaTotal: [
+                /Prima\s*Total[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i,
+                /Total\s*(?:a\s*)?Pagar[:\s]*\$?\s*([\d,]+(?:\.\d{2})?)/i
+            ],
+            // Titular
+            titular: [
+                /Asegurado[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]{5,50})/i,
+                /Contratante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]{5,50})/i,
+                /Nombre[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]{5,50})/i
+            ],
+            // Datos del vehículo
+            marca: [
+                /Marca[:\s]*([A-ZÁÉÍÓÚÑ]{2,20})/i,
+                /\b(MAZDA|NISSAN|TOYOTA|HONDA|CHEVROLET|FORD|VOLKSWAGEN|KIA|HYUNDAI|BMW|MERCEDES|AUDI|JEEP|RAM|SEAT|RENAULT|PEUGEOT|SUZUKI|MITSUBISHI)\b/i
+            ],
+            modelo: [/(?:Modelo|Descripci[oó]n|Tipo)[:\s]*([A-Z0-9\s\-]{3,30})/i],
+            año: [
+                /A[ñn]o[:\s]*(\d{4})/i,
+                /Modelo[:\s]*(\d{4})/i,
+                /\b(20[0-2]\d)\b/ // Años 2000-2029
+            ],
+            placas: [/Placas?[:\s]*([A-Z]{2,3}[\-\s]?[A-Z0-9]{2,4}[\-\s]?[A-Z0-9]{1,3})/i],
+            serie: [
+                /(?:No\.?\s*de\s*)?Serie[:\s]*([A-HJ-NPR-Z0-9]{17})/i,
+                /VIN[:\s]*([A-HJ-NPR-Z0-9]{17})/i,
+                /\b([A-HJ-NPR-Z0-9]{17})\b/ // VIN sin etiqueta (17 chars alfanuméricos sin I, O, Q)
+            ]
         };
 
         let numeroPoliza: string | null = null;
@@ -479,11 +558,26 @@ Responde SOLO con el JSON:
         let fechaInicioVigencia: Date | null = null;
         let fechaFinVigencia: Date | null = null;
         let primerPago: number | null = null;
+        let segundoPago: number | null = null;
+        let primaTotal: number | null = null;
         let titular: string | null = null;
         let vehiculo: any = null;
 
+        // Helper para buscar con múltiples patrones
+        const buscarConPatrones = (
+            patronesArr: RegExp | RegExp[],
+            texto: string
+        ): RegExpMatchArray | null => {
+            const arr = Array.isArray(patronesArr) ? patronesArr : [patronesArr];
+            for (const patron of arr) {
+                const match = texto.match(patron);
+                if (match) return match;
+            }
+            return null;
+        };
+
         // Buscar número de póliza
-        const matchPoliza = markdown.match(patrones.numeroPoliza);
+        const matchPoliza = buscarConPatrones(patrones.numeroPoliza, markdown);
         if (matchPoliza) {
             numeroPoliza = matchPoliza[1].trim();
             datosEncontrados.push('numeroPoliza');
@@ -494,47 +588,61 @@ Responde SOLO con el JSON:
         // Buscar aseguradora
         const matchAseg = markdown.match(patrones.aseguradora);
         if (matchAseg) {
-            aseguradora = normalizarAseguradora(matchAseg[0]);
+            aseguradora = normalizarAseguradora(matchAseg[1] ?? matchAseg[0]);
             datosEncontrados.push('aseguradora');
         } else {
             datosFaltantes.push('aseguradora');
         }
 
         // Buscar fechas
-        const matchFechaInicio = markdown.match(patrones.fechaInicio);
+        const matchFechaInicio = buscarConPatrones(patrones.fechaInicio, markdown);
         if (matchFechaInicio) {
             fechaInicioVigencia = parsearFecha(matchFechaInicio[1]);
             if (fechaInicioVigencia) datosEncontrados.push('fechaInicioVigencia');
         }
         if (!fechaInicioVigencia) datosFaltantes.push('fechaInicioVigencia');
 
-        const matchFechaFin = markdown.match(patrones.fechaFin);
+        const matchFechaFin = buscarConPatrones(patrones.fechaFin, markdown);
         if (matchFechaFin) {
             fechaFinVigencia = parsearFecha(matchFechaFin[1]);
             if (fechaFinVigencia) datosEncontrados.push('fechaFinVigencia');
         }
+        if (!fechaFinVigencia) datosFaltantes.push('fechaFinVigencia');
 
-        // Buscar monto
-        const matchMonto = markdown.match(patrones.monto);
-        if (matchMonto) {
-            primerPago = parsearMonto(matchMonto[1]);
+        // Buscar pagos - distinguir entre primer pago y subsecuentes
+        const matchPrimerPago = buscarConPatrones(patrones.primerPago, markdown);
+        if (matchPrimerPago) {
+            primerPago = parsearMonto(matchPrimerPago[1]);
             if (primerPago) datosEncontrados.push('primerPago');
         }
         if (!primerPago) datosFaltantes.push('primerPago');
 
+        const matchSegundoPago = buscarConPatrones(patrones.segundoPago, markdown);
+        if (matchSegundoPago) {
+            segundoPago = parsearMonto(matchSegundoPago[1]);
+            if (segundoPago) datosEncontrados.push('segundoPago');
+        }
+        if (!segundoPago) datosFaltantes.push('segundoPago');
+
+        const matchPrimaTotal = buscarConPatrones(patrones.primaTotal, markdown);
+        if (matchPrimaTotal) {
+            primaTotal = parsearMonto(matchPrimaTotal[1]);
+            if (primaTotal) datosEncontrados.push('primaTotal');
+        }
+
         // Buscar titular
-        const matchTitular = markdown.match(patrones.titular);
+        const matchTitular = buscarConPatrones(patrones.titular, markdown);
         if (matchTitular) {
             titular = matchTitular[1].trim();
             datosEncontrados.push('titular');
         }
 
         // Buscar datos del vehículo
-        const matchMarca = markdown.match(patrones.marca);
-        const matchModelo = markdown.match(patrones.modelo);
-        const matchAño = markdown.match(patrones.año);
-        const matchPlacas = markdown.match(patrones.placas);
-        const matchSerie = markdown.match(patrones.serie);
+        const matchMarca = buscarConPatrones(patrones.marca, markdown);
+        const matchModelo = buscarConPatrones(patrones.modelo, markdown);
+        const matchAño = buscarConPatrones(patrones.año, markdown);
+        const matchPlacas = buscarConPatrones(patrones.placas, markdown);
+        const matchSerie = buscarConPatrones(patrones.serie, markdown);
 
         if (matchMarca ?? matchModelo ?? matchAño ?? matchPlacas ?? matchSerie) {
             vehiculo = {
@@ -544,6 +652,11 @@ Responde SOLO con el JSON:
                 placas: matchPlacas ? matchPlacas[1].trim().toUpperCase() : null,
                 serie: matchSerie ? matchSerie[1].trim().toUpperCase() : null
             };
+            if (vehiculo.marca) datosEncontrados.push('vehiculo.marca');
+            if (vehiculo.submarca) datosEncontrados.push('vehiculo.submarca');
+            if (vehiculo.año) datosEncontrados.push('vehiculo.año');
+            if (vehiculo.placas) datosEncontrados.push('vehiculo.placas');
+            if (vehiculo.serie) datosEncontrados.push('vehiculo.serie');
         }
 
         // Calcular confianza
@@ -562,9 +675,9 @@ Responde SOLO con el JSON:
             fechaInicioVigencia,
             fechaFinVigencia,
             primerPago,
-            segundoPago: null,
+            segundoPago,
             primaMensual: null,
-            primaTotal: null,
+            primaTotal,
             titular,
             vehiculo,
             confianza,

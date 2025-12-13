@@ -26,10 +26,42 @@ export const ESTADOS_ASIGNACION = {
     ESPERANDO_PDF_OCR: 'esperando_pdf_ocr',
     PROCESANDO_OCR: 'procesando_ocr',
     CONFIRMANDO_DATOS: 'confirmando_datos',
-    ESPERANDO_DATO_FALTANTE: 'esperando_dato_faltante'
+    ESPERANDO_DATO_FALTANTE: 'esperando_dato_faltante',
+    // Estados de edición de campos (después de OCR)
+    MOSTRANDO_RESUMEN_EDITABLE: 'mostrando_resumen_editable',
+    EDITANDO_CAMPO: 'editando_campo'
 } as const;
 
 export type EstadoAsignacion = (typeof ESTADOS_ASIGNACION)[keyof typeof ESTADOS_ASIGNACION];
+
+/**
+ * Campos editables de póliza para el flujo de edición post-OCR
+ */
+export const CAMPOS_EDITABLES_POLIZA = [
+    { key: 'numeroPoliza', label: 'Póliza', icon: '📄', tipo: 'texto' },
+    { key: 'aseguradora', label: 'Aseguradora', icon: '🏢', tipo: 'texto' },
+    { key: 'fechaEmision', label: 'Vigencia Inicio', icon: '📅', tipo: 'fecha' },
+    { key: 'fechaFinCobertura', label: 'Vigencia Fin', icon: '📅', tipo: 'fecha' },
+    { key: 'primerPago', label: '1er Pago', icon: '💰', tipo: 'monto' },
+    { key: 'segundoPago', label: '2do Pago', icon: '💵', tipo: 'monto' },
+    { key: 'nombrePersona', label: 'Titular', icon: '👤', tipo: 'texto' }
+] as const;
+
+export type CampoEditablePoliza = (typeof CAMPOS_EDITABLES_POLIZA)[number]['key'];
+
+/**
+ * Campos editables de vehículo para tarjeta de circulación
+ */
+export const CAMPOS_EDITABLES_VEHICULO = [
+    { key: 'serie', label: 'Serie (VIN)', icon: '🔢', tipo: 'vin' },
+    { key: 'marca', label: 'Marca', icon: '🏭', tipo: 'texto' },
+    { key: 'submarca', label: 'Modelo', icon: '🚗', tipo: 'texto' },
+    { key: 'año', label: 'Año', icon: '📅', tipo: 'numero' },
+    { key: 'color', label: 'Color', icon: '🎨', tipo: 'texto' },
+    { key: 'placas', label: 'Placas', icon: '🔖', tipo: 'texto' }
+] as const;
+
+export type CampoEditableVehiculo = (typeof CAMPOS_EDITABLES_VEHICULO)[number]['key'];
 
 /**
  * Información de un archivo (PDF o foto)
@@ -59,6 +91,9 @@ export interface IDatosPoliza {
     campoActual?: string;
     camposFaltantes?: string[];
     datosOCR?: IDatosPolizaExtraidos;
+    // Campos para edición post-OCR
+    campoEditando?: CampoEditablePoliza;
+    mensajeEdicionId?: number;
 }
 
 /**

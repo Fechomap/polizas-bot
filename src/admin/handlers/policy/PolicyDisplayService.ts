@@ -2,10 +2,11 @@
  * PolicyDisplayService - Servicio para mostrar detalles de pólizas
  *
  * Responsabilidad: Formatear y mostrar información de pólizas
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context, Markup } from 'telegraf';
-import Policy from '../../../models/policy';
+import { prisma } from '../../../database/prisma';
 import adminStateManager from '../../utils/adminStates';
 import { AuditLogger } from '../../utils/auditLogger';
 import logger from '../../../utils/logger';
@@ -36,15 +37,25 @@ class PolicyDisplayService {
      */
     static async showUnifiedPolicyDetails(ctx: Context, policyId: string): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId },
+                include: {
+                    _count: {
+                        select: {
+                            servicios: true,
+                            registros: true
+                        }
+                    }
+                }
+            });
 
             if (!policy) {
                 await ctx.reply('❌ Póliza no encontrada.');
                 return;
             }
 
-            const serviciosReales = policy.servicios?.length ?? 0;
-            const registrosReales = policy.registros?.length ?? 0;
+            const serviciosReales = policy._count.servicios;
+            const registrosReales = policy._count.registros;
 
             const detailsText = `
 📋 *DETALLES DE PÓLIZA*
@@ -63,7 +74,7 @@ class PolicyDisplayService {
 📮 CP: ${policy.cp ?? 'Sin CP'}
 
 **VEHÍCULO**
-🚗 ${policy.marca ?? 'Sin marca'} ${policy.submarca ?? 'Sin submarca'} ${policy.año ?? 'Sin año'}
+🚗 ${policy.marca ?? 'Sin marca'} ${policy.submarca ?? 'Sin submarca'} ${policy.anio ?? 'Sin año'}
 🏷️ Placas: ${policy.placas ?? 'Sin placas'}
 🔢 Serie: ${policy.serie ?? 'Sin serie'}
 🎨 Color: ${policy.color ?? 'Sin color'}
@@ -85,11 +96,11 @@ class PolicyDisplayService {
                 [
                     Markup.button.callback(
                         '✏️ Editar',
-                        `admin_policy_edit_categories:${policy._id}`
+                        `admin_policy_edit_categories:${policy.id}`
                     ),
                     Markup.button.callback(
                         '🗑️ Eliminar',
-                        `admin_policy_delete_confirm:${policy._id}`
+                        `admin_policy_delete_confirm:${policy.id}`
                     )
                 ],
                 [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
@@ -114,7 +125,7 @@ class PolicyDisplayService {
             await AuditLogger.log(ctx, 'policy_unified_view', {
                 module: 'policy',
                 metadata: {
-                    policyId: policy._id.toString(),
+                    policyId: policy.id,
                     policyNumber: policy.numeroPoliza
                 }
             });
@@ -129,7 +140,8 @@ class PolicyDisplayService {
      */
     static async showPolicyDetails(ctx: Context, policy: any): Promise<void> {
         try {
-            const totalServicios = policy.servicios?.length ?? 0;
+            // Si la póliza viene con _count (de Prisma), usar eso, sino revisar servicios
+            const totalServicios = policy._count?.servicios ?? policy.servicios?.length ?? 0;
 
             const detailsText = `
 📋 *DETALLES DE PÓLIZA*
@@ -146,7 +158,7 @@ ${policy.calle ?? ''} ${policy.colonia ?? ''}
 ${policy.municipio ?? ''}, ${policy.estadoRegion ?? ''} ${policy.cp ?? ''}
 
 🚗 *Vehículo:*
-${policy.marca ?? ''} ${policy.submarca ?? ''} ${policy.año ?? ''}
+${policy.marca ?? ''} ${policy.submarca ?? ''} ${policy.anio ?? policy.año ?? ''}
 Placas: ${policy.placas ?? 'Sin placas'}
 Serie: ${policy.serie ?? 'Sin serie'}
 Color: ${policy.color ?? 'Sin color'}
@@ -160,15 +172,18 @@ Color: ${policy.color ?? 'Sin color'}
 ⭐ *Calificación:* ${policy.calificacion ?? 'Sin calificar'}
             `.trim();
 
+            // Usar id o _id según lo que esté disponible
+            const policyId = policy.id ?? policy._id;
+
             const buttons = [
                 [
                     Markup.button.callback(
                         '✏️ Editar',
-                        `admin_policy_edit_categories:${policy._id}`
+                        `admin_policy_edit_categories:${policyId}`
                     ),
                     Markup.button.callback(
                         '🗑️ Eliminar',
-                        `admin_policy_delete_confirm:${policy._id}`
+                        `admin_policy_delete_confirm:${policyId}`
                     )
                 ],
                 [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]

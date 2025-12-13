@@ -2,10 +2,11 @@
  * PolicyDeleteService - Servicio para eliminación de pólizas
  *
  * Responsabilidad: Eliminar pólizas (soft delete)
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context, Markup } from 'telegraf';
-import Policy from '../../../models/policy';
+import { prisma } from '../../../database/prisma';
 import adminStateManager from '../../utils/adminStates';
 import { AuditLogger } from '../../utils/auditLogger';
 import logger from '../../../utils/logger';
@@ -57,7 +58,9 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
      */
     static async handleDeleteConfirmation(ctx: Context, policyId: string): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
 
             if (!policy) {
                 await ctx.answerCbQuery('❌ Póliza no encontrada', { show_alert: true });
@@ -77,7 +80,7 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
 **Póliza:** ${policy.numeroPoliza}
 **Titular:** ${policy.titular}
 **RFC:** ${policy.rfc}
-**Vehículo:** ${policy.marca} ${policy.submarca} ${policy.año}
+**Vehículo:** ${policy.marca} ${policy.submarca} ${policy.anio}
 **Placas:** ${policy.placas ?? 'Sin placas'}
 
 🗑️ **Selecciona el motivo de eliminación:**
@@ -114,7 +117,9 @@ Escribe el *número de póliza*, *nombre del titular* o *RFC* para buscar:
         reasonCode: string
     ): Promise<boolean> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
 
             if (!policy) {
                 await ctx.reply('❌ Póliza no encontrada.');

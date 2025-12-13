@@ -1,8 +1,74 @@
-// types/database.d.ts - Tipos para base de datos
+// types/database.ts - Tipos para base de datos (Compatible con Prisma)
 
-import { Document, ObjectId } from 'mongoose';
+// Re-exportar tipos de Prisma
+export type {
+    Policy,
+    Vehicle,
+    ScheduledNotification,
+    Aseguradora,
+    Pago,
+    Registro,
+    Servicio,
+    PolicyFileLegacy,
+    PolicyFileR2,
+    VehicleFileLegacy,
+    VehicleFileR2,
+    PolicyStatus,
+    VehicleStatus,
+    PagoStatus,
+    RegistroStatus,
+    NotificationStatus,
+    NotificationType
+} from '../generated/prisma';
 
-// Interfaz para archivos almacenados
+// Alias para compatibilidad con código existente
+import type {
+    Policy,
+    Vehicle,
+    ScheduledNotification,
+    Pago,
+    Registro,
+    Servicio
+} from '../generated/prisma';
+
+// Importar tipos de archivos de Prisma
+import type { PolicyFileR2, PolicyFileLegacy } from '../generated/prisma';
+
+// IPolicy incluye relaciones
+export type IPolicy = Policy & {
+    pagos?: Pago[];
+    registros?: Registro[];
+    servicios?: Servicio[];
+    // Relaciones de archivos de Prisma
+    archivosR2?: PolicyFileR2[];
+    archivosLegacy?: PolicyFileLegacy[];
+    // Compatibilidad con código que usa archivos embebidos (legacy, deprecated)
+    archivos?: {
+        fotos?: IFile[];
+        pdfs?: IFile[];
+        r2Files?: {
+            fotos?: IR2File[];
+            pdfs?: IR2File[];
+        };
+    };
+    // Alias para compatibilidad
+    año?: number; // alias de anio
+};
+
+// IVehicle con compatibilidad
+export type IVehicle = Vehicle & {
+    archivos?: {
+        fotos?: IFile[];
+        r2Files?: {
+            fotos?: IR2File[];
+        };
+    };
+    año?: number; // alias de anio
+};
+
+export type IScheduledNotification = ScheduledNotification;
+
+// Interfaz para archivos almacenados (legacy)
 export interface IFile {
     data?: Buffer;
     contentType?: string;
@@ -14,38 +80,38 @@ export interface IR2File {
     key: string;
     size: number;
     contentType: string;
-    uploadDate: Date;
+    uploadDate?: Date;
     originalName?: string;
     fuenteOriginal?: string;
 }
 
-// Alias para compatibilidad con documentHandler.ts
+// Alias para compatibilidad
 export interface IR2FileObject {
     url: string;
     key: string;
     size: number;
     contentType: string;
-    uploadedAt: Date;
+    uploadedAt?: Date;
     originalName?: string;
     fuenteOriginal?: string;
 }
 
 // Interfaz para coordenadas
 export interface ICoordenadas {
-    origen: {
-        lat: number;
-        lng: number;
+    origen?: {
+        lat?: number;
+        lng?: number;
     };
-    destino: {
-        lat: number;
-        lng: number;
+    destino?: {
+        lat?: number;
+        lng?: number;
     };
 }
 
 // Interfaz para información de ruta
 export interface IRutaInfo {
-    distanciaKm: number;
-    tiempoMinutos: number;
+    distanciaKm?: number;
+    tiempoMinutos?: number;
     googleMapsUrl?: string;
     aproximado?: boolean;
 }
@@ -67,118 +133,66 @@ export interface IDatosMexicanos {
     calle: string;
     colonia: string;
     municipio: string;
-    estado: string;
+    estado?: string;
     estadoRegion: string;
     cp: string;
+    coordenadas?: {
+        lat: number;
+        lng: number;
+    };
 }
 
-// Interfaz para servicios de póliza
+// Interfaz para servicios de póliza (compatible con Prisma)
 export interface IServicio {
-    numeroServicio: number;
-    numeroRegistroOrigen?: number;
-    costo: number;
-    fechaServicio: Date;
-    numeroExpediente: string;
-    origenDestino: string;
-    fechaContactoProgramada?: Date;
-    fechaTerminoProgramada?: Date;
+    id?: string;
+    policyId?: string;
+    numeroServicio?: number | null;
+    numeroRegistroOrigen?: number | null;
+    costo?: number | null;
+    fechaServicio?: Date | null;
+    numeroExpediente?: string | null;
+    origenDestino?: string | null;
+    fechaContactoProgramada?: Date | null;
+    fechaTerminoProgramada?: Date | null;
     coordenadas?: ICoordenadas;
     rutaInfo?: IRutaInfo;
+    // Campos Prisma adicionales
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
-// Interfaz para pagos
+// Interfaz para pagos (compatible con Prisma)
 export interface IPago {
+    id?: string;
+    policyId?: string;
     monto: number;
     fechaPago: Date;
-    estado: 'PLANIFICADO' | 'REALIZADO' | 'CANCELADO';
-    metodoPago?: string;
-    referencia?: string;
-    notas?: string;
+    estado?: 'PLANIFICADO' | 'REALIZADO' | 'CANCELADO' | 'VENCIDO' | 'PENDIENTE' | string;
+    metodoPago?: string | null;
+    referencia?: string | null;
+    notas?: string | null;
+    fechaRegistro?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
-// Interfaz base para Policy
-export interface IPolicy extends Document {
-    _id: ObjectId;
-    // Datos del titular
-    titular: string;
-    correo?: string;
-    contraseña?: string;
-    rfc: string;
-    telefono?: string;
-
-    // Dirección
-    calle: string;
-    colonia: string;
-    municipio: string;
-    estadoRegion?: string;
-    cp: string;
-
-    // Datos del vehículo
-    marca: string;
-    submarca: string;
-    año: number;
-    color: string;
-    serie: string;
-    placas: string;
-
-    // Datos de la póliza
-    agenteCotizador: string;
-    aseguradora: string;
-    numeroPoliza: string;
-    fechaEmision: Date;
-
-    // Campos adicionales
-    estadoPoliza?: string;
-    fechaFinCobertura?: Date;
-    fechaFinGracia?: Date;
-    diasRestantesCobertura: number;
-    diasRestantesGracia: number;
-
-    // Calificación y servicios
-    calificacion: number;
-    totalServicios: number;
-
-    // Contadores
-    servicioCounter: number;
-    registroCounter: number;
-
-    // Arrays
-    pagos: any[];
-    registros: any[];
-    servicios: any[];
-
-    // Archivos
-    archivos: {
-        fotos: IFile[];
-        pdfs: IFile[];
-        r2Files: {
-            fotos: IR2File[];
-            pdfs: IR2File[];
-        };
-    };
-
-    // Estado
-    estado: 'ACTIVO' | 'INACTIVO' | 'ELIMINADO';
-    fechaEliminacion?: Date;
-    motivoEliminacion?: string;
-
-    // BD AUTOS
-    vehicleId?: ObjectId;
-    creadoViaOBD: boolean;
-    asignadoPor?: string;
-
-    // Sistema NIV (2023-2026)
-    esNIV?: boolean;
-    tipoPoliza?: 'REGULAR' | 'NIV';
-    fechaConversionNIV?: Date;
-
-    // Timestamps
-    createdAt: Date;
-    updatedAt: Date;
+// Interfaz para registros (compatible con Prisma)
+export interface IRegistro {
+    id?: string;
+    policyId?: string;
+    numeroRegistro?: number | null;
+    costo?: number | null;
+    fechaRegistro?: Date | null;
+    numeroExpediente?: string | null;
+    origenDestino?: string | null;
+    estado?: 'PENDIENTE' | 'ASIGNADO' | 'NO_ASIGNADO' | string;
+    coordenadas?: ICoordenadas;
+    rutaInfo?: IRutaInfo;
+    fechaContactoProgramada?: Date | null;
+    fechaTerminoProgramada?: Date | null;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
-
-// Alias para compatibilidad con ExcelUploadHandler
-// // // export type IPolicyData = IPolicy; // This was incorrect
 
 // Interfaces para procesamiento de Excel
 export interface IProcessingDetail {
@@ -207,103 +221,7 @@ export interface IUploadResult {
     contentType?: string;
 }
 
-// Interfaz para Vehicle
-export interface IVehicle extends Document {
-    _id: ObjectId;
-    // Identificación del vehículo
-    serie: string;
-    marca: string;
-    submarca: string;
-    año: number;
-    color: string;
-    placas: string;
-
-    // Datos del titular
-    titular: string;
-    rfc: string;
-    telefono: string;
-    correo: string;
-
-    // Dirección del titular
-    calle?: string;
-    colonia?: string;
-    municipio?: string;
-    estadoRegion?: string;
-    cp?: string;
-
-    // Archivos
-    archivos: {
-        fotos: IFile[];
-        r2Files: {
-            fotos: IR2File[];
-        };
-    };
-
-    // Estado
-    estado: 'SIN_POLIZA' | 'CON_POLIZA' | 'ELIMINADO' | 'CONVERTIDO_NIV';
-
-    // Metadatos
-    creadoPor: string;
-    creadoVia: 'TELEGRAM_BOT' | 'WEB_INTERFACE' | 'API';
-    notas?: string;
-
-    // Referencia a póliza
-    policyId?: ObjectId;
-
-    // Timestamps
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-// Interfaz para notificaciones programadas
-export interface IScheduledNotification extends Document {
-    _id: ObjectId;
-
-    // Información de la póliza
-    numeroPoliza: string;
-    expedienteNum: string;
-    origenDestino?: string;
-
-    // Datos adicionales
-    placas?: string;
-    fotoUrl?: string;
-    marcaModelo?: string;
-    colorVehiculo?: string;
-    telefono?: string;
-
-    // Programación
-    contactTime: string;
-    scheduledDate: Date;
-    lastScheduledAt?: Date;
-    processingStartedAt?: Date;
-
-    // Metadatos
-    createdBy?: {
-        chatId?: number;
-        username?: string;
-    };
-    targetGroupId: number;
-
-    // Tipo y estado
-    tipoNotificacion: 'CONTACTO' | 'TERMINO' | 'MANUAL';
-    status: 'PENDING' | 'SCHEDULED' | 'PROCESSING' | 'SENT' | 'FAILED' | 'CANCELLED';
-
-    // Control de envío
-    sentAt?: Date;
-    error?: string;
-    retryCount: number;
-    lastRetryAt?: Date;
-
-    // Datos adicionales
-    additionalData?: Record<string, any>;
-
-    // Timestamps
-    createdAt: Date;
-    updatedAt: Date;
-}
-
-// Interfaces adicionales para tipos de datos
-
+// Interfaces para datos de entrada
 export interface IPolicyData {
     titular: string;
     correo?: string;
@@ -326,7 +244,6 @@ export interface IPolicyData {
     numeroPoliza: string;
     fechaEmision: Date;
     notas?: string;
-    // Optional properties for processing
     estado?: 'ACTIVO' | 'INACTIVO' | 'ELIMINADO';
     archivos?: { fotos: any[]; pdfs: any[]; r2Files?: { fotos: any[]; pdfs: any[] } };
     pagos?: any[];
@@ -353,36 +270,7 @@ export interface IVehicleData {
     notas?: string;
 }
 
-export interface IDatosMexicanos {
-    titular: string;
-    rfc: string;
-    telefono: string;
-    correo: string;
-    calle: string;
-    colonia: string;
-    municipio: string;
-    estadoRegion: string;
-    cp: string;
-    coordenadas?: {
-        lat: number;
-        lng: number;
-    };
-}
-
 export interface IFileObject {
     data: Buffer;
     contentType: string;
-}
-
-export interface IRegistro {
-    numeroRegistro: number;
-    costo: number;
-    fechaRegistro: Date;
-    numeroExpediente: string;
-    origenDestino: string;
-    estado: 'PENDIENTE' | 'ASIGNADO' | 'NO_ASIGNADO';
-    coordenadas?: ICoordenadas;
-    rutaInfo?: IRutaInfo;
-    fechaContactoProgramada?: Date;
-    fechaTerminoProgramada?: Date;
 }

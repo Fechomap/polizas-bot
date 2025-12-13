@@ -2,10 +2,11 @@
  * PolicyEditService - Servicio para edición de pólizas
  *
  * Responsabilidad: Editar campos de pólizas
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context, Markup } from 'telegraf';
-import Policy from '../../../models/policy';
+import { prisma } from '../../../database/prisma';
 import adminStateManager from '../../utils/adminStates';
 import { AuditLogger } from '../../utils/auditLogger';
 import logger from '../../../utils/logger';
@@ -34,7 +35,9 @@ class PolicyEditService {
      */
     static async showPolicyDataEdit(ctx: Context, policyId: string): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
             if (!policy) {
                 await ctx.reply('❌ Póliza no encontrada.');
                 return;
@@ -72,7 +75,9 @@ class PolicyEditService {
      */
     static async startFieldEdit(ctx: Context, fieldName: string, policyId: string): Promise<void> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
             if (!policy) {
                 await ctx.reply('❌ Póliza no encontrada.');
                 return;
@@ -120,7 +125,9 @@ Escribe el nuevo valor:
         newValue: string
     ): Promise<boolean> {
         try {
-            const policy = await Policy.findById(policyId);
+            const policy = await prisma.policy.findUnique({
+                where: { id: policyId }
+            });
             if (!policy) {
                 await ctx.reply('❌ Póliza no encontrada.');
                 return false;
@@ -128,16 +135,18 @@ Escribe el nuevo valor:
 
             const oldValue = (policy as any)[fieldName];
 
-            // Actualizar el campo
-            (policy as any)[fieldName] = newValue;
-            await policy.save();
+            // Actualizar el campo con Prisma
+            const updatedPolicy = await prisma.policy.update({
+                where: { id: policyId },
+                data: { [fieldName]: newValue }
+            });
 
             const fieldMapping = FIELD_MAPPINGS[fieldName];
             const displayName = fieldMapping?.displayName ?? fieldName;
 
             await ctx.reply(
                 `✅ *Campo actualizado exitosamente*\n\n` +
-                    `**Póliza:** ${policy.numeroPoliza}\n` +
+                    `**Póliza:** ${updatedPolicy.numeroPoliza}\n` +
                     `**Campo:** ${displayName}\n` +
                     `**Anterior:** ${oldValue ?? 'No definido'}\n` +
                     `**Nuevo:** ${newValue}`,
@@ -164,7 +173,7 @@ Escribe el nuevo valor:
                 module: 'policy',
                 metadata: {
                     policyId,
-                    policyNumber: policy.numeroPoliza,
+                    policyNumber: updatedPolicy.numeroPoliza,
                     fieldName,
                     oldValue,
                     newValue

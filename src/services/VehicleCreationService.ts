@@ -2,9 +2,10 @@
 /**
  * Servicio para creación de vehículos
  * Responsabilidad única: persistencia de vehículos
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
-import Vehicle from '../models/vehicle';
+import { prisma } from '../database/prisma';
 import { generarDatosMexicanosReales } from '../utils/mexicanDataGenerator';
 import logger from '../utils/logger';
 import type { IDatosVehiculo, ICrearVehiculoResult } from '../types/vehicle-registration';
@@ -15,8 +16,19 @@ export class VehicleCreationService {
      */
     async crearVehiculo(datos: IDatosVehiculo): Promise<ICrearVehiculoResult> {
         try {
+            // Validar que serie existe
+            if (!datos.serie) {
+                return {
+                    success: false,
+                    error: 'La serie del vehículo es requerida',
+                    esDuplicado: false
+                };
+            }
+
             // Verificar duplicados por serie
-            const existente = await Vehicle.findOne({ serie: datos.serie });
+            const existente = await prisma.vehicle.findUnique({
+                where: { serie: datos.serie.toUpperCase() }
+            });
             if (existente) {
                 return {
                     success: false,
@@ -28,25 +40,29 @@ export class VehicleCreationService {
             // Generar datos de titular si no se proporcionan
             const datosTitular = await this.generarDatosTitular(datos);
 
-            // Crear vehículo
-            const nuevoVehiculo = new Vehicle({
-                serie: datos.serie,
-                marca: datos.marca,
-                submarca: datos.submarca,
-                año: datos.año,
-                color: datos.color,
-                placas: datos.placas ?? 'SIN PLACAS',
-                estado: 'SIN_POLIZA',
-                ...datosTitular,
-                archivos: {
-                    fotos: [],
-                    r2Files: { fotos: [], pdfs: [] }
-                },
-                creadoViaBot: true,
-                fechaCreacion: new Date()
+            // Crear vehículo con Prisma
+            const vehiculoGuardado = await prisma.vehicle.create({
+                data: {
+                    serie: datos.serie.toUpperCase(),
+                    marca: datos.marca ?? 'SIN MARCA',
+                    submarca: datos.submarca ?? 'SIN SUBMARCA',
+                    anio: datos.año ?? new Date().getFullYear(),
+                    color: datos.color ?? 'SIN COLOR',
+                    placas: datos.placas ?? 'SIN PLACAS',
+                    estado: 'SIN_POLIZA',
+                    titular: datosTitular.titular ?? 'TITULAR PENDIENTE',
+                    rfc: datosTitular.rfc ?? 'XAXX010101000',
+                    telefono: datosTitular.telefono ?? '',
+                    correo: datosTitular.correo ?? '',
+                    calle: datosTitular.calle ?? '',
+                    colonia: datosTitular.colonia ?? '',
+                    municipio: datosTitular.municipio ?? '',
+                    estadoRegion: datosTitular.estadoRegion ?? '',
+                    cp: datosTitular.cp ?? '',
+                    creadoPor: 'SISTEMA',
+                    creadoVia: 'TELEGRAM_BOT'
+                }
             });
-
-            const vehiculoGuardado = await nuevoVehiculo.save();
 
             logger.info(`[VehicleCreationService] Vehículo creado: ${datos.serie}`);
 
@@ -55,8 +71,8 @@ export class VehicleCreationService {
                 vehiculo: vehiculoGuardado
             };
         } catch (error: any) {
-            // Error de duplicado de MongoDB
-            if (error.code === 11000) {
+            // Error de duplicado de PostgreSQL/Prisma
+            if (error.code === 'P2002') {
                 return {
                     success: false,
                     error: 'Ya existe un vehículo con esta serie.',
@@ -113,40 +129,37 @@ export class VehicleCreationService {
     }
 
     /**
-     * Actualiza fotos del vehículo
+     * Actualiza fotos del vehículo usando tabla VehicleFileR2
      */
     async actualizarFotos(
         vehiculoId: string,
         fotos: Array<{ url: string; key: string; size: number; contentType: string }>
     ): Promise<boolean> {
         try {
-            const vehiculo = await Vehicle.findById(vehiculoId);
+            const vehiculo = await prisma.vehicle.findUnique({
+                where: { id: vehiculoId }
+            });
             if (!vehiculo) {
                 logger.error('[VehicleCreationService] Vehículo no encontrado:', vehiculoId);
                 return false;
             }
 
-            // Inicializar estructura de archivos
-            if (!vehiculo.archivos) {
-                vehiculo.archivos = { fotos: [], r2Files: { fotos: [] } };
-            }
-            if (!vehiculo.archivos.r2Files) {
-                vehiculo.archivos.r2Files = { fotos: [] };
-            }
-
-            // Agregar fotos
+            // Agregar fotos a la tabla VehicleFileR2
             for (const foto of fotos) {
-                vehiculo.archivos.r2Files.fotos.push({
-                    url: foto.url,
-                    key: foto.key,
-                    size: foto.size,
-                    contentType: foto.contentType,
-                    uploadDate: new Date(),
-                    originalName: `foto_vehiculo_${Date.now()}.jpg`
+                await prisma.vehicleFileR2.create({
+                    data: {
+                        vehicleId: vehiculoId,
+                        tipo: 'FOTO',
+                        url: foto.url,
+                        key: foto.key,
+                        size: foto.size,
+                        contentType: foto.contentType,
+                        originalName: `foto_vehiculo_${Date.now()}.jpg`,
+                        uploadedAt: new Date()
+                    }
                 });
             }
 
-            await vehiculo.save();
             logger.info(
                 `[VehicleCreationService] ${fotos.length} fotos guardadas en vehículo ${vehiculoId}`
             );

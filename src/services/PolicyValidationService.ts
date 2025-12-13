@@ -2,9 +2,10 @@
 /**
  * Servicio de validación para datos de pólizas
  * Responsabilidad única: validar campos y datos de entrada
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
-import Aseguradora from '../models/aseguradora';
+import { prisma } from '../database/prisma';
 import type { IValidacionResult } from '../types/policy-assignment';
 import logger from '../utils/logger';
 
@@ -28,10 +29,48 @@ export class PolicyValidationService {
         }
 
         try {
-            // Buscar en catálogo de aseguradoras
-            const aseguradoraDB = await Aseguradora.buscarPorNombre(aseguradora);
-            const nombreNormalizado = aseguradoraDB?.nombreCorto ?? aseguradora.toUpperCase();
+            // Normalizar texto para búsqueda
+            const normalizado = aseguradora
+                .toUpperCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
 
+            // Buscar por nombre exacto o nombreCorto
+            let aseguradoraDB = await prisma.aseguradora.findFirst({
+                where: {
+                    activa: true,
+                    OR: [
+                        { nombre: normalizado },
+                        { nombreCorto: normalizado }
+                    ]
+                }
+            });
+
+            // Si no se encuentra, buscar en aliases (contiene)
+            if (!aseguradoraDB) {
+                aseguradoraDB = await prisma.aseguradora.findFirst({
+                    where: {
+                        activa: true,
+                        aliases: { has: normalizado }
+                    }
+                });
+            }
+
+            // Si aún no se encuentra, buscar parcial
+            if (!aseguradoraDB) {
+                aseguradoraDB = await prisma.aseguradora.findFirst({
+                    where: {
+                        activa: true,
+                        OR: [
+                            { nombre: { contains: normalizado, mode: 'insensitive' } },
+                            { nombreCorto: { contains: normalizado, mode: 'insensitive' } }
+                        ]
+                    }
+                });
+            }
+
+            const nombreNormalizado = aseguradoraDB?.nombreCorto ?? aseguradora.toUpperCase();
             return { valido: true, valorProcesado: nombreNormalizado };
         } catch (error) {
             logger.warn('[PolicyValidationService] Error buscando aseguradora:', error);

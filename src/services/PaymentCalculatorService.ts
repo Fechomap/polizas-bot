@@ -2,9 +2,10 @@
 /**
  * Servicio para cálculos de pagos pendientes
  * Responsabilidad única: lógica de cálculos de pólizas y pagos
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
-import Policy from '../models/policy';
+import { prisma } from '../database/prisma';
 import logger from '../utils/logger';
 
 export interface IPago {
@@ -87,7 +88,15 @@ export class PaymentCalculatorService {
      */
     async calculatePendingPaymentsPolicies(): Promise<IPendingPolicy[]> {
         try {
-            const policies: IPolicyData[] = await Policy.find({ estado: 'ACTIVO' }).lean();
+            // Obtener pólizas activas con sus pagos y servicios desde Prisma
+            const policies = await prisma.policy.findMany({
+                where: { estado: 'ACTIVO' },
+                include: {
+                    pagos: true,
+                    servicios: true
+                }
+            });
+
             const now = new Date();
             const pendingPolicies: IPendingPolicy[] = [];
 
@@ -102,10 +111,9 @@ export class PaymentCalculatorService {
 
                 if (!fechaEmision) continue;
 
-                const pagosRealizados = pagos.filter((pago: IPago) => pago.estado === 'REALIZADO');
-                const pagosPlanificados = pagos.filter(
-                    (pago: IPago) => pago.estado === 'PLANIFICADO'
-                );
+                // Convertir pagos de Prisma a formato IPago
+                const pagosRealizados = pagos.filter((pago) => pago.estado === 'REALIZADO');
+                const pagosPlanificados = pagos.filter((pago) => pago.estado === 'PLANIFICADO');
 
                 const fechaLimiteCobertura = this.calculateMonthsCoveredByPayments(
                     fechaEmision,
@@ -119,11 +127,29 @@ export class PaymentCalculatorService {
                 }
 
                 if (diasDeImpago > 0) {
+                    // Convertir a formato IPago para el cálculo
+                    const pagosRealizadosIPago: IPago[] = pagosRealizados.map(p => ({
+                        estado: p.estado as 'REALIZADO' | 'PLANIFICADO' | 'PENDIENTE',
+                        monto: p.monto ?? 0,
+                        fecha: p.fechaPago ?? undefined
+                    }));
+                    const pagosPlanificadosIPago: IPago[] = pagosPlanificados.map(p => ({
+                        estado: p.estado as 'REALIZADO' | 'PLANIFICADO' | 'PENDIENTE',
+                        monto: p.monto ?? 0,
+                        fecha: p.fechaPago ?? undefined
+                    }));
+
                     const { montoRequerido, montoReferencia, fuenteMonto } =
-                        this.calculateRequiredPayment(pagosPlanificados, pagosRealizados);
+                        this.calculateRequiredPayment(pagosPlanificadosIPago, pagosRealizadosIPago);
 
                     const msTranscurridos = now.getTime() - new Date(fechaEmision).getTime();
                     const diasTranscurridos = Math.floor(msTranscurridos / (1000 * 60 * 60 * 24));
+
+                    // Convertir servicios a formato IServicio
+                    const serviciosFormatted: IServicio[] = servicios.map(s => ({
+                        nombre: s.numeroExpediente ?? undefined,
+                        tipo: s.origenDestino ?? undefined
+                    }));
 
                     pendingPolicies.push({
                         numeroPoliza,
@@ -136,7 +162,7 @@ export class PaymentCalculatorService {
                         diasTranscurridos,
                         fechaLimiteCobertura,
                         fechaEmision: new Date(fechaEmision),
-                        servicios: servicios ?? []
+                        servicios: serviciosFormatted
                     });
                 }
             }

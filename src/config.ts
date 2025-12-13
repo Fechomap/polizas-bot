@@ -37,9 +37,6 @@ interface IConfig {
         token: string;
         allowedGroups: number[];
     };
-    mongodb: {
-        uri: string;
-    };
     redis: {
         url?: string;
         host: string;
@@ -49,10 +46,10 @@ interface IConfig {
     };
     /**
      * TTL simplificado - UN solo valor para todo
-     * Configurable via TTL_SESSION (default: 12 horas)
+     * Configurable via TTL_SESSION (default: 1 hora)
      */
     ttl: {
-        /** TTL principal para sesiones, estados, caché Redis, navegación, admin (default: 12 horas) */
+        /** TTL principal para sesiones, estados, caché Redis, navegación, admin (default: 1 hora) */
         session: number;
         /** TTL de caché en memoria - FIJO 5 minutos (no configurable, para no consumir RAM) */
         cacheMemory: number;
@@ -79,9 +76,6 @@ const config: IConfig = {
             .filter((id): id is number | string => id !== undefined && id !== null)
             .map(id => (typeof id === 'string' ? parseInt(id) : id))
     },
-    mongodb: {
-        uri: process.env.MONGO_URI ?? ''
-    },
     redis: {
         url: getRedisUrl(),
         host: process.env.REDIS_HOST ?? 'localhost',
@@ -90,8 +84,8 @@ const config: IConfig = {
         db: isDevelopment ? 1 : 0
     },
     ttl: {
-        // TTL principal: 12 horas por defecto (en ms) - usado para TODO
-        session: parseInt(process.env.TTL_SESSION ?? '43200000'),
+        // TTL principal: 1 hora por defecto (en ms) - usado para TODO
+        session: parseInt(process.env.TTL_SESSION ?? '3600000'),
         // Caché en memoria: 5 minutos FIJO (no consumir RAM)
         cacheMemory: CACHE_MEMORY_TTL_MS,
         // Intervalo de limpieza: 15 minutos FIJO
@@ -111,7 +105,7 @@ const config: IConfig = {
 };
 
 const validateConfig = (): void => {
-    const required = ['telegram.token', 'mongodb.uri', 'redis.host', 'redis.port'];
+    const required = ['telegram.token', 'redis.host', 'redis.port'];
     const missing: string[] = [];
 
     for (const path of required) {

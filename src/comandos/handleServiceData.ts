@@ -3,7 +3,7 @@ import { Markup } from 'telegraf';
 import { addRegistroToPolicy } from '../controllers/policyController';
 import logger from '../utils/logger';
 import StateKeyManager from '../utils/StateKeyManager';
-import FlowStateManager from '../utils/FlowStateManager';
+import { getUnifiedStateManagerSync } from '../state/UnifiedStateManager';
 import { BotContext } from '../../types';
 
 interface IServiceData {
@@ -11,7 +11,7 @@ interface IServiceData {
     origenDestino: string;
     costo: number;
     fechaJS: Date;
-    numeroRegistro: number;
+    numeroRegistro: number | null;
 }
 
 interface IPolicyData {
@@ -46,9 +46,11 @@ interface ISavedState {
 }
 
 interface IHandleServiceDataContext {
-    awaitingServiceData: {
-        get(chatId: number, threadIdStr?: string): string | IPolicyData | null;
-    };
+    getAwaitingState<T>(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<T | null>;
 }
 
 async function handleServiceData(
@@ -65,8 +67,12 @@ async function handleServiceData(
     const threadIdRaw = StateKeyManager.getThreadId(ctx);
     const threadId = threadIdRaw ? String(threadIdRaw) : undefined;
     try {
-        // Obtener la data guardada (puede ser string o objeto)
-        const policyData = this.awaitingServiceData.get(chatId, threadId);
+        // Obtener la data guardada desde Redis (puede ser string o objeto)
+        const policyData = await this.getAwaitingState<string | IPolicyData>(
+            chatId,
+            'awaitingServiceData',
+            threadId
+        );
 
         if (!policyData) {
             logger.warn(
@@ -128,14 +134,14 @@ async function handleServiceData(
             // Usar origen/destino guardado
             const origenDestino = origenDestinoGuardado;
 
-            // Guardar el número de expediente en FlowStateManager para uso en notificaciones
-            FlowStateManager.saveState(
+            // Guardar el número de expediente en UnifiedStateManager para uso en notificaciones
+            const stateManager = getUnifiedStateManagerSync()!;
+            const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+            await stateManager.setFlowState(
                 chatId,
                 numeroPoliza,
-                {
-                    expedienteNum: expediente
-                },
-                threadId
+                { expedienteNum: expediente },
+                threadIdNum
             );
 
             logger.info(
@@ -143,12 +149,12 @@ async function handleServiceData(
                 { chatId, threadId: threadIdRaw }
             );
 
-            // Recuperar datos de coordenadas desde FlowStateManager si están disponibles
-            const savedState = FlowStateManager.getState(
+            // Recuperar datos de coordenadas desde UnifiedStateManager si están disponibles
+            const savedState = (await stateManager.getFlowState(
                 chatId,
                 numeroPoliza,
-                threadId
-            ) as ISavedState;
+                threadIdNum
+            )) as ISavedState;
             const coordenadas = savedState?.coordenadas ?? null;
             let rutaInfo = savedState?.rutaInfo ?? null;
 
@@ -240,12 +246,14 @@ async function handleServiceData(
             // 1. Fecha automática: fecha actual
             const fechaJS = new Date();
 
-            // 2. Recuperar datos de ruta desde FlowStateManager
-            const savedState = FlowStateManager.getState(
+            // 2. Recuperar datos de ruta desde UnifiedStateManager
+            const stateManager = getUnifiedStateManagerSync()!;
+            const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+            const savedState = (await stateManager.getFlowState(
                 chatId,
                 numeroPoliza,
-                threadId
-            ) as ISavedState;
+                threadIdNum
+            )) as ISavedState;
 
             if (!savedState?.rutaInfo) {
                 await ctx.reply('❌ No se encontraron datos de ruta. Reinicia el proceso.');

@@ -2,11 +2,12 @@
 /**
  * Handler para gestión de notificaciones en el módulo admin
  * REFACTORIZADO: UI delegada a AdminNotificationsUIService (SRP)
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context } from 'telegraf';
 import { getInstance as getNotificationManager } from '../../services/NotificationManager';
-import ScheduledNotification from '../../models/scheduledNotification';
+import { prisma } from '../../database/prisma';
 import moment from 'moment-timezone';
 import logger from '../../utils/logger';
 import adminStateManager from '../utils/adminStates';
@@ -44,6 +45,10 @@ class NotificationsHandler implements IAdminHandler {
             await ctx.answerCbQuery();
 
             const notificationManager = getNotificationManager();
+            if (!notificationManager) {
+                await ctx.editMessageText('❌ Sistema de notificaciones no inicializado.');
+                return;
+            }
             const pendingNotifications = await notificationManager.getPendingNotifications();
 
             if (pendingNotifications.length === 0) {
@@ -76,7 +81,9 @@ class NotificationsHandler implements IAdminHandler {
         try {
             await ctx.answerCbQuery();
 
-            const notification = await ScheduledNotification.findById(notificationId);
+            const notification = await prisma.scheduledNotification.findUnique({
+                where: { id: notificationId }
+            });
 
             if (!notification) {
                 await ctx.editMessageText(uiService.generarMensajeNoEncontrada(), {
@@ -85,7 +92,11 @@ class NotificationsHandler implements IAdminHandler {
                 return;
             }
 
-            await notification.cancel();
+            // Cancel notification using Prisma
+            await prisma.scheduledNotification.update({
+                where: { id: notificationId },
+                data: { status: 'CANCELLED' }
+            });
 
             await ctx.editMessageText(
                 uiService.generarMensajeCancelada(
@@ -108,7 +119,9 @@ class NotificationsHandler implements IAdminHandler {
         try {
             await ctx.answerCbQuery();
 
-            const notification = await ScheduledNotification.findById(notificationId);
+            const notification = await prisma.scheduledNotification.findUnique({
+                where: { id: notificationId }
+            });
 
             if (!notification) {
                 await ctx.editMessageText(uiService.generarMensajeNoEncontrada(), {
@@ -132,7 +145,9 @@ class NotificationsHandler implements IAdminHandler {
                 return;
             }
 
-            await ScheduledNotification.findByIdAndDelete(notificationId);
+            await prisma.scheduledNotification.delete({
+                where: { id: notificationId }
+            });
 
             await ctx.editMessageText(
                 uiService.generarMensajeEliminada(
@@ -157,7 +172,9 @@ class NotificationsHandler implements IAdminHandler {
         try {
             await ctx.answerCbQuery();
 
-            const notification = await ScheduledNotification.findById(notificationId);
+            const notification = await prisma.scheduledNotification.findUnique({
+                where: { id: notificationId }
+            });
 
             if (!notification) {
                 await ctx.editMessageText(uiService.generarMensajeNoEncontrada(), {
@@ -182,7 +199,9 @@ class NotificationsHandler implements IAdminHandler {
         try {
             await ctx.answerCbQuery();
 
-            const notification = await ScheduledNotification.findById(notificationId);
+            const notification = await prisma.scheduledNotification.findUnique({
+                where: { id: notificationId }
+            });
 
             if (!notification) {
                 await ctx.editMessageText(uiService.generarMensajeNoEncontrada(), {
@@ -215,6 +234,10 @@ class NotificationsHandler implements IAdminHandler {
             }
 
             const notificationManager = getNotificationManager();
+            if (!notificationManager) {
+                await ctx.editMessageText('❌ Sistema de notificaciones no inicializado.');
+                return;
+            }
             const result = await notificationManager.editNotificationDate(notificationId, newDate);
 
             if (result.success) {
@@ -244,7 +267,9 @@ class NotificationsHandler implements IAdminHandler {
         try {
             await ctx.answerCbQuery();
 
-            const notification = await ScheduledNotification.findById(notificationId);
+            const notification = await prisma.scheduledNotification.findUnique({
+                where: { id: notificationId }
+            });
 
             if (!notification) {
                 await ctx.editMessageText(uiService.generarMensajeNoEncontrada(), {
@@ -326,6 +351,10 @@ class NotificationsHandler implements IAdminHandler {
             }
 
             const notificationManager = getNotificationManager();
+            if (!notificationManager) {
+                await ctx.reply('❌ Sistema de notificaciones no inicializado.');
+                return true;
+            }
             const result = await notificationManager.editNotificationDate(
                 notificationId,
                 targetDate.toDate()
@@ -368,7 +397,9 @@ class NotificationsHandler implements IAdminHandler {
         try {
             await ctx.answerCbQuery();
 
-            const notification = await ScheduledNotification.findById(notificationId);
+            const notification = await prisma.scheduledNotification.findUnique({
+                where: { id: notificationId }
+            });
 
             if (!notification) {
                 await ctx.editMessageText(uiService.generarMensajeNoEncontrada(), {
@@ -379,6 +410,10 @@ class NotificationsHandler implements IAdminHandler {
 
             const newDate = moment().tz('America/Mexico_City').add(5, 'minutes').toDate();
             const notificationManager = getNotificationManager();
+            if (!notificationManager) {
+                await ctx.editMessageText('❌ Sistema de notificaciones no inicializado.');
+                return;
+            }
             const result = await notificationManager.editNotificationDate(notificationId, newDate);
 
             if (result.success) {

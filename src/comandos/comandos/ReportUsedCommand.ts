@@ -2,12 +2,13 @@
 /**
  * Comando para generar reportes de pólizas prioritarias
  * REFACTORIZADO: Extracción de métodos para eliminar duplicación
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 import BaseCommand from './BaseCommand';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import { Markup, Context } from 'telegraf';
-import Policy from '../../models/policy';
+import { prisma } from '../../database/prisma';
 import { getOldUnusedPolicies } from '../../controllers/policyController';
 
 // Interfaces for type safety
@@ -507,10 +508,11 @@ class ReportUsedCommand extends BaseCommand {
 
             // Fallback: Try fetching policies anyway
             try {
-                const fallbackPolicies: PolicyDocument[] = (await Policy.find({ estado: 'ACTIVO' })
-                    .sort({ calificacion: -1 })
-                    .limit(10)
-                    .lean()) as PolicyDocument[];
+                const fallbackPolicies = await prisma.policy.findMany({
+                    where: { estado: 'ACTIVO' },
+                    orderBy: { calificacion: 'desc' },
+                    take: 10
+                }) as PolicyDocument[];
 
                 if (fallbackPolicies.length > 0) {
                     await ctx.reply(

@@ -18,8 +18,24 @@ import type { IPolicy } from '../../../types/database';
 import type { IThreadSafeStateMap } from '../../../utils/StateKeyManager';
 import type { IPolicyCacheData } from '../types';
 
+// Interface para handler con métodos async de estado
+interface IStateHandler {
+    setAwaitingState(
+        chatId: number,
+        stateType: string,
+        value: any,
+        threadId?: number | string | null
+    ): Promise<void>;
+    deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<void>;
+}
+
 interface IPhoneStepDependencies {
     bot: any;
+    handler: IStateHandler;
     awaitingPhoneNumber: IThreadSafeStateMap<string>;
     awaitingOrigen: IThreadSafeStateMap<string>;
     polizaCache: IThreadSafeStateMap<IPolicyCacheData>;
@@ -27,13 +43,21 @@ interface IPhoneStepDependencies {
 
 class PhoneStep {
     private bot: any;
+    private handler: IStateHandler;
     private awaitingPhoneNumber: IThreadSafeStateMap<string>;
     private awaitingOrigen: IThreadSafeStateMap<string>;
     private polizaCache: IThreadSafeStateMap<IPolicyCacheData>;
     private phoneAttempts: IThreadSafeStateMap<number>;
 
+    // Tipos de estado para sincronización con Redis
+    private static readonly STATE_TYPES = {
+        AWAITING_PHONE_NUMBER: 'awaitingPhoneNumber',
+        AWAITING_ORIGEN: 'awaitingOrigen'
+    };
+
     constructor(deps: IPhoneStepDependencies) {
         this.bot = deps.bot;
+        this.handler = deps.handler;
         this.awaitingPhoneNumber = deps.awaitingPhoneNumber;
         this.awaitingOrigen = deps.awaitingOrigen;
         this.polizaCache = deps.polizaCache;
@@ -72,11 +96,22 @@ class PhoneStep {
                     return;
                 }
 
-                // Limpiar estado de espera de teléfono
+                // Limpiar estado de espera de teléfono (local + Redis)
                 this.awaitingPhoneNumber.delete(chatId, threadId);
+                await this.handler.deleteAwaitingState(
+                    chatId,
+                    PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                    threadId
+                );
 
-                // Establecer estado de espera de origen
+                // Establecer estado de espera de origen (local + Redis)
                 this.awaitingOrigen.set(chatId, numeroPoliza, threadId);
+                await this.handler.setAwaitingState(
+                    chatId,
+                    PhoneStep.STATE_TYPES.AWAITING_ORIGEN,
+                    numeroPoliza,
+                    threadId
+                );
 
                 logger.info('[keepPhone] Estado actualizado', { chatId, threadId, numeroPoliza });
 
@@ -125,8 +160,14 @@ class PhoneStep {
 
                 logger.info(`[changePhone] Iniciando cambio para póliza ${numeroPoliza}`);
 
-                // Establecer estado de espera de nuevo teléfono
+                // Establecer estado de espera de nuevo teléfono (local + Redis)
                 this.awaitingPhoneNumber.set(chatId, numeroPoliza, threadId);
+                await this.handler.setAwaitingState(
+                    chatId,
+                    PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                    numeroPoliza,
+                    threadId
+                );
 
                 await ctx.reply(`📱 Ingresa el *número telefónico* (10 dígitos):`, {
                     parse_mode: 'Markdown'
@@ -160,8 +201,13 @@ class PhoneStep {
             this.phoneAttempts.set(chatId, attempts, threadId);
 
             if (attempts >= 2) {
-                // Segundo intento fallido - cancelar
+                // Segundo intento fallido - cancelar (local + Redis)
                 this.awaitingPhoneNumber.delete(chatId, threadId);
+                await this.handler.deleteAwaitingState(
+                    chatId,
+                    PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                    threadId
+                );
                 this.phoneAttempts.delete(chatId, threadId);
                 await ctx.reply('❌ Teléfono inválido. Proceso cancelado.');
                 return true;
@@ -185,6 +231,11 @@ class PhoneStep {
                 if (!numeroPoliza) {
                     logger.error('Número de póliza no encontrado en handlePhoneNumber');
                     this.awaitingPhoneNumber.delete(chatId, threadId);
+                    await this.handler.deleteAwaitingState(
+                        chatId,
+                        PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                        threadId
+                    );
                     await ctx.reply(
                         '❌ Error: Número de póliza no encontrado. Operación cancelada.'
                     );
@@ -196,6 +247,11 @@ class PhoneStep {
             if (!policy) {
                 logger.error(`Póliza no encontrada: ${numeroPoliza}`);
                 this.awaitingPhoneNumber.delete(chatId, threadId);
+                await this.handler.deleteAwaitingState(
+                    chatId,
+                    PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                    threadId
+                );
                 await ctx.reply(
                     `❌ Error: Póliza ${numeroPoliza} no encontrada. Operación cancelada.`
                 );
@@ -236,9 +292,20 @@ class PhoneStep {
                 this.polizaCache.set(chatId, cachedData, threadId);
             }
 
-            // Limpiar estado de teléfono y establecer estado de origen
+            // Limpiar estado de teléfono y establecer estado de origen (local + Redis)
             this.awaitingPhoneNumber.delete(chatId, threadId);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                threadId
+            );
             this.awaitingOrigen.set(chatId, numeroPoliza ?? '', threadId);
+            await this.handler.setAwaitingState(
+                chatId,
+                PhoneStep.STATE_TYPES.AWAITING_ORIGEN,
+                numeroPoliza ?? '',
+                threadId
+            );
 
             logger.info(`Teléfono actualizado para póliza ${numeroPoliza}: ${messageText}`);
 
@@ -273,7 +340,7 @@ class PhoneStep {
                 aseguradora: policy.aseguradora,
                 agenteCotizador: policy.agenteCotizador,
                 totalServicios: policy.totalServicios ?? 0,
-                ultimoServicio: ultimoServicio?.fechaServicio,
+                ultimoServicio: ultimoServicio?.fechaServicio ?? undefined,
                 origenDestinoUltimo,
                 totalPagos: policy.pagos?.filter((p: any) => p.estado === 'REALIZADO').length ?? 0
             };
@@ -296,6 +363,11 @@ class PhoneStep {
         } catch (error) {
             logger.error(`Error guardando teléfono para póliza ${numeroPoliza}:`, error);
             this.awaitingPhoneNumber.delete(chatId, threadId);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
+                threadId
+            );
             await withTelegramRetry(
                 () => ctx.reply('❌ Error al guardar el teléfono. Operación cancelada.'),
                 'PhoneStep.handlePhoneNumber - error reply'
@@ -338,7 +410,7 @@ class PhoneStep {
             aseguradora: policy.aseguradora,
             agenteCotizador: policy.agenteCotizador,
             totalServicios: policy.totalServicios ?? 0,
-            ultimoServicio: ultimoServicio?.fechaServicio,
+            ultimoServicio: ultimoServicio?.fechaServicio ?? undefined,
             origenDestinoUltimo,
             totalPagos: policy.pagos?.filter((p: any) => p.estado === 'REALIZADO').length ?? 0
         };

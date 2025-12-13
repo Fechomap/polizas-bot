@@ -6,8 +6,8 @@
 
 import { VehicleController } from '../../controllers/vehicleController';
 import StateKeyManager from '../../utils/StateKeyManager';
-import Vehicle from '../../models/vehicle';
-import { seedAseguradoras } from '../../models/aseguradora';
+import { prisma } from '../../database/prisma';
+import { seedAseguradoras } from '../../database/seedAseguradoras';
 import { getInstance as getMistralOCR } from '../../services/MistralOCRService';
 import { getPolicyFileService } from '../../services/PolicyFileService';
 import { getPolicyCreationService } from '../../services/PolicyCreationService';
@@ -16,8 +16,10 @@ import { getPolicyUIService } from '../../services/PolicyUIService';
 import {
     ESTADOS_ASIGNACION,
     CAMPOS_REQUERIDOS,
+    CAMPOS_EDITABLES_POLIZA,
     type IBot,
-    type IAsignacionEnProceso
+    type IAsignacionEnProceso,
+    type CampoEditablePoliza
 } from '../../types/policy-assignment';
 import type { IVehicle } from '../../types/database';
 
@@ -309,6 +311,8 @@ export class PolicyOCRHandler {
                 this.procesarSegundoPago(bot, chatId, threadId, texto, asignacion, stateKey),
             [ESTADOS_ASIGNACION.ESPERANDO_DATO_FALTANTE]: () =>
                 this.procesarDatoFaltante(bot, chatId, threadId, texto, asignacion, stateKey),
+            [ESTADOS_ASIGNACION.EDITANDO_CAMPO]: () =>
+                this.procesarEdicionCampo(bot, chatId, threadId, texto, asignacion, stateKey),
             [ESTADOS_ASIGNACION.ESPERANDO_PDF_FINAL]: async () => {
                 await uiService.enviarMensaje(
                     bot,
@@ -368,8 +372,10 @@ export class PolicyOCRHandler {
 
     private static async buscarVehiculo(vehicleId: string): Promise<IVehicle | null> {
         try {
-            const foundVehicle = await Vehicle.findById(vehicleId);
-            if (foundVehicle) return foundVehicle;
+            const foundVehicle = await prisma.vehicle.findUnique({
+                where: { id: vehicleId }
+            });
+            if (foundVehicle) return foundVehicle as unknown as IVehicle;
         } catch {
             const result = await VehicleController.buscarVehiculo(vehicleId);
             if (result.success && result.vehiculo) return result.vehiculo;
@@ -438,30 +444,29 @@ export class PolicyOCRHandler {
             asignacion.datosPoliza.segundoPago = datosOCR.segundoPago;
         }
 
-        // Determinar campos faltantes
-        const camposFaltantes: string[] = [];
-        if (!asignacion.datosPoliza.numeroPoliza) camposFaltantes.push('numeroPoliza');
-        if (!asignacion.datosPoliza.aseguradora) camposFaltantes.push('aseguradora');
-        camposFaltantes.push('nombrePersona'); // Siempre se pregunta
-        if (!asignacion.datosPoliza.fechaEmision) camposFaltantes.push('fechaEmision');
-        if (!asignacion.datosPoliza.primerPago) camposFaltantes.push('primerPago');
-        if (!asignacion.datosPoliza.segundoPago) camposFaltantes.push('segundoPago');
+        // Mostrar resumen editable con botones
+        await this.mostrarResumenEditable(bot, chatId, threadId, asignacion, stateKey);
+    }
 
-        asignacion.datosPoliza.camposFaltantes = camposFaltantes;
+    /**
+     * Muestra el resumen editable con botones para modificar cada campo
+     */
+    private static async mostrarResumenEditable(
+        bot: IBot,
+        chatId: number,
+        threadId: number | null,
+        asignacion: IAsignacionEnProceso,
+        stateKey: string
+    ): Promise<void> {
+        const mensaje = uiService.generarMensajeResumenEditable(asignacion.datosPoliza);
 
-        // Mostrar resumen
-        const mensaje = uiService.generarMensajeOCR(
-            datosOCR,
-            asignacion.datosPoliza.aseguradora ?? datosOCR.aseguradora,
-            camposFaltantes
-        );
-        await uiService.enviarMensaje(bot, chatId, threadId, mensaje, { parse_mode: 'Markdown' });
+        await uiService.enviarMensaje(bot, chatId, threadId, mensaje, {
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: uiService.generarBotonesEdicion() }
+        });
 
-        // Iniciar flujo de datos faltantes
-        asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_DATO_FALTANTE;
+        asignacion.estado = ESTADOS_ASIGNACION.MOSTRANDO_RESUMEN_EDITABLE;
         asignacionesOCR.set(stateKey, asignacion);
-
-        await this.pedirSiguienteCampoFaltante(bot, chatId, threadId, asignacion, stateKey);
     }
 
     private static async pedirSiguienteCampoFaltante(
@@ -846,8 +851,8 @@ export class PolicyOCRHandler {
 
             // Marcar vehículo con póliza
             await creationService.marcarVehiculoConPoliza(
-                asignacion.vehiculo._id.toString(),
-                poliza._id.toString()
+                asignacion.vehiculo.id.toString(),
+                poliza.id.toString()
             );
 
             // Transferir fotos del vehículo
@@ -861,7 +866,7 @@ export class PolicyOCRHandler {
                 );
                 if (uploadResult.success) {
                     await fileService.guardarReferenciaArchivo(
-                        poliza._id.toString(),
+                        poliza.id.toString(),
                         asignacion.datosPoliza.archivo,
                         uploadResult
                     );
@@ -894,6 +899,283 @@ export class PolicyOCRHandler {
             asignacionesOCR.delete(stateKey);
             return true;
         }
+    }
+
+    // ==================== MÉTODOS DE EDICIÓN ====================
+
+    /**
+     * Inicia la edición de un campo específico
+     */
+    static async iniciarEdicionCampo(
+        bot: IBot,
+        chatId: number,
+        userId: string,
+        campo: string,
+        threadId: number | null = null
+    ): Promise<boolean> {
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        const asignacion = asignacionesOCR.get(stateKey);
+
+        if (!asignacion) {
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                threadId,
+                '❌ No hay asignación en proceso.'
+            );
+            return false;
+        }
+
+        // Verificar que el campo sea válido
+        const campoInfo = CAMPOS_EDITABLES_POLIZA.find(c => c.key === campo);
+        if (!campoInfo) {
+            await uiService.enviarMensaje(bot, chatId, threadId, '❌ Campo no válido.');
+            return false;
+        }
+
+        // Obtener valor actual
+        const valorActual = (asignacion.datosPoliza as any)[campo];
+
+        // Generar mensaje de edición
+        const mensaje = uiService.generarMensajeEdicionCampo(
+            campo as CampoEditablePoliza,
+            valorActual
+        );
+
+        // Si es campo de fecha, mostrar selector de fecha
+        if (campoInfo.tipo === 'fecha') {
+            await uiService.enviarMensaje(bot, chatId, threadId, mensaje, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: uiService.generarSelectorFecha(`ocr_edit_fecha_${campo}`)
+                }
+            });
+        } else {
+            await uiService.enviarMensaje(bot, chatId, threadId, mensaje, {
+                parse_mode: 'Markdown',
+                reply_markup: { inline_keyboard: uiService.generarBotonVolverResumen() }
+            });
+        }
+
+        // Actualizar estado
+        asignacion.estado = ESTADOS_ASIGNACION.EDITANDO_CAMPO;
+        asignacion.datosPoliza.campoEditando = campo as CampoEditablePoliza;
+        asignacionesOCR.set(stateKey, asignacion);
+
+        return true;
+    }
+
+    /**
+     * Procesa la edición de fecha desde callback
+     */
+    static async procesarEdicionFecha(
+        bot: IBot,
+        chatId: number,
+        userId: string,
+        campo: string,
+        fechaISO: string,
+        threadId: number | null = null
+    ): Promise<boolean> {
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        const asignacion = asignacionesOCR.get(stateKey);
+
+        if (!asignacion) return false;
+
+        const fecha = new Date(fechaISO);
+
+        // Asignar fecha según el campo
+        if (campo === 'fechaEmision') {
+            asignacion.datosPoliza.fechaEmision = fecha;
+            asignacion.datosPoliza.fechaFinCobertura =
+                creationService.calcularFechaFinCobertura(fecha);
+        } else if (campo === 'fechaFinCobertura') {
+            asignacion.datosPoliza.fechaFinCobertura = fecha;
+        }
+
+        asignacion.datosPoliza.campoEditando = undefined;
+        asignacionesOCR.set(stateKey, asignacion);
+
+        await uiService.enviarMensaje(
+            bot,
+            chatId,
+            threadId,
+            `✅ Fecha actualizada: *${fecha.toLocaleDateString('es-MX')}*`,
+            { parse_mode: 'Markdown' }
+        );
+
+        // Volver al resumen editable
+        await this.mostrarResumenEditable(bot, chatId, threadId, asignacion, stateKey);
+        return true;
+    }
+
+    /**
+     * Procesa el valor ingresado para editar un campo
+     */
+    private static async procesarEdicionCampo(
+        bot: IBot,
+        chatId: number,
+        threadId: number | null,
+        texto: string | undefined,
+        asignacion: IAsignacionEnProceso,
+        stateKey: string
+    ): Promise<boolean> {
+        if (!texto) return true;
+
+        const campoEditando = asignacion.datosPoliza.campoEditando;
+        if (!campoEditando) {
+            // Volver al resumen si no hay campo en edición
+            await this.mostrarResumenEditable(bot, chatId, threadId, asignacion, stateKey);
+            return true;
+        }
+
+        // Validar el valor ingresado
+        const validacion = await validationService.validarCampo(campoEditando, texto);
+        if (!validacion.valido) {
+            await uiService.enviarMensaje(bot, chatId, threadId, `❌ ${validacion.error}`, {
+                parse_mode: 'Markdown',
+                reply_markup: { inline_keyboard: uiService.generarBotonVolverResumen() }
+            });
+            return true;
+        }
+
+        // Asignar valor procesado
+        (asignacion.datosPoliza as any)[campoEditando] = validacion.valorProcesado;
+
+        // Si es fecha de emisión, recalcular fecha fin
+        if (campoEditando === 'fechaEmision' && validacion.valorProcesado instanceof Date) {
+            asignacion.datosPoliza.fechaFinCobertura = creationService.calcularFechaFinCobertura(
+                validacion.valorProcesado
+            );
+        }
+
+        // Limpiar campo en edición
+        asignacion.datosPoliza.campoEditando = undefined;
+        asignacionesOCR.set(stateKey, asignacion);
+
+        // Confirmar y volver al resumen
+        const campoInfo = CAMPOS_EDITABLES_POLIZA.find(c => c.key === campoEditando);
+        await uiService.enviarMensaje(
+            bot,
+            chatId,
+            threadId,
+            `✅ *${campoInfo?.label ?? campoEditando}* actualizado correctamente`,
+            { parse_mode: 'Markdown' }
+        );
+
+        await this.mostrarResumenEditable(bot, chatId, threadId, asignacion, stateKey);
+        return true;
+    }
+
+    /**
+     * Volver al resumen desde la edición
+     */
+    static async volverAResumen(
+        bot: IBot,
+        chatId: number,
+        userId: string,
+        threadId: number | null = null
+    ): Promise<boolean> {
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        const asignacion = asignacionesOCR.get(stateKey);
+
+        if (!asignacion) {
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                threadId,
+                '❌ No hay asignación en proceso.'
+            );
+            return false;
+        }
+
+        // Limpiar campo en edición
+        asignacion.datosPoliza.campoEditando = undefined;
+        asignacionesOCR.set(stateKey, asignacion);
+
+        await this.mostrarResumenEditable(bot, chatId, threadId, asignacion, stateKey);
+        return true;
+    }
+
+    /**
+     * Confirma los datos y procede al registro de la póliza
+     */
+    static async confirmarDatosOCR(
+        bot: IBot,
+        chatId: number,
+        userId: string,
+        threadId: number | null = null
+    ): Promise<boolean> {
+        const stateKey = `${userId}:${StateKeyManager.getContextKey(chatId, threadId)}`;
+        const asignacion = asignacionesOCR.get(stateKey);
+
+        if (!asignacion) {
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                threadId,
+                '❌ No hay asignación en proceso.'
+            );
+            return false;
+        }
+
+        // Verificar campos obligatorios
+        const camposObligatorios = ['numeroPoliza', 'aseguradora', 'nombrePersona', 'fechaEmision'];
+        const camposFaltantes: string[] = [];
+
+        for (const campo of camposObligatorios) {
+            const valor = (asignacion.datosPoliza as any)[campo];
+            if (valor === undefined || valor === null || valor === '') {
+                const campoInfo = CAMPOS_EDITABLES_POLIZA.find(c => c.key === campo);
+                camposFaltantes.push(campoInfo?.label ?? campo);
+            }
+        }
+
+        if (camposFaltantes.length > 0) {
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                threadId,
+                `⚠️ *Faltan datos obligatorios:*\n\n${camposFaltantes.map(c => `• ${c}`).join('\n')}\n\n_Edita los campos faltantes antes de confirmar_`,
+                {
+                    parse_mode: 'Markdown',
+                    reply_markup: { inline_keyboard: uiService.generarBotonesEdicion() }
+                }
+            );
+            return true;
+        }
+
+        // Si falta segundo pago, pedirlo
+        if (!asignacion.datosPoliza.segundoPago) {
+            asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_SEGUNDO_PAGO;
+            asignacionesOCR.set(stateKey, asignacion);
+
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                threadId,
+                `✅ *Datos confirmados*\n\n💰 Primer pago: $${(asignacion.datosPoliza.primerPago ?? 0).toLocaleString()}\n\nAhora ingresa el *SEGUNDO PAGO*\n💰 Solo el monto\n📝 Ejemplo: 3500`,
+                { parse_mode: 'Markdown' }
+            );
+            return true;
+        }
+
+        // Si falta primer pago, pedirlo
+        if (!asignacion.datosPoliza.primerPago) {
+            asignacion.estado = ESTADOS_ASIGNACION.ESPERANDO_PRIMER_PAGO;
+            asignacionesOCR.set(stateKey, asignacion);
+
+            await uiService.enviarMensaje(
+                bot,
+                chatId,
+                threadId,
+                '✅ *Datos confirmados*\n\nIngresa el *PRIMER PAGO*\n💰 Solo el monto\n📝 Ejemplo: 8500',
+                { parse_mode: 'Markdown' }
+            );
+            return true;
+        }
+
+        // Todos los datos completos, finalizar
+        return await this.finalizarAsignacion(bot, chatId, threadId, asignacion, stateKey);
     }
 
     // ==================== MÉTODOS DE UTILIDAD ====================

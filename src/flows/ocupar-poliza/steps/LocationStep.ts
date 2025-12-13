@@ -7,14 +7,30 @@
 import { Context, Markup } from 'telegraf';
 import logger from '../../../utils/logger';
 import { getPolicyByNumber } from '../../../controllers/policyController';
-import flowStateManager from '../../../utils/FlowStateManager';
+import { getUnifiedStateManagerSync } from '../../../state/UnifiedStateManager';
 import { whatsAppService } from '../../../services/whatsapp';
 import type { IPolicy } from '../../../types/database';
 import type { IThreadSafeStateMap } from '../../../utils/StateKeyManager';
 import type { ICoordinates, IPolicyCacheData, IEnhancedLegendData } from '../types';
 import LegendService from '../services/LegendService';
 
+// Interface para handler con métodos async de estado
+interface IStateHandler {
+    setAwaitingState(
+        chatId: number,
+        stateType: string,
+        value: any,
+        threadId?: number | string | null
+    ): Promise<void>;
+    deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<void>;
+}
+
 interface ILocationStepDependencies {
+    handler: IStateHandler;
     awaitingOrigen: IThreadSafeStateMap<string>;
     awaitingDestino: IThreadSafeStateMap<string>;
     polizaCache: IThreadSafeStateMap<IPolicyCacheData>;
@@ -22,13 +38,21 @@ interface ILocationStepDependencies {
 }
 
 class LocationStep {
+    private handler: IStateHandler;
     private awaitingOrigen: IThreadSafeStateMap<string>;
     private awaitingDestino: IThreadSafeStateMap<string>;
     private polizaCache: IThreadSafeStateMap<IPolicyCacheData>;
     private pendingLeyendas: IThreadSafeStateMap<string>;
     private legendService: LegendService;
 
+    // Tipos de estado para sincronización con Redis
+    private static readonly STATE_TYPES = {
+        AWAITING_ORIGEN: 'awaitingOrigen',
+        AWAITING_DESTINO: 'awaitingDestino'
+    };
+
     constructor(deps: ILocationStepDependencies) {
+        this.handler = deps.handler;
         this.awaitingOrigen = deps.awaitingOrigen;
         this.awaitingDestino = deps.awaitingDestino;
         this.polizaCache = deps.polizaCache;
@@ -65,12 +89,14 @@ class LocationStep {
 
             logger.info('Coordenadas de origen extraídas', coordenadas);
 
-            // Guardar en FlowStateManager
-            flowStateManager.saveState(
+            // Guardar en UnifiedStateManager
+            const stateManager = getUnifiedStateManagerSync()!;
+            const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+            await stateManager.setFlowState(
                 chatId,
                 numeroPoliza,
                 { origenCoords: coordenadas },
-                threadId
+                threadIdNum
             );
 
             // Actualizar caché local
@@ -80,9 +106,20 @@ class LocationStep {
                 this.polizaCache.set(chatId, cachedData, threadId);
             }
 
-            // Cambiar estado: origen -> destino
+            // Cambiar estado: origen -> destino (local + Redis)
             this.awaitingOrigen.delete(chatId, threadId);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                LocationStep.STATE_TYPES.AWAITING_ORIGEN,
+                threadId
+            );
             this.awaitingDestino.set(chatId, numeroPoliza, threadId);
+            await this.handler.setAwaitingState(
+                chatId,
+                LocationStep.STATE_TYPES.AWAITING_DESTINO,
+                numeroPoliza,
+                threadId
+            );
 
             await ctx.reply('📍indica *DESTINO*', { parse_mode: 'Markdown' });
 
@@ -127,9 +164,14 @@ class LocationStep {
 
             logger.info('Coordenadas de destino extraídas', destinoCoords);
 
-            // Recuperar origen desde FlowStateManager
-            const threadIdStr = threadId ? String(threadId) : null;
-            const savedState = flowStateManager.getState(chatId, numeroPoliza, threadIdStr);
+            // Recuperar origen desde UnifiedStateManager
+            const stateManager = getUnifiedStateManagerSync()!;
+            const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+            const savedState = await stateManager.getFlowState<{ origenCoords?: ICoordinates }>(
+                chatId,
+                numeroPoliza,
+                threadIdNum
+            );
             const origenCoords = savedState?.origenCoords;
 
             if (!origenCoords) {
@@ -138,6 +180,11 @@ class LocationStep {
                     '❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.'
                 );
                 this.awaitingDestino.delete(chatId, threadId);
+                await this.handler.deleteAwaitingState(
+                    chatId,
+                    LocationStep.STATE_TYPES.AWAITING_DESTINO,
+                    threadId
+                );
                 return false;
             }
 
@@ -153,6 +200,11 @@ class LocationStep {
             if (!policy) {
                 await ctx.reply('❌ Error: Póliza no encontrada.');
                 this.awaitingDestino.delete(chatId, threadId);
+                await this.handler.deleteAwaitingState(
+                    chatId,
+                    LocationStep.STATE_TYPES.AWAITING_DESTINO,
+                    threadId
+                );
                 return false;
             }
 
@@ -164,8 +216,8 @@ class LocationStep {
                 rutaInfo
             );
 
-            // Guardar datos completos en FlowStateManager
-            this.saveCompleteFlowState(
+            // Guardar datos completos en UnifiedStateManager
+            await this.saveCompleteFlowState(
                 chatId,
                 numeroPoliza,
                 threadId,
@@ -239,15 +291,25 @@ class LocationStep {
                 ])
             });
 
-            // Limpiar estados
+            // Limpiar estados (local + Redis)
             this.pendingLeyendas.delete(chatId, threadId);
             this.awaitingDestino.delete(chatId, threadId);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                LocationStep.STATE_TYPES.AWAITING_DESTINO,
+                threadId
+            );
 
             return true;
         } catch (error) {
             logger.error('Error procesando destino:', error);
             await ctx.reply('❌ Error al procesar la ubicación del destino.');
             this.awaitingDestino.delete(chatId, threadId);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                LocationStep.STATE_TYPES.AWAITING_DESTINO,
+                threadId
+            );
             return false;
         }
     }
@@ -274,7 +336,7 @@ class LocationStep {
     /**
      * Guarda el estado completo del flujo
      */
-    private saveCompleteFlowState(
+    private async saveCompleteFlowState(
         chatId: number,
         numeroPoliza: string,
         threadId: string | null,
@@ -282,7 +344,7 @@ class LocationStep {
         destinoCoords: ICoordinates,
         rutaInfo: any,
         enhancedData: IEnhancedLegendData
-    ): void {
+    ): Promise<void> {
         const saveData: any = {
             origenCoords,
             destinoCoords,
@@ -303,7 +365,9 @@ class LocationStep {
             saveData.origenDestino = `${enhancedData.origenGeo.ubicacionCorta} - ${enhancedData.destinoGeo.ubicacionCorta}`;
         }
 
-        flowStateManager.saveState(chatId, numeroPoliza, saveData, threadId);
+        const stateManager = getUnifiedStateManagerSync()!;
+        const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+        await stateManager.setFlowState(chatId, numeroPoliza, saveData, threadIdNum);
     }
 
     /**

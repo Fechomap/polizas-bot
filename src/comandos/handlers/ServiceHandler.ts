@@ -1,15 +1,12 @@
 // src/comandos/handlers/ServiceHandler.ts
+// Migrado a Prisma/PostgreSQL
 
 import BaseCommand from '../comandos/BaseCommand';
-import { stateManager } from '../../state/StateFactory';
-import { PolicyRepositoryMongo } from '../../infrastructure/repositories/PolicyRepositoryMongo';
-import { PolicyService } from '../../domain/Policy/Policy.service';
-import { AddServiceUseCase } from '../../application/use-cases/AddServiceUseCase';
+import { STATE_TYPES } from '../commandHandler';
+import { getPolicyByNumber, addServiceToPolicy } from '../../controllers/policyController';
 import type { IBaseHandler, ChatContext } from '../comandos/BaseCommand';
 
 class ServiceHandler extends BaseCommand {
-    private readonly STATE_TTL = 3600;
-
     constructor(handler: IBaseHandler) {
         super(handler);
     }
@@ -25,12 +22,12 @@ class ServiceHandler extends BaseCommand {
             const threadId = BaseCommand.getThreadId(ctx);
             await this.handler.clearChatState(chatId, threadId);
 
-            const stateKey = this.handler._getStateKey(
+            await this.handler.setAwaitingState(
                 chatId,
-                'awaitingServicePolicyNumber',
+                STATE_TYPES.AWAITING_SERVICE_POLICY_NUMBER,
+                true,
                 threadId
             );
-            await stateManager.setState(stateKey, true, this.STATE_TTL);
 
             await ctx.reply('🚗 Introduce el número de póliza para añadir el servicio:');
         } catch (error) {
@@ -44,14 +41,9 @@ class ServiceHandler extends BaseCommand {
     ): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const stateKey = this.handler._getStateKey(chatId, 'awaitingServicePolicyNumber', threadId);
 
         try {
             const numeroPoliza = messageText.trim().toUpperCase();
-
-            // We can still use the old controller here just to check existence,
-            // as the full clean architecture is not yet applied everywhere.
-            const { getPolicyByNumber } = require('../../controllers/policyController');
             const policy = await getPolicyByNumber(numeroPoliza);
 
             if (!policy) {
@@ -59,8 +51,12 @@ class ServiceHandler extends BaseCommand {
                 return;
             }
 
-            const dataStateKey = this.handler._getStateKey(chatId, 'awaitingServiceData', threadId);
-            await stateManager.setState(dataStateKey, numeroPoliza, this.STATE_TTL);
+            await this.handler.setAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_SERVICE_DATA,
+                numeroPoliza,
+                threadId
+            );
 
             await ctx.reply(
                 `✅ Póliza *${numeroPoliza}* encontrada.\n\n` +
@@ -74,17 +70,24 @@ class ServiceHandler extends BaseCommand {
         } catch (error) {
             this.logError('Error en handleAddServicePolicyNumber', error);
         } finally {
-            await stateManager.deleteState(stateKey);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_SERVICE_POLICY_NUMBER,
+                threadId
+            );
         }
     }
 
     public async handleServiceData(ctx: ChatContext, messageText: string): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const stateKey = this.handler._getStateKey(chatId, 'awaitingServiceData', threadId);
 
         try {
-            const numeroPoliza = await stateManager.getState<string>(stateKey);
+            const numeroPoliza = await this.handler.getAwaitingState<string>(
+                chatId,
+                STATE_TYPES.AWAITING_SERVICE_DATA,
+                threadId
+            );
             if (!numeroPoliza) {
                 await ctx.reply('❌ Hubo un problema. Inicia el proceso de nuevo.');
                 return;
@@ -103,35 +106,33 @@ class ServiceHandler extends BaseCommand {
             const costo = parseFloat(costoStr);
             const fecha = new Date(fechaStr.split('/').reverse().join('-'));
 
-            // --- INICIO DE LA NUEVA ARQUITECTURA ---
-            // 1. Instanciar dependencias
-            const policyRepo = new PolicyRepositoryMongo();
-            const policyService = new PolicyService(policyRepo);
-            const addServiceUseCase = new AddServiceUseCase(policyService);
-
-            // 2. Ejecutar caso de uso
-            const result = await addServiceUseCase.execute({
+            // Usar policyController que ya está migrado a Prisma
+            const result = await addServiceToPolicy(
                 numeroPoliza,
-                serviceData: {
-                    costo,
-                    fechaServicio: fecha,
-                    numeroExpediente: expediente,
-                    origenDestino
-                }
-            });
+                costo,
+                fecha,
+                expediente,
+                origenDestino
+            );
 
-            // 3. Responder al usuario
-            if (result.success) {
-                await ctx.reply(`✅ ${result.message}`);
+            if (result) {
+                await ctx.reply(
+                    `✅ Servicio registrado correctamente.\n` +
+                        `📋 Número de servicio: ${result.servicioCounter}\n` +
+                        `💰 Costo: $${costo.toFixed(2)}`
+                );
             } else {
-                await ctx.reply(`❌ ${result.message}`);
+                await ctx.reply('❌ No se pudo registrar el servicio. Verifica la póliza.');
             }
-            // --- FIN DE LA NUEVA ARQUITECTURA ---
         } catch (error: any) {
             this.logError('Error en handleServiceData', error);
             await ctx.reply(`❌ Error al registrar el servicio: ${error.message}`);
         } finally {
-            await stateManager.deleteState(stateKey);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_SERVICE_DATA,
+                threadId
+            );
         }
     }
 

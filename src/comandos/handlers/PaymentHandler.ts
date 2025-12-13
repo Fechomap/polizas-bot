@@ -1,14 +1,13 @@
 // src/comandos/handlers/PaymentHandler.ts
+// Migrado a UnifiedStateManager - elimina dependencia de StateFactory
 
 import { Markup } from 'telegraf';
 import BaseCommand from '../comandos/BaseCommand';
-import { stateManager } from '../../state/StateFactory';
+import { STATE_TYPES } from '../commandHandler';
 import { getPolicyByNumber, addPaymentToPolicy } from '../../controllers/policyController';
 import type { IBaseHandler, ChatContext } from '../comandos/BaseCommand';
 
 class PaymentHandler extends BaseCommand {
-    private readonly STATE_TTL = 3600;
-
     constructor(handler: IBaseHandler) {
         super(handler);
     }
@@ -24,12 +23,13 @@ class PaymentHandler extends BaseCommand {
             const threadId = BaseCommand.getThreadId(ctx);
             await this.handler.clearChatState(chatId, threadId);
 
-            const stateKey = this.handler._getStateKey(
+            // Usar UnifiedStateManager via handler
+            await this.handler.setAwaitingState(
                 chatId,
-                'awaitingPaymentPolicyNumber',
+                STATE_TYPES.AWAITING_PAYMENT_POLICY_NUMBER,
+                true,
                 threadId
             );
-            await stateManager.setState(stateKey, true, this.STATE_TTL);
 
             await ctx.reply('💰 Introduce el número de póliza para añadir el pago:');
         } catch (error) {
@@ -43,7 +43,6 @@ class PaymentHandler extends BaseCommand {
     ): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const stateKey = this.handler._getStateKey(chatId, 'awaitingPaymentPolicyNumber', threadId);
 
         try {
             const numeroPoliza = messageText.trim().toUpperCase();
@@ -53,8 +52,13 @@ class PaymentHandler extends BaseCommand {
                 return;
             }
 
-            const dataStateKey = this.handler._getStateKey(chatId, 'awaitingPaymentData', threadId);
-            await stateManager.setState(dataStateKey, numeroPoliza, this.STATE_TTL);
+            // Guardar número de póliza para siguiente paso
+            await this.handler.setAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_PAYMENT_DATA,
+                numeroPoliza,
+                threadId
+            );
 
             await ctx.reply(
                 `✅ Póliza *${numeroPoliza}* encontrada.\n\n💰 *Ingresa el monto del pago:*`,
@@ -63,17 +67,25 @@ class PaymentHandler extends BaseCommand {
         } catch (error) {
             this.logError('Error en handleAddPaymentPolicyNumber', error);
         } finally {
-            await stateManager.deleteState(stateKey);
+            // Limpiar estado de espera de número de póliza
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_PAYMENT_POLICY_NUMBER,
+                threadId
+            );
         }
     }
 
     public async handlePaymentData(ctx: ChatContext, messageText: string): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const stateKey = this.handler._getStateKey(chatId, 'awaitingPaymentData', threadId);
 
         try {
-            const numeroPoliza = await stateManager.getState<string>(stateKey);
+            const numeroPoliza = await this.handler.getAwaitingState<string>(
+                chatId,
+                STATE_TYPES.AWAITING_PAYMENT_DATA,
+                threadId
+            );
             if (!numeroPoliza) {
                 await ctx.reply('❌ Hubo un problema. Inicia el proceso de nuevo.');
                 return;
@@ -92,7 +104,11 @@ class PaymentHandler extends BaseCommand {
             this.logError('Error en handlePaymentData', error);
             await ctx.reply(`❌ Error al registrar el pago: ${error.message}`);
         } finally {
-            await stateManager.deleteState(stateKey);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_PAYMENT_DATA,
+                threadId
+            );
         }
     }
 

@@ -1,6 +1,6 @@
 // src/comandos/comandos/MediaUploadHandler.ts
 import { BaseCommand } from './BaseCommand';
-import { getPolicyByNumber } from '../../controllers/policyController';
+import { getPolicyByNumber, addFileToPolicyByNumber } from '../../controllers/policyController';
 import { getInstance } from '../../services/CloudflareStorage';
 import StateKeyManager from '../../utils/StateKeyManager';
 import type { IContextBot, IR2File } from '../../../types/index';
@@ -67,35 +67,18 @@ class MediaUploadHandler extends BaseCommand {
                     originalName
                 );
 
-                // Crear objeto de archivo R2
-                const r2FileObject: IR2File = {
+                // Guardar archivo en la tabla PolicyFileR2
+                const fileResult = await addFileToPolicyByNumber(numeroPoliza, 'FOTO', {
                     url: uploadResult.url,
                     key: uploadResult.key,
                     size: uploadResult.size,
                     contentType: uploadResult.contentType,
-                    uploadDate: new Date(),
                     originalName: originalName
-                };
+                });
 
-                // Find the policy and update
-                const policy = await getPolicyByNumber(numeroPoliza);
-                if (!policy) {
+                if (!fileResult) {
                     return await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 }
-
-                // Initialize files if it doesn't exist
-                if (!policy.archivos) {
-                    policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
-                }
-                if (!policy.archivos.r2Files) {
-                    policy.archivos.r2Files = { fotos: [], pdfs: [] };
-                }
-
-                // Add the photo to R2 files
-                policy.archivos.r2Files.fotos.push(r2FileObject);
-
-                // Save
-                await policy.save();
 
                 await ctx.reply('✅ Foto guardada correctamente en almacenamiento seguro.');
                 this.logInfo('Foto guardada', { numeroPoliza });

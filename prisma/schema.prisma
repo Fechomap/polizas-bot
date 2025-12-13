@@ -1,0 +1,551 @@
+// Prisma Schema - Migrado desde MongoDB/Mongoose
+// Generado automáticamente - NO editar manualmente
+// Ejecutar: npx prisma migrate dev --name init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum PolicyStatus {
+  ACTIVO
+  INACTIVO
+  ELIMINADO
+}
+
+enum PolicyType {
+  REGULAR
+  NIV
+}
+
+enum VehicleStatus {
+  SIN_POLIZA
+  CON_POLIZA
+  ELIMINADO
+  CONVERTIDO_NIV
+}
+
+enum VehicleCreatedVia {
+  TELEGRAM_BOT
+  WEB_INTERFACE
+  API
+}
+
+enum PagoStatus {
+  PLANIFICADO
+  REALIZADO
+  VENCIDO
+  CANCELADO
+}
+
+enum RegistroStatus {
+  PENDIENTE
+  ASIGNADO
+  NO_ASIGNADO
+}
+
+enum NotificationStatus {
+  PENDING
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+enum NotificationType {
+  CONTACTO
+  TERMINO
+  MANUAL
+}
+
+enum FileType {
+  FOTO
+  PDF
+}
+
+// ============================================
+// MODELO: ASEGURADORA (Catálogo)
+// ============================================
+
+model Aseguradora {
+  id          String   @id @default(cuid())
+  nombre      String   @unique
+  nombreCorto String
+  aliases     String[] @default([])
+  activa      Boolean  @default(true)
+  logoUrl     String?
+
+  // Contacto embebido → campos directos
+  contactoTelefono String?
+  contactoEmail    String?
+  contactoWeb      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([nombreCorto])
+  @@index([activa])
+}
+
+// ============================================
+// MODELO: POLICY (Principal)
+// ============================================
+
+model Policy {
+  id String @id @default(cuid())
+
+  // Datos del titular
+  titular    String
+  correo     String?
+  contrasena String? @map("contraseña")
+  rfc        String
+
+  // Dirección
+  calle        String
+  colonia      String
+  municipio    String
+  estadoRegion String?
+  cp           String
+
+  // Datos del vehículo (embebidos en Policy)
+  marca    String
+  submarca String
+  anio     Int    @map("año")
+  color    String
+  serie    String
+  placas   String
+
+  // Datos de la póliza
+  agenteCotizador String
+  aseguradora     String
+  numeroPoliza    String  @unique
+  fechaEmision    DateTime
+  telefono        String?
+
+  // Campos adicionales de cobertura
+  estadoPoliza           String?
+  fechaFinCobertura      DateTime?
+  fechaFinGracia         DateTime?
+  diasRestantesCobertura Int       @default(0)
+  diasRestantesGracia    Int       @default(0)
+
+  // Calificación y contadores
+  calificacion     Int @default(0)
+  totalServicios   Int @default(0)
+  servicioCounter  Int @default(0)
+  registroCounter  Int @default(0)
+
+  // Estado y eliminación
+  estado            PolicyStatus @default(ACTIVO)
+  fechaEliminacion  DateTime?
+  motivoEliminacion String?
+
+  // Campos para BD AUTOS
+  vehicleId    String?  @unique
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id])
+  creadoViaOBD Boolean  @default(false)
+  asignadoPor  String?
+
+  // Campos para sistema NIV
+  esNIV             Boolean    @default(false)
+  tipoPoliza        PolicyType @default(REGULAR)
+  fechaConversionNIV DateTime?
+
+  // Relaciones con subdocumentos → tablas separadas
+  pagos     Pago[]
+  registros Registro[]
+  servicios Servicio[]
+
+  // Archivos
+  archivosLegacy PolicyFileLegacy[]
+  archivosR2     PolicyFileR2[]
+
+  // Notificaciones relacionadas
+  notifications ScheduledNotification[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([rfc])
+  @@index([placas])
+  @@index([estado])
+  @@index([telefono])
+  @@index([estado, fechaEmision])
+}
+
+// ============================================
+// MODELO: VEHICLE
+// ============================================
+
+model Vehicle {
+  id String @id @default(cuid())
+
+  // Identificación única
+  serie String @unique @db.VarChar(17)
+
+  // Datos del vehículo
+  marca    String
+  submarca String
+  anio     Int    @map("año")
+  color    String
+  placas   String
+
+  // Datos del titular
+  titular  String
+  rfc      String @db.VarChar(13)
+  telefono String
+  correo   String
+
+  // Dirección
+  calle        String?
+  colonia      String?
+  municipio    String?
+  estadoRegion String?
+  cp           String?
+
+  // Estado
+  estado VehicleStatus @default(SIN_POLIZA)
+
+  // Metadatos
+  creadoPor String
+  creadoVia VehicleCreatedVia @default(TELEGRAM_BOT)
+  notas     String?           @db.VarChar(500)
+
+  // Relación con Policy (1:1)
+  policy Policy?
+
+  // Archivos
+  archivosLegacy VehicleFileLegacy[]
+  archivosR2     VehicleFileR2[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([placas])
+  @@index([estado])
+  @@index([creadoPor])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ============================================
+// MODELO: SCHEDULED NOTIFICATION
+// ============================================
+
+model ScheduledNotification {
+  id String @id @default(cuid())
+
+  // Referencia a póliza
+  numeroPoliza String
+  policy       Policy? @relation(fields: [numeroPoliza], references: [numeroPoliza])
+
+  // Información del servicio
+  expedienteNum String
+  origenDestino String?
+
+  // Datos adicionales
+  placas        String?
+  fotoUrl       String?
+  marcaModelo   String?
+  colorVehiculo String?
+  telefono      String?
+
+  // Programación
+  contactTime  String
+  scheduledDate DateTime
+
+  // Control de estados
+  lastScheduledAt     DateTime?
+  processingStartedAt DateTime?
+
+  // Metadatos del creador
+  createdByChatId   BigInt?
+  createdByUsername String?
+
+  targetGroupId BigInt
+
+  // Tipo y estado
+  tipoNotificacion NotificationType   @default(MANUAL)
+  status           NotificationStatus @default(PENDING)
+
+  // Registro de envío
+  sentAt DateTime?
+  error  String?
+
+  // Control de reintentos
+  retryCount  Int       @default(0)
+  lastRetryAt DateTime?
+
+  // Datos adicionales (JSON flexible)
+  additionalData Json?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([numeroPoliza, expedienteNum, tipoNotificacion, status], name: "unique_active_notification")
+  @@index([numeroPoliza])
+  @@index([scheduledDate])
+  @@index([lastScheduledAt])
+  @@index([processingStartedAt])
+  @@index([status])
+  @@index([status, scheduledDate])
+  @@index([status, lastScheduledAt])
+  @@index([numeroPoliza, expedienteNum, tipoNotificacion])
+}
+
+// ============================================
+// SUBDOCUMENTOS DE POLICY → TABLAS
+// ============================================
+
+// Pagos de póliza
+model Pago {
+  id String @id @default(cuid())
+
+  policyId String
+  policy   Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  monto         Float
+  fechaPago     DateTime
+  estado        PagoStatus @default(PLANIFICADO)
+  metodoPago    String?
+  referencia    String?
+  fechaRegistro DateTime   @default(now())
+  notas         String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([policyId])
+  @@index([estado])
+  @@index([fechaPago])
+}
+
+// Registros de servicio (pre-servicio)
+model Registro {
+  id String @id @default(cuid())
+
+  policyId String
+  policy   Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  numeroRegistro Int?
+  costo          Float?
+  fechaRegistro  DateTime?
+  numeroExpediente String?
+  origenDestino    String?
+  estado           RegistroStatus @default(PENDIENTE)
+
+  // Fechas programadas
+  fechaContactoProgramada DateTime?
+  fechaTerminoProgramada  DateTime?
+
+  // Coordenadas embebidas → campos directos
+  origenLat   Float?
+  origenLng   Float?
+  destinoLat  Float?
+  destinoLng  Float?
+
+  // Información de ruta
+  rutaDistanciaKm   Float?
+  rutaTiempoMinutos Float?
+  rutaGoogleMapsUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([policyId])
+  @@index([estado])
+  @@index([numeroRegistro])
+}
+
+// Servicios completados
+model Servicio {
+  id String @id @default(cuid())
+
+  policyId String
+  policy   Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  numeroServicio       Int?
+  numeroRegistroOrigen Int?
+  costo                Float?
+  fechaServicio        DateTime?
+  numeroExpediente     String?
+  origenDestino        String?
+
+  // Fechas programadas
+  fechaContactoProgramada DateTime?
+  fechaTerminoProgramada  DateTime?
+
+  // Fechas reales
+  fechaContactoReal DateTime?
+  fechaTerminoReal  DateTime?
+
+  // Coordenadas
+  origenLat   Float?
+  origenLng   Float?
+  destinoLat  Float?
+  destinoLng  Float?
+
+  // Información de ruta
+  rutaDistanciaKm   Float?
+  rutaTiempoMinutos Float?
+  rutaGoogleMapsUrl String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([policyId])
+  @@index([numeroServicio])
+}
+
+// ============================================
+// ARCHIVOS LEGACY (Buffer en DB - migrar después)
+// ============================================
+
+model PolicyFileLegacy {
+  id String @id @default(cuid())
+
+  policyId String
+  policy   Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  tipo        FileType
+  data        Bytes
+  contentType String?
+
+  createdAt DateTime @default(now())
+
+  @@index([policyId])
+  @@index([tipo])
+}
+
+model VehicleFileLegacy {
+  id String @id @default(cuid())
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  tipo         FileType
+  data         Bytes
+  contentType  String?
+  originalName String?
+  uploadDate   DateTime @default(now())
+
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId])
+  @@index([tipo])
+}
+
+// ============================================
+// ARCHIVOS R2 (Cloudflare R2 Storage)
+// ============================================
+
+model PolicyFileR2 {
+  id String @id @default(cuid())
+
+  policyId String
+  policy   Policy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  tipo           FileType
+  url            String
+  key            String
+  size           Int
+  contentType    String
+  uploadDate     DateTime @default(now())
+  originalName   String?
+  fuenteOriginal String?
+
+  createdAt DateTime @default(now())
+
+  @@index([policyId])
+  @@index([tipo])
+  @@index([key])
+}
+
+model VehicleFileR2 {
+  id String @id @default(cuid())
+
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  tipo           FileType @default(FOTO)
+  url            String
+  key            String
+  originalName   String?
+  contentType    String
+  size           Int
+  uploadedAt     DateTime @default(now())
+  fuenteOriginal String?
+
+  createdAt DateTime @default(now())
+
+  @@index([vehicleId])
+  @@index([tipo])
+  @@index([key])
+}
+
+// ============================================
+// AUDIT LOG - Registro de auditoría
+// ============================================
+
+enum AuditModule {
+  POLICY
+  SERVICE
+  DATABASE
+  SYSTEM
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+  PARTIAL
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  // Usuario que realizó la acción
+  userId    BigInt
+  username  String?
+  firstName String?
+  chatId    BigInt
+
+  // Acción realizada
+  action String
+  module AuditModule @default(SYSTEM)
+
+  // Entidad afectada
+  entityType String?
+  entityId   String?
+
+  // Cambios (JSON con before/after)
+  changes Json?
+
+  // Metadata adicional (JSON)
+  metadata Json?
+
+  // Resultado
+  result       AuditResult @default(SUCCESS)
+  errorMessage String?
+
+  // Timestamp
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([module])
+  @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([action, timestamp])
+  @@index([module, timestamp])
+}

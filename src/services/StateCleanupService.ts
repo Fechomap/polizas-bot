@@ -13,7 +13,7 @@
  */
 
 import StateKeyManager from '../utils/StateKeyManager';
-import flowStateManager from '../utils/FlowStateManager';
+import { getUnifiedStateManagerSync } from '../state/UnifiedStateManager';
 import logger from '../utils/logger';
 
 // Importar TODOS los mapas de estado de flujos
@@ -118,17 +118,23 @@ export class StateCleanupService {
     }
 
     /**
-     * Limpia estados del flujo Ocupar Póliza (FlowStateManager)
+     * Limpia estados del flujo Ocupar Póliza (UnifiedStateManager)
      */
     private limpiarEstadosOcuparPoliza(chatId: number, threadId: number | string | null): void {
-        const threadIdStr = threadId ? String(threadId) : null;
-        const contextKey = StateKeyManager.getContextKey(chatId, threadIdStr);
+        const threadIdNum = typeof threadId === 'string' ? parseInt(threadId, 10) : threadId;
+        const contextKey = StateKeyManager.getContextKey(chatId, threadId);
 
-        // Early return si no hay estados que limpiar
-        if (!flowStateManager.hasAnyState(chatId, threadIdStr)) return;
-
-        flowStateManager.clearAllStates(chatId, threadIdStr);
-        logger.info('[StateCleanup] Flujo Ocupar Póliza limpiado', { contextKey });
+        // UnifiedStateManager.clearAllStates es no-op si no hay estados
+        const stateManager = getUnifiedStateManagerSync();
+        if (!stateManager) return;
+        stateManager.clearAllStates(chatId, threadIdNum).then(clearedCount => {
+            if (clearedCount > 0) {
+                logger.info('[StateCleanup] Flujo Ocupar Póliza limpiado', {
+                    contextKey,
+                    clearedCount
+                });
+            }
+        });
     }
 }
 

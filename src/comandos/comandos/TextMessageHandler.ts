@@ -1,8 +1,9 @@
 import { BaseCommand, NavigationContext, IBaseHandler, ReplyOptions } from './BaseCommand';
 import { getPolicyByNumber, markPolicyAsDeleted } from '../../controllers/policyController';
 import { Markup } from 'telegraf';
-import StateKeyManager from '../../utils/StateKeyManager';
+import StateKeyManager, { IThreadSafeStateMap } from '../../utils/StateKeyManager';
 import { getStateCleanupService } from '../../services/StateCleanupService';
+import { STATE_TYPES } from '../commandHandler';
 import type { Context } from 'telegraf';
 import type { BotContext } from '../../../types';
 
@@ -21,11 +22,7 @@ interface ICommand {
         messageText: string,
         threadId: number | string | null
     ) => Promise<void>;
-    handleOrigenDestino?: (
-        ctx: Context,
-        messageText: string,
-        threadId: number | string | null
-    ) => Promise<void>;
+    // handleOrigenDestino: Eliminado - código muerto (nunca se establecía el estado)
     handleContactTime?: (
         ctx: Context,
         messageText: string,
@@ -38,28 +35,29 @@ interface ICommandRegistry {
     getCommand?(commandName: string): ICommand | undefined;
 }
 
-interface IThreadSafeStateMap<T> {
-    get: (chatId: number | string, threadId?: number | string | null) => T | undefined;
-    has: (chatId: number | string, threadId?: number | string | null) => boolean;
-    delete: (chatId: number | string, threadId?: number | string | null) => boolean;
-}
-
+// Nueva interfaz para handler con métodos async de estado
 interface IHandlerWithStates extends IBaseHandler {
     registry: ICommandRegistry;
     ocuparPolizaCallback?: IOcuparPolizaCallback;
-    awaitingSaveData: IThreadSafeStateMap<any>;
-    awaitingUploadPolicyNumber: IThreadSafeStateMap<any>;
-    awaitingDeletePolicyNumber: IThreadSafeStateMap<any>;
-    awaitingPaymentPolicyNumber: IThreadSafeStateMap<any>;
-    awaitingPaymentData: IThreadSafeStateMap<any>;
-    awaitingServicePolicyNumber: IThreadSafeStateMap<any>;
-    awaitingServiceData: IThreadSafeStateMap<any>;
-    awaitingPhoneNumber: IThreadSafeStateMap<any>;
-    awaitingOrigen: IThreadSafeStateMap<any>;
-    awaitingDestino: IThreadSafeStateMap<any>;
-    awaitingOrigenDestino: IThreadSafeStateMap<any>;
-    awaitingDeleteReason?: IThreadSafeStateMap<string[]>;
-    awaitingPolicySearch: IThreadSafeStateMap<any>;
+
+    // Métodos async para gestión de estados (UnifiedStateManager)
+    hasAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<boolean>;
+    getAwaitingState<T>(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<T | null>;
+    deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<void>;
+
+    // Handlers de mensajes
     handleSaveData: (ctx: Context, messageText: string) => Promise<void>;
     handleUploadFlow: (ctx: Context, messageText: string) => Promise<void>;
     handleDeletePolicyFlow: (ctx: Context, messageText: string) => Promise<void>;
@@ -126,12 +124,24 @@ export class TextMessageHandler extends BaseCommand {
 
                 this.lazyLoadOcuparPoliza();
 
-                if (this.handler.awaitingOrigen.has(chatId, threadId)) {
+                if (
+                    await this.handler.hasAwaitingState(
+                        chatId,
+                        STATE_TYPES.AWAITING_ORIGEN,
+                        threadId
+                    )
+                ) {
                     await this.handleLocationAsOrigen(ctx, threadId);
                     return;
                 }
 
-                if (this.handler.awaitingDestino.has(chatId, threadId)) {
+                if (
+                    await this.handler.hasAwaitingState(
+                        chatId,
+                        STATE_TYPES.AWAITING_DESTINO,
+                        threadId
+                    )
+                ) {
                     await this.handleLocationAsDestino(ctx, threadId);
                     return;
                 }
@@ -260,37 +270,63 @@ export class TextMessageHandler extends BaseCommand {
         messageText: string
     ): Promise<boolean> {
         // Save data
-        if (this.handler.awaitingSaveData.get(chatId, threadId)) {
+        if (await this.handler.getAwaitingState(chatId, STATE_TYPES.AWAITING_SAVE_DATA, threadId)) {
             await this.handler.handleSaveData(ctx, messageText);
             return true;
         }
 
         // Policy search
-        if (this.handler.awaitingPolicySearch.has(chatId, threadId)) {
+        if (
+            await this.handler.hasAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_POLICY_SEARCH,
+                threadId
+            )
+        ) {
             await this.handler.handlePolicySearch(ctx, messageText);
             return true;
         }
 
         // Upload policy
-        if (this.handler.awaitingUploadPolicyNumber.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_UPLOAD_POLICY_NUMBER,
+                threadId
+            )
+        ) {
             await this.handler.handleUploadFlow(ctx, messageText);
             return true;
         }
 
         // Delete policy
-        if (this.handler.awaitingDeletePolicyNumber.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_DELETE_POLICY_NUMBER,
+                threadId
+            )
+        ) {
             await this.handler.handleDeletePolicyFlow(ctx, messageText);
             return true;
         }
 
         // Payment policy number
-        if (this.handler.awaitingPaymentPolicyNumber.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_PAYMENT_POLICY_NUMBER,
+                threadId
+            )
+        ) {
             await this.handler.handleAddPaymentPolicyNumber(ctx, messageText);
             return true;
         }
 
         // Payment data
-        if (this.handler.awaitingPaymentData.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(chatId, STATE_TYPES.AWAITING_PAYMENT_DATA, threadId)
+        ) {
             await this.handler.handlePaymentData(ctx, messageText);
             return true;
         }
@@ -301,13 +337,21 @@ export class TextMessageHandler extends BaseCommand {
         }
 
         // Service policy number
-        if (this.handler.awaitingServicePolicyNumber.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_SERVICE_POLICY_NUMBER,
+                threadId
+            )
+        ) {
             await this.handler.handleAddServicePolicyNumber(ctx, messageText);
             return true;
         }
 
         // Service data
-        if (this.handler.awaitingServiceData.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(chatId, STATE_TYPES.AWAITING_SERVICE_DATA, threadId)
+        ) {
             await this.handleServiceData(ctx, chatId, threadId, messageText);
             return true;
         }
@@ -318,24 +362,27 @@ export class TextMessageHandler extends BaseCommand {
         }
 
         // Origen
-        if (this.handler.awaitingOrigen.has(chatId, threadId)) {
+        if (await this.handler.hasAwaitingState(chatId, STATE_TYPES.AWAITING_ORIGEN, threadId)) {
             await this.handleOrigenText(ctx, messageText, threadId);
             return true;
         }
 
         // Destino
-        if (this.handler.awaitingDestino.has(chatId, threadId)) {
+        if (await this.handler.hasAwaitingState(chatId, STATE_TYPES.AWAITING_DESTINO, threadId)) {
             await this.handleDestinoText(ctx, messageText, threadId);
             return true;
         }
 
-        // Origen-Destino
-        if (await this.handleOrigenDestinoIfActive(ctx, chatId, threadId, messageText)) {
-            return true;
-        }
+        // Origen-Destino: Eliminado - código muerto (estado nunca se establecía)
 
         // Delete reason
-        if (this.handler.awaitingDeleteReason?.get(chatId, threadId)) {
+        if (
+            await this.handler.getAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_DELETE_REASON,
+                threadId
+            )
+        ) {
             await this.handleDeleteReason(ctx, chatId, threadId, messageText);
             return true;
         }
@@ -477,12 +524,16 @@ export class TextMessageHandler extends BaseCommand {
                     fecha: fechaJS
                 });
                 if (!completed) {
-                    this.handler.awaitingServiceData.delete(chatId, threadId);
+                    await this.handler.deleteAwaitingState(
+                        chatId,
+                        STATE_TYPES.AWAITING_SERVICE_DATA,
+                        threadId
+                    );
                 }
                 return;
             }
         }
-        this.handler.awaitingServiceData.delete(chatId, threadId);
+        await this.handler.deleteAwaitingState(chatId, STATE_TYPES.AWAITING_SERVICE_DATA, threadId);
     }
 
     private async handlePhoneNumberIfActive(
@@ -491,15 +542,11 @@ export class TextMessageHandler extends BaseCommand {
         threadId: number | string | null,
         messageText: string
     ): Promise<boolean> {
-        let esperaTelefono = false;
-
-        if (this.handler.awaitingPhoneNumber) {
-            if (typeof this.handler.awaitingPhoneNumber.has === 'function') {
-                esperaTelefono = this.handler.awaitingPhoneNumber.has(chatId, threadId);
-            } else if (typeof this.handler.awaitingPhoneNumber.get === 'function') {
-                esperaTelefono = !!this.handler.awaitingPhoneNumber.get(chatId, threadId);
-            }
-        }
+        const esperaTelefono = await this.handler.hasAwaitingState(
+            chatId,
+            STATE_TYPES.AWAITING_PHONE_NUMBER,
+            threadId
+        );
 
         if (esperaTelefono) {
             this.lazyLoadOcuparPoliza();
@@ -539,33 +586,7 @@ export class TextMessageHandler extends BaseCommand {
         }
     }
 
-    private async handleOrigenDestinoIfActive(
-        ctx: Context,
-        chatId: number,
-        threadId: number | string | null,
-        messageText: string
-    ): Promise<boolean> {
-        let esperaOrigenDestino = false;
-
-        if (this.handler.awaitingOrigenDestino) {
-            if (typeof this.handler.awaitingOrigenDestino.has === 'function') {
-                esperaOrigenDestino = this.handler.awaitingOrigenDestino.has(chatId, threadId);
-            } else if (typeof this.handler.awaitingOrigenDestino.get === 'function') {
-                esperaOrigenDestino = !!this.handler.awaitingOrigenDestino.get(chatId, threadId);
-            }
-        }
-
-        if (esperaOrigenDestino) {
-            this.lazyLoadOcuparPoliza();
-            if (this.ocuparPolizaCallback?.handleOrigenDestino) {
-                await this.ocuparPolizaCallback.handleOrigenDestino(ctx, messageText, threadId);
-            } else {
-                await ctx.reply('❌ Error al procesar origen-destino.');
-            }
-            return true;
-        }
-        return false;
-    }
+    // handleOrigenDestinoIfActive: Eliminado - código muerto (estado nunca se establecía)
 
     private async handleDeleteReason(
         ctx: Context,
@@ -573,7 +594,11 @@ export class TextMessageHandler extends BaseCommand {
         threadId: number | string | null,
         messageText: string
     ): Promise<void> {
-        const numeroPolizas = this.handler.awaitingDeleteReason!.get(chatId, threadId);
+        const numeroPolizas = await this.handler.getAwaitingState<string[]>(
+            chatId,
+            STATE_TYPES.AWAITING_DELETE_REASON,
+            threadId
+        );
         const motivo = messageText.trim() === 'ninguno' ? '' : messageText.trim();
 
         if (!numeroPolizas) {
@@ -650,7 +675,11 @@ export class TextMessageHandler extends BaseCommand {
             this.logError('Error general al eliminar pólizas:', error);
             await ctx.reply('❌ Error al eliminar las pólizas.', Markup.inlineKeyboard([]));
         } finally {
-            this.handler.awaitingDeleteReason?.delete(chatId, threadId);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_DELETE_REASON,
+                threadId
+            );
         }
     }
 }

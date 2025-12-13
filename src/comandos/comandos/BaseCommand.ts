@@ -11,6 +11,29 @@ import type { ParseMode, Message } from 'telegraf/typings/core/types/typegram';
 // Base handler interface
 interface IBaseHandler {
     bot: any;
+    // Métodos de UnifiedStateManager
+    setAwaitingState(
+        chatId: number,
+        stateType: string,
+        value: any,
+        threadId?: number | null
+    ): Promise<void>;
+    getAwaitingState<T>(
+        chatId: number,
+        stateType: string,
+        threadId?: number | null
+    ): Promise<T | null>;
+    hasAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | null
+    ): Promise<boolean>;
+    deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | null
+    ): Promise<void>;
+    clearChatState(chatId: number, threadId?: number | string | null): Promise<void>;
     [key: string]: any;
 }
 

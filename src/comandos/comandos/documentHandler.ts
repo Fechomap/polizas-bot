@@ -2,7 +2,7 @@ import { Context, Markup, Telegraf } from 'telegraf';
 import { Document, Message } from 'telegraf/typings/core/types/typegram';
 import logger from '../../utils/logger';
 import fetch from 'node-fetch';
-import { getPolicyByNumber } from '../../controllers/policyController';
+import { getPolicyByNumber, addFileToPolicyByNumber } from '../../controllers/policyController';
 import StateKeyManager from '../../utils/StateKeyManager';
 import { getInstance } from '../../services/CloudflareStorage';
 import { IPolicy, IR2FileObject, IR2File } from '../../types/database';
@@ -258,36 +258,19 @@ class DocumentHandler {
                 (ctx.message as any).document.file_name ?? `documento_${Date.now()}.pdf`;
             const uploadResult = await storage.uploadPolicyPDF(buffer, numeroPoliza, originalName);
 
-            // Crear objeto de archivo R2 compatible con IR2File
-            const r2FileObject: IR2File = {
+            // Guardar archivo en la tabla PolicyFileR2
+            const fileResult = await addFileToPolicyByNumber(numeroPoliza, 'PDF', {
                 url: uploadResult.url,
                 key: uploadResult.key,
                 size: uploadResult.size,
                 contentType: uploadResult.contentType,
-                uploadDate: new Date(),
                 originalName: originalName
-            };
+            });
 
-            // Find the policy and update
-            const policy = (await getPolicyByNumber(numeroPoliza)) as IPolicy;
-            if (!policy) {
+            if (!fileResult) {
                 await ctx.reply(`❌ Póliza ${numeroPoliza} no encontrada.`);
                 return;
             }
-
-            // Initialize files if it doesn't exist
-            if (!policy.archivos) {
-                policy.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
-            }
-            if (!policy.archivos.r2Files) {
-                policy.archivos.r2Files = { fotos: [], pdfs: [] };
-            }
-
-            // Add the PDF to R2 files
-            policy.archivos.r2Files.pdfs.push(r2FileObject);
-
-            // Save
-            await policy.save();
 
             await ctx.reply('✅ PDF guardado correctamente en almacenamiento seguro.');
             logger.info('PDF guardado', { numeroPoliza });

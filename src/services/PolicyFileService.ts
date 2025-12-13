@@ -4,9 +4,10 @@
  * Responsabilidad única: subida a R2 y transferencia de fotos
  */
 
-import Policy from '../models/policy';
 import type { IVehicle, IPolicy } from '../types/database';
 import type { IArchivoPoliza, IR2FileRecord, IUploadResult } from '../types/policy-assignment';
+import { addFileToPolicyR2, getPolicyFilesByNumber } from '../controllers/policyController';
+import { prisma } from '../database';
 import logger from '../utils/logger';
 
 export class PolicyFileService {
@@ -70,7 +71,7 @@ export class PolicyFileService {
     }
 
     /**
-     * Guarda referencia del archivo en la póliza
+     * Guarda referencia del archivo en la póliza (Prisma)
      */
     async guardarReferenciaArchivo(
         policyId: string,
@@ -78,40 +79,15 @@ export class PolicyFileService {
         uploadResult: IUploadResult
     ): Promise<boolean> {
         try {
-            const polizaDB = await Policy.findById(policyId);
-            if (!polizaDB) {
-                logger.error('[PolicyFileService] Póliza no encontrada:', policyId);
-                return false;
-            }
-
-            // Inicializar estructura de archivos si no existe
-            if (!polizaDB.archivos) {
-                polizaDB.archivos = {
-                    fotos: [],
-                    pdfs: [],
-                    r2Files: { fotos: [], pdfs: [] }
-                };
-            }
-            if (!polizaDB.archivos.r2Files) {
-                polizaDB.archivos.r2Files = { fotos: [], pdfs: [] };
-            }
-
-            const r2File: IR2FileRecord = {
+            const tipo = archivo.type === 'pdf' ? 'PDF' : 'FOTO';
+            await addFileToPolicyR2(policyId, tipo, {
                 url: uploadResult.url!,
                 key: uploadResult.key!,
                 size: uploadResult.size ?? 0,
                 contentType: uploadResult.contentType ?? archivo.mime_type,
-                uploadDate: new Date(),
                 originalName: archivo.file_name
-            };
+            });
 
-            if (archivo.type === 'pdf') {
-                polizaDB.archivos.r2Files.pdfs.push(r2File);
-            } else {
-                polizaDB.archivos.r2Files.fotos.push(r2File);
-            }
-
-            await polizaDB.save();
             logger.info(`[PolicyFileService] Referencia guardada en póliza ${policyId}`);
             return true;
         } catch (error: any) {
@@ -121,50 +97,38 @@ export class PolicyFileService {
     }
 
     /**
-     * Transfiere fotos de un vehículo a una póliza
+     * Transfiere fotos de un vehículo a una póliza (Prisma)
      */
     async transferirFotosVehiculo(vehiculo: IVehicle, poliza: IPolicy): Promise<number> {
         try {
-            if (!vehiculo.archivos?.r2Files?.fotos?.length) {
+            // Obtener fotos del vehículo desde VehicleFileR2
+            const fotosVehiculo = await prisma.vehicleFileR2.findMany({
+                where: { vehicleId: vehiculo.id, tipo: 'FOTO' }
+            });
+
+            if (fotosVehiculo.length === 0) {
                 logger.debug('[PolicyFileService] No hay fotos del vehículo para transferir');
                 return 0;
             }
 
-            const polizaDB = await Policy.findById(poliza._id);
-            if (!polizaDB) {
-                logger.error('[PolicyFileService] Póliza no encontrada para transferir fotos');
-                return 0;
-            }
-
-            // Inicializar estructura de archivos
-            if (!polizaDB.archivos) {
-                polizaDB.archivos = { fotos: [], pdfs: [], r2Files: { fotos: [], pdfs: [] } };
-            }
-            if (!polizaDB.archivos.r2Files) {
-                polizaDB.archivos.r2Files = { fotos: [], pdfs: [] };
-            }
-
-            // Copiar referencias de fotos
-            const fotosTransferidas: IR2FileRecord[] = [];
-            for (const foto of vehiculo.archivos.r2Files.fotos) {
-                fotosTransferidas.push({
+            // Copiar referencias de fotos a la póliza
+            let fotosTransferidas = 0;
+            for (const foto of fotosVehiculo) {
+                await addFileToPolicyR2(poliza.id, 'FOTO', {
                     url: foto.url,
                     key: foto.key,
                     size: foto.size,
                     contentType: foto.contentType ?? 'image/jpeg',
-                    uploadDate: foto.uploadDate ?? new Date(),
                     originalName: foto.originalName ?? 'foto_vehiculo.jpg',
                     fuenteOriginal: 'vehiculo_bd_autos'
                 });
+                fotosTransferidas++;
             }
 
-            polizaDB.archivos.r2Files.fotos.push(...fotosTransferidas);
-            await polizaDB.save();
-
             logger.info(
-                `[PolicyFileService] ${fotosTransferidas.length} fotos transferidas a póliza ${poliza.numeroPoliza}`
+                `[PolicyFileService] ${fotosTransferidas} fotos transferidas a póliza ${poliza.numeroPoliza}`
             );
-            return fotosTransferidas.length;
+            return fotosTransferidas;
         } catch (error: any) {
             logger.error('[PolicyFileService] Error transfiriendo fotos:', error);
             return 0;

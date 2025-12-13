@@ -3,10 +3,10 @@
 import Queue from 'bull';
 import config from '../config';
 import logger from '../utils/logger';
-import ScheduledNotification from '../models/scheduledNotification';
+import { prisma } from '../database/prisma';
 import { Telegraf } from 'telegraf';
 
-import { getPolicyByNumber } from '../controllers/policyController';
+import { getPolicyFilesByNumber } from '../controllers/policyController';
 import { getInstance as getStorageInstance } from '../services/CloudflareStorage';
 
 // Helper para enviar mensaje con timeout
@@ -39,10 +39,9 @@ async function sendMessageWithTimeout(
 async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void> {
     try {
         if (!notification.numeroPoliza) return;
-        const policy = await getPolicyByNumber(notification.numeroPoliza);
-        if (!policy) return;
 
-        const fotos = policy.archivos?.r2Files?.fotos ?? [];
+        // Obtener fotos de la tabla PolicyFileR2
+        const fotos = await getPolicyFilesByNumber(notification.numeroPoliza, 'FOTO');
         if (fotos.length === 0) return;
 
         const storage = getStorageInstance();
@@ -54,7 +53,7 @@ async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void
 
             // Usar URL firmada (válida por 1 hora) en lugar de URL pública
             const signedUrl = await storage.getSignedUrl(foto.key, 3600);
-            await bot.telegram.sendPhoto(notification.targetGroupId, signedUrl, { caption });
+            await bot.telegram.sendPhoto(Number(notification.targetGroupId), signedUrl, { caption });
 
             if (i < fotosAEnviar.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -68,10 +67,12 @@ async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void
 // La lógica de envío real, ahora dentro del contexto de la cola.
 async function sendNotificationToTelegram(notification: any, bot: Telegraf): Promise<void> {
     // Verificación final antes de enviar
-    const latestStatus = await ScheduledNotification.findById(notification._id).lean();
+    const latestStatus = await prisma.scheduledNotification.findUnique({
+        where: { id: notification.id }
+    });
     if (!latestStatus || latestStatus.status !== 'PROCESSING') {
         logger.warn(
-            `[SEND_ABORTED] Notificación ${notification._id} ya no está en estado PROCESSING. Estado actual: ${latestStatus?.status}. Abortando envío.`
+            `[SEND_ABORTED] Notificación ${notification.id} ya no está en estado PROCESSING. Estado actual: ${latestStatus?.status}. Abortando envío.`
         );
         return;
     }
@@ -113,19 +114,22 @@ async function sendNotificationToTelegram(notification: any, bot: Telegraf): Pro
     // Enviar el mensaje
     await sendMessageWithTimeout(
         bot,
-        notification.targetGroupId,
+        Number(notification.targetGroupId),
         message,
         { parse_mode: 'HTML' },
         30000 // 30 segundos timeout
     );
 
     // Marcar como enviada
-    await ScheduledNotification.findByIdAndUpdate(notification._id, {
-        status: 'SENT',
-        sentAt: new Date()
+    await prisma.scheduledNotification.update({
+        where: { id: notification.id },
+        data: {
+            status: 'SENT',
+            sentAt: new Date()
+        }
     });
 
-    logger.info(`✅ [SENT VIA QUEUE] Notificación ${notification._id} enviada exitosamente.`);
+    logger.info(`✅ [SENT VIA QUEUE] Notificación ${notification.id} enviada exitosamente.`);
 }
 
 // 1. Inicialización de la cola (soporta REDIS_URL o host/port)
@@ -172,7 +176,9 @@ export function initializeNotificationConsumer(bot: Telegraf): void {
         const { notificationId } = job.data;
         logger.info(`Procesando notificación desde la cola: ${notificationId}`);
 
-        const notification = await ScheduledNotification.findById(notificationId).lean();
+        const notification = await prisma.scheduledNotification.findUnique({
+            where: { id: notificationId }
+        });
 
         // Validar que la notificación exista y esté en un estado procesable
         if (!notification) {
@@ -187,13 +193,19 @@ export function initializeNotificationConsumer(bot: Telegraf): void {
         }
 
         try {
-            await ScheduledNotification.findByIdAndUpdate(notificationId, { status: 'PROCESSING' });
+            await prisma.scheduledNotification.update({
+                where: { id: notificationId },
+                data: { status: 'PROCESSING' }
+            });
             await sendNotificationToTelegram(notification, bot); // Lógica de envío
         } catch (error) {
             logger.error(`Error procesando notificación ${notificationId}:`, error);
-            await ScheduledNotification.findByIdAndUpdate(notificationId, {
-                status: 'FAILED',
-                errorMessage: error instanceof Error ? error.message : String(error)
+            await prisma.scheduledNotification.update({
+                where: { id: notificationId },
+                data: {
+                    status: 'FAILED',
+                    error: error instanceof Error ? error.message : String(error)
+                }
             });
             throw error; // Re-lanzar el error para que Bull lo maneje como un fallo de job
         }

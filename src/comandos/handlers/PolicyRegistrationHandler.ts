@@ -1,20 +1,15 @@
 // src/comandos/handlers/PolicyRegistrationHandler.ts
+// Migrado a UnifiedStateManager - elimina dependencia de StateFactory
 
 import { Markup } from 'telegraf';
 import BaseCommand from '../comandos/BaseCommand';
-import { stateManager } from '../../state/StateFactory';
-import {
-    savePolicy,
-    getPolicyByNumber,
-    DuplicatePolicyError
-} from '../../controllers/policyController';
+import { STATE_TYPES } from '../commandHandler';
+import { savePolicy } from '../../controllers/policyController';
 import type { IBaseHandler, ChatContext } from '../comandos/BaseCommand';
 import type { IPolicyData } from '../../types/database';
 import type ExcelUploadHandler from '../comandos/ExcelUploadHandler';
 
 class PolicyRegistrationHandler extends BaseCommand {
-    private readonly STATE_TTL = 3600;
-
     constructor(handler: IBaseHandler) {
         super(handler);
     }
@@ -71,7 +66,6 @@ class PolicyRegistrationHandler extends BaseCommand {
     public async handleSaveData(ctx: ChatContext, messageText: string): Promise<void> {
         const chatId = ctx.chat.id;
         const threadId = BaseCommand.getThreadId(ctx);
-        const stateKey = this.handler._getStateKey(chatId, 'awaitingSaveData', threadId);
 
         try {
             const lines = messageText
@@ -114,7 +108,11 @@ class PolicyRegistrationHandler extends BaseCommand {
         } catch (error: any) {
             await ctx.reply(`❌ Error al guardar: ${error.message}`);
         } finally {
-            await stateManager.deleteState(stateKey);
+            await this.handler.deleteAwaitingState(
+                chatId,
+                STATE_TYPES.AWAITING_SAVE_DATA,
+                threadId
+            );
         }
     }
 

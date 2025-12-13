@@ -1,6 +1,6 @@
 import { Context } from 'telegraf';
 import { Markup } from 'telegraf';
-import Policy from '../../models/policy';
+// Policy import removed - reports now use ReportsHandlerV2 which uses Prisma
 import { AuditLogger } from '../utils/auditLogger';
 import AdminMenu from '../menus/adminMenu';
 import logger from '../../utils/logger';

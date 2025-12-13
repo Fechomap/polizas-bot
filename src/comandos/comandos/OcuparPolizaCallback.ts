@@ -9,6 +9,8 @@
  * - LocationStep: Origen y destino
  * - ServiceRegistrationStep: Registro de servicios
  * - LegendService: Generación y envío de leyendas
+ *
+ * Estados: Centralizados en UnifiedStateManager (Redis)
  */
 
 import { Context } from 'telegraf';
@@ -19,15 +21,31 @@ import type ViewFilesCallbacks from './ViewFilesCallbacks';
 import OcuparPolizaFlow from '../../flows/ocupar-poliza/OcuparPolizaFlow';
 
 interface IHandler extends IBaseHandler {
-    awaitingPhoneNumber: IThreadSafeStateMap<string>;
-    awaitingOrigenDestino: IThreadSafeStateMap<string>;
-    awaitingOrigen: IThreadSafeStateMap<string>;
-    awaitingDestino: IThreadSafeStateMap<string>;
-    awaitingServiceData: IThreadSafeStateMap<string>;
-    awaitingServicePolicyNumber: IThreadSafeStateMap<boolean>;
+    // Métodos async para gestión de estados (UnifiedStateManager)
+    setAwaitingState(
+        chatId: number,
+        stateType: string,
+        value: any,
+        threadId?: number | string | null
+    ): Promise<void>;
+    getAwaitingState<T>(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<T | null>;
+    hasAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<boolean>;
+    deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<void>;
+
     excelUploadMessages?: Map<number, number>;
     processingCallbacks?: Set<string>;
-    uploadTargets: IThreadSafeStateMap<string>;
     viewFilesCallbacks?: ViewFilesCallbacks;
     registry: {
         registerCallback(pattern: RegExp, handler: (ctx: Context) => Promise<void>): void;
@@ -36,7 +54,7 @@ interface IHandler extends IBaseHandler {
             procesarDocumentoBaseAutos?(message: Message, userId: string): Promise<boolean>;
         }>;
     };
-    clearChatState(chatId: number, threadId?: string | null): void;
+    clearChatState(chatId: number, threadId?: string | null): Promise<void>;
     handleAddServicePolicyNumber?(ctx: Context, numeroPoliza: string): Promise<void>;
 }
 
@@ -102,8 +120,11 @@ class OcuparPolizaCallback extends BaseCommand {
         return this.flow.handleContactTime(ctx, messageText, threadId);
     }
 
-    public cleanupAllStates(chatId: number, threadId: string | null = null): void {
-        this.flow.cleanupAllStates(chatId, threadId);
+    public async cleanupAllStates(
+        chatId: number,
+        threadId: string | number | null = null
+    ): Promise<void> {
+        await this.flow.cleanupAllStates(chatId, threadId);
     }
 }
 

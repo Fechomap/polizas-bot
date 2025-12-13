@@ -1,7 +1,6 @@
 import { Telegraf, Context, session } from 'telegraf';
 import express from 'express';
 import https from 'https';
-import connectDB, { closeDB } from './database';
 import logger from './utils/logger';
 import config from './config';
 import CommandHandler from './comandos/commandHandler';
@@ -10,9 +9,9 @@ import authMiddleware from './middleware/authMiddleware';
 import { getInstance as getNotificationManager } from './services/NotificationManager';
 import { RedisSessionStore } from './state/RedisSessionStore';
 
-// 🚀 TYPESCRIPT MIGRATION CONFIRMED - DÍA 15 COMPLETADO! 🚀
+// Sistema centralizado de estados
+import { getUnifiedStateManager } from './state/UnifiedStateManager';
 import stateCleanupService from './utils/StateCleanupService';
-import flowStateManager from './utils/FlowStateManager';
 import AdminModule from './admin';
 import CalculationScheduler from './admin/utils/calculationScheduler';
 import { createBullBoard } from '@bull-board/api';
@@ -36,10 +35,6 @@ if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
 
 if (!config.telegram.token) {
     throw new Error('TELEGRAM_BOT_TOKEN no configurado en .env');
-}
-
-if (!config.mongodb.uri) {
-    throw new Error('MONGO_URI no configurado en .env');
 }
 
 // Validar ID de grupo principal
@@ -71,16 +66,32 @@ async function initializeBot(): Promise<Telegraf> {
             logger.info(`Servidor web iniciado en puerto ${PORT}`);
         });
 
-        await connectDB();
-        logger.info('✅ Base de datos conectada con éxito');
+        logger.info('✅ PostgreSQL/Prisma listo');
+
+        // Inicializar UnifiedStateManager ANTES de todo (garantiza conexión Redis)
+        const unifiedStateManager = await getUnifiedStateManager();
+        const stateStats = await unifiedStateManager.getStats();
+        logger.info('✅ UnifiedStateManager inicializado', {
+            redisConnected: stateStats.redisConnected,
+            ttlSeconds: stateStats.ttlSeconds
+        });
+
+        // Registrar UnifiedStateManager como provider de cleanup
+        stateCleanupService.registerStateProvider(
+            {
+                async cleanup(cutoffTime: number): Promise<number> {
+                    // Redis maneja TTL automáticamente, pero forzamos limpieza del cache L1
+                    return unifiedStateManager.cleanup(cutoffTime);
+                }
+            },
+            'UnifiedStateManager'
+        );
 
         // Iniciar servicio de limpieza automática de estados
         stateCleanupService.start(
-            15 * 60 * 1000, // Ejecutar cada 15 minutos
-            30 * 60 * 1000 // Limpiar estados más antiguos de 30 minutos
+            config.ttl.cleanupInterval, // 15 minutos desde config
+            config.ttl.session // TTL de 1 hora desde config
         );
-        // Registrar FlowStateManager para limpieza periódica de estados huérfanos
-        stateCleanupService.registerStateProvider(flowStateManager, 'FlowStateManager');
         logger.info('✅ Servicio de limpieza de estados iniciado');
 
         // Configurar agente HTTPS con timeouts mejorados para alertas rápidas
@@ -102,8 +113,10 @@ async function initializeBot(): Promise<Telegraf> {
         // Inicializar NotificationManager
         try {
             const notificationManager = getNotificationManager(bot);
-            await notificationManager.initialize();
-            logger.info('✅ Sistema de notificaciones (legacy) inicializado correctamente');
+            if (notificationManager) {
+                await notificationManager.initialize();
+                logger.info('✅ Sistema de notificaciones (legacy) inicializado correctamente');
+            }
 
             // Inicializar consumidor de la cola de notificaciones
             initializeNotificationConsumer(bot);
@@ -162,23 +175,21 @@ async function initializeBot(): Promise<Telegraf> {
             }
         });
 
-        // Middleware de sesión (Redis en producción, memoria en desarrollo)
-        if (process.env.NODE_ENV === 'production') {
-            const sessionStore = new RedisSessionStore();
-            bot.use(
-                session({
-                    store: {
-                        get: (key: string) => sessionStore.get(key),
-                        set: (key: string, value: any) => sessionStore.set(key, value),
-                        delete: (key: string) => sessionStore.delete(key)
-                    }
-                })
-            );
-            logger.info('✅ Middleware de sesión con Redis configurado');
-        } else {
-            bot.use(session());
-            logger.info('✅ Middleware de sesión en memoria (desarrollo)');
-        }
+        // Middleware de sesión - SIEMPRE Redis (dev=DB1, prod=DB0)
+        const sessionStore = new RedisSessionStore();
+        bot.use(
+            session({
+                store: {
+                    get: (key: string) => sessionStore.get(key),
+                    set: (key: string, value: any) => sessionStore.set(key, value),
+                    delete: (key: string) => sessionStore.delete(key)
+                }
+            })
+        );
+        logger.info('✅ Middleware de sesión con Redis configurado', {
+            redisDb: config.redis.db,
+            environment: config.isDevelopment ? 'desarrollo' : 'producción'
+        });
 
         // Middleware de autorización (PRIMERO - más importante)
         bot.use(authMiddleware());
@@ -223,7 +234,7 @@ async function initializeBot(): Promise<Telegraf> {
             // Detener NotificationManager antes del bot
             try {
                 const notificationManager = getNotificationManager();
-                if (notificationManager.isInitialized) {
+                if (notificationManager?.isInitialized) {
                     notificationManager.stop();
                     logger.info('✅ Sistema de notificaciones detenido correctamente');
                 }
@@ -261,14 +272,6 @@ async function initializeBot(): Promise<Telegraf> {
                 logger.info('✅ NavigationManager detenido correctamente');
             } catch (stopError) {
                 logger.error('Error al detener NavigationManager:', stopError);
-            }
-
-            // Cerrar conexión MongoDB
-            try {
-                await closeDB();
-                logger.info('✅ Conexión MongoDB cerrada correctamente');
-            } catch (dbError) {
-                logger.error('Error cerrando MongoDB:', dbError);
             }
 
             // Cerrar cola de notificaciones (Bull - tiene su propia conexión Redis)

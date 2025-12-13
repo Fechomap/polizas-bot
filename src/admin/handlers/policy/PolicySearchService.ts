@@ -2,10 +2,11 @@
  * PolicySearchService - Servicio de búsqueda de pólizas
  *
  * Responsabilidad: Buscar y mostrar resultados de pólizas
+ * Migrado de Mongoose a Prisma/PostgreSQL
  */
 
 import { Context, Markup } from 'telegraf';
-import Policy from '../../../models/policy';
+import { prisma } from '../../../database/prisma';
 import adminStateManager from '../../utils/adminStates';
 import { AuditLogger } from '../../utils/auditLogger';
 import AdminMenu from '../../menus/adminMenu';
@@ -74,35 +75,48 @@ _Búsqueda inteligente en pólizas activas._
         filter: 'all' | 'active' | 'deleted' = 'all'
     ): Promise<IPolicySearchResult[]> {
         const cleanTerm = searchTerm.trim();
-
-        // Búsqueda exacta (case-insensitive para titular y rfc)
         const upperTerm = cleanTerm.toUpperCase();
-        const searchQuery: any = {
-            $or: [
-                { numeroPoliza: upperTerm },
-                { titular: { $regex: `^${cleanTerm}$`, $options: 'i' } },
-                { rfc: { $regex: `^${cleanTerm}$`, $options: 'i' } }
-            ]
-        };
 
-        // Aplicar filtro de estado según parámetro
+        // Construir condición de estado según filtro
+        let estadoCondition: any = {};
         if (filter === 'active') {
-            searchQuery.estado = { $ne: 'ELIMINADO' };
+            estadoCondition = { estado: { not: 'ELIMINADO' } };
         } else if (filter === 'deleted') {
-            searchQuery.estado = 'ELIMINADO';
+            estadoCondition = { estado: 'ELIMINADO' };
         }
         // 'all' no agrega filtro de estado
 
-        // Solo campos necesarios para listado (optimizado)
-        const policies = await Policy.find(searchQuery)
-            .select(
-                'numeroPoliza titular rfc estado estadoPoliza fechaEmision fechaFinCobertura fechaFinGracia aseguradora'
-            )
-            .sort({ fechaEmision: -1 })
-            .limit(10)
-            .lean();
+        // Búsqueda con Prisma (case-insensitive)
+        const policies = await prisma.policy.findMany({
+            where: {
+                ...estadoCondition,
+                OR: [
+                    { numeroPoliza: upperTerm },
+                    { titular: { equals: cleanTerm, mode: 'insensitive' } },
+                    { rfc: { equals: cleanTerm, mode: 'insensitive' } }
+                ]
+            },
+            select: {
+                id: true,
+                numeroPoliza: true,
+                titular: true,
+                rfc: true,
+                estado: true,
+                estadoPoliza: true,
+                fechaEmision: true,
+                fechaFinCobertura: true,
+                fechaFinGracia: true,
+                aseguradora: true
+            },
+            orderBy: { fechaEmision: 'desc' },
+            take: 10
+        });
 
-        return policies as unknown as IPolicySearchResult[];
+        // Mapear a formato esperado (con _id para compatibilidad)
+        return policies.map(p => ({
+            ...p,
+            _id: p.id
+        })) as unknown as IPolicySearchResult[];
     }
 
     /**

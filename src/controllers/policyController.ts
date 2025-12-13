@@ -1,16 +1,40 @@
 // src/controllers/policyController.ts
-import Policy from '../models/policy';
+// Migrado de Mongoose a Prisma/PostgreSQL
+
+import { prisma } from '../database';
 import logger from '../utils/logger';
 import { cacheService } from '../cache/CacheService';
 import type {
-    IPolicy,
-    IPolicyData,
-    IPago,
-    IServicio,
-    IRegistro,
-    ICoordenadas,
-    IRutaInfo
-} from '../types/database';
+    Policy,
+    Pago,
+    Registro,
+    Servicio,
+    PolicyStatus,
+    RegistroStatus,
+    PolicyFileR2,
+    FileType
+} from '../generated/prisma';
+
+// Tipos compatibles con el código existente
+export type IPolicy = Policy & {
+    pagos: Pago[];
+    registros: Registro[];
+    servicios: Servicio[];
+    r2Files?: PolicyFileR2[];
+};
+
+export type IPolicyData = Omit<Policy, 'id' | 'createdAt' | 'updatedAt'>;
+
+export interface ICoordenadas {
+    origen?: { lat?: number; lng?: number };
+    destino?: { lat?: number; lng?: number };
+}
+
+export interface IRutaInfo {
+    distanciaKm?: number;
+    tiempoMinutos?: number;
+    googleMapsUrl?: string;
+}
 
 export class DuplicatePolicyError extends Error {
     constructor(message: string) {
@@ -19,14 +43,43 @@ export class DuplicatePolicyError extends Error {
     }
 }
 
-export const savePolicy = async (policyData: IPolicyData): Promise<IPolicy> => {
+export const savePolicy = async (policyData: any): Promise<IPolicy> => {
     try {
-        const newPolicy = new Policy(policyData);
-        const savedPolicy = await newPolicy.save();
+        const savedPolicy = await prisma.policy.create({
+            data: {
+                titular: policyData.titular,
+                correo: policyData.correo,
+                contrasena: policyData.contraseña,
+                rfc: policyData.rfc,
+                calle: policyData.calle,
+                colonia: policyData.colonia,
+                municipio: policyData.municipio,
+                estadoRegion: policyData.estadoRegion,
+                cp: policyData.cp,
+                marca: policyData.marca,
+                submarca: policyData.submarca,
+                anio: policyData.año,
+                color: policyData.color,
+                serie: policyData.serie,
+                placas: policyData.placas,
+                agenteCotizador: policyData.agenteCotizador,
+                aseguradora: policyData.aseguradora,
+                numeroPoliza: policyData.numeroPoliza.trim().toUpperCase(),
+                fechaEmision: policyData.fechaEmision,
+                telefono: policyData.telefono,
+                estadoPoliza: policyData.estadoPoliza,
+                fechaFinCobertura: policyData.fechaFinCobertura,
+                fechaFinGracia: policyData.fechaFinGracia,
+                diasRestantesCobertura: policyData.diasRestantesCobertura ?? 0,
+                diasRestantesGracia: policyData.diasRestantesGracia ?? 0,
+                estado: 'ACTIVO'
+            },
+            include: { pagos: true, registros: true, servicios: true }
+        });
         logger.info('Póliza guardada exitosamente:', { numeroPoliza: savedPolicy.numeroPoliza });
-        return savedPolicy;
+        return savedPolicy as IPolicy;
     } catch (error: any) {
-        if (error.code === 11000) {
+        if (error.code === 'P2002') {
             throw new DuplicatePolicyError(
                 `Ya existe una póliza con el número: ${policyData.numeroPoliza}`
             );
@@ -43,10 +96,19 @@ export const getPolicyByNumber = async (numeroPoliza: string): Promise<IPolicy |
 
     return cacheService.get(cacheKey, async () => {
         logger.info('Buscando póliza en la BD (cache miss):', { numeroPoliza: normalizedNumero });
-        const policy = await Policy.findOne({
-            numeroPoliza: normalizedNumero,
-            estado: 'ACTIVO'
-        }).lean();
+        const policy = await prisma.policy.findFirst({
+            where: {
+                numeroPoliza: normalizedNumero,
+                estado: 'ACTIVO'
+            },
+            include: {
+                pagos: true,
+                registros: true,
+                servicios: true,
+                archivosR2: true,
+                archivosLegacy: true
+            }
+        });
         return policy as IPolicy | null;
     });
 };
@@ -56,24 +118,35 @@ export const markPolicyAsDeleted = async (
     motivo = ''
 ): Promise<IPolicy | null> => {
     const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-    const updatedPolicy = await Policy.findOneAndUpdate(
-        { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
-        { estado: 'ELIMINADO', fechaEliminacion: new Date(), motivoEliminacion: motivo },
-        { new: true }
-    );
-    if (updatedPolicy) {
+    try {
+        const updatedPolicy = await prisma.policy.update({
+            where: { numeroPoliza: normalizedNumero },
+            data: {
+                estado: 'ELIMINADO',
+                fechaEliminacion: new Date(),
+                motivoEliminacion: motivo
+            },
+            include: { pagos: true, registros: true, servicios: true }
+        });
         await cacheService.invalidate(`policy:${normalizedNumero}`);
+        return updatedPolicy as IPolicy;
+    } catch {
+        return null;
     }
-    return updatedPolicy;
 };
 
 export const deletePolicyByNumber = async (numeroPoliza: string): Promise<IPolicy | null> => {
     const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-    const policy = await Policy.findOneAndDelete({ numeroPoliza: normalizedNumero });
-    if (policy) {
+    try {
+        const policy = await prisma.policy.delete({
+            where: { numeroPoliza: normalizedNumero },
+            include: { pagos: true, registros: true, servicios: true }
+        });
         await cacheService.invalidate(`policy:${normalizedNumero}`);
+        return policy as IPolicy;
+    } catch {
+        return null;
     }
-    return policy;
 };
 
 export const updatePolicyPhone = async (
@@ -81,42 +154,44 @@ export const updatePolicyPhone = async (
     telefono: string
 ): Promise<IPolicy | null> => {
     const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-    const updatedPolicy = await Policy.findOneAndUpdate(
-        { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
-        { telefono },
-        { new: true }
-    );
-    if (updatedPolicy) {
+    try {
+        const updatedPolicy = await prisma.policy.update({
+            where: { numeroPoliza: normalizedNumero },
+            data: { telefono },
+            include: { pagos: true, registros: true, servicios: true }
+        });
         await cacheService.invalidate(`policy:${normalizedNumero}`);
+        return updatedPolicy as IPolicy;
+    } catch {
+        return null;
     }
-    return updatedPolicy;
 };
 
-/**
- * Busca pólizas activas que tengan un número de teléfono específico
- * @param telefono - Número de teléfono a buscar
- * @param excludePoliza - Número de póliza a excluir de la búsqueda (opcional)
- * @returns Array de pólizas que tienen ese teléfono
- */
 export const findPoliciesByPhone = async (
     telefono: string,
     excludePoliza?: string
 ): Promise<IPolicy[]> => {
-    const query: any = {
-        telefono: telefono.trim(),
-        estado: 'ACTIVO'
-    };
-
-    // Excluir la póliza actual si se proporciona
-    if (excludePoliza) {
-        query.numeroPoliza = { $ne: excludePoliza.trim().toUpperCase() };
-    }
-
-    const policies = await Policy.find(query)
-        .select('numeroPoliza titular marca submarca año color placas telefono')
-        .lean();
-
-    return policies as IPolicy[];
+    const policies = await prisma.policy.findMany({
+        where: {
+            telefono: telefono.trim(),
+            estado: 'ACTIVO',
+            ...(excludePoliza && {
+                numeroPoliza: { not: excludePoliza.trim().toUpperCase() }
+            })
+        },
+        select: {
+            id: true,
+            numeroPoliza: true,
+            titular: true,
+            marca: true,
+            submarca: true,
+            anio: true,
+            color: true,
+            placas: true,
+            telefono: true
+        }
+    });
+    return policies as any[];
 };
 
 export const addFileToPolicy = async (
@@ -124,15 +199,28 @@ export const addFileToPolicy = async (
     fileBuffer: Buffer,
     fileType: 'foto' | 'pdf'
 ): Promise<IPolicy | null> => {
-    const policy = await Policy.findOne({
-        numeroPoliza: numeroPoliza.toUpperCase(),
-        estado: 'ACTIVO'
+    const normalizedNumero = numeroPoliza.toUpperCase();
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' }
     });
     if (!policy) return null;
-    // ... logic to add file
-    const updatedPolicy = await policy.save();
-    await cacheService.invalidate(`policy:${updatedPolicy.numeroPoliza.toUpperCase()}`);
-    return updatedPolicy;
+
+    // Agregar archivo legacy
+    await prisma.policyFileLegacy.create({
+        data: {
+            policyId: policy.id,
+            tipo: fileType === 'foto' ? 'FOTO' : 'PDF',
+            data: fileBuffer,
+            contentType: fileType === 'foto' ? 'image/jpeg' : 'application/pdf'
+        }
+    });
+
+    await cacheService.invalidate(`policy:${normalizedNumero}`);
+
+    return prisma.policy.findUnique({
+        where: { id: policy.id },
+        include: { pagos: true, registros: true, servicios: true }
+    }) as Promise<IPolicy | null>;
 };
 
 export const addPaymentToPolicy = async (
@@ -140,20 +228,28 @@ export const addPaymentToPolicy = async (
     monto: number,
     fechaPago: Date
 ): Promise<IPolicy | null> => {
-    const policy = await Policy.findOne({
-        numeroPoliza: numeroPoliza.toUpperCase(),
-        estado: 'ACTIVO'
+    const normalizedNumero = numeroPoliza.toUpperCase();
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' }
     });
     if (!policy) return null;
-    policy.pagos.push({
-        monto,
-        fechaPago,
-        estado: 'REALIZADO',
-        notas: 'Pago registrado manualmente'
+
+    await prisma.pago.create({
+        data: {
+            policyId: policy.id,
+            monto,
+            fechaPago,
+            estado: 'REALIZADO',
+            notas: 'Pago registrado manualmente'
+        }
     });
-    const updatedPolicy = await policy.save();
-    await cacheService.invalidate(`policy:${updatedPolicy.numeroPoliza.toUpperCase()}`);
-    return updatedPolicy;
+
+    await cacheService.invalidate(`policy:${normalizedNumero}`);
+
+    return prisma.policy.findUnique({
+        where: { id: policy.id },
+        include: { pagos: true, registros: true, servicios: true }
+    }) as Promise<IPolicy | null>;
 };
 
 export const addServiceToPolicy = async (
@@ -165,31 +261,47 @@ export const addServiceToPolicy = async (
     coordenadas: ICoordenadas | null = null,
     rutaInfo: IRutaInfo | null = null
 ): Promise<IPolicy | null> => {
-    const policy = await Policy.findOne({
-        numeroPoliza: numeroPoliza.toUpperCase(),
-        estado: 'ACTIVO'
+    const normalizedNumero = numeroPoliza.toUpperCase();
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' }
     });
     if (!policy) return null;
-    policy.servicioCounter = (policy.servicioCounter ?? 0) + 1;
-    const serviceData: IServicio = {
-        numeroServicio: policy.servicioCounter,
-        costo,
-        fechaServicio,
-        numeroExpediente,
-        origenDestino,
-        coordenadas: coordenadas ?? undefined,
-        rutaInfo: rutaInfo ?? undefined
-    };
-    policy.servicios.push(serviceData);
-    const updatedPolicy = await policy.save();
-    await cacheService.invalidate(`policy:${updatedPolicy.numeroPoliza.toUpperCase()}`);
-    return updatedPolicy;
+
+    const newCounter = (policy.servicioCounter ?? 0) + 1;
+    const newTotal = (policy.totalServicios ?? 0) + 1;
+
+    await prisma.$transaction([
+        prisma.servicio.create({
+            data: {
+                policyId: policy.id,
+                numeroServicio: newCounter,
+                costo,
+                fechaServicio,
+                numeroExpediente,
+                origenDestino,
+                origenLat: coordenadas?.origen?.lat,
+                origenLng: coordenadas?.origen?.lng,
+                destinoLat: coordenadas?.destino?.lat,
+                destinoLng: coordenadas?.destino?.lng,
+                rutaDistanciaKm: rutaInfo?.distanciaKm,
+                rutaTiempoMinutos: rutaInfo?.tiempoMinutos,
+                rutaGoogleMapsUrl: rutaInfo?.googleMapsUrl
+            }
+        }),
+        prisma.policy.update({
+            where: { id: policy.id },
+            data: { servicioCounter: newCounter, totalServicios: newTotal }
+        })
+    ]);
+
+    await cacheService.invalidate(`policy:${normalizedNumero}`);
+
+    return prisma.policy.findUnique({
+        where: { id: policy.id },
+        include: { pagos: true, registros: true, servicios: true }
+    }) as Promise<IPolicy | null>;
 };
 
-/**
- * Obtiene pólizas susceptibles usando MongoDB Aggregation
- * OPTIMIZADO: Todo el cálculo se hace en la BD, no bloquea el event loop
- */
 export const getSusceptiblePolicies = async (): Promise<
     Array<{ numeroPoliza: string; diasDeImpago: number }>
 > => {
@@ -198,55 +310,26 @@ export const getSusceptiblePolicies = async (): Promise<
         async () => {
             const now = new Date();
 
-            const results = await Policy.aggregate([
-                // Solo pólizas activas
-                { $match: { estado: 'ACTIVO' } },
-                // Proyectar campos necesarios y calcular
-                {
-                    $project: {
-                        numeroPoliza: 1,
-                        // Días transcurridos desde emisión
-                        diasTranscurridos: {
-                            $floor: {
-                                $divide: [
-                                    { $subtract: [now, '$fechaEmision'] },
-                                    86400000 // ms por día
-                                ]
-                            }
-                        },
-                        // Contar pagos realizados
-                        pagosRealizados: {
-                            $size: {
-                                $filter: {
-                                    input: { $ifNull: ['$pagos', []] },
-                                    as: 'p',
-                                    cond: { $eq: ['$$p.estado', 'REALIZADO'] }
-                                }
-                            }
-                        }
-                    }
-                },
-                // Filtrar solo los que tienen días transcurridos > 0
-                { $match: { diasTranscurridos: { $gt: 0 } } },
-                // Calcular días de impago
-                {
-                    $project: {
-                        numeroPoliza: 1,
-                        diasDeImpago: {
-                            $subtract: [
-                                '$diasTranscurridos',
-                                { $multiply: ['$pagosRealizados', 30] }
-                            ]
-                        }
-                    }
-                },
-                // Solo los que tienen impago > 0
-                { $match: { diasDeImpago: { $gt: 0 } } },
-                // Ordenar por días de impago descendente
-                { $sort: { diasDeImpago: -1 } },
-                // Proyección final
-                { $project: { _id: 0, numeroPoliza: 1, diasDeImpago: 1 } }
-            ]);
+            // Usar SQL raw para cálculos complejos
+            const results = await prisma.$queryRaw<
+                Array<{ numeroPoliza: string; diasDeImpago: number }>
+            >`
+                WITH policy_data AS (
+                    SELECT
+                        p."numeroPoliza",
+                        EXTRACT(DAY FROM (NOW() - p."fechaEmision"))::int AS dias_transcurridos,
+                        (SELECT COUNT(*) FROM "Pago" pg WHERE pg."policyId" = p.id AND pg.estado = 'REALIZADO') AS pagos_realizados
+                    FROM "Policy" p
+                    WHERE p.estado = 'ACTIVO'
+                )
+                SELECT
+                    "numeroPoliza",
+                    (dias_transcurridos - (pagos_realizados * 30))::int AS "diasDeImpago"
+                FROM policy_data
+                WHERE dias_transcurridos > 0
+                AND (dias_transcurridos - (pagos_realizados * 30)) > 0
+                ORDER BY "diasDeImpago" DESC
+            `;
 
             return results;
         },
@@ -254,117 +337,68 @@ export const getSusceptiblePolicies = async (): Promise<
     );
 };
 
-/**
- * Obtiene pólizas antiguas sin uso usando MongoDB Aggregation
- * OPTIMIZADO: Todo el cálculo se hace en la BD, no bloquea el event loop
- */
 export const getOldUnusedPolicies = async (): Promise<any[]> => {
     try {
-        logger.info('🔄 Iniciando sistema de calificaciones con Aggregation');
+        logger.info('🔄 Iniciando sistema de calificaciones');
 
-        // Pipeline para pólizas regulares (no NIV)
-        const regularResults = await Policy.aggregate([
-            // Solo activas, no NIV
-            { $match: { estado: 'ACTIVO', tipoPoliza: { $ne: 'NIV' } } },
-            // Calcular campos derivados
-            {
-                $project: {
-                    numeroPoliza: 1,
-                    titular: 1,
-                    diasRestantesGracia: 1,
-                    fechaEmision: 1,
-                    aseguradora: 1,
-                    totalServicios: { $size: { $ifNull: ['$servicios', []] } },
-                    // Calificación basada en días de gracia
-                    calificacion: {
-                        $switch: {
-                            branches: [
-                                {
-                                    case: {
-                                        $or: [
-                                            { $eq: ['$diasRestantesGracia', null] },
-                                            { $eq: [{ $type: '$diasRestantesGracia' }, 'missing'] }
-                                        ]
-                                    },
-                                    then: 10
-                                },
-                                { case: { $lte: ['$diasRestantesGracia', 0] }, then: 100 },
-                                { case: { $lte: ['$diasRestantesGracia', 5] }, then: 90 },
-                                { case: { $lte: ['$diasRestantesGracia', 10] }, then: 80 },
-                                { case: { $lte: ['$diasRestantesGracia', 15] }, then: 70 },
-                                { case: { $lte: ['$diasRestantesGracia', 20] }, then: 60 },
-                                { case: { $lte: ['$diasRestantesGracia', 25] }, then: 50 },
-                                { case: { $lte: ['$diasRestantesGracia', 30] }, then: 40 }
-                            ],
-                            default: 10
-                        }
-                    }
-                }
+        // Pólizas regulares sin servicios
+        const ceroServicios = await prisma.policy.findMany({
+            where: {
+                estado: 'ACTIVO',
+                tipoPoliza: { not: 'NIV' },
+                servicios: { none: {} }
             },
-            // Filtrar solo 0 o 1 servicio
-            { $match: { totalServicios: { $lte: 1 } } },
-            // Usar facet para obtener top 10 de cada grupo
-            {
-                $facet: {
-                    ceroServicios: [
-                        { $match: { totalServicios: 0 } },
-                        { $sort: { diasRestantesGracia: 1 } },
-                        { $limit: 10 },
-                        { $addFields: { tipoGrupo: 'SIN_SERVICIOS', prioridadGrupo: 1 } }
-                    ],
-                    unServicio: [
-                        { $match: { totalServicios: 1 } },
-                        { $sort: { diasRestantesGracia: 1 } },
-                        { $limit: 10 },
-                        { $addFields: { tipoGrupo: 'UN_SERVICIO', prioridadGrupo: 2 } }
-                    ]
-                }
-            }
-        ]);
+            orderBy: { diasRestantesGracia: 'asc' },
+            take: 10,
+            include: { servicios: true }
+        });
 
-        // Obtener NIVs con aggregation
-        const nivResults = await Policy.aggregate([
-            { $match: { estado: 'ACTIVO', tipoPoliza: 'NIV', totalServicios: 0 } },
-            { $sort: { año: 1, createdAt: -1 } },
-            // Agrupar por año y tomar el más antiguo
-            {
-                $group: {
-                    _id: null,
-                    añoMasAntiguo: { $first: '$año' },
-                    todos: { $push: '$$ROOT' }
-                }
+        // Pólizas regulares con 1 servicio
+        const unServicio = await prisma.policy.findMany({
+            where: {
+                estado: 'ACTIVO',
+                tipoPoliza: { not: 'NIV' }
             },
-            // Filtrar solo del año más antiguo
-            {
-                $project: {
-                    nivs: {
-                        $slice: [
-                            {
-                                $filter: {
-                                    input: '$todos',
-                                    as: 'niv',
-                                    cond: { $eq: ['$$niv.año', '$añoMasAntiguo'] }
-                                }
-                            },
-                            4
-                        ]
-                    }
-                }
+            orderBy: { diasRestantesGracia: 'asc' },
+            include: { servicios: true }
+        });
+
+        const unServicioFiltered = unServicio
+            .filter(p => p.servicios.length === 1)
+            .slice(0, 10);
+
+        // NIVs sin servicios
+        const nivResults = await prisma.policy.findMany({
+            where: {
+                estado: 'ACTIVO',
+                tipoPoliza: 'NIV',
+                totalServicios: 0
             },
-            { $unwind: '$nivs' },
-            { $replaceRoot: { newRoot: '$nivs' } },
-            { $addFields: { tipoGrupo: 'NIV', prioridadGrupo: 3, calificacion: 95 } }
-        ]);
+            orderBy: [{ anio: 'asc' }, { createdAt: 'desc' }],
+            take: 4
+        });
 
-        // Combinar resultados
-        const data = regularResults[0] ?? { ceroServicios: [], unServicio: [] };
-        const ceroServicios = data.ceroServicios ?? [];
-        const unServicio = data.unServicio ?? [];
+        // Función para calcular calificación
+        const calcCalificacion = (diasGracia: number | null): number => {
+            if (diasGracia == null) return 10;
+            if (diasGracia <= 0) return 100;
+            if (diasGracia <= 5) return 90;
+            if (diasGracia <= 10) return 80;
+            if (diasGracia <= 15) return 70;
+            if (diasGracia <= 20) return 60;
+            if (diasGracia <= 25) return 50;
+            if (diasGracia <= 30) return 40;
+            return 10;
+        };
 
-        // Formatear resultado final
         const resultadoFinal = [
-            ...ceroServicios.map((policy: any, index: number) => ({
+            ...ceroServicios.map((policy, index) => ({
                 ...policy,
+                año: policy.anio,
+                totalServicios: 0,
+                calificacion: calcCalificacion(policy.diasRestantesGracia),
+                tipoGrupo: 'SIN_SERVICIOS',
+                prioridadGrupo: 1,
                 posicion: index + 1,
                 tipoReporte: 'REGULAR',
                 mensajeEspecial:
@@ -372,8 +406,13 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
                         ? '🚨 URGENTE - PERÍODO DE GRACIA'
                         : null
             })),
-            ...unServicio.map((policy: any, index: number) => ({
+            ...unServicioFiltered.map((policy, index) => ({
                 ...policy,
+                año: policy.anio,
+                totalServicios: 1,
+                calificacion: calcCalificacion(policy.diasRestantesGracia),
+                tipoGrupo: 'UN_SERVICIO',
+                prioridadGrupo: 2,
                 posicion: ceroServicios.length + index + 1,
                 tipoReporte: 'REGULAR',
                 mensajeEspecial:
@@ -381,9 +420,14 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
                         ? '⚠️ URGENTE - 1 SERVICIO'
                         : null
             })),
-            ...nivResults.map((niv: any, index: number) => ({
+            ...nivResults.map((niv, index) => ({
                 ...niv,
-                posicion: ceroServicios.length + unServicio.length + index + 1,
+                año: niv.anio,
+                totalServicios: 0,
+                calificacion: 95,
+                tipoGrupo: 'NIV',
+                prioridadGrupo: 3,
+                posicion: ceroServicios.length + unServicioFiltered.length + index + 1,
                 tipoReporte: 'NIV',
                 mensajeEspecial: '⚡ NIV DISPONIBLE'
             }))
@@ -398,23 +442,25 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
 };
 
 export const getDeletedPolicies = async (): Promise<IPolicy[]> => {
-    return Policy.find({ estado: 'ELIMINADO' }).lean();
+    return prisma.policy.findMany({
+        where: { estado: 'ELIMINADO' },
+        include: { pagos: true, registros: true, servicios: true }
+    }) as Promise<IPolicy[]>;
 };
 
 export const restorePolicy = async (numeroPoliza: string): Promise<IPolicy | null> => {
     const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
-    const policy = await Policy.findOne({ numeroPoliza: normalizedNumero, estado: 'ELIMINADO' });
-    if (!policy) return null;
-    policy.estado = 'ACTIVO';
-    const updatedPolicy = await policy.save();
-    return updatedPolicy;
+    try {
+        const policy = await prisma.policy.update({
+            where: { numeroPoliza: normalizedNumero },
+            data: { estado: 'ACTIVO' },
+            include: { pagos: true, registros: true, servicios: true }
+        });
+        return policy as IPolicy;
+    } catch {
+        return null;
+    }
 };
-
-// ... other functions with invalidation logic
-// ...
-// This is a simplified version of the full file for brevity
-// The key is that all modifying functions now invalidate the cache
-// and getPolicyByNumber uses the cache.
 
 interface BatchResult {
     total: number;
@@ -427,26 +473,28 @@ interface BatchResult {
     }>;
 }
 
-export const savePoliciesBatch = async (policiesData: IPolicyData[]): Promise<BatchResult> => {
+export const savePoliciesBatch = async (policiesData: any[]): Promise<BatchResult> => {
     const results: BatchResult = {
         total: policiesData.length,
         successful: 0,
         failed: 0,
         details: []
     };
+
     for (const policyData of policiesData) {
         try {
             if (!policyData.numeroPoliza) throw new Error('Número de póliza es requerido');
 
             const normalizedNumero = policyData.numeroPoliza.trim().toUpperCase();
-            const existingPolicy = await Policy.findOne({ numeroPoliza: normalizedNumero });
+            const existingPolicy = await prisma.policy.findUnique({
+                where: { numeroPoliza: normalizedNumero }
+            });
 
             if (existingPolicy) {
                 throw new DuplicatePolicyError(`Póliza duplicada: ${normalizedNumero}`);
             }
 
-            const newPolicy = new Policy(policyData);
-            const savedPolicy = await newPolicy.save();
+            const savedPolicy = await savePolicy(policyData);
 
             results.successful++;
             results.details.push({
@@ -454,7 +502,6 @@ export const savePoliciesBatch = async (policiesData: IPolicyData[]): Promise<Ba
                 status: 'SUCCESS',
                 message: 'Registrada'
             });
-            await cacheService.invalidate(`policy:${savedPolicy.numeroPoliza.toUpperCase()}`);
         } catch (error: any) {
             results.failed++;
             results.details.push({
@@ -467,7 +514,6 @@ export const savePoliciesBatch = async (policiesData: IPolicyData[]): Promise<Ba
     return results;
 };
 
-// Final functions with invalidation
 export const addRegistroToPolicy = async (
     numeroPoliza: string,
     costo: number,
@@ -477,26 +523,45 @@ export const addRegistroToPolicy = async (
     coordenadas: ICoordenadas | null = null,
     rutaInfo: IRutaInfo | null = null
 ): Promise<IPolicy | null> => {
-    const policy = await Policy.findOne({
-        numeroPoliza: numeroPoliza.toUpperCase(),
-        estado: 'ACTIVO'
+    const normalizedNumero = numeroPoliza.toUpperCase();
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' }
     });
     if (!policy) return null;
-    policy.registroCounter = (policy.registroCounter ?? 0) + 1;
-    const registroData: IRegistro = {
-        numeroRegistro: policy.registroCounter,
-        costo,
-        fechaRegistro,
-        numeroExpediente,
-        origenDestino,
-        estado: 'PENDIENTE',
-        coordenadas: coordenadas ?? undefined,
-        rutaInfo: rutaInfo ?? undefined
-    };
-    policy.registros.push(registroData);
-    const updatedPolicy = await policy.save();
-    await cacheService.invalidate(`policy:${updatedPolicy.numeroPoliza.toUpperCase()}`);
-    return updatedPolicy;
+
+    const newCounter = (policy.registroCounter ?? 0) + 1;
+
+    await prisma.$transaction([
+        prisma.registro.create({
+            data: {
+                policyId: policy.id,
+                numeroRegistro: newCounter,
+                costo,
+                fechaRegistro,
+                numeroExpediente,
+                origenDestino,
+                estado: 'PENDIENTE',
+                origenLat: coordenadas?.origen?.lat,
+                origenLng: coordenadas?.origen?.lng,
+                destinoLat: coordenadas?.destino?.lat,
+                destinoLng: coordenadas?.destino?.lng,
+                rutaDistanciaKm: rutaInfo?.distanciaKm,
+                rutaTiempoMinutos: rutaInfo?.tiempoMinutos,
+                rutaGoogleMapsUrl: rutaInfo?.googleMapsUrl
+            }
+        }),
+        prisma.policy.update({
+            where: { id: policy.id },
+            data: { registroCounter: newCounter }
+        })
+    ]);
+
+    await cacheService.invalidate(`policy:${normalizedNumero}`);
+
+    return prisma.policy.findUnique({
+        where: { id: policy.id },
+        include: { pagos: true, registros: true, servicios: true }
+    }) as Promise<IPolicy | null>;
 };
 
 export const convertirRegistroAServicio = async (
@@ -505,45 +570,86 @@ export const convertirRegistroAServicio = async (
     fechaContactoProgramada: Date,
     fechaTerminoProgramada: Date
 ): Promise<{ updatedPolicy: IPolicy; numeroServicio: number } | null> => {
-    const policy = await Policy.findOne({
-        numeroPoliza: numeroPoliza.toUpperCase(),
-        estado: 'ACTIVO'
+    const normalizedNumero = numeroPoliza.toUpperCase();
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
+        include: { registros: true }
     });
     if (!policy) return null;
-    const registro = policy.registros.find((r: IRegistro) => r.numeroRegistro === numeroRegistro);
+
+    const registro = policy.registros.find(r => r.numeroRegistro === numeroRegistro);
     if (!registro) return null;
-    registro.estado = 'ASIGNADO';
-    policy.servicioCounter = (policy.servicioCounter ?? 0) + 1;
-    const servicioData: IServicio = {
-        ...registro,
-        numeroServicio: policy.servicioCounter,
-        numeroRegistroOrigen: numeroRegistro,
-        fechaServicio: registro.fechaRegistro
-    };
-    policy.servicios.push(servicioData);
-    const updatedPolicy = await policy.save();
-    await cacheService.invalidate(`policy:${updatedPolicy.numeroPoliza.toUpperCase()}`);
-    return { updatedPolicy, numeroServicio: policy.servicioCounter };
+
+    const newServicioCounter = (policy.servicioCounter ?? 0) + 1;
+
+    await prisma.$transaction([
+        prisma.registro.update({
+            where: { id: registro.id },
+            data: { estado: 'ASIGNADO' }
+        }),
+        prisma.servicio.create({
+            data: {
+                policyId: policy.id,
+                numeroServicio: newServicioCounter,
+                numeroRegistroOrigen: numeroRegistro,
+                costo: registro.costo,
+                fechaServicio: registro.fechaRegistro,
+                numeroExpediente: registro.numeroExpediente,
+                origenDestino: registro.origenDestino,
+                fechaContactoProgramada,
+                fechaTerminoProgramada,
+                origenLat: registro.origenLat,
+                origenLng: registro.origenLng,
+                destinoLat: registro.destinoLat,
+                destinoLng: registro.destinoLng,
+                rutaDistanciaKm: registro.rutaDistanciaKm,
+                rutaTiempoMinutos: registro.rutaTiempoMinutos,
+                rutaGoogleMapsUrl: registro.rutaGoogleMapsUrl
+            }
+        }),
+        prisma.policy.update({
+            where: { id: policy.id },
+            data: { servicioCounter: newServicioCounter }
+        })
+    ]);
+
+    await cacheService.invalidate(`policy:${normalizedNumero}`);
+
+    const updatedPolicy = await prisma.policy.findUnique({
+        where: { id: policy.id },
+        include: { pagos: true, registros: true, servicios: true }
+    });
+
+    return { updatedPolicy: updatedPolicy as IPolicy, numeroServicio: newServicioCounter };
 };
 
 export const marcarRegistroNoAsignado = async (
     numeroPoliza: string,
     numeroRegistro: number
 ): Promise<IPolicy | null> => {
-    const policy = await Policy.findOne({
-        numeroPoliza: numeroPoliza.toUpperCase(),
-        estado: 'ACTIVO'
+    const normalizedNumero = numeroPoliza.toUpperCase();
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
+        include: { registros: true }
     });
     if (!policy) return null;
-    const registro = policy.registros.find((r: IRegistro) => r.numeroRegistro === numeroRegistro);
+
+    const registro = policy.registros.find(r => r.numeroRegistro === numeroRegistro);
     if (!registro) return null;
-    registro.estado = 'NO_ASIGNADO';
-    const updatedPolicy = await policy.save();
-    await cacheService.invalidate(`policy:${updatedPolicy.numeroPoliza.toUpperCase()}`);
-    return updatedPolicy;
+
+    await prisma.registro.update({
+        where: { id: registro.id },
+        data: { estado: 'NO_ASIGNADO' }
+    });
+
+    await cacheService.invalidate(`policy:${normalizedNumero}`);
+
+    return prisma.policy.findUnique({
+        where: { id: policy.id },
+        include: { pagos: true, registros: true, servicios: true }
+    }) as Promise<IPolicy | null>;
 };
 
-// calcularHorasAutomaticas does not interact with the database, so it remains unchanged.
 export const calcularHorasAutomaticas = (fechaBase: Date, tiempoTrayectoMinutos = 0): any => {
     const minutosContacto = Math.floor(Math.random() * (39 - 22 + 1)) + 22;
     const fechaContacto = new Date(fechaBase.getTime() + minutosContacto * 60000);
@@ -557,4 +663,109 @@ export const calcularHorasAutomaticas = (fechaBase: Date, tiempoTrayectoMinutos 
         tiempoTrayectoBase: tiempoTrayectoMinutos,
         factorMultiplicador: 1.6
     };
+};
+
+// ============================================
+// GESTIÓN DE ARCHIVOS R2
+// ============================================
+
+export interface IR2FileData {
+    url: string;
+    key: string;
+    size: number;
+    contentType: string;
+    originalName?: string;
+    fuenteOriginal?: string;
+}
+
+/**
+ * Añade un archivo R2 a una póliza
+ */
+export const addFileToPolicyR2 = async (
+    policyId: string,
+    tipo: 'FOTO' | 'PDF',
+    fileData: IR2FileData
+): Promise<PolicyFileR2> => {
+    const file = await prisma.policyFileR2.create({
+        data: {
+            policyId,
+            tipo: tipo as FileType,
+            url: fileData.url,
+            key: fileData.key,
+            size: fileData.size,
+            contentType: fileData.contentType,
+            originalName: fileData.originalName,
+            fuenteOriginal: fileData.fuenteOriginal
+        }
+    });
+    logger.info('Archivo R2 añadido a póliza', { policyId, tipo, key: fileData.key });
+    return file;
+};
+
+/**
+ * Añade un archivo R2 a una póliza por número de póliza
+ */
+export const addFileToPolicyByNumber = async (
+    numeroPoliza: string,
+    tipo: 'FOTO' | 'PDF',
+    fileData: IR2FileData
+): Promise<PolicyFileR2 | null> => {
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: numeroPoliza.trim().toUpperCase(), estado: 'ACTIVO' }
+    });
+    if (!policy) return null;
+    return addFileToPolicyR2(policy.id, tipo, fileData);
+};
+
+/**
+ * Obtiene los archivos R2 de una póliza
+ */
+export const getPolicyFiles = async (
+    policyId: string,
+    tipo?: 'FOTO' | 'PDF'
+): Promise<PolicyFileR2[]> => {
+    return prisma.policyFileR2.findMany({
+        where: {
+            policyId,
+            ...(tipo && { tipo: tipo as FileType })
+        },
+        orderBy: { uploadDate: 'desc' }
+    });
+};
+
+/**
+ * Obtiene los archivos R2 de una póliza por número
+ */
+export const getPolicyFilesByNumber = async (
+    numeroPoliza: string,
+    tipo?: 'FOTO' | 'PDF'
+): Promise<PolicyFileR2[]> => {
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: numeroPoliza.trim().toUpperCase(), estado: 'ACTIVO' }
+    });
+    if (!policy) return [];
+    return getPolicyFiles(policy.id, tipo);
+};
+
+/**
+ * Obtiene póliza con todos sus archivos incluidos
+ */
+export const getPolicyWithFiles = async (numeroPoliza: string): Promise<IPolicy | null> => {
+    const normalizedNumero = numeroPoliza?.trim()?.toUpperCase();
+    if (!normalizedNumero) return null;
+
+    const policy = await prisma.policy.findFirst({
+        where: { numeroPoliza: normalizedNumero, estado: 'ACTIVO' },
+        include: {
+            pagos: true,
+            registros: true,
+            servicios: true,
+            archivosR2: true
+        }
+    });
+    // Mapear archivosR2 a r2Files para compatibilidad
+    if (policy) {
+        (policy as any).r2Files = (policy as any).archivosR2;
+    }
+    return policy as IPolicy | null;
 };

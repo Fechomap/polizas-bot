@@ -39,11 +39,6 @@ class CommandRegistry {
         return this;
     }
 
-    // Optional state manager to satisfy RegistryWithStateManager interface
-    public stateManager?: {
-        clearUserState(userId: string, flowType: string): Promise<void>;
-    };
-
     /**
      * Get a command by name
      * @param commandName - Name of the command (without slash)

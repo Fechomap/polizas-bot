@@ -1,9 +1,7 @@
 // src/comandos/commandHandler.ts
 import { Markup, Telegraf } from 'telegraf';
-import config from '../config';
 import CommandRegistry from './comandos/CommandRegistry';
 import logger from '../utils/logger';
-import { stateManager } from '../state/StateFactory';
 import BaseCommand from './comandos/BaseCommand';
 import {
     StartCommand,
@@ -21,15 +19,29 @@ import PaymentHandler from './handlers/PaymentHandler';
 import ServiceHandler from './handlers/ServiceHandler';
 import { getPolicyByNumber } from '../controllers/policyController';
 import type { ChatContext } from './comandos/BaseCommand';
-import StateKeyManager from '../utils/StateKeyManager';
 import AdminMenu from '../admin/menus/adminMenu';
 import { getStateCleanupService } from '../services/StateCleanupService';
+import { getUnifiedStateManagerSync, IUnifiedStateManager } from '../state/UnifiedStateManager';
 
 // Service - Limpieza centralizada de estados
 const cleanupService = getStateCleanupService();
 
-// Usar StateKeyManager para crear mapas con firma consistente
-const createStateMap = () => StateKeyManager.createThreadSafeStateMap<any>();
+// Tipos de estados para el bot
+export const STATE_TYPES = {
+    AWAITING_SAVE_DATA: 'awaitingSaveData',
+    AWAITING_UPLOAD_POLICY_NUMBER: 'awaitingUploadPolicyNumber',
+    AWAITING_DELETE_POLICY_NUMBER: 'awaitingDeletePolicyNumber',
+    AWAITING_PAYMENT_POLICY_NUMBER: 'awaitingPaymentPolicyNumber',
+    AWAITING_PAYMENT_DATA: 'awaitingPaymentData',
+    AWAITING_SERVICE_POLICY_NUMBER: 'awaitingServicePolicyNumber',
+    AWAITING_SERVICE_DATA: 'awaitingServiceData',
+    AWAITING_PHONE_NUMBER: 'awaitingPhoneNumber',
+    AWAITING_ORIGEN: 'awaitingOrigen',
+    AWAITING_DESTINO: 'awaitingDestino',
+    // AWAITING_ORIGEN_DESTINO: Eliminado - código muerto (nunca se establecía)
+    AWAITING_DELETE_REASON: 'awaitingDeleteReason',
+    AWAITING_POLICY_SEARCH: 'awaitingPolicySearch'
+} as const;
 
 class CommandHandler {
     public bot: Telegraf;
@@ -47,21 +59,60 @@ class CommandHandler {
     private reportUsedCommand: ReportUsedCommand;
     private baseAutosCommand: BaseAutosCommand;
 
-    // Mapas de estado para compatibilidad con TextMessageHandler
-    public awaitingSaveData = createStateMap();
-    public awaitingUploadPolicyNumber = createStateMap();
-    public awaitingDeletePolicyNumber = createStateMap();
-    public awaitingPaymentPolicyNumber = createStateMap();
-    public awaitingPaymentData = createStateMap();
-    public awaitingServicePolicyNumber = createStateMap();
-    public awaitingServiceData = createStateMap();
-    public awaitingPhoneNumber = createStateMap();
-    public awaitingOrigen = createStateMap();
-    public awaitingDestino = createStateMap();
-    public awaitingOrigenDestino = createStateMap();
-    public awaitingDeleteReason = createStateMap();
-    // Nuevo: estado para búsqueda unificada de pólizas
-    public awaitingPolicySearch = createStateMap();
+    /**
+     * Obtiene el UnifiedStateManager (singleton inicializado en bot.ts)
+     * @throws Error si el manager no está inicializado
+     */
+    public get stateManager(): IUnifiedStateManager {
+        const manager = getUnifiedStateManagerSync();
+        if (!manager) {
+            throw new Error(
+                'UnifiedStateManager no inicializado. Asegúrate de que bot.ts lo inicialice primero.'
+            );
+        }
+        return manager;
+    }
+
+    // ==================== MÉTODOS DE ESTADO ====================
+    // Estos métodos reemplazan los Maps en memoria anteriores
+
+    async setAwaitingState(
+        chatId: number,
+        stateType: string,
+        value: any,
+        threadId?: number | string | null
+    ): Promise<void> {
+        // Convertir threadId a number si es string
+        const numericThreadId = typeof threadId === 'string' ? parseInt(threadId, 10) : threadId;
+        await this.stateManager.setAwaitingState(chatId, stateType, value, numericThreadId);
+    }
+
+    async getAwaitingState<T>(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<T | null> {
+        const numericThreadId = typeof threadId === 'string' ? parseInt(threadId, 10) : threadId;
+        return this.stateManager.getAwaitingState<T>(chatId, stateType, numericThreadId);
+    }
+
+    async hasAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<boolean> {
+        const numericThreadId = typeof threadId === 'string' ? parseInt(threadId, 10) : threadId;
+        return this.stateManager.hasAwaitingState(chatId, stateType, numericThreadId);
+    }
+
+    async deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<void> {
+        const numericThreadId = typeof threadId === 'string' ? parseInt(threadId, 10) : threadId;
+        await this.stateManager.deleteAwaitingState(chatId, stateType, numericThreadId);
+    }
 
     constructor(bot: Telegraf) {
         if (!bot) throw new Error('Bot instance is required');
@@ -88,6 +139,7 @@ class CommandHandler {
         this.registerCommands();
     }
 
+    // Este método ya no se usa - mantenido para compatibilidad temporal
     _getStateKey(
         chatId: number | string,
         stateName: string,
@@ -257,10 +309,13 @@ class CommandHandler {
                 // Limpiar estados previos
                 await this.clearChatState(chatId, threadId);
 
-                // Guardar el número de póliza en el mapa de memoria Y en stateManager
-                this.awaitingPaymentData.set(chatId, numeroPoliza, threadId);
-                const stateKey = this._getStateKey(chatId, 'awaitingPaymentData', threadId);
-                await stateManager.setState(stateKey, numeroPoliza, 3600);
+                // Guardar estado en UnifiedStateManager (Redis)
+                await this.setAwaitingState(
+                    chatId,
+                    STATE_TYPES.AWAITING_PAYMENT_DATA,
+                    numeroPoliza,
+                    threadId
+                );
 
                 const keyboard = Markup.inlineKeyboard([
                     [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
@@ -297,8 +352,13 @@ class CommandHandler {
                 // Limpiar estados previos
                 await this.clearChatState(chatId, threadId);
 
-                // Guardar el número de póliza en estado para esperar los datos del servicio
-                this.awaitingServiceData.set(chatId, numeroPoliza, threadId);
+                // Guardar estado en UnifiedStateManager (Redis)
+                await this.setAwaitingState(
+                    chatId,
+                    STATE_TYPES.AWAITING_SERVICE_DATA,
+                    numeroPoliza,
+                    threadId
+                );
 
                 const keyboard = Markup.inlineKeyboard([
                     [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
@@ -339,8 +399,13 @@ class CommandHandler {
                 // Limpiar estados previos
                 await this.clearChatState(chatId, threadId);
 
-                // Guardar el número de póliza para subir archivos
-                this.awaitingUploadPolicyNumber.set(chatId, numeroPoliza, threadId);
+                // Guardar estado en UnifiedStateManager (Redis)
+                await this.setAwaitingState(
+                    chatId,
+                    STATE_TYPES.AWAITING_UPLOAD_POLICY_NUMBER,
+                    numeroPoliza,
+                    threadId
+                );
 
                 const keyboard = Markup.inlineKeyboard([
                     [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
@@ -377,8 +442,13 @@ class CommandHandler {
                 // Limpiar estados previos
                 await this.clearChatState(chatId, threadId);
 
-                // Guardar el número de póliza para eliminar (esperar motivo)
-                this.awaitingDeleteReason.set(chatId, [numeroPoliza], threadId);
+                // Guardar estado en UnifiedStateManager (Redis) - array de pólizas
+                await this.setAwaitingState(
+                    chatId,
+                    STATE_TYPES.AWAITING_DELETE_REASON,
+                    [numeroPoliza],
+                    threadId
+                );
 
                 const keyboard = Markup.inlineKeyboard([
                     [Markup.button.callback('❌ Cancelar', `masAcciones:${numeroPoliza}`)]
@@ -412,8 +482,8 @@ class CommandHandler {
         // Limpiar estados previos
         await this.clearChatState(chatId, threadId);
 
-        // Activar estado de espera
-        this.awaitingPolicySearch.set(chatId, true, threadId);
+        // Activar estado de espera en UnifiedStateManager (Redis)
+        await this.setAwaitingState(chatId, STATE_TYPES.AWAITING_POLICY_SEARCH, true, threadId);
 
         const keyboard = Markup.inlineKeyboard([
             [Markup.button.callback('🏠 Menú Principal', 'accion:volver_menu')]
@@ -448,13 +518,14 @@ class CommandHandler {
             await ctx.reply('❌ Error al buscar la póliza. Intenta nuevamente.');
         } finally {
             // Limpiar estado
-            this.awaitingPolicySearch.delete(chatId, threadId);
+            await this.deleteAwaitingState(chatId, STATE_TYPES.AWAITING_POLICY_SEARCH, threadId);
         }
     }
 
     // Mostrar información de póliza encontrada (formato original)
     private async showPolicyInfo(ctx: any, policy: any): Promise<void> {
         const servicios = policy.servicios ?? [];
+        const registros = policy.registros ?? [];
         const pagos = policy.pagos ?? [];
         const totalServicios = servicios.length;
         // Solo contar pagos REALIZADOS (dinero real recibido)
@@ -468,7 +539,14 @@ class CommandHandler {
             const fechaServStr = ultimoServicio.fechaServicio
                 ? new Date(ultimoServicio.fechaServicio).toISOString().split('T')[0]
                 : '??';
-            const origenDestino = ultimoServicio.origenDestino ?? '(Sin Origen/Destino)';
+            // Buscar origenDestino en servicio, si no existe buscar en registro asociado
+            let origenDestino = ultimoServicio.origenDestino;
+            if (!origenDestino && registros.length > 0) {
+                // Buscar en registros (puede estar ahí si se migró de MongoDB)
+                const ultimoRegistro = registros[registros.length - 1];
+                origenDestino = ultimoRegistro?.origenDestino;
+            }
+            origenDestino = origenDestino ?? '(Sin Origen/Destino)';
             serviciosInfo =
                 `*Servicios:* ${totalServicios}\n` +
                 `*Último Servicio:* ${fechaServStr}\n` +
@@ -490,7 +568,7 @@ class CommandHandler {
 🚗 *Datos del Vehículo:*
 *Marca:* ${policy.marca}
 *Submarca:* ${policy.submarca}
-*Año:* ${policy.año}
+*Año:* ${policy.anio ?? policy.año ?? 'N/A'}
 *Color:* ${policy.color}
 *Serie:* ${policy.serie}
 *Placas:* ${policy.placas}
@@ -555,34 +633,20 @@ ${pagosInfo}
         chatId: number | string,
         threadId?: number | string | null
     ): Promise<void> {
-        // Limpiar mapas en memoria
-        this.awaitingSaveData.delete(chatId, threadId);
-        this.awaitingUploadPolicyNumber.delete(chatId, threadId);
-        this.awaitingDeletePolicyNumber.delete(chatId, threadId);
-        this.awaitingPaymentPolicyNumber.delete(chatId, threadId);
-        this.awaitingPaymentData.delete(chatId, threadId);
-        this.awaitingServicePolicyNumber.delete(chatId, threadId);
-        this.awaitingServiceData.delete(chatId, threadId);
-        this.awaitingPhoneNumber.delete(chatId, threadId);
-        this.awaitingOrigen.delete(chatId, threadId);
-        this.awaitingDestino.delete(chatId, threadId);
-        this.awaitingOrigenDestino.delete(chatId, threadId);
-        this.awaitingDeleteReason.delete(chatId, threadId);
-        this.awaitingPolicySearch.delete(chatId, threadId);
+        const numericChatId = typeof chatId === 'string' ? parseInt(chatId) : chatId;
+        const numericThreadId = threadId
+            ? typeof threadId === 'string'
+                ? parseInt(threadId)
+                : threadId
+            : null;
 
-        // Limpiar stateManager (Redis/Memory)
-        const stateNames = [
-            'awaitingSaveData',
-            'awaitingDeletePolicyNumber',
-            'awaitingPaymentPolicyNumber',
-            'awaitingPaymentData',
-            'awaitingServicePolicyNumber',
-            'awaitingServiceData'
-        ];
-        const deletionPromises = stateNames.map(name =>
-            stateManager.deleteState(this._getStateKey(chatId, name, threadId))
-        );
-        await Promise.all(deletionPromises);
+        // Usar UnifiedStateManager para limpiar TODOS los estados de este chat
+        await this.stateManager.clearAllStates(numericChatId, numericThreadId);
+
+        logger.debug('Estados limpiados para chat', {
+            chatId: numericChatId,
+            threadId: numericThreadId
+        });
     }
 
     // --- Facade Methods for TextMessageHandler ---

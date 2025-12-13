@@ -14,16 +14,31 @@ import {
 } from '../../../controllers/policyController';
 import StateKeyManager from '../../../utils/StateKeyManager';
 import { getInstance } from '../../../services/NotificationManager';
-import flowStateManager from '../../../utils/FlowStateManager';
-import Policy from '../../../models/policy';
-import Vehicle from '../../../models/vehicle';
+import { getUnifiedStateManagerSync } from '../../../state/UnifiedStateManager';
+import { prisma } from '../../../database/prisma';
 import type { IPolicy } from '../../../types/database';
 import type { IThreadSafeStateMap } from '../../../utils/StateKeyManager';
 import type { IScheduledServiceInfo, IEnhancedLegendData } from '../types';
 import LegendService from '../services/LegendService';
 
+// Interface para handler con métodos async de estado
+interface IStateHandler {
+    setAwaitingState(
+        chatId: number,
+        stateType: string,
+        value: any,
+        threadId?: number | string | null
+    ): Promise<void>;
+    deleteAwaitingState(
+        chatId: number,
+        stateType: string,
+        threadId?: number | string | null
+    ): Promise<void>;
+}
+
 interface IServiceStepDependencies {
     bot: any;
+    handler?: IStateHandler;
     awaitingServiceData: IThreadSafeStateMap<string>;
     awaitingContactTime: IThreadSafeStateMap<string>;
     scheduledServiceInfo: IThreadSafeStateMap<IScheduledServiceInfo>;
@@ -33,6 +48,7 @@ interface IServiceStepDependencies {
 
 class ServiceRegistrationStep {
     private bot: any;
+    private handler: IStateHandler | null;
     private awaitingServiceData: IThreadSafeStateMap<string>;
     private awaitingContactTime: IThreadSafeStateMap<string>;
     private scheduledServiceInfo: IThreadSafeStateMap<IScheduledServiceInfo>;
@@ -40,8 +56,14 @@ class ServiceRegistrationStep {
     private cleanupAllStates: (chatId: number, threadId: string | null) => void;
     private legendService: LegendService;
 
+    // Tipos de estado para sincronización con Redis
+    private static readonly STATE_TYPES = {
+        AWAITING_SERVICE_DATA: 'awaitingServiceData'
+    };
+
     constructor(deps: IServiceStepDependencies) {
         this.bot = deps.bot;
+        this.handler = deps.handler ?? null;
         this.awaitingServiceData = deps.awaitingServiceData;
         this.awaitingContactTime = deps.awaitingContactTime;
         this.scheduledServiceInfo = deps.scheduledServiceInfo;
@@ -84,7 +106,16 @@ class ServiceRegistrationStep {
                     parse_mode: 'Markdown'
                 });
 
+                // Establecer estado local + Redis
                 this.awaitingServiceData.set(chatId, numeroPoliza, threadIdForState);
+                if (this.handler) {
+                    await this.handler.setAwaitingState(
+                        chatId,
+                        ServiceRegistrationStep.STATE_TYPES.AWAITING_SERVICE_DATA,
+                        numeroPoliza,
+                        threadIdForState
+                    );
+                }
             } catch (error) {
                 logger.error('Error en callback registrarServicio:', error);
                 await ctx.reply('❌ Error al iniciar el registro del servicio.');
@@ -222,15 +253,16 @@ class ServiceRegistrationStep {
             return;
         }
 
-        const registro = policy.registros.find((r: any) => r.numeroRegistro === numeroRegistro);
+        const registros = policy.registros ?? [];
+        const registro = registros.find((r: any) => r.numeroRegistro === numeroRegistro);
         if (!registro) {
             await ctx.reply(`❌ Registro ${numeroRegistro} no encontrado.`);
             return;
         }
 
-        // Calcular horas automáticas
+        // Calcular horas automáticas (tiempoMinutos está aplanado en Prisma)
         const fechaBase = new Date();
-        const tiempoTrayecto = registro.rutaInfo?.tiempoMinutos ?? 0;
+        const tiempoTrayecto = (registro as any).rutaTiempoMinutos ?? 0;
         const horasCalculadas = calcularHorasAutomaticas(fechaBase, tiempoTrayecto);
 
         // Convertir registro a servicio
@@ -282,18 +314,27 @@ class ServiceRegistrationStep {
         numeroServicio: number
     ): Promise<void> {
         try {
-            const policyDoc = await Policy.findOne({ numeroPoliza });
+            const policyDoc = await prisma.policy.findFirst({
+                where: { numeroPoliza }
+            });
+
             if (policyDoc && policyDoc.tipoPoliza === 'NIV' && policyDoc.totalServicios >= 1) {
                 logger.info(`NIV utilizado: ${numeroPoliza}. Eliminando automáticamente.`);
 
-                await Policy.findByIdAndUpdate(policyDoc._id, {
-                    estado: 'ELIMINADO',
-                    fechaEliminacion: new Date(),
-                    motivoEliminacion: 'NIV utilizado - Eliminación automática'
+                await prisma.policy.update({
+                    where: { id: policyDoc.id },
+                    data: {
+                        estado: 'ELIMINADO',
+                        fechaEliminacion: new Date(),
+                        motivoEliminacion: 'NIV utilizado - Eliminación automática'
+                    }
                 });
 
                 if (policyDoc.vehicleId) {
-                    await Vehicle.findByIdAndUpdate(policyDoc.vehicleId, { estado: 'ELIMINADO' });
+                    await prisma.vehicle.update({
+                        where: { id: policyDoc.vehicleId },
+                        data: { estado: 'ELIMINADO' }
+                    });
                 }
 
                 await ctx.reply(
@@ -532,15 +573,20 @@ class ServiceRegistrationStep {
     ): void {
         setImmediate(async () => {
             try {
-                const threadIdStr = threadId ? String(threadId) : null;
-                const flowState = flowStateManager.getState(chatId, numeroPoliza, threadIdStr);
+                const stateManager = getUnifiedStateManagerSync()!;
+                const flowState = await stateManager.getFlowState<{
+                    geocoding?: { origen: any; destino: any };
+                    googleMapsUrl?: string;
+                    rutaInfo?: { googleMapsUrl?: string };
+                }>(chatId, numeroPoliza, threadId ?? null);
                 const policy = await getPolicyByNumber(numeroPoliza);
 
                 if (flowState && policy && flowState.geocoding) {
                     const enhancedData: IEnhancedLegendData = {
                         origenGeo: flowState.geocoding.origen,
                         destinoGeo: flowState.geocoding.destino,
-                        googleMapsUrl: flowState.googleMapsUrl ?? flowState.rutaInfo?.googleMapsUrl,
+                        googleMapsUrl:
+                            flowState.googleMapsUrl ?? flowState.rutaInfo?.googleMapsUrl ?? '',
                         leyenda: ''
                     };
 

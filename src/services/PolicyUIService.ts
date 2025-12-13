@@ -5,7 +5,8 @@
  */
 
 import { getMainKeyboard } from '../comandos/teclados';
-import type { IBot, IDatosPoliza } from '../types/policy-assignment';
+import type { IBot, IDatosPoliza, CampoEditablePoliza } from '../types/policy-assignment';
+import { CAMPOS_EDITABLES_POLIZA } from '../types/policy-assignment';
 import type { IVehicle, IPolicy } from '../types/database';
 
 export class PolicyUIService {
@@ -126,7 +127,7 @@ export class PolicyUIService {
             '🚗 *Vehículo:*\n' +
             `${escapeMarkdown(vehiculo.marca)} ${escapeMarkdown(vehiculo.submarca)} ${vehiculo.año}\n` +
             (datosPoliza.modoOCR ? '\n🤖 *Registrado con OCR*' : '') +
-            `\n\n🆔 ID: ${poliza._id}`
+            `\n\n🆔 ID: ${poliza.id}`
         );
     }
 
@@ -193,6 +194,130 @@ export class PolicyUIService {
         mensaje += 'Ahora completaremos los datos faltantes.';
 
         return mensaje;
+    }
+
+    /**
+     * Genera mensaje de resumen editable con todos los datos extraídos
+     * Muestra el valor de cada campo y permite editar cualquiera
+     */
+    generarMensajeResumenEditable(datosPoliza: IDatosPoliza): string {
+        const formatearValor = (valor: any, tipo: string): string => {
+            if (valor === undefined || valor === null) return '❓ _Sin valor_';
+            if (tipo === 'fecha' && valor instanceof Date) {
+                return valor.toLocaleDateString('es-MX');
+            }
+            if (tipo === 'monto') {
+                return `$${Number(valor).toLocaleString('es-MX')}`;
+            }
+            return String(valor);
+        };
+
+        let mensaje = '📋 *DATOS EXTRAÍDOS DE LA PÓLIZA*\n\n';
+
+        for (const campo of CAMPOS_EDITABLES_POLIZA) {
+            const valor = (datosPoliza as any)[campo.key];
+            const valorFormateado = formatearValor(valor, campo.tipo);
+            const iconoEstado = valor !== undefined && valor !== null ? '✅' : '⚠️';
+            mensaje += `${iconoEstado} ${campo.icon} *${campo.label}:* ${valorFormateado}\n`;
+        }
+
+        // Mostrar confianza si viene del OCR
+        if (datosPoliza.datosOCR?.confianza) {
+            mensaje += `\n📊 Confianza OCR: ${datosPoliza.datosOCR.confianza}%\n`;
+        }
+
+        mensaje += '\n━━━━━━━━━━━━━━━━━━━━━\n';
+        mensaje += '¿Deseas editar algún dato?\n';
+        mensaje += '_Presiona un botón para modificar el campo_';
+
+        return mensaje;
+    }
+
+    /**
+     * Genera botones de edición para cada campo de la póliza
+     * Dos botones por fila para mejor visualización
+     */
+    generarBotonesEdicion(prefijoCB = 'ocr_edit'): any[][] {
+        const botones: any[][] = [];
+
+        // Generar botones de edición en pares (2 por fila)
+        for (let i = 0; i < CAMPOS_EDITABLES_POLIZA.length; i += 2) {
+            const fila: any[] = [];
+
+            // Primer botón de la fila
+            const campo1 = CAMPOS_EDITABLES_POLIZA[i];
+            fila.push({
+                text: `${campo1.icon} ${campo1.label}`,
+                callback_data: `${prefijoCB}_${campo1.key}`
+            });
+
+            // Segundo botón si existe
+            if (i + 1 < CAMPOS_EDITABLES_POLIZA.length) {
+                const campo2 = CAMPOS_EDITABLES_POLIZA[i + 1];
+                fila.push({
+                    text: `${campo2.icon} ${campo2.label}`,
+                    callback_data: `${prefijoCB}_${campo2.key}`
+                });
+            }
+
+            botones.push(fila);
+        }
+
+        // Separador visual y botones de acción
+        botones.push([{ text: '✅ Confirmar datos', callback_data: `${prefijoCB}_confirmar` }]);
+        botones.push([{ text: '❌ Cancelar', callback_data: 'poliza_cancelar' }]);
+
+        return botones;
+    }
+
+    /**
+     * Genera mensaje de solicitud de edición para un campo específico
+     */
+    generarMensajeEdicionCampo(campo: CampoEditablePoliza, valorActual: any): string {
+        const campoInfo = CAMPOS_EDITABLES_POLIZA.find(c => c.key === campo);
+        if (!campoInfo) return 'Campo no encontrado';
+
+        const formatearValor = (valor: any): string => {
+            if (valor === undefined || valor === null) return '_Sin valor actual_';
+            if (campoInfo.tipo === 'fecha' && valor instanceof Date) {
+                return valor.toLocaleDateString('es-MX');
+            }
+            if (campoInfo.tipo === 'monto') {
+                return `$${Number(valor).toLocaleString('es-MX')}`;
+            }
+            return String(valor);
+        };
+
+        let mensaje = `${campoInfo.icon} *EDITAR ${campoInfo.label.toUpperCase()}*\n\n`;
+        mensaje += `Valor actual: \`${formatearValor(valorActual)}\`\n\n`;
+
+        // Instrucciones según tipo de campo
+        switch (campoInfo.tipo) {
+            case 'fecha':
+                mensaje += '📅 Ingresa la fecha en formato:\n';
+                mensaje += '• DD/MM/YYYY (ej: 02/12/2025)\n';
+                mensaje += '• DD-MM-YYYY (ej: 02-12-2025)';
+                break;
+            case 'monto':
+                mensaje += '💰 Ingresa el monto sin símbolos:\n';
+                mensaje += '• Solo números (ej: 1545.09)\n';
+                mensaje += '• No uses comas ni símbolo $';
+                break;
+            default:
+                mensaje += 'Escribe el nuevo valor:';
+        }
+
+        return mensaje;
+    }
+
+    /**
+     * Botón para volver al resumen después de editar
+     */
+    generarBotonVolverResumen(prefijoCB = 'ocr_edit'): any[][] {
+        return [
+            [{ text: '🔙 Volver al resumen', callback_data: `${prefijoCB}_volver` }],
+            [{ text: '❌ Cancelar', callback_data: 'poliza_cancelar' }]
+        ];
     }
 
     /**

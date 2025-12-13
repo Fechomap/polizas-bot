@@ -1,7 +1,8 @@
 // src/services/AutoCleanupService.ts
-import Policy from '../models/policy';
+// Migrado de Mongoose a Prisma/PostgreSQL
+
+import { prisma } from '../database/prisma';
 import logger from '../utils/logger';
-import { IPolicy } from '../../types';
 
 interface ICleanupStats {
     automaticDeletions: number;
@@ -105,11 +106,22 @@ class AutoCleanupService {
         logger.info('🔍 Buscando pólizas con >= 2 servicios para eliminación automática');
 
         try {
-            // Buscar pólizas activas con 2 o más servicios
-            const polizasToDelete = await Policy.find({
-                estado: 'ACTIVO',
-                $expr: { $gte: [{ $size: '$servicios' }, 2] }
-            }).select('numeroPoliza servicios');
+            // Buscar pólizas activas con conteo de servicios >= 2 usando Prisma
+            const polizasWithServiceCount = await prisma.policy.findMany({
+                where: { estado: 'ACTIVO' },
+                select: {
+                    id: true,
+                    numeroPoliza: true,
+                    _count: {
+                        select: { servicios: true }
+                    }
+                }
+            });
+
+            // Filtrar las que tienen >= 2 servicios
+            const polizasToDelete = polizasWithServiceCount.filter(
+                p => p._count.servicios >= 2
+            );
 
             logger.info(
                 `📊 Encontradas ${polizasToDelete.length} pólizas con ≥ 2 servicios para eliminación automática`
@@ -122,15 +134,16 @@ class AutoCleanupService {
             // Eliminar cada póliza usando borrado lógico
             for (const poliza of polizasToDelete) {
                 try {
+                    const serviciosCount = poliza._count.servicios;
                     await this.deletePolizaLogically(
                         poliza.numeroPoliza,
-                        `Eliminación automática: ${poliza.servicios.length} servicios confirmados`
+                        `Eliminación automática: ${serviciosCount} servicios confirmados`
                     );
 
                     this.stats.automaticDeletions++;
 
                     logger.info(
-                        `✅ Póliza ${poliza.numeroPoliza} eliminada automáticamente (${poliza.servicios.length} servicios)`
+                        `✅ Póliza ${poliza.numeroPoliza} eliminada automáticamente (${serviciosCount} servicios)`
                     );
                 } catch (error) {
                     logger.error(`❌ Error eliminando póliza ${poliza.numeroPoliza}:`, error);
@@ -152,13 +165,24 @@ class AutoCleanupService {
         logger.info('🔍 Buscando pólizas vencidas para revisión manual');
 
         try {
-            // Buscar pólizas activas con estado VENCIDA
-            const expiredPolicies = await Policy.find({
-                estado: 'ACTIVO',
-                estadoPoliza: 'VENCIDA'
-            })
-                .select('numeroPoliza titular aseguradora fechaEmision estadoPoliza servicios')
-                .sort({ fechaEmision: 1 }); // Ordenar por fecha de emisión (más antiguas primero)
+            // Buscar pólizas activas con estado VENCIDA usando Prisma
+            const expiredPolicies = await prisma.policy.findMany({
+                where: {
+                    estado: 'ACTIVO',
+                    estadoPoliza: 'VENCIDA'
+                },
+                select: {
+                    numeroPoliza: true,
+                    titular: true,
+                    aseguradora: true,
+                    fechaEmision: true,
+                    estadoPoliza: true,
+                    _count: {
+                        select: { servicios: true }
+                    }
+                },
+                orderBy: { fechaEmision: 'asc' } // Ordenar por fecha de emisión (más antiguas primero)
+            });
 
             this.stats.expiredPoliciesFound = expiredPolicies.length;
 
@@ -171,7 +195,7 @@ class AutoCleanupService {
                 aseguradora: poliza.aseguradora,
                 fechaEmision: poliza.fechaEmision,
                 estadoPoliza: poliza.estadoPoliza ?? 'DESCONOCIDO',
-                servicios: poliza.servicios ? poliza.servicios.length : 0,
+                servicios: poliza._count.servicios,
                 diasVencida: this.calculateDaysExpired(poliza.fechaEmision)
             }));
         } catch (error) {
@@ -187,7 +211,9 @@ class AutoCleanupService {
      * @param {string} motivo - Motivo de eliminación
      */
     private async deletePolizaLogically(numeroPoliza: string, motivo: string): Promise<void> {
-        const policy = await Policy.findOne({ numeroPoliza });
+        const policy = await prisma.policy.findFirst({
+            where: { numeroPoliza }
+        });
 
         if (!policy) {
             throw new Error(`Póliza ${numeroPoliza} no encontrada`);
@@ -198,12 +224,15 @@ class AutoCleanupService {
             return;
         }
 
-        // Aplicar borrado lógico
-        policy.estado = 'ELIMINADO';
-        policy.fechaEliminacion = new Date();
-        policy.motivoEliminacion = motivo;
-
-        await policy.save();
+        // Aplicar borrado lógico usando Prisma
+        await prisma.policy.update({
+            where: { id: policy.id },
+            data: {
+                estado: 'ELIMINADO',
+                fechaEliminacion: new Date(),
+                motivoEliminacion: motivo
+            }
+        });
 
         logger.info(`🗑️ Póliza ${numeroPoliza} marcada como eliminada: ${motivo}`);
     }
@@ -240,43 +269,53 @@ class AutoCleanupService {
 
         try {
             // Contar pólizas con >= 2 servicios (para eliminación automática)
-            const polizasToDelete = await Policy.countDocuments({
-                estado: 'ACTIVO',
-                $expr: { $gte: [{ $size: '$servicios' }, 2] }
+            const allActivePolicies = await prisma.policy.findMany({
+                where: { estado: 'ACTIVO' },
+                select: {
+                    numeroPoliza: true,
+                    titular: true,
+                    _count: { select: { servicios: true } }
+                }
             });
 
+            const policiesToDeleteList = allActivePolicies.filter(p => p._count.servicios >= 2);
+            const polizasToDelete = policiesToDeleteList.length;
+
             // Contar pólizas vencidas (para reporte)
-            const expiredPolicies = await Policy.countDocuments({
-                estado: 'ACTIVO',
-                estadoPoliza: 'VENCIDA'
+            const expiredPolicies = await prisma.policy.count({
+                where: {
+                    estado: 'ACTIVO',
+                    estadoPoliza: 'VENCIDA'
+                }
             });
 
             // Obtener algunos ejemplos para mostrar
-            const examplePolicies = await Policy.find({
-                estado: 'ACTIVO',
-                $expr: { $gte: [{ $size: '$servicios' }, 2] }
-            })
-                .select('numeroPoliza servicios titular')
-                .limit(5);
+            const examplePolicies = policiesToDeleteList.slice(0, 5).map(p => ({
+                numeroPoliza: p.numeroPoliza,
+                titular: p.titular,
+                servicios: p._count.servicios
+            }));
 
-            const exampleExpired = await Policy.find({
-                estado: 'ACTIVO',
-                estadoPoliza: 'VENCIDA'
-            })
-                .select('numeroPoliza titular estadoPoliza')
-                .limit(3);
+            const exampleExpiredData = await prisma.policy.findMany({
+                where: {
+                    estado: 'ACTIVO',
+                    estadoPoliza: 'VENCIDA'
+                },
+                select: {
+                    numeroPoliza: true,
+                    titular: true,
+                    estadoPoliza: true
+                },
+                take: 3
+            });
 
             return {
                 success: true,
                 preview: {
                     policiesToDelete: polizasToDelete,
                     expiredPoliciesFound: expiredPolicies,
-                    examplePolicies: examplePolicies.map(p => ({
-                        numeroPoliza: p.numeroPoliza,
-                        titular: p.titular,
-                        servicios: p.servicios.length
-                    })),
-                    exampleExpired: exampleExpired.map(p => ({
+                    examplePolicies,
+                    exampleExpired: exampleExpiredData.map(p => ({
                         numeroPoliza: p.numeroPoliza,
                         titular: p.titular,
                         estado: p.estadoPoliza ?? 'DESCONOCIDO'

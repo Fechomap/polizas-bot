@@ -59,10 +59,12 @@ class ViewFilesCallbacks extends BaseCommand {
             const numeroPoliza = policy.numeroPoliza;
             this.logInfo(`Mostrando fotos de póliza: ${numeroPoliza}`);
 
-            // Obtener fotos de R2 y binarios legacy
-            const r2Fotos = policy.archivos?.r2Files?.fotos ?? [];
-            const legacyFotos = policy.archivos?.fotos ?? [];
+            // Obtener fotos de R2 (Prisma) y binarios legacy
+            const r2Fotos = (policy.archivosR2 ?? []).filter(f => f.tipo === 'FOTO');
+            const legacyFotos = (policy.archivosLegacy ?? []).filter(f => f.tipo === 'FOTO');
             const totalFotos = r2Fotos.length + legacyFotos.length;
+
+            this.logInfo(`Archivos encontrados: R2=${r2Fotos.length}, Legacy=${legacyFotos.length}`);
 
             if (totalFotos === 0) {
                 await ctx.reply('📸 No hay fotos asociadas a esta póliza.');
@@ -170,9 +172,9 @@ class ViewFilesCallbacks extends BaseCommand {
         try {
             const numeroPoliza = policy.numeroPoliza;
 
-            // Obtener PDFs de R2 y binarios legacy
-            const r2Pdfs = policy.archivos?.r2Files?.pdfs ?? [];
-            const legacyPdfs = policy.archivos?.pdfs ?? [];
+            // Obtener PDFs de R2 (Prisma) y binarios legacy
+            const r2Pdfs = (policy.archivosR2 ?? []).filter(f => f.tipo === 'PDF');
+            const legacyPdfs = (policy.archivosLegacy ?? []).filter(f => f.tipo === 'PDF');
             const totalPdfs = r2Pdfs.length + legacyPdfs.length;
 
             if (totalPdfs === 0) {

@@ -1,10 +1,15 @@
 // src/utils/fileHandler.ts
+/**
+ * @deprecated Este archivo usa MongoDB directamente para almacenar archivos.
+ * Para nuevos desarrollos, usar PolicyFileService.ts con R2 storage.
+ * Las funciones saveFileToMongo y getFilesFromMongo son LEGACY.
+ */
 import { promises as fs } from 'fs';
 import fsSync from 'fs';
 import path from 'path';
 import axios from 'axios';
 import logger from './logger';
-import Policy from '../models/policy';
+import { prisma } from '../database/prisma';
 import { BotContext } from '../../types';
 
 // Tipos para el manejo de archivos
@@ -35,7 +40,8 @@ class FileHandler {
     }
 
     /**
-     * Guarda un archivo en MongoDB dentro de una póliza
+     * @deprecated Usar PolicyFileService.subirArchivo() con R2 storage en su lugar.
+     * Este método ya no guarda archivos embebidos - usa PolicyFileR2 table.
      */
     static async saveFileToMongo(
         numeroPoliza: string,
@@ -43,53 +49,53 @@ class FileHandler {
         fileData: Buffer,
         contentType: string
     ): Promise<boolean> {
+        logger.warn(`⚠️ saveFileToMongo está DEPRECATED. Usar PolicyFileService.subirArchivo() en su lugar.`);
+
         try {
-            const policy = await Policy.findOne({ numeroPoliza });
+            const policy = await prisma.policy.findFirst({
+                where: { numeroPoliza }
+            });
             if (!policy) {
                 throw new Error('Póliza no encontrada');
             }
 
-            // Crear el objeto de archivo
-            const fileObject: ISavedFile = {
-                data: fileData,
-                contentType: contentType
-            };
-
-            // Agregar el archivo al array correspondiente
-            if (fileType === 'foto') {
-                policy.archivos.fotos.push(fileObject);
-            } else if (fileType === 'pdf') {
-                policy.archivos.pdfs.push(fileObject);
-            }
-
-            // Guardar la póliza
-            await policy.save();
-            logger.info(`✅ Archivo ${fileType} guardado en MongoDB para póliza: ${numeroPoliza}`);
-            return true;
+            // En Prisma, los archivos van en tabla PolicyFileR2, no embebidos
+            // Este método ya no puede guardar archivos de la forma legacy
+            logger.warn(`Archivo ${fileType} para póliza ${numeroPoliza} NO guardado - usar PolicyFileService`);
+            return false;
         } catch (error: any) {
-            logger.error('❌ Error al guardar archivo en MongoDB:', { error: error.message });
+            logger.error('❌ Error en saveFileToMongo (deprecated):', { error: error.message });
             throw error;
         }
     }
 
     /**
-     * Obtiene archivos de MongoDB para una póliza específica
+     * @deprecated Usar PolicyFileService para obtener archivos de R2 storage.
+     * Este método ahora consulta la tabla PolicyFileR2.
      */
     static async getFilesFromMongo(
         numeroPoliza: string,
         fileType: FileType
     ): Promise<any[] | null> {
+        logger.warn(`⚠️ getFilesFromMongo está DEPRECATED. Usar PolicyFileService en su lugar.`);
+
         try {
-            const policy = await Policy.findOne({ numeroPoliza });
+            const policy = await prisma.policy.findFirst({
+                where: { numeroPoliza },
+                include: { archivosR2: true }
+            });
+
             if (!policy) {
                 logger.warn(`⚠️ Póliza no encontrada: ${numeroPoliza}`);
                 return null;
             }
 
-            // Obtener los archivos del tipo solicitado
-            const files = fileType === 'foto' ? policy.archivos.fotos : policy.archivos.pdfs;
+            // Obtener archivos de la tabla PolicyFileR2
+            // FileType enum en Prisma es FOTO/PDF (mayúsculas)
+            const tipoArchivo = fileType === 'foto' ? 'FOTO' : 'PDF';
+            const files = policy.archivosR2.filter(f => f.tipo === tipoArchivo);
 
-            if (!files || files.length === 0) {
+            if (files.length === 0) {
                 logger.info(
                     `ℹ️ No hay ${fileType === 'foto' ? 'fotos' : 'PDFs'} para la póliza: ${numeroPoliza}`
                 );
@@ -98,7 +104,7 @@ class FileHandler {
 
             return files;
         } catch (error: any) {
-            logger.error('❌ Error al obtener archivos de MongoDB:', { error: error.message });
+            logger.error('❌ Error al obtener archivos:', { error: error.message });
             throw error;
         }
     }

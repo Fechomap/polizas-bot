@@ -51,6 +51,10 @@ class NotificationCommand extends BaseCommand {
 
                 // Obtener instancia del NotificationManager
                 const notificationManager = getNotificationManager(this.bot);
+                if (!notificationManager) {
+                    await ctx.reply('❌ Sistema de notificaciones no disponible.');
+                    return;
+                }
 
                 // Verificar inicialización
                 if (!notificationManager.isInitialized) {
@@ -216,6 +220,10 @@ class NotificationCommand extends BaseCommand {
                     await ctx.answerCbQuery();
 
                     const notificationManager = getNotificationManager(this.bot);
+                    if (!notificationManager) {
+                        await ctx.reply('❌ Sistema de notificaciones no disponible.');
+                        return;
+                    }
                     const allPending = await notificationManager.getPendingNotifications();
 
                     if (allPending.length === 0) {
@@ -378,6 +386,10 @@ class NotificationCommand extends BaseCommand {
                     await ctx.answerCbQuery();
 
                     const notificationManager = getNotificationManager(this.bot);
+                    if (!notificationManager) {
+                        await ctx.reply('❌ Sistema de notificaciones no disponible.');
+                        return;
+                    }
                     const pendingNotifications =
                         await notificationManager.getPendingNotifications();
 
