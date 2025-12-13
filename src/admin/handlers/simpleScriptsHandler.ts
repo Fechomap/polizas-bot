@@ -1,9 +1,12 @@
 import { Context } from 'telegraf';
 import { Markup } from 'telegraf';
 import path from 'path';
-import { spawn } from 'child_process';
 import fs from 'fs/promises';
 import AutoCleanupService from '../../services/AutoCleanupService';
+import {
+    exportarPolizasExcel,
+    validarArchivosPolizas
+} from '../jobs/ScheduledJobsService';
 
 interface IRunningScript {
     scriptName: string;
@@ -43,12 +46,12 @@ class SimpleScriptsHandler {
     }
 
     /**
-     * Maneja la ejecución de exportExcel.js
+     * Maneja la exportación de pólizas a Excel
      */
     async handleExportExcel(ctx: Context): Promise<void> {
         const userId = ctx.from!.id;
 
-        // Verificar si ya hay un script corriendo para este usuario
+        // Verificar si ya hay un proceso corriendo para este usuario
         if (this.runningScripts.has(userId)) {
             await ctx.reply(
                 '⚠️ Ya tienes un proceso de exportación ejecutándose. Espera a que termine.'
@@ -63,82 +66,22 @@ class SimpleScriptsHandler {
 
         // Marcar como ejecutándose
         this.runningScripts.set(userId, {
-            scriptName: 'exportExcel.js',
+            scriptName: 'exportExcel',
             startTime: Date.now(),
             messageId: startMsg.message_id
         });
 
-        let output = '';
-        let errorOutput = '';
-
         try {
-            // Ejecutar el script
-            const scriptPath = path.join(this.scriptsPath, 'exportExcel.js');
-            const child = spawn('node', [scriptPath], {
-                cwd: this.scriptsPath,
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
-
-            child.stdout.on('data', (data: Buffer) => {
-                output += data.toString();
-            });
-
-            child.stderr.on('data', (data: Buffer) => {
-                errorOutput += data.toString();
-            });
-
-            // Actualizar progreso cada 5 segundos
-            const progressInterval = setInterval(async () => {
-                const scriptData = this.runningScripts.get(userId);
-                if (scriptData) {
-                    const elapsed = Math.floor((Date.now() - scriptData.startTime) / 1000);
-                    try {
-                        await ctx.telegram.editMessageText(
-                            ctx.chat!.id,
-                            startMsg.message_id,
-                            undefined,
-                            `📊 *Exportando a Excel*\n\n⏳ Tiempo transcurrido: ${elapsed}s\n💭 Procesando pólizas...`,
-                            { parse_mode: 'Markdown' }
-                        );
-                    } catch (err) {
-                        // Ignorar errores de edición de mensaje
-                    }
-                }
-            }, 5000);
-
-            // Esperar a que termine
-            await new Promise<void>((resolve, reject) => {
-                child.on('close', (code: number | null) => {
-                    clearInterval(progressInterval);
-                    if (code === 0) {
-                        resolve();
-                    } else {
-                        reject(new Error(`Script salió con código ${code}`));
-                    }
-                });
-
-                child.on('error', (err: Error) => {
-                    clearInterval(progressInterval);
-                    reject(err);
-                });
-            });
-
-            // Procesar resultado
+            // Llamada directa a la función (sin spawn de proceso externo)
+            const resultado = await exportarPolizasExcel();
             const scriptData = this.runningScripts.get(userId);
+
             if (scriptData) {
                 const elapsed = Math.floor((Date.now() - scriptData.startTime) / 1000);
 
                 let successMessage = '✅ *Exportación completada*\n\n';
                 successMessage += `⏱️ Tiempo total: ${elapsed}s\n`;
-
-                // Agregar información específica del script
-                if (output.includes('Total procesado:')) {
-                    const matches = output.match(/Total procesado: (\d+)/);
-                    if (matches) {
-                        successMessage += `📊 Pólizas procesadas: ${matches[1]}\n`;
-                    }
-                }
-
+                successMessage += `📊 Pólizas exportadas: ${resultado.totalExported}\n`;
                 successMessage += '\n📄 Enviando archivo Excel...';
 
                 await ctx.telegram.editMessageText(
@@ -149,8 +92,10 @@ class SimpleScriptsHandler {
                     { parse_mode: 'Markdown' }
                 );
 
-                // Intentar enviar archivo generado
-                await this.sendGeneratedExcelFile(ctx);
+                // Enviar archivo generado
+                if (resultado.filePath) {
+                    await this.sendExcelFile(ctx, resultado.filePath);
+                }
             }
         } catch (error) {
             const scriptData = this.runningScripts.get(userId);
@@ -160,10 +105,6 @@ class SimpleScriptsHandler {
                 let errorMessage = '❌ *Error en exportación*\n\n';
                 errorMessage += `⏱️ Tiempo transcurrido: ${elapsed}s\n`;
                 errorMessage += `🔥 Error: ${(error as Error).message}\n`;
-
-                if (errorOutput) {
-                    errorMessage += `\n📋 Detalles:\n\`\`\`\n${errorOutput.slice(0, 500)}\`\`\``;
-                }
 
                 await ctx.telegram.editMessageText(
                     ctx.chat!.id,
@@ -180,47 +121,18 @@ class SimpleScriptsHandler {
     }
 
     /**
-     * Envía el archivo Excel más reciente generado
+     * Envía un archivo Excel específico
      */
-    private async sendGeneratedExcelFile(ctx: Context): Promise<void> {
+    private async sendExcelFile(ctx: Context, filePath: string): Promise<void> {
         try {
-            const backupDir = path.join(this.scriptsPath, 'backup');
-            const files = await fs.readdir(backupDir);
-
-            // Buscar archivos Excel
-            const excelFiles = files.filter(f => f.endsWith('.xlsx'));
-
-            if (excelFiles.length === 0) {
-                await ctx.reply('⚠️ No se encontró archivo Excel generado');
-                return;
-            }
-
-            // Encontrar el archivo más reciente
-            let latestFile: string | null = null;
-            let latestTime = 0;
-
-            for (const file of excelFiles) {
-                const filePath = path.join(backupDir, file);
-                const stats = await fs.stat(filePath);
-                if (stats.mtime.getTime() > latestTime) {
-                    latestTime = stats.mtime.getTime();
-                    latestFile = file;
+            const fileName = path.basename(filePath);
+            await ctx.replyWithDocument(
+                { source: filePath, filename: fileName },
+                {
+                    caption: `📊 *Exportación Excel Completa*\n\n📅 Generado: ${new Date().toLocaleString('es-ES')}`,
+                    parse_mode: 'Markdown'
                 }
-            }
-
-            if (latestFile) {
-                const filePath = path.join(backupDir, latestFile);
-                await ctx.replyWithDocument(
-                    {
-                        source: filePath,
-                        filename: latestFile
-                    },
-                    {
-                        caption: `📊 *Exportación Excel Completa*\n\n📅 Generado: ${new Date().toLocaleString('es-ES')}\n🔄 Estados actualizados: 3:00 AM`,
-                        parse_mode: 'Markdown'
-                    }
-                );
-            }
+            );
         } catch (error) {
             console.error('Error enviando archivo Excel:', error);
             await ctx.reply('❌ Error al enviar archivo Excel: ' + (error as Error).message);
@@ -470,12 +382,12 @@ class SimpleScriptsHandler {
     }
 
     /**
-     * Maneja la ejecución de validación de archivos
+     * Maneja la validación de archivos de pólizas
      */
     async handleFileValidation(ctx: Context): Promise<void> {
         const userId = ctx.from!.id;
 
-        // Verificar si ya hay un script corriendo para este usuario
+        // Verificar si ya hay un proceso corriendo para este usuario
         if (this.runningScripts.has(userId)) {
             await ctx.answerCbQuery('⏳ Ya tienes un proceso en ejecución', { show_alert: true });
             return;
@@ -484,143 +396,71 @@ class SimpleScriptsHandler {
         await ctx.answerCbQuery();
 
         try {
-            const loadingMessage = await ctx.editMessageText(
+            await ctx.editMessageText(
                 '🔄 *Iniciando Validación de Archivos*\n\n' +
                     '📋 Analizando todas las pólizas...\n' +
-                    '📊 Verificando fotos y PDFs...\n' +
-                    '⏱️ Este proceso puede tardar varios minutos.',
+                    '📊 Verificando fotos y PDFs...',
                 { parse_mode: 'Markdown' }
             );
 
-            // Registrar script en ejecución
+            // Registrar proceso en ejecución
             this.runningScripts.set(userId, {
-                scriptName: 'fileValidationReport.js',
+                scriptName: 'fileValidation',
                 startTime: Date.now(),
-                messageId: typeof loadingMessage === 'object' ? loadingMessage.message_id : 0
+                messageId: 0
             });
 
-            // Ejecutar script de validación
-            await this.executeFileValidationScript(ctx, userId);
-        } catch (error) {
-            console.error('Error iniciando validación de archivos:', error);
-            await ctx.editMessageText(
-                '❌ *Error*\n\nNo se pudo iniciar la validación de archivos: ' +
-                    (error as Error).message,
-                { parse_mode: 'Markdown' }
-            );
-            this.runningScripts.delete(userId);
-        }
-    }
+            // Llamada directa a la función
+            const resultado = await validarArchivosPolizas();
+            const scriptData = this.runningScripts.get(userId);
 
-    /**
-     * Ejecuta el script de validación de archivos
-     */
-    private async executeFileValidationScript(ctx: Context, userId: number): Promise<void> {
-        const scriptPath = path.join(this.scriptsPath, 'fileValidationReport.js');
+            if (scriptData) {
+                const elapsed = Math.floor((Date.now() - scriptData.startTime) / 1000);
 
-        return new Promise((resolve, reject) => {
-            const child = spawn('node', [scriptPath], {
-                cwd: this.scriptsPath,
-                stdio: ['ignore', 'pipe', 'pipe']
-            });
-
-            let stdout = '';
-            let stderr = '';
-
-            child.stdout?.on('data', data => {
-                stdout += data.toString();
-            });
-
-            child.stderr?.on('data', data => {
-                stderr += data.toString();
-            });
-
-            child.on('close', async code => {
-                this.runningScripts.delete(userId);
-
-                if (code === 0) {
-                    await this.sendFileValidationReport(ctx);
-                    resolve();
-                } else {
-                    console.error('Script de validación falló:', stderr);
-                    await ctx.editMessageText(
-                        `❌ *Error en Validación*\n\nCódigo de salida: ${code}\n\`\`\`\n${stderr}\n\`\`\``,
-                        { parse_mode: 'Markdown' }
-                    );
-                    reject(new Error(`Script falló con código ${code}`));
-                }
-            });
-
-            child.on('error', async error => {
-                this.runningScripts.delete(userId);
-                console.error('Error ejecutando script de validación:', error);
                 await ctx.editMessageText(
-                    '❌ *Error Crítico*\n\nNo se pudo ejecutar el script de validación.',
+                    `✅ *Validación Completada*\n\n` +
+                        `⏱️ Tiempo: ${elapsed}s\n` +
+                        `📊 Total analizadas: ${resultado.totalProcessed}\n` +
+                        `⚠️ Con problemas: ${resultado.totalProblems}\n\n` +
+                        `📎 Enviando reporte...`,
                     { parse_mode: 'Markdown' }
                 );
-                reject(error);
-            });
 
-            // Timeout de 10 minutos
-            setTimeout(() => {
-                if (!child.killed) {
-                    child.kill();
-                    reject(new Error('Timeout en script de validación'));
+                // Enviar archivo si hay problemas
+                if (resultado.filePath && resultado.totalProblems > 0) {
+                    const fileBuffer = await fs.readFile(resultado.filePath);
+                    const fileName = `validacion-archivos-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+                    await ctx.replyWithDocument(
+                        { source: fileBuffer, filename: fileName },
+                        {
+                            caption:
+                                '📋 *REPORTE - PÓLIZAS CON PROBLEMAS*\n\n' +
+                                '🔴 Rojo: Sin fotos Y sin PDF\n' +
+                                '🟠 Naranja: Sin fotos\n' +
+                                '🟡 Amarillo: Sin PDF\n\n' +
+                                `📅 Generado: ${new Date().toLocaleString('es-MX')}`,
+                            parse_mode: 'Markdown'
+                        }
+                    );
+
+                    // Limpiar archivo temporal
+                    await fs.unlink(resultado.filePath).catch(() => {});
+                } else if (resultado.totalProblems === 0) {
+                    await ctx.reply(
+                        '🎉 ¡Excelente! Todas las pólizas tienen fotos y PDFs.',
+                        { parse_mode: 'Markdown' }
+                    );
                 }
-            }, 600000);
-        });
-    }
-
-    /**
-     * Envía el archivo Excel generado por la validación
-     */
-    private async sendFileValidationReport(ctx: Context): Promise<void> {
-        try {
-            const excelPath = path.join(this.scriptsPath, 'file-validation-report.xlsx');
-
-            // Verificar que el archivo existe
-            await fs.access(excelPath);
-
-            await ctx.editMessageText(
-                '✅ *Validación Completada*\n\n📎 Enviando reporte de archivos...',
-                { parse_mode: 'Markdown' }
-            );
-
-            // Leer el archivo
-            const fileBuffer = await fs.readFile(excelPath);
-            const fileName = `validacion-archivos-${new Date().toISOString().split('T')[0]}.xlsx`;
-
-            // Enviar archivo
-            await ctx.replyWithDocument(
-                {
-                    source: fileBuffer,
-                    filename: fileName
-                },
-                {
-                    caption:
-                        '📋 *REPORTE SIMPLIFICADO - PÓLIZAS SIN FOTOS*\n\n' +
-                        '📊 *Columnas del reporte:*\n' +
-                        '• NUMERO\\_POLIZA\n' +
-                        '• FOTOS \\(X = Sin fotos, ✓ = Con fotos\\)\n' +
-                        '• PDF \\(X = Sin PDF, ✓ = Con PDF\\)\n\n' +
-                        '🎯 *Solo aparecen pólizas SIN FOTOS:*\n' +
-                        '🔴 Rojo: Sin fotos Y sin PDF\n' +
-                        '🟠 Naranja: Sin fotos pero con PDF\n\n' +
-                        '💡 *Objetivo: Saber exactamente qué pólizas necesitan fotos*\n\n' +
-                        `📅 Generado: ${new Date().toLocaleString('es-MX')}`,
-                    parse_mode: 'Markdown'
-                }
-            );
-
-            // Limpiar archivo temporal
-            await fs.unlink(excelPath).catch(() => {});
+            }
         } catch (error) {
-            console.error('Error enviando reporte de validación:', error);
+            console.error('Error en validación de archivos:', error);
             await ctx.editMessageText(
-                '❌ *Error*\n\nNo se pudo enviar el reporte de validación: ' +
-                    (error as Error).message,
+                '❌ *Error*\n\nNo se pudo completar la validación: ' + (error as Error).message,
                 { parse_mode: 'Markdown' }
             );
+        } finally {
+            this.runningScripts.delete(userId);
         }
     }
 

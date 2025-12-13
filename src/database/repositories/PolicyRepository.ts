@@ -151,10 +151,7 @@ class PolicyRepository {
     /**
      * Actualiza una póliza por número
      */
-    async updateByNumeroPoliza(
-        numeroPoliza: string,
-        data: Partial<Policy>
-    ): Promise<Policy> {
+    async updateByNumeroPoliza(numeroPoliza: string, data: Partial<Policy>): Promise<Policy> {
         return prisma.policy.update({
             where: { numeroPoliza: numeroPoliza.toUpperCase().trim() },
             data
@@ -242,10 +239,7 @@ class PolicyRepository {
     /**
      * Actualiza estado de un registro
      */
-    async updateRegistroEstado(
-        registroId: string,
-        estado: RegistroStatus
-    ): Promise<Registro> {
+    async updateRegistroEstado(registroId: string, estado: RegistroStatus): Promise<Registro> {
         return prisma.registro.update({
             where: { id: registroId },
             data: { estado }

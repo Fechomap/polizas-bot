@@ -349,9 +349,15 @@ class NotificationManager {
             where: { id: terminoNotification.id }
         });
         if (updatedContacto)
-            await scheduleNotificationInQueue(updatedContacto.id, new Date(updatedContacto.scheduledDate));
+            await scheduleNotificationInQueue(
+                updatedContacto.id,
+                new Date(updatedContacto.scheduledDate)
+            );
         if (updatedTermino)
-            await scheduleNotificationInQueue(updatedTermino.id, new Date(updatedTermino.scheduledDate));
+            await scheduleNotificationInQueue(
+                updatedTermino.id,
+                new Date(updatedTermino.scheduledDate)
+            );
 
         const contactoTime = moment(newContactoDate)
             .tz('America/Mexico_City')
@@ -383,7 +389,10 @@ class NotificationManager {
             where: { id: notification.id }
         });
         if (updatedNotification)
-            await scheduleNotificationInQueue(updatedNotification.id, new Date(updatedNotification.scheduledDate));
+            await scheduleNotificationInQueue(
+                updatedNotification.id,
+                new Date(updatedNotification.scheduledDate)
+            );
 
         const newTime = moment(newDate).tz('America/Mexico_City').format('DD/MM/YYYY HH:mm');
         return {
@@ -497,10 +506,13 @@ class NotificationManager {
             _count: { status: true }
         });
 
-        const statuses = dbStats.reduce((acc, stat) => ({
-            ...acc,
-            [stat.status]: stat._count.status
-        }), {} as Record<string, number>);
+        const statuses = dbStats.reduce(
+            (acc, stat) => ({
+                ...acc,
+                [stat.status]: stat._count.status
+            }),
+            {} as Record<string, number>
+        );
 
         return {
             activeJobs: queueStats.active + queueStats.waiting + queueStats.delayed,

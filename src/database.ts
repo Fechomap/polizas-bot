@@ -8,14 +8,6 @@ import dotenv from 'dotenv';
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // Re-exportar todo desde el módulo database/
-export {
-    prisma,
-    getPrismaClient,
-    disconnectPrisma,
-    testPrismaConnection
-} from './database/prisma';
+export { prisma, getPrismaClient, disconnectPrisma, testPrismaConnection } from './database/prisma';
 
-export {
-    policyRepository,
-    vehicleRepository
-} from './database/repositories';
+export { policyRepository, vehicleRepository } from './database/repositories';

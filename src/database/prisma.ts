@@ -37,7 +37,7 @@ export function getPrismaClient(): PrismaClient {
         });
 
         // Manejar errores del pool
-        pool.on('error', (err) => {
+        pool.on('error', err => {
             logger.error('[Prisma] Error en pool de conexiones:', err);
         });
 
@@ -45,9 +45,7 @@ export function getPrismaClient(): PrismaClient {
         const adapter = new PrismaPg(pool);
         prismaClient = new PrismaClient({
             adapter,
-            log: process.env.NODE_ENV === 'development'
-                ? ['query', 'error', 'warn']
-                : ['error']
+            log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error']
         });
 
         logger.info('[Prisma] Cliente PostgreSQL inicializado');

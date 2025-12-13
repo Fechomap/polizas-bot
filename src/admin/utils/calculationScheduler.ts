@@ -1,10 +1,14 @@
 import * as cron from 'node-cron';
 import path from 'path';
-import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf } from 'telegraf';
 import logger from '../../utils/logger';
 import AutoCleanupService from '../../services/AutoCleanupService';
+import {
+    calcularEstadosPolizas,
+    limpiarNIVsUsados,
+    limpiarNotificacionesObsoletas
+} from '../jobs/ScheduledJobsService';
 
 interface IExpiredPolicy {
     numeroPoliza: string;
@@ -36,7 +40,7 @@ interface IJobStats {
 
 class CalculationScheduler {
     private bot: Telegraf;
-    private scriptsPath: string;
+    private logsPath: string;
     private adminChatId: string;
     private adminThreadId: string;
     private jobs: Map<string, cron.ScheduledTask>;
@@ -44,7 +48,7 @@ class CalculationScheduler {
 
     constructor(bot: Telegraf) {
         this.bot = bot;
-        this.scriptsPath = path.join(__dirname, '../../../scripts');
+        this.logsPath = path.join(__dirname, '../../../scripts/logs');
         this.adminChatId = process.env.ADMIN_CHAT_ID ?? '';
         this.adminThreadId = process.env.ADMIN_THREAD_ID ?? '';
         this.jobs = new Map();
@@ -160,16 +164,22 @@ class CalculationScheduler {
                 );
             }
 
-            await this.executeScript('calculoEstadosDB.js');
-
+            // Llamada directa a la función (sin spawn de proceso externo)
+            const resultado = await calcularEstadosPolizas();
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
             if (this.adminChatId) {
-                await this.bot.telegram.sendMessage(
-                    this.adminChatId,
-                    `✅ *Cálculo Estados Completado*\n\n⏱️ Tiempo: ${elapsed}s\n📊 Estados actualizados\n✨ Sistema listo para el día`,
-                    { parse_mode: 'MarkdownV2' }
-                );
+                const msg =
+                    `✅ *Cálculo Estados Completado*\n\n` +
+                    `⏱️ Tiempo: ${elapsed}s\n` +
+                    `📊 Procesadas: ${resultado.procesadas}\n` +
+                    `✅ VIGENTE: ${resultado.estados.VIGENTE}\n` +
+                    `⚠️ PERIODO DE GRACIA: ${resultado.estados['PERIODO DE GRACIA']}\n` +
+                    `❌ VENCIDA: ${resultado.estados.VENCIDA}\n` +
+                    `✨ Sistema listo para el día`;
+                await this.bot.telegram.sendMessage(this.adminChatId, msg, {
+                    parse_mode: 'MarkdownV2'
+                });
             }
 
             logger.info(`✅ Cálculo de estados completado en ${elapsed}s`);
@@ -177,9 +187,13 @@ class CalculationScheduler {
             logger.error('❌ Error en cálculo de estados:', error);
 
             if (this.adminChatId) {
+                const errorMsg = (error as Error).message.replace(
+                    /[_*\[\]()~`>#+\-=|{}.!]/g,
+                    '\\$&'
+                );
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    `❌ *Error en Cálculo Estados*\n\n🔥 ${(error as Error).message.replace(/[_*\[\]()~`>#+\-=|{}.!]/g, '\\$&')}\n\n📋 Revisar logs para más detalles`,
+                    `❌ *Error en Cálculo Estados*\n\n🔥 ${errorMsg}\n\n📋 Revisar logs para más detalles`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -235,39 +249,40 @@ class CalculationScheduler {
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    '🧹 *Limpieza Automática NIVs Usados*\\n\\n⏳ Eliminando NIVs con servicios\\.\\.\\.',
+                    '🧹 *Limpieza Automática NIVs Usados*\n\n⏳ Eliminando NIVs con servicios\\.\\.\\.',
                     { parse_mode: 'MarkdownV2' }
                 );
             }
 
-            const output = await this.executeScript('cleanup-nivs-usados.js');
+            // Llamada directa a la función (sin spawn de proceso externo)
+            const resultado = await limpiarNIVsUsados();
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
-            // Parsear resultado básico del output
-            const successMatch = output.match(/NIVs eliminados exitosamente: (\d+)/);
-            const eliminados = successMatch ? parseInt(successMatch[1]) : 0;
-
             if (this.adminChatId) {
-                let message = '✅ *Limpieza NIVs Completada*\\n\\n';
-                message += `⏱️ Tiempo: ${elapsed}s\\n`;
-                message += `🗑️ NIVs eliminados: ${eliminados}\\n`;
-                message += '✨ NIVs usados limpiados correctamente';
-
-                await this.bot.telegram.sendMessage(this.adminChatId, message, {
+                const msg =
+                    `✅ *Limpieza NIVs Completada*\n\n` +
+                    `⏱️ Tiempo: ${elapsed}s\n` +
+                    `🗑️ NIVs eliminados: ${resultado.eliminados}\n` +
+                    `✨ NIVs usados limpiados correctamente`;
+                await this.bot.telegram.sendMessage(this.adminChatId, msg, {
                     parse_mode: 'MarkdownV2'
                 });
             }
 
             logger.info(
-                `✅ Limpieza de NIVs completada en ${elapsed}s - ${eliminados} NIVs eliminados`
+                `✅ Limpieza de NIVs completada en ${elapsed}s - ${resultado.eliminados} NIVs eliminados`
             );
         } catch (error) {
             logger.error('❌ Error en limpieza de NIVs:', error);
 
             if (this.adminChatId) {
+                const errorMsg = (error as Error).message.replace(
+                    /[_*\[\]()~`>#+\-=|{}.!]/g,
+                    '\\$&'
+                );
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    `❌ *Error en Limpieza NIVs*\\n\\n🔥 ${(error as Error).message.replace(/[_*\\[\\]()~`>#+\\-=|{}.!]/g, '\\\\$&')}\\n\\n📋 Revisar logs para más detalles`,
+                    `❌ *Error en Limpieza NIVs*\n\n🔥 ${errorMsg}\n\n📋 Revisar logs para más detalles`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -281,22 +296,25 @@ class CalculationScheduler {
             if (this.adminChatId) {
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    '🧹 *Limpieza Notificaciones*\\n\\n⏳ Eliminando notificaciones obsoletas\\.\\.\\.',
+                    '🧹 *Limpieza Notificaciones*\n\n⏳ Eliminando notificaciones obsoletas\\.\\.\\.',
                     { parse_mode: 'MarkdownV2' }
                 );
             }
 
-            await this.executeScript('cleanupOldNotifications.js');
-
+            // Llamada directa a la función (sin spawn de proceso externo)
+            const resultado = await limpiarNotificacionesObsoletas();
             const elapsed = Math.floor((Date.now() - startTime) / 1000);
 
             if (this.adminChatId) {
-                let message = '✅ *Limpieza Notificaciones Completada*\\n\\n';
-                message += `⏱️ Tiempo: ${elapsed}s\\n`;
-                message += '🗑️ Notificaciones obsoletas eliminadas\\n';
-                message += '✨ Base de datos de notificaciones optimizada';
-
-                await this.bot.telegram.sendMessage(this.adminChatId, message, {
+                const msg =
+                    `✅ *Limpieza Notificaciones Completada*\n\n` +
+                    `⏱️ Tiempo: ${elapsed}s\n` +
+                    `🗑️ SENT eliminadas: ${resultado.sent}\n` +
+                    `🗑️ FAILED eliminadas: ${resultado.failed}\n` +
+                    `🗑️ Expiradas eliminadas: ${resultado.expired}\n` +
+                    `📊 Total: ${resultado.total}\n` +
+                    `✨ Base de datos optimizada`;
+                await this.bot.telegram.sendMessage(this.adminChatId, msg, {
                     parse_mode: 'MarkdownV2'
                 });
             }
@@ -306,9 +324,13 @@ class CalculationScheduler {
             logger.error('❌ Error en limpieza de notificaciones:', error);
 
             if (this.adminChatId) {
+                const errorMsg = (error as Error).message.replace(
+                    /[_*\[\]()~`>#+\-=|{}.!]/g,
+                    '\\$&'
+                );
                 await this.bot.telegram.sendMessage(
                     this.adminChatId,
-                    `❌ *Error Limpieza Notificaciones*\\n\\n🔥 ${(error as Error).message.replace(/[_*\\[\\]()~`>#+\\-=|{}.!]/g, '\\\\$&')}\\n\\n📋 Revisar logs para más detalles`,
+                    `❌ *Error Limpieza Notificaciones*\n\n🔥 ${errorMsg}\n\n📋 Revisar logs para más detalles`,
                     { parse_mode: 'MarkdownV2' }
                 );
             }
@@ -449,53 +471,16 @@ class CalculationScheduler {
         }
     }
 
-    private async executeScript(scriptName: string): Promise<string> {
-        const scriptPath = path.join(this.scriptsPath, scriptName);
-
-        return new Promise((resolve, reject) => {
-            const child = spawn('node', [scriptPath], {
-                cwd: this.scriptsPath,
-                stdio: ['pipe', 'pipe', 'pipe']
-            });
-
-            let output = '';
-            let errorOutput = '';
-
-            child.stdout.on('data', (data: Buffer) => {
-                output += data.toString();
-            });
-
-            child.stderr.on('data', (data: Buffer) => {
-                errorOutput += data.toString();
-            });
-
-            child.on('close', (code: number | null) => {
-                if (code === 0) {
-                    resolve(output);
-                } else {
-                    reject(
-                        new Error(`Script ${scriptName} falló con código ${code}: ${errorOutput}`)
-                    );
-                }
-            });
-
-            child.on('error', (err: Error) => {
-                reject(err);
-            });
-        });
-    }
-
     private async cleanOldLogs(): Promise<number> {
-        const logsPath = path.join(this.scriptsPath, 'logs');
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
         try {
-            const files = await fs.readdir(logsPath);
+            const files = await fs.readdir(this.logsPath);
             let deletedCount = 0;
 
             for (const file of files) {
-                const filePath = path.join(logsPath, file);
+                const filePath = path.join(this.logsPath, file);
                 const stats = await fs.stat(filePath);
 
                 if (stats.mtime < sevenDaysAgo) {

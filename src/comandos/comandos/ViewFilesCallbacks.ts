@@ -64,7 +64,9 @@ class ViewFilesCallbacks extends BaseCommand {
             const legacyFotos = (policy.archivosLegacy ?? []).filter(f => f.tipo === 'FOTO');
             const totalFotos = r2Fotos.length + legacyFotos.length;
 
-            this.logInfo(`Archivos encontrados: R2=${r2Fotos.length}, Legacy=${legacyFotos.length}`);
+            this.logInfo(
+                `Archivos encontrados: R2=${r2Fotos.length}, Legacy=${legacyFotos.length}`
+            );
 
             if (totalFotos === 0) {
                 await ctx.reply('📸 No hay fotos asociadas a esta póliza.');

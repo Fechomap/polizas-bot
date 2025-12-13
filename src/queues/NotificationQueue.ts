@@ -53,7 +53,9 @@ async function sendVehiclePhotos(bot: Telegraf, notification: any): Promise<void
 
             // Usar URL firmada (válida por 1 hora) en lugar de URL pública
             const signedUrl = await storage.getSignedUrl(foto.key, 3600);
-            await bot.telegram.sendPhoto(Number(notification.targetGroupId), signedUrl, { caption });
+            await bot.telegram.sendPhoto(Number(notification.targetGroupId), signedUrl, {
+                caption
+            });
 
             if (i < fotosAEnviar.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));

@@ -49,7 +49,9 @@ class FileHandler {
         fileData: Buffer,
         contentType: string
     ): Promise<boolean> {
-        logger.warn(`⚠️ saveFileToMongo está DEPRECATED. Usar PolicyFileService.subirArchivo() en su lugar.`);
+        logger.warn(
+            `⚠️ saveFileToMongo está DEPRECATED. Usar PolicyFileService.subirArchivo() en su lugar.`
+        );
 
         try {
             const policy = await prisma.policy.findFirst({
@@ -61,7 +63,9 @@ class FileHandler {
 
             // En Prisma, los archivos van en tabla PolicyFileR2, no embebidos
             // Este método ya no puede guardar archivos de la forma legacy
-            logger.warn(`Archivo ${fileType} para póliza ${numeroPoliza} NO guardado - usar PolicyFileService`);
+            logger.warn(
+                `Archivo ${fileType} para póliza ${numeroPoliza} NO guardado - usar PolicyFileService`
+            );
             return false;
         } catch (error: any) {
             logger.error('❌ Error en saveFileToMongo (deprecated):', { error: error.message });

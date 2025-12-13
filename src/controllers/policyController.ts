@@ -363,9 +363,7 @@ export const getOldUnusedPolicies = async (): Promise<any[]> => {
             include: { servicios: true }
         });
 
-        const unServicioFiltered = unServicio
-            .filter(p => p.servicios.length === 1)
-            .slice(0, 10);
+        const unServicioFiltered = unServicio.filter(p => p.servicios.length === 1).slice(0, 10);
 
         // NIVs sin servicios
         const nivResults = await prisma.policy.findMany({

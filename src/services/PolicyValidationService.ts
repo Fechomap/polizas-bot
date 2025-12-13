@@ -40,10 +40,7 @@ export class PolicyValidationService {
             let aseguradoraDB = await prisma.aseguradora.findFirst({
                 where: {
                     activa: true,
-                    OR: [
-                        { nombre: normalizado },
-                        { nombreCorto: normalizado }
-                    ]
+                    OR: [{ nombre: normalizado }, { nombreCorto: normalizado }]
                 }
             });
 

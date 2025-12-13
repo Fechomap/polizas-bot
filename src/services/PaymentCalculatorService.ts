@@ -112,8 +112,8 @@ export class PaymentCalculatorService {
                 if (!fechaEmision) continue;
 
                 // Convertir pagos de Prisma a formato IPago
-                const pagosRealizados = pagos.filter((pago) => pago.estado === 'REALIZADO');
-                const pagosPlanificados = pagos.filter((pago) => pago.estado === 'PLANIFICADO');
+                const pagosRealizados = pagos.filter(pago => pago.estado === 'REALIZADO');
+                const pagosPlanificados = pagos.filter(pago => pago.estado === 'PLANIFICADO');
 
                 const fechaLimiteCobertura = this.calculateMonthsCoveredByPayments(
                     fechaEmision,

@@ -5,11 +5,10 @@
  * Migrado de Mongoose a Prisma/PostgreSQL
  */
 import BaseCommand from './BaseCommand';
-import { spawn, ChildProcess } from 'child_process';
-import * as path from 'path';
 import { Markup, Context } from 'telegraf';
 import { prisma } from '../../database/prisma';
 import { getOldUnusedPolicies } from '../../controllers/policyController';
+import { calcularEstadosPolizas } from '../../admin/jobs/ScheduledJobsService';
 
 // Interfaces for type safety
 interface PolicyDocument {
@@ -34,17 +33,6 @@ interface TelegramMessage {
         id: number;
     };
     message_id: number;
-}
-
-interface ProgressState {
-    updateCount: number;
-    lastProgressUpdate: number;
-    scriptRunning: boolean;
-}
-
-interface ScriptExecutionOptions {
-    detached: boolean;
-    stdio: ('ignore' | 'pipe')[];
 }
 
 interface PolicyReportData {
@@ -246,175 +234,47 @@ class ReportUsedCommand extends BaseCommand {
     // Method to generate and send the report, callable if needed
     async generateReport(ctx: Context): Promise<void> {
         let waitMsg: TelegramMessage | null = null;
-        let progressInterval: NodeJS.Timeout | null = null;
-        let scriptRunning = true; // Flag to control interval
 
         try {
             this.logInfo(`Ejecutando comando ${this.getCommandName()}`);
 
             // Enviar mensaje inicial
             waitMsg = (await ctx.reply(
-                '🔄 Iniciando cálculo de estados de pólizas...\n' +
-                    'Este proceso puede tardar varios minutos, se enviarán actualizaciones periódicas.'
+                '🔄 Iniciando cálculo de estados de pólizas...'
             )) as TelegramMessage;
 
-            // Variables para seguimiento y mensajes de progreso
-            const progressState: ProgressState = {
-                lastProgressUpdate: Date.now(),
-                updateCount: 0,
-                scriptRunning: true
-            };
-
-            // Iniciar el temporizador de progreso
-            progressInterval = setInterval(async (): Promise<void> => {
-                if (!scriptRunning || !waitMsg) {
-                    // Check if script finished or message deleted
-                    if (progressInterval) {
-                        clearInterval(progressInterval);
-                    }
-                    return;
-                }
-
-                progressState.updateCount++;
-                const elapsedSeconds: number = Math.floor(
-                    (Date.now() - progressState.lastProgressUpdate) / 1000
-                );
-
-                try {
-                    // Use handler's bot instance
-                    await this.handler.bot.telegram.editMessageText(
-                        waitMsg.chat.id,
-                        waitMsg.message_id,
-                        undefined,
-                        '🔄 Cálculo de estados en progreso...\n' +
-                            `⏱️ Tiempo transcurrido: ${elapsedSeconds} segundos\n` +
-                            `Actualización #${progressState.updateCount} - Por favor espere, esto puede tardar varios minutos.`
-                    );
-                    progressState.lastProgressUpdate = Date.now();
-                } catch (e: unknown) {
-                    const error = e as Error;
-                    // Ignore errors if message was deleted or couldn't be edited
-                    if (!error.message.includes('message to edit not found')) {
-                        this.logError('Error al actualizar mensaje de progreso:', error);
-                    } else {
-                        this.logInfo(
-                            'Mensaje de progreso no encontrado, deteniendo actualizaciones.'
-                        );
-                        if (progressInterval) {
-                            clearInterval(progressInterval); // Stop trying if message is gone
-                        }
-                    }
-                }
-            }, 30000); // Actualizar cada 30 segundos
-
-            // Ejecutar el script calculoEstadosDB.js como proceso separado
-            const scriptPath: string = path.join(__dirname, '../../../scripts/calculoEstadosDB.js'); // Adjusted path relative to this file
-
-            const executeScript = (): Promise<void> => {
-                return new Promise<void>((resolve, reject) => {
-                    this.logInfo(`Ejecutando script: ${scriptPath}`);
-
-                    const scriptOptions: ScriptExecutionOptions = {
-                        detached: true,
-                        stdio: ['ignore', 'pipe', 'pipe']
-                    };
-
-                    const childProcess: ChildProcess = spawn('node', [scriptPath], scriptOptions);
-
-                    childProcess.stdout?.on('data', (data: Buffer) => {
-                        const output: string = data.toString().trim();
-                        this.logInfo(`calculoEstadosDB stdout: ${output}`);
-                    });
-
-                    childProcess.stderr?.on('data', (data: Buffer) => {
-                        const errorOutput: string = data.toString().trim();
-                        this.logError(`calculoEstadosDB stderr: ${errorOutput}`);
-                    });
-
-                    childProcess.on('close', (code: number | null) => {
-                        scriptRunning = false; // Signal interval to stop
-                        if (code === 0) {
-                            this.logInfo(
-                                `Script calculoEstadosDB completado exitosamente (código ${code})`
-                            );
-                            resolve();
-                        } else {
-                            this.logError(
-                                `Script calculoEstadosDB falló con código de salida ${code}`
-                            );
-                            reject(new Error(`Script falló con código ${code}`));
-                        }
-                    });
-
-                    childProcess.on('error', (err: Error) => {
-                        scriptRunning = false; // Signal interval to stop
-                        this.logError(`Error al ejecutar calculoEstadosDB: ${err.message}`);
-                        reject(err);
-                    });
-
-                    // Timeout - allow script to continue but resolve promise
-                    setTimeout(() => {
-                        if (scriptRunning) {
-                            this.logInfo(
-                                'Tiempo límite para script excedido, pero continuando ejecución'
-                            );
-                            resolve(); // Resolve even on timeout to proceed with fetching policies
-                        }
-                    }, 420000); // 7 minutos de timeout
-                });
-            };
-
-            // --- Script Execution and Policy Fetching ---
+            // Ejecutar cálculo de estados directamente (sin spawn de script)
             try {
-                await executeScript();
-            } catch (scriptError: unknown) {
-                this.logError(
-                    'Error o timeout en el script, continuando con consulta de pólizas:',
-                    scriptError as Error
-                );
-                // Continue anyway
-            } finally {
-                scriptRunning = false; // Ensure flag is set and interval stops
-                if (progressInterval) {
-                    clearInterval(progressInterval);
-                }
+                this.logInfo('🔄 Iniciando sistema de calificaciones');
+                const resultado = await calcularEstadosPolizas();
+                this.logInfo(`✅ Sistema completado: ${resultado.procesadas} pólizas procesadas`);
+            } catch (calcError: unknown) {
+                this.logError('Error en cálculo de estados, continuando:', calcError as Error);
             }
 
-            // Update message before fetching policies
+            // Actualizar mensaje
             if (waitMsg) {
                 try {
                     await this.handler.bot.telegram.editMessageText(
                         waitMsg.chat.id,
                         waitMsg.message_id,
                         undefined,
-                        '✅ Proceso de cálculo completado o tiempo límite alcanzado.\n' +
-                            '🔍 Consultando las pólizas prioritarias...'
+                        '✅ Cálculo completado.\n🔍 Consultando pólizas prioritarias...'
                     );
                 } catch (msgError: unknown) {
-                    this.logError('Error al actualizar mensaje final:', msgError as Error);
-                    await ctx.reply('🔍 Consultando las pólizas prioritarias...'); // Fallback reply
+                    this.logError('Error al actualizar mensaje:', msgError as Error);
                 }
-            } else {
-                await ctx.reply('🔍 Consultando las pólizas prioritarias...'); // Fallback if waitMsg was lost
             }
 
-            // Pequeña pausa
-            await new Promise<void>(resolve => setTimeout(resolve, 2000));
-
-            // ✅ ACTUALIZADO: Usar nueva función que incluye NIVs
+            // Obtener pólizas prioritarias
             const todasLasPolizas = await getOldUnusedPolicies();
-
-            // Responder inmediatamente y procesar en background
-            await ctx.reply(
-                '🔄 Consultando pólizas prioritarias... El reporte se enviará en unos momentos.'
-            );
 
             // Procesar asíncronamente sin bloquear el bot
             setTimeout(async () => {
                 await this.enviarReporteAsincrono(ctx, todasLasPolizas);
             }, 100);
 
-            return; // Salir inmediatamente para no bloquear el bot
+            return;
         } catch (error: unknown) {
             await this.handleMainError(ctx, error);
         }
@@ -508,11 +368,11 @@ class ReportUsedCommand extends BaseCommand {
 
             // Fallback: Try fetching policies anyway
             try {
-                const fallbackPolicies = await prisma.policy.findMany({
+                const fallbackPolicies = (await prisma.policy.findMany({
                     where: { estado: 'ACTIVO' },
                     orderBy: { calificacion: 'desc' },
                     take: 10
-                }) as PolicyDocument[];
+                })) as PolicyDocument[];
 
                 if (fallbackPolicies.length > 0) {
                     await ctx.reply(

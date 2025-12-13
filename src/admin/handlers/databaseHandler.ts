@@ -75,13 +75,12 @@ _Las estadísticas completas estarán disponibles en la Fase 4._
      */
     static async handleScripts(ctx: Context): Promise<void> {
         await ctx.editMessageText(
-            '🔄 *EJECUTAR SCRIPTS*\n\n' +
-                'Esta función estará disponible en la Fase 4 del desarrollo.\n\n' +
-                'Scripts disponibles:\n' +
-                '• 📊 Calcular Estados (calculoEstadosDB.js)\n' +
-                '• 📥 Exportar a Excel (exportExcel.js)\n' +
-                '• 💾 Respaldo Completo (export.js)\n' +
-                '• 🔄 Actualizar Estados (estados.js)',
+            '🔄 *FUNCIONES DISPONIBLES*\n\n' +
+                'Ejecutar funciones de mantenimiento:\n\n' +
+                '• 📊 Calcular Estados - Actualiza estados de pólizas\n' +
+                '• 📥 Exportar a Excel - Descarga backup de datos\n' +
+                '• 🧹 Limpieza NIVs - Elimina NIVs usados\n' +
+                '• 📋 Validar Archivos - Verifica fotos y PDFs',
             {
                 parse_mode: 'Markdown',
                 reply_markup: {

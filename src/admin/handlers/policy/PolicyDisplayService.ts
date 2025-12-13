@@ -177,14 +177,8 @@ Color: ${policy.color ?? 'Sin color'}
 
             const buttons = [
                 [
-                    Markup.button.callback(
-                        '✏️ Editar',
-                        `admin_policy_edit_categories:${policyId}`
-                    ),
-                    Markup.button.callback(
-                        '🗑️ Eliminar',
-                        `admin_policy_delete_confirm:${policyId}`
-                    )
+                    Markup.button.callback('✏️ Editar', `admin_policy_edit_categories:${policyId}`),
+                    Markup.button.callback('🗑️ Eliminar', `admin_policy_delete_confirm:${policyId}`)
                 ],
                 [Markup.button.callback('⬅️ Volver', 'admin_policy_menu')]
             ];

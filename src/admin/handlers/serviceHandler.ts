@@ -464,10 +464,10 @@ class ServiceHandler {
 
             // Map field names from UI to Prisma schema
             const fieldMapping: Record<string, string> = {
-                'fechaServicio': 'fecha',
-                'tipoServicio': 'tipo',
-                'fechaRegistro': 'fecha',
-                'tipoRegistro': 'tipo'
+                fechaServicio: 'fecha',
+                tipoServicio: 'tipo',
+                fechaRegistro: 'fecha',
+                tipoRegistro: 'tipo'
             };
             const prismaFieldName = fieldMapping[fieldName] ?? fieldName;
 

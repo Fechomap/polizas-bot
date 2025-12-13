@@ -71,9 +71,7 @@ class VehicleRepository {
     /**
      * Crea un nuevo vehículo
      */
-    async create(
-        data: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>
-    ): Promise<Vehicle> {
+    async create(data: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>): Promise<Vehicle> {
         return prisma.vehicle.create({ data });
     }
 

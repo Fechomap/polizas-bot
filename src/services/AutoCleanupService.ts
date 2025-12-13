@@ -119,9 +119,7 @@ class AutoCleanupService {
             });
 
             // Filtrar las que tienen >= 2 servicios
-            const polizasToDelete = polizasWithServiceCount.filter(
-                p => p._count.servicios >= 2
-            );
+            const polizasToDelete = polizasWithServiceCount.filter(p => p._count.servicios >= 2);
 
             logger.info(
                 `📊 Encontradas ${polizasToDelete.length} pólizas con ≥ 2 servicios para eliminación automática`
