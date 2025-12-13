@@ -80,10 +80,6 @@ async function initializeBot(): Promise<Telegraf> {
         app.use('/admin/queues', serverAdapter.getRouter());
         logger.info(`✅ Bull Board UI disponible en /admin/queues`);
 
-        app.listen(PORT, () => {
-            logger.info(`Servidor web iniciado en puerto ${PORT}`);
-        });
-
         logger.info('✅ PostgreSQL/Prisma listo');
 
         // Inicializar UnifiedStateManager ANTES de todo (garantiza conexión Redis)
@@ -347,6 +343,11 @@ async function initializeBot(): Promise<Telegraf> {
             await bot.launch();
             logger.info('🤖 Bot iniciado en modo POLLING');
         }
+
+        // Iniciar servidor Express AL FINAL (después de configurar todo)
+        app.listen(PORT, () => {
+            logger.info(`Servidor web iniciado en puerto ${PORT}`);
+        });
 
         return bot;
     } catch (error) {
