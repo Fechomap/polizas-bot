@@ -27,11 +27,19 @@ import { stopInstance as stopNavigationManager } from './navigation/NavigationMa
 import adminStateManager from './admin/utils/adminStates';
 
 const app = express();
+app.use(express.json());
+
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 if (isNaN(PORT) || PORT < 1 || PORT > 65535) {
     throw new Error('PORT inválido en configuración');
 }
+
+// Detectar entorno de producción (Railway)
+const isProduction = process.env.NODE_ENV === 'production';
+const railwayDomain = process.env.RAILWAY_PUBLIC_DOMAIN;
+const webhookPath = '/webhook';
+const webhookUrl = railwayDomain ? `https://${railwayDomain}${webhookPath}` : null;
 
 if (!config.telegram.token) {
     throw new Error('TELEGRAM_BOT_TOKEN no configurado en .env');
@@ -48,6 +56,16 @@ async function initializeBot(): Promise<Telegraf> {
     try {
         app.get('/', (req, res) => {
             res.send('Bot is running!');
+        });
+
+        // Health check endpoint para Railway
+        app.get('/health', (req, res) => {
+            res.status(200).json({
+                status: 'ok',
+                timestamp: new Date().toISOString(),
+                uptime: process.uptime(),
+                mode: webhookUrl ? 'webhook' : 'polling'
+            });
         });
 
         // Configurar Bull Board UI
@@ -305,8 +323,30 @@ async function initializeBot(): Promise<Telegraf> {
         process.once('SIGINT', () => handleShutdown('SIGINT'));
         process.once('SIGTERM', () => handleShutdown('SIGTERM'));
 
-        await bot.launch();
-        logger.info('🤖 Bot iniciado exitosamente');
+        // Iniciar bot según entorno
+        if (isProduction && webhookUrl) {
+            // Producción (Railway): Usar webhook
+            logger.info('🌐 Configurando modo WEBHOOK', { webhookUrl });
+
+            // Registrar endpoint de webhook
+            app.use(webhookPath, bot.webhookCallback(webhookPath));
+
+            // Configurar webhook en Telegram
+            await bot.telegram.setWebhook(webhookUrl, {
+                drop_pending_updates: true
+            });
+
+            logger.info('🤖 Bot iniciado en modo WEBHOOK', { webhookUrl });
+        } else {
+            // Desarrollo: Usar polling
+            logger.info('🔄 Configurando modo POLLING (desarrollo)');
+
+            // Eliminar webhook si existía
+            await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+
+            await bot.launch();
+            logger.info('🤖 Bot iniciado en modo POLLING');
+        }
 
         return bot;
     } catch (error) {
