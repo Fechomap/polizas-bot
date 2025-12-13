@@ -1,0 +1,56 @@
+# Dependencies
+node_modules
+npm-debug.log*
+
+# Build output
+dist
+
+# Development
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tests
+tests
+coverage
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+jest.config.js
+jest.setup.js
+
+# Documentation
+docs
+*.md
+!README.md
+
+# Docker
+docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Logs
+logs
+*.log
+
+# Temp files
+temp
+tmp
+.cache
+
+# TypeScript build info
+*.tsbuildinfo
