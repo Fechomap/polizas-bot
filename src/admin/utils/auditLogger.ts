@@ -297,7 +297,7 @@ class AuditLogger {
 
         const logs = await prisma.auditLog.findMany({
             where: {
-                module: moduleValue as AuditModule,
+                module: moduleValue,
                 timestamp: { gte: startDate }
             },
             orderBy: { timestamp: 'desc' },

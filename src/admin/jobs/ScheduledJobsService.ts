@@ -434,8 +434,16 @@ export async function exportarPolizasExcel(): Promise<IExportResult> {
             ...Array.from({ length: 12 }).flatMap((_, i) => [
                 { header: `SERVICIO${i + 1}_COSTO`, key: `servicio${i + 1}Costo`, width: 12 },
                 { header: `SERVICIO${i + 1}_FECHA`, key: `servicio${i + 1}Fecha`, width: 12 },
-                { header: `SERVICIO${i + 1}_EXPEDIENTE`, key: `servicio${i + 1}Expediente`, width: 15 },
-                { header: `SERVICIO${i + 1}_ORIGEN_DESTINO`, key: `servicio${i + 1}OrigenDestino`, width: 20 }
+                {
+                    header: `SERVICIO${i + 1}_EXPEDIENTE`,
+                    key: `servicio${i + 1}Expediente`,
+                    width: 15
+                },
+                {
+                    header: `SERVICIO${i + 1}_ORIGEN_DESTINO`,
+                    key: `servicio${i + 1}OrigenDestino`,
+                    width: 20
+                }
             ])
         ];
 
@@ -491,14 +499,14 @@ export async function exportarPolizasExcel(): Promise<IExportResult> {
                 const numPdfs = doc.archivosR2?.filter(a => a.tipo === 'PDF').length || 0;
 
                 const rowData: Record<string, unknown> = {
-                    titular: doc.titular || '',
-                    correo: doc.correo || '',
-                    contrasena: doc.contrasena || '',
-                    telefono: doc.telefono || '',
+                    titular: doc.titular ?? '',
+                    correo: doc.correo ?? '',
+                    contrasena: doc.contrasena ?? '',
+                    telefono: doc.telefono ?? '',
                     calle: doc.calle || '',
                     colonia: doc.colonia || '',
                     municipio: doc.municipio || '',
-                    estadoRegion: doc.estadoRegion || '',
+                    estadoRegion: doc.estadoRegion ?? '',
                     cp: doc.cp || '',
                     rfc: doc.rfc || '',
                     marca: doc.marca || '',
@@ -511,7 +519,7 @@ export async function exportarPolizasExcel(): Promise<IExportResult> {
                     aseguradora: doc.aseguradora || '',
                     numeroPoliza: doc.numeroPoliza || '',
                     fechaEmision: doc.fechaEmision ? new Date(doc.fechaEmision) : null,
-                    estadoPoliza: doc.estadoPoliza || '',
+                    estadoPoliza: doc.estadoPoliza ?? '',
                     fechaFinCobertura: doc.fechaFinCobertura
                         ? new Date(doc.fechaFinCobertura)
                         : null,
@@ -543,8 +551,8 @@ export async function exportarPolizasExcel(): Promise<IExportResult> {
                     rowData[`servicio${i + 1}Fecha`] = servicio?.fechaServicio
                         ? new Date(servicio.fechaServicio)
                         : null;
-                    rowData[`servicio${i + 1}Expediente`] = servicio?.numeroExpediente || '';
-                    rowData[`servicio${i + 1}OrigenDestino`] = servicio?.origenDestino || '';
+                    rowData[`servicio${i + 1}Expediente`] = servicio?.numeroExpediente ?? '';
+                    rowData[`servicio${i + 1}OrigenDestino`] = servicio?.origenDestino ?? '';
                 }
 
                 const row = worksheet.addRow(rowData);
@@ -565,7 +573,7 @@ export async function exportarPolizasExcel(): Promise<IExportResult> {
             to: { row: 1, column: totalColumns }
         };
 
-        await worksheet.commit();
+        worksheet.commit();
         await workbook.commit();
 
         logger.info(`✅ Exportación completada: ${processed} pólizas en ${excelPath}`);

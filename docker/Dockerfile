@@ -65,8 +65,9 @@ USER botuser
 
 EXPOSE 3000
 
-# Healthcheck - usa PORT del entorno (Railway asigna dinámicamente)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3000}/health || exit 1
+# Healthcheck - Puerto fijo 3000 con start-period extendido para servicios
+# Railway debe NO sobrescribir PORT para que coincida con este healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
 
 CMD ["node", "dist/bot.js"]

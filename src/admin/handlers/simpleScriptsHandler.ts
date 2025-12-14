@@ -3,16 +3,31 @@ import { Markup } from 'telegraf';
 import path from 'path';
 import fs from 'fs/promises';
 import AutoCleanupService from '../../services/AutoCleanupService';
-import {
-    exportarPolizasExcel,
-    validarArchivosPolizas
-} from '../jobs/ScheduledJobsService';
+import { exportarPolizasExcel, validarArchivosPolizas } from '../jobs/ScheduledJobsService';
+
+interface IExamplePolicy {
+    numeroPoliza: string;
+    titular: string;
+    servicios: number;
+}
+
+interface ICleanupPreviewData {
+    policiesToDelete: number;
+    expiredPoliciesFound: number;
+    examplePolicies: IExamplePolicy[];
+}
+
+interface ICleanupPreviewResult {
+    success: boolean;
+    preview?: ICleanupPreviewData;
+    error?: string;
+}
 
 interface IRunningScript {
     scriptName: string;
     startTime: number;
     messageId: number;
-    preview?: any;
+    preview?: ICleanupPreviewData;
 }
 
 interface IExpiredPolicy {
@@ -46,10 +61,22 @@ class SimpleScriptsHandler {
     }
 
     /**
+     * Valida que el contexto tenga usuario y chat
+     */
+    private validateContext(ctx: Context): { userId: number; chatId: number } | null {
+        if (!ctx.from?.id || !ctx.chat?.id) {
+            return null;
+        }
+        return { userId: ctx.from.id, chatId: ctx.chat.id };
+    }
+
+    /**
      * Maneja la exportación de pólizas a Excel
      */
     async handleExportExcel(ctx: Context): Promise<void> {
-        const userId = ctx.from!.id;
+        const validated = this.validateContext(ctx);
+        if (!validated) return;
+        const { userId, chatId } = validated;
 
         // Verificar si ya hay un proceso corriendo para este usuario
         if (this.runningScripts.has(userId)) {
@@ -85,7 +112,7 @@ class SimpleScriptsHandler {
                 successMessage += '\n📄 Enviando archivo Excel...';
 
                 await ctx.telegram.editMessageText(
-                    ctx.chat!.id,
+                    chatId,
                     startMsg.message_id,
                     undefined,
                     successMessage,
@@ -107,7 +134,7 @@ class SimpleScriptsHandler {
                 errorMessage += `🔥 Error: ${(error as Error).message}\n`;
 
                 await ctx.telegram.editMessageText(
-                    ctx.chat!.id,
+                    chatId,
                     startMsg.message_id,
                     undefined,
                     errorMessage,
@@ -143,7 +170,9 @@ class SimpleScriptsHandler {
      * Maneja la solicitud de limpieza automática - Primero muestra resumen previo
      */
     async handleAutoCleanup(ctx: Context): Promise<void> {
-        const userId = ctx.from!.id;
+        const validated = this.validateContext(ctx);
+        if (!validated) return;
+        const { userId, chatId } = validated;
 
         // Verificar si ya hay un script corriendo para este usuario
         if (this.runningScripts.has(userId)) {
@@ -159,30 +188,32 @@ class SimpleScriptsHandler {
 
         try {
             // Obtener resumen previo
-            const preview = (await this.autoCleanupService.getCleanupPreview()) as any;
+            const preview =
+                (await this.autoCleanupService.getCleanupPreview()) as ICleanupPreviewResult;
 
-            if (preview.success) {
+            if (preview.success && preview.preview) {
+                const previewData = preview.preview;
                 // Construir mensaje de resumen previo
                 let previewMessage = '📋 *RESUMEN PREVIO - LIMPIEZA AUTOMÁTICA*\n\n';
                 previewMessage += '🔍 **Lo que se va a procesar:**\n\n';
 
-                previewMessage += `🗑️ **Pólizas a eliminar automáticamente:** ${preview.preview.policiesToDelete}\n`;
+                previewMessage += `🗑️ **Pólizas a eliminar automáticamente:** ${previewData.policiesToDelete}\n`;
                 previewMessage += '   ↳ _Criterio: Estado ACTIVO con ≥2 servicios_\n\n';
 
-                previewMessage += `⚠️ **Pólizas vencidas para reporte:** ${preview.preview.expiredPoliciesFound}\n`;
+                previewMessage += `⚠️ **Pólizas vencidas para reporte:** ${previewData.expiredPoliciesFound}\n`;
                 previewMessage += '   ↳ _Criterio: Estado VENCIDA (solo se reportan)_\n\n';
 
                 // Mostrar ejemplos si hay pólizas para eliminar
-                if (preview.preview.examplePolicies.length > 0) {
+                if (previewData.examplePolicies.length > 0) {
                     previewMessage += '📝 **Ejemplos de pólizas a eliminar:**\n';
-                    preview.preview.examplePolicies.forEach((pol: any, index: number) => {
+                    previewData.examplePolicies.forEach((pol, index) => {
                         if (index < 3) {
                             // Mostrar máximo 3 ejemplos
                             previewMessage += `   • ${pol.numeroPoliza} (${pol.titular}) - ${pol.servicios} servicios\n`;
                         }
                     });
-                    if (preview.preview.policiesToDelete > 3) {
-                        previewMessage += `   • ... y ${preview.preview.policiesToDelete - 3} más\n`;
+                    if (previewData.policiesToDelete > 3) {
+                        previewMessage += `   • ... y ${previewData.policiesToDelete - 3} más\n`;
                     }
                     previewMessage += '\n';
                 }
@@ -201,7 +232,7 @@ class SimpleScriptsHandler {
                 ]);
 
                 await ctx.telegram.editMessageText(
-                    ctx.chat!.id,
+                    chatId,
                     startMsg.message_id,
                     undefined,
                     previewMessage,
@@ -221,7 +252,7 @@ class SimpleScriptsHandler {
             } else {
                 // Error al generar resumen
                 await ctx.telegram.editMessageText(
-                    ctx.chat!.id,
+                    chatId,
                     startMsg.message_id,
                     undefined,
                     `❌ *Error al generar resumen*\n\n🔥 ${preview.error}`,
@@ -230,7 +261,7 @@ class SimpleScriptsHandler {
             }
         } catch (error) {
             await ctx.telegram.editMessageText(
-                ctx.chat!.id,
+                chatId,
                 startMsg.message_id,
                 undefined,
                 `❌ *Error crítico*\n\n🔥 ${(error as Error).message}`,
@@ -243,14 +274,17 @@ class SimpleScriptsHandler {
      * Ejecuta la limpieza automática después de confirmación
      */
     async executeAutoCleanupConfirmed(ctx: Context): Promise<void> {
-        const userId = ctx.from!.id;
+        const validated = this.validateContext(ctx);
+        if (!validated) return;
+        const { userId } = validated;
 
         if (!this.runningScripts.has(userId)) {
             await ctx.answerCbQuery('⚠️ Sesión expirada, inicia nuevamente', { show_alert: true });
             return;
         }
 
-        const sessionData = this.runningScripts.get(userId)!;
+        const sessionData = this.runningScripts.get(userId);
+        if (!sessionData) return;
         sessionData.scriptName = 'autoCleanup_executing';
         sessionData.startTime = Date.now();
 
@@ -309,7 +343,9 @@ class SimpleScriptsHandler {
      * Cancela la limpieza automática
      */
     async cancelAutoCleanup(ctx: Context): Promise<void> {
-        const userId = ctx.from!.id;
+        const validated = this.validateContext(ctx);
+        if (!validated) return;
+        const { userId } = validated;
 
         if (this.runningScripts.has(userId)) {
             this.runningScripts.delete(userId);
@@ -385,7 +421,9 @@ class SimpleScriptsHandler {
      * Maneja la validación de archivos de pólizas
      */
     async handleFileValidation(ctx: Context): Promise<void> {
-        const userId = ctx.from!.id;
+        const validated = this.validateContext(ctx);
+        if (!validated) return;
+        const { userId } = validated;
 
         // Verificar si ya hay un proceso corriendo para este usuario
         if (this.runningScripts.has(userId)) {
@@ -447,10 +485,9 @@ class SimpleScriptsHandler {
                     // Limpiar archivo temporal
                     await fs.unlink(resultado.filePath).catch(() => {});
                 } else if (resultado.totalProblems === 0) {
-                    await ctx.reply(
-                        '🎉 ¡Excelente! Todas las pólizas tienen fotos y PDFs.',
-                        { parse_mode: 'Markdown' }
-                    );
+                    await ctx.reply('🎉 ¡Excelente! Todas las pólizas tienen fotos y PDFs.', {
+                        parse_mode: 'Markdown'
+                    });
                 }
             }
         } catch (error) {
@@ -464,7 +501,8 @@ class SimpleScriptsHandler {
         }
     }
 
-    async handleAction(ctx: Context, action: string): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async handleAction(ctx: Context, _action: string): Promise<void> {
         // Método requerido por la interfaz pero no implementado específicamente
         await ctx.answerCbQuery('Acción no implementada', { show_alert: true });
     }

@@ -25,11 +25,12 @@ import {
 import RedisConnectionPool from './infrastructure/RedisConnectionPool';
 import { stopInstance as stopNavigationManager } from './navigation/NavigationManager';
 import adminStateManager from './admin/utils/adminStates';
+import { testPrismaConnection } from './database/prisma';
 
 const app = express();
 app.use(express.json());
 
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 // Detectar entorno de producción (Railway)
 const isProduction = process.env.NODE_ENV === 'production';
@@ -48,20 +49,38 @@ if (!process.env.TELEGRAM_GROUP_ID) {
 
 let isShuttingDown = false;
 
+// Variable para rastrear estado de inicialización
+let initializationComplete = false;
+let initializationError: string | null = null;
+
 async function initializeBot(): Promise<Telegraf> {
     try {
-        app.get('/', (req, res) => {
+        app.get('/', (_req, res) => {
             res.send('Bot is running!');
         });
 
-        // Health check endpoint para Railway
-        app.get('/health', (req, res) => {
-            res.status(200).json({
-                status: 'ok',
-                timestamp: new Date().toISOString(),
-                uptime: process.uptime(),
-                mode: webhookUrl ? 'webhook' : 'polling'
-            });
+        // Health check endpoint para Railway - responde según estado de inicialización
+        app.get('/health', (_req, res) => {
+            if (initializationError) {
+                res.status(503).json({
+                    status: 'error',
+                    error: initializationError,
+                    timestamp: new Date().toISOString()
+                });
+            } else if (!initializationComplete) {
+                res.status(200).json({
+                    status: 'initializing',
+                    timestamp: new Date().toISOString(),
+                    uptime: process.uptime()
+                });
+            } else {
+                res.status(200).json({
+                    status: 'ok',
+                    timestamp: new Date().toISOString(),
+                    uptime: process.uptime(),
+                    mode: webhookUrl ? 'webhook' : 'polling'
+                });
+            }
         });
 
         // Configurar Bull Board UI
@@ -74,9 +93,40 @@ async function initializeBot(): Promise<Telegraf> {
         });
 
         app.use('/admin/queues', serverAdapter.getRouter());
+
+        // ⚡ INICIAR EXPRESS PRIMERO - Para que Railway pase health checks
+        await new Promise<void>(resolve => {
+            app.listen(PORT, () => {
+                logger.info(`✅ Servidor Express iniciado en puerto ${PORT}`);
+                resolve();
+            });
+        });
+
         logger.info(`✅ Bull Board UI disponible en /admin/queues`);
 
-        logger.info('✅ PostgreSQL/Prisma listo');
+        // Verificar servicios externos con reintentos (Railway puede tardar en iniciar)
+        const MAX_SERVICE_RETRIES = 10;
+        const SERVICE_RETRY_DELAY = 3000; // 3 segundos
+
+        // Verificar PostgreSQL con reintentos
+        let dbReady = false;
+        for (let i = 1; i <= MAX_SERVICE_RETRIES && !dbReady; i++) {
+            try {
+                dbReady = await testPrismaConnection();
+                if (dbReady) {
+                    logger.info('✅ PostgreSQL/Prisma verificado y listo');
+                    break;
+                }
+            } catch {
+                logger.warn(`⏳ Esperando PostgreSQL... intento ${i}/${MAX_SERVICE_RETRIES}`);
+            }
+            if (!dbReady && i < MAX_SERVICE_RETRIES) {
+                await new Promise(resolve => setTimeout(resolve, SERVICE_RETRY_DELAY));
+            }
+        }
+        if (!dbReady) {
+            throw new Error('PostgreSQL no disponible después de reintentos máximos');
+        }
 
         // Inicializar UnifiedStateManager ANTES de todo (garantiza conexión Redis)
         const unifiedStateManager = await getUnifiedStateManager();
@@ -191,7 +241,7 @@ async function initializeBot(): Promise<Telegraf> {
             session({
                 store: {
                     get: (key: string) => sessionStore.get(key),
-                    set: (key: string, value: any) => sessionStore.set(key, value),
+                    set: (key: string, value: unknown) => sessionStore.set(key, value),
                     delete: (key: string) => sessionStore.delete(key)
                 }
             })
@@ -315,6 +365,15 @@ async function initializeBot(): Promise<Telegraf> {
         process.once('SIGINT', () => handleShutdown('SIGINT'));
         process.once('SIGTERM', () => handleShutdown('SIGTERM'));
 
+        // Log detallado de configuración para debugging Railway
+        logger.info('📋 Configuración de despliegue:', {
+            isProduction,
+            nodeEnv: process.env.NODE_ENV,
+            railwayDomain: railwayDomain ?? 'NO CONFIGURADO',
+            webhookUrl: webhookUrl ?? 'NULL (usará polling)',
+            port: PORT
+        });
+
         // Iniciar bot según entorno
         if (isProduction && webhookUrl) {
             // Producción (Railway): Usar webhook
@@ -330,8 +389,11 @@ async function initializeBot(): Promise<Telegraf> {
 
             logger.info('🤖 Bot iniciado en modo WEBHOOK', { webhookUrl });
         } else {
-            // Desarrollo: Usar polling
-            logger.info('🔄 Configurando modo POLLING (desarrollo)');
+            // Desarrollo o producción sin dominio público: Usar polling
+            const reason = !isProduction
+                ? 'NODE_ENV no es production'
+                : 'RAILWAY_PUBLIC_DOMAIN no configurado';
+            logger.info(`🔄 Configurando modo POLLING - Razón: ${reason}`);
 
             // Eliminar webhook si existía
             await bot.telegram.deleteWebhook({ drop_pending_updates: true });
@@ -340,13 +402,14 @@ async function initializeBot(): Promise<Telegraf> {
             logger.info('🤖 Bot iniciado en modo POLLING');
         }
 
-        // Iniciar servidor Express AL FINAL (después de configurar todo)
-        app.listen(PORT, () => {
-            logger.info(`Servidor web iniciado en puerto ${PORT}`);
-        });
+        // ✅ Marcar inicialización completa
+        initializationComplete = true;
+        logger.info('🚀 Bot completamente inicializado y listo');
 
         return bot;
     } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        initializationError = err.message;
         logger.error('Error fatal al inicializar el bot:', error);
         throw error;
     }

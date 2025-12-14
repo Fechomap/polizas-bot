@@ -108,10 +108,18 @@ const validateConfig = (): void => {
     const required = ['telegram.token', 'redis.host', 'redis.port'];
     const missing: string[] = [];
 
-    for (const path of required) {
-        const value = path.split('.').reduce((obj: any, key: string) => obj?.[key], config);
+    for (const configPath of required) {
+        const value = configPath.split('.').reduce(
+            (obj: Record<string, unknown> | unknown, key: string) => {
+                if (obj && typeof obj === 'object' && key in obj) {
+                    return (obj as Record<string, unknown>)[key];
+                }
+                return undefined;
+            },
+            config as unknown as Record<string, unknown>
+        );
         if (!value) {
-            missing.push(path);
+            missing.push(configPath);
         }
     }
 
