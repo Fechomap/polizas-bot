@@ -46,6 +46,7 @@ RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs botuser
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV PORT=3000
 
 # Crear directorio de logs
 RUN mkdir -p /app/logs && chown botuser:nodejs /app/logs

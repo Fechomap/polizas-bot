@@ -46,6 +46,17 @@ class RedisConnectionPool {
      */
     private static async createConnection(): Promise<Redis> {
         try {
+            // Log de URL para debugging (sin password)
+            const redisUrl = config.redis.url;
+            if (redisUrl) {
+                const safeUrl = redisUrl.replace(/:([^@]+)@/, ':***@');
+                logger.info(`RedisPool: Conectando a ${safeUrl}`);
+            } else {
+                logger.info(
+                    `RedisPool: Conectando a ${config.redis.host}:${config.redis.port} (DB: ${config.redis.db})`
+                );
+            }
+
             const redisOptions: RedisOptions = {
                 retryStrategy: (times: number) => {
                     if (times > 5) {
