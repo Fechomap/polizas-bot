@@ -135,11 +135,24 @@ async function sendNotificationToTelegram(notification: any, bot: Telegraf): Pro
 }
 
 // 1. Inicialización de la cola (soporta REDIS_URL o host/port)
-const redisConfig = config.redis.url ?? {
-    host: config.redis.host,
-    port: config.redis.port,
-    password: config.redis.password
-};
+// Bull necesita URL con DB en el path, o objeto de opciones
+function getBullRedisConfig():
+    | string
+    | { host: string; port: number; password?: string; db: number } {
+    if (config.redis.url) {
+        // Agregar DB al path de la URL (Bull lo requiere así)
+        const baseUrl = config.redis.url.replace(/\/\d+$/, ''); // Remover DB si existe
+        return `${baseUrl}/${config.redis.db}`;
+    }
+    return {
+        host: config.redis.host,
+        port: config.redis.port,
+        password: config.redis.password,
+        db: config.redis.db
+    };
+}
+
+const redisConfig = getBullRedisConfig();
 
 export const notificationQueue = new Queue('notifications', {
     redis: redisConfig as any,

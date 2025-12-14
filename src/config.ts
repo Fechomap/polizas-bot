@@ -9,22 +9,15 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 /**
- * Configura la URL de Redis con la base de datos correcta
- * - Producción (NODE_ENV=production): DB 0
- * - Desarrollo (default): DB 1
+ * Obtiene el número de base de datos de Redis
+ * - Si REDIS_DB está definido, usar ese valor
+ * - Si no, usar 0 para producción, 1 para desarrollo
  */
-function getRedisUrl(): string | undefined {
-    const baseUrl = process.env.REDIS_URL;
-    if (!baseUrl) return undefined;
-
-    // Si ya tiene DB especificada (termina en /0, /1, etc.), usar como está
-    if (/\/\d+$/.test(baseUrl)) {
-        return baseUrl;
+function getRedisDb(): number {
+    if (process.env.REDIS_DB !== undefined) {
+        return parseInt(process.env.REDIS_DB, 10);
     }
-
-    // Agregar DB según entorno: 0 para prod, 1 para dev
-    const db = isDevelopment ? 1 : 0;
-    return `${baseUrl}/${db}`;
+    return isDevelopment ? 1 : 0;
 }
 
 // Constantes internas (no configurables)
@@ -77,11 +70,11 @@ const config: IConfig = {
             .map(id => (typeof id === 'string' ? parseInt(id) : id))
     },
     redis: {
-        url: getRedisUrl(),
+        url: process.env.REDIS_URL,
         host: process.env.REDIS_HOST ?? 'localhost',
         port: parseInt(process.env.REDIS_PORT ?? '6379'),
         password: process.env.REDIS_PASSWORD,
-        db: isDevelopment ? 1 : 0
+        db: getRedisDb()
     },
     ttl: {
         // TTL principal: 1 hora por defecto (en ms) - usado para TODO

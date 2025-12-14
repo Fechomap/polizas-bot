@@ -48,16 +48,18 @@ class RedisConnectionPool {
         try {
             // Log de URL para debugging (sin password)
             const redisUrl = config.redis.url;
+            const redisDb = config.redis.db;
             if (redisUrl) {
                 const safeUrl = redisUrl.replace(/:([^@]+)@/, ':***@');
-                logger.info(`RedisPool: Conectando a ${safeUrl}`);
+                logger.info(`RedisPool: Conectando a ${safeUrl} (DB: ${redisDb})`);
             } else {
                 logger.info(
-                    `RedisPool: Conectando a ${config.redis.host}:${config.redis.port} (DB: ${config.redis.db})`
+                    `RedisPool: Conectando a ${config.redis.host}:${config.redis.port} (DB: ${redisDb})`
                 );
             }
 
             const redisOptions: RedisOptions = {
+                db: redisDb, // DB como opción separada (igual que factura-bot)
                 retryStrategy: (times: number) => {
                     if (times > 5) {
                         logger.error('RedisPool: Máximo de reintentos alcanzado');
@@ -82,7 +84,6 @@ class RedisConnectionPool {
                       host: config.redis.host,
                       port: config.redis.port,
                       password: config.redis.password,
-                      db: config.redis.db,
                       ...redisOptions
                   });
 
