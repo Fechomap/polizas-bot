@@ -379,8 +379,8 @@ async function initializeBot(): Promise<Telegraf> {
             // Producción (Railway): Usar webhook
             logger.info('🌐 Configurando modo WEBHOOK', { webhookUrl });
 
-            // Registrar endpoint de webhook
-            app.use(webhookPath, bot.webhookCallback(webhookPath));
+            // Registrar endpoint de webhook (sin duplicar path)
+            app.use(bot.webhookCallback(webhookPath));
 
             // Configurar webhook en Telegram
             await bot.telegram.setWebhook(webhookUrl, {
