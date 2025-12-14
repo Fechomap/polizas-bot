@@ -46,7 +46,6 @@ RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs botuser
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
 
 # Crear directorio de logs
 RUN mkdir -p /app/logs && chown botuser:nodejs /app/logs
@@ -63,11 +62,7 @@ RUN npx prisma generate
 
 USER botuser
 
-EXPOSE 3000
-
-# Healthcheck - Puerto fijo 3000 con start-period extendido para servicios
-# Railway debe NO sobrescribir PORT para que coincida con este healthcheck
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+# Railway asigna PORT dinámicamente, no hardcodear
+# Railway maneja healthchecks automáticamente via /health endpoint
 
 CMD ["node", "dist/bot.js"]
