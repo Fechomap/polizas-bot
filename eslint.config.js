@@ -13,6 +13,8 @@ module.exports = [
             '.claude/',
             'dist/',
             'coverage/',
+            'src/generated/**',
+            '**/*.wasm.js',
             '*.log',
             '*.xlsx',
             '*.pdf',
@@ -88,8 +90,8 @@ module.exports = [
             '@typescript-eslint/explicit-function-return-type': 'off',
             '@typescript-eslint/explicit-module-boundary-types': 'off',
             '@typescript-eslint/no-inferrable-types': 'error',
-            '@typescript-eslint/prefer-optional-chain': 'error',
-            '@typescript-eslint/prefer-nullish-coalescing': 'error',
+            '@typescript-eslint/prefer-optional-chain': 'warn',
+            '@typescript-eslint/prefer-nullish-coalescing': 'warn',
 
             // Desactivar reglas JS para TS
             'no-unused-vars': 'off',

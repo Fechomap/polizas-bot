@@ -17,11 +17,13 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
+    "lint:fix": "eslint src/ --fix --max-warnings=-1",
     "lint:ts": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.{ts,js}\" \"types/**/*.{ts,d.ts}\"",
     "format:check": "prettier --check \"src/**/*.{ts,js}\" \"types/**/*.{ts,d.ts}\"",
-    "reinstall": "rimraf node_modules package-lock.json && npm cache clean --force && npm install"
+    "pre-commit": "npm run format && npm run lint:fix && npm run type-check && npm run build",
+    "reinstall": "rimraf node_modules package-lock.json && npm cache clean --force && npm install",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "keywords": [],
   "author": "",

@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# =============================================================================
+# PRE-COMMIT HOOK
+# =============================================================================
+# Este hook se ejecuta automáticamente antes de cada commit.
+# Si algún paso falla, el commit se cancela.
+# =============================================================================
+
+set -e  # Salir inmediatamente si un comando falla
+
+echo ""
+echo "=========================================="
+echo "  PRE-COMMIT: Validando código..."
+echo "=========================================="
+echo ""
+
+# 1. Format con Prettier
+echo "📝 [1/4] Ejecutando Prettier (format)..."
+npm run format
+if [ $? -ne 0 ]; then
+    echo "❌ Error en Prettier. Commit cancelado."
+    exit 1
+fi
+echo "✅ Prettier completado"
+echo ""
+
+# 2. ESLint con fix
+echo "🔍 [2/4] Ejecutando ESLint (lint:fix)..."
+npm run lint:fix
+if [ $? -ne 0 ]; then
+    echo "❌ Error en ESLint. Commit cancelado."
+    exit 1
+fi
+echo "✅ ESLint completado"
+echo ""
+
+# 3. Type-check con TypeScript
+echo "📦 [3/4] Ejecutando TypeScript (type-check)..."
+npm run type-check
+if [ $? -ne 0 ]; then
+    echo "❌ Error en TypeScript type-check. Commit cancelado."
+    exit 1
+fi
+echo "✅ Type-check completado"
+echo ""
+
+# 4. Build
+echo "🔨 [4/4] Ejecutando Build..."
+npm run build
+if [ $? -ne 0 ]; then
+    echo "❌ Error en Build. Commit cancelado."
+    exit 1
+fi
+echo "✅ Build completado"
+echo ""
+
+# Agregar archivos modificados por prettier/eslint al commit
+git add -u
+
+echo "=========================================="
+echo "  ✅ PRE-COMMIT: Todas las validaciones pasaron"
+echo "=========================================="
+echo ""
+
+exit 0

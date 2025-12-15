@@ -179,7 +179,7 @@ async function initializeBot(): Promise<Telegraf> {
             }
 
             // Inicializar consumidor de la cola de notificaciones
-            initializeNotificationConsumer(bot);
+            await initializeNotificationConsumer(bot);
         } catch (notifyError) {
             logger.error('⚠️ Error al inicializar sistema de notificaciones:', notifyError);
             // No bloquear el inicio del bot si falla el notificationManager

@@ -186,7 +186,12 @@ export async function scheduleNotification(
 }
 
 // 3. Consumidor de trabajos
-export function initializeNotificationConsumer(bot: Telegraf): void {
+export async function initializeNotificationConsumer(bot: Telegraf): Promise<void> {
+    // IMPORTANTE: Resumir la cola por si quedó pausada de un shutdown anterior
+    // (pause() persiste en Redis, así que debemos resumir al iniciar)
+    await notificationQueue.resume();
+    logger.info('✅ Cola de notificaciones resumida (por si estaba pausada)');
+
     notificationQueue.process('send-notification', async job => {
         const { notificationId } = job.data;
         logger.info(`Procesando notificación desde la cola: ${notificationId}`);
@@ -247,8 +252,9 @@ export function initializeNotificationConsumer(bot: Telegraf): void {
  */
 export async function closeNotificationQueue(): Promise<void> {
     try {
-        // Pausar procesamiento de nuevos jobs
-        await notificationQueue.pause();
+        // Pausar procesamiento LOCALMENTE (isLocal=true) para no persistir en Redis
+        // Esto evita que la cola quede pausada después de un reinicio
+        await notificationQueue.pause(true);
 
         // Cerrar la cola (cierra conexiones Redis internas de Bull)
         await notificationQueue.close();
