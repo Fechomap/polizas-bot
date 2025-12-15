@@ -181,6 +181,9 @@ model Policy {
   @@index([estado])
   @@index([telefono])
   @@index([estado, fechaEmision])
+  // Índice para paginación ordenada por fecha de creación (admin listados)
+  // Query: PolicyRepository.findMany() con orderBy: { createdAt: orderBy }
+  @@index([createdAt(sort: Desc)])
 }
 
 // ============================================
@@ -406,6 +409,9 @@ model Servicio {
 
   @@index([policyId])
   @@index([numeroServicio])
+  // Índice para ordenamiento por fecha de servicio (job de cálculo de días)
+  // Query: ScheduledJobsService.limpiarNIVsUsados() con orderBy: { fechaServicio: 'desc' }
+  @@index([fechaServicio(sort: Desc)])
 }
 
 // ============================================
