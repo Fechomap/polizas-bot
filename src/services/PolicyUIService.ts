@@ -33,7 +33,7 @@ export class PolicyUIService {
     generarMensajeVehiculoSeleccionado(vehiculo: IVehicle): string {
         return (
             '🚗 *VEHÍCULO SELECCIONADO*\n\n' +
-            `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}*\n` +
+            `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.anio}*\n` +
             `🎨 Color: ${vehiculo.color}\n` +
             `🔢 Serie: ${vehiculo.serie}\n` +
             `🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n\n` +
@@ -125,7 +125,7 @@ export class PolicyUIService {
             `• Segundo pago: $${(datosPoliza.segundoPago ?? 0).toLocaleString()}\n` +
             `• Total: $${total.toLocaleString()}\n\n` +
             '🚗 *Vehículo:*\n' +
-            `${escapeMarkdown(vehiculo.marca)} ${escapeMarkdown(vehiculo.submarca)} ${vehiculo.año}\n` +
+            `${escapeMarkdown(vehiculo.marca)} ${escapeMarkdown(vehiculo.submarca)} ${vehiculo.anio}\n` +
             (datosPoliza.modoOCR ? '\n🤖 *Registrado con OCR*' : '') +
             `\n\n🆔 ID: ${poliza.id}`
         );

@@ -15,7 +15,18 @@ export interface IDatosPolizaExtraidos {
     segundoPago: number | null;
     primaMensual: number | null;
     primaTotal: number | null;
-    titular: string | null;
+    primaNeta: number | null;
+    titular: string | null; // Asegurado/Titular/Contratante/Beneficiario
+    telefono: string | null;
+    rfc: string | null;
+    correo: string | null;
+    domicilio: {
+        calle: string | null;
+        colonia: string | null;
+        municipio: string | null;
+        estado: string | null;
+        cp: string | null;
+    } | null;
     vehiculo: {
         marca: string | null;
         submarca: string | null;
@@ -373,70 +384,88 @@ class MistralOCRService {
      * Prompt optimizado para pólizas de seguros mexicanas (Zurich, GNP, AXA, Qualitas, etc.)
      */
     private async extraerDatosDeMarkdown(markdown: string): Promise<IDatosPolizaExtraidos> {
-        const prompt = `Eres un experto en pólizas de seguros de autos mexicanas. Analiza el siguiente documento y extrae datos estructurados.
+        const prompt = `Eres un experto en análisis de pólizas de seguros de autos mexicanas. Tu trabajo es LEER, COMPRENDER y EXTRAER información de documentos de aseguradoras como CHUBB, GNP, AXA, QUALITAS, HDI, MAPFRE, ZURICH, INBURSA, MONTERREY, ATLAS, ALLIANZ, BANORTE, AFIRME, ANA, SURA, PRIMERO, entre otras.
 
-TEXTO DEL DOCUMENTO:
+DOCUMENTO A ANALIZAR:
 ${markdown}
 
-INSTRUCCIONES DE BÚSQUEDA POR CAMPO:
+INSTRUCCIONES DE EXTRACCIÓN INTELIGENTE:
 
-1. **NÚMERO DE PÓLIZA** - Busca en este orden de prioridad:
-   - "PÓLIZA No." o "POLIZA No." seguido de números
-   - "No. de Póliza:" o "Número de Póliza:"
-   - "Contrato:" o "No. Contrato:"
-   - Cualquier número de 8-12 dígitos cerca de "póliza"
+1. **NÚMERO DE PÓLIZA**:
+   - Busca contextualmente cualquier referencia a número de póliza, contrato, certificado
+   - Puede aparecer como "Póliza:", "No. Póliza", "Póliza No.", "Contrato", etc.
+   - Generalmente es alfanumérico (ej: WE45013478, 123456789)
 
-2. **ASEGURADORA** - Identifica por:
-   - Logos o encabezados: ZURICH, GNP, AXA, QUALITAS, HDI, MAPFRE, CHUBB, INBURSA, MONTERREY, ATLAS, ALLIANZ, BANORTE, AFIRME, ANA, SURA, PRIMERO
-   - "Zurich Santander", "Grupo Nacional Provincial", "AXA Seguros", etc.
+2. **ASEGURADORA**:
+   - Identifica la compañía de seguros del encabezado, logo o menciones en el documento
+   - Normaliza al nombre común (ej: "Chubb Seguros México" → "CHUBB")
 
-3. **VIGENCIA** - Busca:
-   - "Desde:" y "Hasta:" con fechas
-   - "Vigencia:" con rango de fechas
-   - "Inicio de Vigencia:" y "Fin de Vigencia:"
-   - Formato común: DD/MM/YYYY (ej: 02/12/2025)
-   - CONVIERTE siempre a formato YYYY-MM-DD en la respuesta
+3. **FECHAS DE VIGENCIA**:
+   - Busca "Vigencia", "Del ... al ...", "Desde/Hasta", "Inicio/Fin de Vigencia"
+   - El formato puede variar (19/Dic/2025, 19-12-2025, 19 de diciembre de 2025)
+   - CONVIERTE siempre a formato YYYY-MM-DD
 
-4. **PAGOS** - MUY IMPORTANTE distinguir:
-   - "1er. Pago" o "Primer Pago" o "Pago Inicial" = primerPago
-   - "Subsecuentes" o "Recibos Subsecuentes" o "Pagos Posteriores" = segundoPago
-   - "Prima Total" o "Total a Pagar" = primaTotal
-   - "Prima Mensual" = primaMensual
-   - Extrae solo el número sin símbolos ($, MXN, comas)
+4. **NOMBRE DEL ASEGURADO/TITULAR** (MUY IMPORTANTE - búsqueda contextual):
+   - Este es el nombre de la PERSONA física o moral que contrata el seguro
+   - Puede aparecer como: "Asegurado:", "Asegurada:", "Titular:", "Contratante:", "Propietario:", "Propietaria:", "Beneficiario:", "Beneficiaria:", "Nombre:", "Cliente:"
+   - Busca en secciones como "Datos del asegurado", "Datos del asegurado y/o propietario", "Datos del propietario", "Datos del contratante"
+   - Es un nombre completo de persona (ej: "Josefina Jimenez Ortiz", "Juan Pérez García", "María López Hernández")
+   - NO confundir con el nombre de la aseguradora, del agente o del conducto
+   - Este campo es CRÍTICO, búscalo exhaustivamente en todo el documento
 
-5. **TITULAR/ASEGURADO** - Busca:
-   - "Asegurado:" o "Contratante:" o "Nombre:"
-   - El nombre completo de la persona
+5. **PAGOS Y PRIMAS**:
+   - "Prima Total", "Total a Pagar" = primaTotal (el costo total del seguro)
+   - "1er Pago", "Primer Pago", "Pago Inicial", "Enganche" = primerPago
+   - "Subsecuentes", "Pagos Posteriores", "Mensualidad" = segundoPago
+   - "Prima Neta" = primaNeta (sin IVA ni gastos)
+   - Si solo hay Prima Total y es pago único o mensual, NO inventes primer/segundo pago
+   - Extrae solo números (sin $, MXN, comas)
 
-6. **DATOS DEL VEHÍCULO** - Busca sección "Descripción del Vehículo" o similar:
-   - "Marca:" = marca (ej: MAZDA, NISSAN, TOYOTA)
-   - "Modelo:" o "Descripción:" o "Tipo:" = submarca (ej: MAZDA 3 S GT, VERSA SENSE)
-   - "Año:" o "Modelo:" (cuando es número de 4 dígitos 2010-2030) = año
-   - "Placas:" = placas (ej: PBJ3565, ABC-12-34)
-   - "No. de Serie:" o "VIN:" o "Serie:" = serie (exactamente 17 caracteres alfanuméricos)
+6. **DATOS DEL VEHÍCULO**:
+   - Busca sección "Descripción del Vehículo", "Datos del Vehículo", o similar
+   - Marca: fabricante (MITSUBISHI, MAZDA, NISSAN, TOYOTA, HONDA, etc.)
+   - Submarca/Modelo/Tipo/Descripción: línea o versión (LANCER, MAZDA 3, VERSA, etc.)
+   - Año/Modelo: año del vehículo (2014, 2020, etc.)
+   - Serie/VIN/No. de Serie: exactamente 17 caracteres alfanuméricos
+   - Placas: matrícula del vehículo
 
-REGLAS:
-- Si un dato no se encuentra claramente, usa null
-- Los montos deben ser números decimales (ej: 1545.09, no "1,545.09")
+7. **DATOS ADICIONALES DEL TITULAR** (si están disponibles):
+   - Teléfono, RFC, Correo electrónico
+   - Dirección: Calle, Colonia, Municipio, Estado, CP
+
+REGLAS CRÍTICAS:
+- Si un dato NO está claramente en el documento, usa null (NO INVENTES)
+- Los montos son números decimales (1545.09, no "1,545.09")
 - Las fechas SIEMPRE en formato YYYY-MM-DD
-- VIN/Serie debe tener exactamente 17 caracteres
-- No inventes datos, solo extrae lo que está en el documento
+- Serie/VIN debe tener exactamente 17 caracteres
+- Sé FLEXIBLE en la búsqueda pero PRECISO en la extracción
 
-Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
+Responde ÚNICAMENTE con JSON válido (sin markdown, sin \`\`\`, sin explicaciones):
 {
   "numeroPoliza": "string o null",
   "aseguradora": "string o null",
   "fechaInicioVigencia": "YYYY-MM-DD o null",
   "fechaFinVigencia": "YYYY-MM-DD o null",
-  "primerPago": "number o null",
-  "segundoPago": "number o null",
-  "primaMensual": "number o null",
-  "primaTotal": "number o null",
-  "titular": "string o null",
+  "primerPago": number o null,
+  "segundoPago": number o null,
+  "primaMensual": number o null,
+  "primaTotal": number o null,
+  "primaNeta": number o null,
+  "titular": "string o null - nombre del asegurado/titular/contratante",
+  "telefono": "string o null",
+  "rfc": "string o null",
+  "correo": "string o null",
+  "domicilio": {
+    "calle": "string o null",
+    "colonia": "string o null",
+    "municipio": "string o null",
+    "estado": "string o null",
+    "cp": "string o null"
+  },
   "vehiculo": {
     "marca": "string o null",
     "submarca": "string o null",
-    "año": "number o null",
+    "año": number o null,
     "placas": "string o null",
     "serie": "string o null"
   }
@@ -450,14 +479,14 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
                     Authorization: `Bearer ${this.apiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'mistral-small-latest',
+                    model: 'mistral-large-latest',
                     messages: [
                         {
                             role: 'user',
                             content: prompt
                         }
                     ],
-                    max_tokens: 2000,
+                    max_tokens: 25000,
                     temperature: 0.1
                 })
             });
@@ -678,7 +707,12 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
             segundoPago,
             primaMensual: null,
             primaTotal,
+            primaNeta: null,
             titular,
+            telefono: null,
+            rfc: null,
+            correo: null,
+            domicilio: null,
             vehiculo,
             confianza,
             datosEncontrados,
@@ -740,13 +774,41 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
         const titular = jsonData.titular?.toString()?.trim() ?? null;
         if (titular) datosEncontrados.push('titular');
 
+        // Datos adicionales del titular
+        const primaNeta = parsearMonto(jsonData.primaNeta?.toString());
+        if (primaNeta) datosEncontrados.push('primaNeta');
+
+        const telefono = jsonData.telefono?.toString()?.trim() ?? null;
+        if (telefono) datosEncontrados.push('telefono');
+
+        const rfc = jsonData.rfc?.toString()?.trim()?.toUpperCase() ?? null;
+        if (rfc) datosEncontrados.push('rfc');
+
+        const correo = jsonData.correo?.toString()?.trim()?.toLowerCase() ?? null;
+        if (correo) datosEncontrados.push('correo');
+
+        // Domicilio
+        let domicilio = null;
+        if (jsonData.domicilio) {
+            domicilio = {
+                calle: jsonData.domicilio.calle?.toString()?.trim() ?? null,
+                colonia: jsonData.domicilio.colonia?.toString()?.trim() ?? null,
+                municipio: jsonData.domicilio.municipio?.toString()?.trim() ?? null,
+                estado: jsonData.domicilio.estado?.toString()?.trim() ?? null,
+                cp: jsonData.domicilio.cp?.toString()?.trim() ?? null
+            };
+            if (domicilio.calle || domicilio.colonia || domicilio.municipio) {
+                datosEncontrados.push('domicilio');
+            }
+        }
+
         // Datos del vehículo
         let vehiculo = null;
         if (jsonData.vehiculo) {
             vehiculo = {
                 marca: jsonData.vehiculo.marca?.toString()?.trim()?.toUpperCase() ?? null,
                 submarca: jsonData.vehiculo.submarca?.toString()?.trim()?.toUpperCase() ?? null,
-                año: parseInt(jsonData.vehiculo.año) ?? null,
+                año: parseInt(jsonData.vehiculo.año) || null,
                 placas: jsonData.vehiculo.placas?.toString()?.trim()?.toUpperCase() ?? null,
                 serie: jsonData.vehiculo.serie?.toString()?.trim()?.toUpperCase() ?? null
             };
@@ -758,13 +820,8 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
             if (vehiculo.serie) datosEncontrados.push('vehiculo.serie');
         }
 
-        // Calcular nivel de confianza basado en campos encontrados
-        const camposEsenciales = [
-            'numeroPoliza',
-            'aseguradora',
-            'fechaInicioVigencia',
-            'primerPago'
-        ];
+        // Calcular nivel de confianza - ahora basado en titular también
+        const camposEsenciales = ['numeroPoliza', 'aseguradora', 'fechaInicioVigencia', 'titular'];
         const encontradosEsenciales = camposEsenciales.filter(c => datosEncontrados.includes(c));
         const confianza = Math.round(
             (encontradosEsenciales.length / camposEsenciales.length) * 100
@@ -779,7 +836,12 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
             segundoPago,
             primaMensual,
             primaTotal,
+            primaNeta,
             titular,
+            telefono,
+            rfc,
+            correo,
+            domicilio,
             vehiculo,
             confianza,
             datosEncontrados,
@@ -839,7 +901,12 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
             segundoPago: null,
             primaMensual: null,
             primaTotal: null,
+            primaNeta: null,
             titular: null,
+            telefono: null,
+            rfc: null,
+            correo: null,
+            domicilio: null,
             vehiculo: null,
             confianza: 0,
             datosEncontrados: [],
@@ -872,8 +939,23 @@ Responde ÚNICAMENTE con JSON válido (sin markdown, sin explicaciones):
             if (!combinado.primaTotal && resultado.primaTotal) {
                 combinado.primaTotal = resultado.primaTotal;
             }
+            if (!combinado.primaNeta && resultado.primaNeta) {
+                combinado.primaNeta = resultado.primaNeta;
+            }
             if (!combinado.titular && resultado.titular) {
                 combinado.titular = resultado.titular;
+            }
+            if (!combinado.telefono && resultado.telefono) {
+                combinado.telefono = resultado.telefono;
+            }
+            if (!combinado.rfc && resultado.rfc) {
+                combinado.rfc = resultado.rfc;
+            }
+            if (!combinado.correo && resultado.correo) {
+                combinado.correo = resultado.correo;
+            }
+            if (!combinado.domicilio && resultado.domicilio) {
+                combinado.domicilio = resultado.domicilio;
             }
             if (!combinado.vehiculo && resultado.vehiculo) {
                 combinado.vehiculo = resultado.vehiculo;

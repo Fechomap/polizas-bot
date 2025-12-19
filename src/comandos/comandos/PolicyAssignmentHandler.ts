@@ -626,7 +626,7 @@ export class PolicyAssignmentHandler {
 
         vehiculos.forEach((vehiculo, index) => {
             const numero = (pagina - 1) * 10 + index + 1;
-            mensaje += `*${numero}.* 🚗 ${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}\n`;
+            mensaje += `*${numero}.* 🚗 ${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.anio}\n`;
             mensaje += `   🎨 Color: ${vehiculo.color}\n`;
             mensaje += `   🔢 Serie: ${vehiculo.serie}\n`;
             mensaje += `   🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n`;
@@ -658,7 +658,7 @@ export class PolicyAssignmentHandler {
     private static construirMensajeVehiculo(vehiculo: IVehicle): string {
         return (
             '🚗 *VEHÍCULO SELECCIONADO*\n\n' +
-            `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.año}*\n` +
+            `*${vehiculo.marca} ${vehiculo.submarca} ${vehiculo.anio}*\n` +
             `🎨 Color: ${vehiculo.color}\n` +
             `🔢 Serie: ${vehiculo.serie}\n` +
             `🚙 Placas: ${vehiculo.placas ?? 'Sin placas'}\n\n` +

@@ -443,6 +443,10 @@ export class PolicyOCRHandler {
         if (datosOCR.segundoPago) {
             asignacion.datosPoliza.segundoPago = datosOCR.segundoPago;
         }
+        // Mapear titular/asegurado a nombrePersona
+        if (datosOCR.titular) {
+            asignacion.datosPoliza.nombrePersona = datosOCR.titular;
+        }
 
         // Mostrar resumen editable con botones
         await this.mostrarResumenEditable(bot, chatId, threadId, asignacion, stateKey);

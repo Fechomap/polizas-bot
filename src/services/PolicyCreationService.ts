@@ -37,7 +37,7 @@ export class PolicyCreationService {
                 // Datos del vehículo
                 marca: vehiculo.marca,
                 submarca: vehiculo.submarca,
-                año: vehiculo.año,
+                año: vehiculo.anio,
                 color: vehiculo.color,
                 serie: vehiculo.serie,
                 placas: vehiculo.placas,
