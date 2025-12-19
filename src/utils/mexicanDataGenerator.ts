@@ -439,26 +439,162 @@ class MexicanDataGenerator {
     }
 
     /**
-     * Genera un correo electrónico
+     * Genera un correo electrónico con patrones variados
+     * Evita ser predecible usando diferentes combinaciones
      */
     generateCorreo(nombre: string): string {
-        const dominios = ['gmail.com', 'hotmail.com', 'outlook.com'];
+        const dominios = [
+            'gmail.com',
+            'hotmail.com',
+            'outlook.com',
+            'yahoo.com',
+            'live.com.mx',
+            'proton.me'
+        ];
         const dominio = this.randomFromArray(dominios);
 
-        // Limpiar nombre para email
-        const nombreLimpio = nombre
-            .toLowerCase()
-            .replace(/\s+/g, '')
-            .replace(/[áàäâ]/g, 'a')
-            .replace(/[éèëê]/g, 'e')
-            .replace(/[íìïî]/g, 'i')
-            .replace(/[óòöô]/g, 'o')
-            .replace(/[úùüû]/g, 'u')
-            .replace(/ñ/g, 'n')
-            .replace(/[^a-z0-9]/g, '');
+        // Palabras cortas decentes para agregar variedad
+        const palabrasCortas = [
+            'mx',
+            'pro',
+            'auto',
+            'ok',
+            'go',
+            'top',
+            'new',
+            'red',
+            'mi',
+            'ya',
+            'uno',
+            'dos',
+            'sol',
+            'sur',
+            'car',
+            'net',
+            'web',
+            'app',
+            'sys',
+            'dev'
+        ];
 
-        const numero = this.randomBetween(1, 999);
-        return `${nombreLimpio}${numero}@${dominio}`;
+        // Separadores opcionales
+        const separadores = ['', '.', '_'];
+        const sep = this.randomFromArray(separadores);
+
+        // Limpiar y normalizar nombre
+        const limpiar = (texto: string): string =>
+            texto
+                .toLowerCase()
+                .replace(/[áàäâ]/g, 'a')
+                .replace(/[éèëê]/g, 'e')
+                .replace(/[íìïî]/g, 'i')
+                .replace(/[óòöô]/g, 'o')
+                .replace(/[úùüû]/g, 'u')
+                .replace(/ñ/g, 'n')
+                .replace(/[^a-z]/g, '');
+
+        // Separar nombre y apellidos
+        const partes = nombre.split(' ').filter(p => p.length > 0);
+        const primerNombre = limpiar(partes[0] ?? 'usuario');
+        const apellido = partes.length >= 2 ? limpiar(partes[partes.length - 2]) : '';
+        const apellido2 = partes.length >= 3 ? limpiar(partes[partes.length - 1]) : '';
+
+        // Iniciales
+        const inicialNombre = primerNombre.charAt(0);
+        const inicialApellido = apellido ? apellido.charAt(0) : '';
+
+        // Número aleatorio (diferentes rangos para variedad)
+        const tipoNumero = this.randomBetween(1, 4);
+        let numero = '';
+        switch (tipoNumero) {
+            case 1:
+                numero = this.randomBetween(1, 99).toString();
+                break;
+            case 2:
+                numero = this.randomBetween(100, 999).toString();
+                break;
+            case 3:
+                numero = this.randomBetween(1, 9).toString();
+                break;
+            case 4:
+                numero = this.randomBetween(10, 31).toString().padStart(2, '0');
+                break;
+        }
+
+        const palabra = this.randomFromArray(palabrasCortas);
+
+        // 12 patrones diferentes para generar variedad
+        const patron = this.randomBetween(1, 12);
+        let usuario = '';
+
+        switch (patron) {
+            case 1:
+                // nombre.apellido
+                usuario = apellido ? `${primerNombre}${sep}${apellido}` : primerNombre;
+                break;
+            case 2:
+                // nombre123
+                usuario = `${primerNombre}${numero}`;
+                break;
+            case 3:
+                // apellido.nombre
+                usuario = apellido ? `${apellido}${sep}${primerNombre}` : primerNombre;
+                break;
+            case 4:
+                // inicial + apellido + numero
+                usuario = apellido
+                    ? `${inicialNombre}${apellido}${numero}`
+                    : `${primerNombre}${numero}`;
+                break;
+            case 5:
+                // nombre + palabra
+                usuario = `${primerNombre}${sep}${palabra}`;
+                break;
+            case 6:
+                // palabra + apellido
+                usuario = apellido
+                    ? `${palabra}${sep}${apellido}`
+                    : `${palabra}${sep}${primerNombre}`;
+                break;
+            case 7:
+                // nombre + numero + palabra
+                usuario = `${primerNombre}${numero}${palabra}`;
+                break;
+            case 8:
+                // apellido + inicial + numero
+                usuario = apellido
+                    ? `${apellido}${inicialNombre}${numero}`
+                    : `${primerNombre}${numero}`;
+                break;
+            case 9:
+                // iniciales + numero
+                usuario = apellido
+                    ? `${inicialNombre}${inicialApellido}${numero}`
+                    : `${primerNombre.substring(0, 3)}${numero}`;
+                break;
+            case 10:
+                // nombre corto (4 letras) + numero
+                usuario = `${primerNombre.substring(0, 4)}${numero}`;
+                break;
+            case 11:
+                // apellido + apellido2 corto
+                usuario =
+                    apellido && apellido2
+                        ? `${apellido}${sep}${apellido2.substring(0, 3)}`
+                        : `${primerNombre}${sep}${palabra}`;
+                break;
+            case 12:
+                // palabra + nombre corto + numero
+                usuario = `${palabra}${primerNombre.substring(0, 3)}${numero}`;
+                break;
+        }
+
+        // A veces (20%) agregar número extra al final si no tiene
+        if (!/\d/.test(usuario) && Math.random() < 0.2) {
+            usuario += this.randomBetween(1, 99);
+        }
+
+        return `${usuario}@${dominio}`;
     }
 
     /**
