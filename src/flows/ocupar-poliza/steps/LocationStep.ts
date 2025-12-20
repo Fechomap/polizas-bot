@@ -89,13 +89,22 @@ class LocationStep {
 
             logger.info('Coordenadas de origen extraídas', coordenadas);
 
-            // Guardar en UnifiedStateManager
+            // Obtener estado guardado (puede tener destino previo)
             const stateManager = getUnifiedStateManagerSync()!;
             const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+            const savedState = await stateManager.getFlowState<{
+                destinoCoords?: ICoordinates;
+                hasPreviousDestino?: boolean;
+            }>(chatId, numeroPoliza, threadIdNum);
+
+            // Guardar origen en UnifiedStateManager (preservando destino si existe)
             await stateManager.setFlowState(
                 chatId,
                 numeroPoliza,
-                { origenCoords: coordenadas },
+                {
+                    ...savedState,
+                    origenCoords: coordenadas
+                },
                 threadIdNum
             );
 
@@ -106,13 +115,31 @@ class LocationStep {
                 this.polizaCache.set(chatId, cachedData, threadId);
             }
 
-            // Cambiar estado: origen -> destino (local + Redis)
+            // Limpiar estado de origen
             this.awaitingOrigen.delete(chatId, threadId);
             await this.handler.deleteAwaitingState(
                 chatId,
                 LocationStep.STATE_TYPES.AWAITING_ORIGEN,
                 threadId
             );
+
+            // Si hay destino previo, usarlo automáticamente
+            if (savedState?.hasPreviousDestino && savedState?.destinoCoords) {
+                logger.info('[LocationStep] Usando destino previo automáticamente', {
+                    numeroPoliza,
+                    destinoLat: savedState.destinoCoords.lat,
+                    destinoLng: savedState.destinoCoords.lng
+                });
+
+                await ctx.reply('✅ _Usando destino del servicio anterior..._', {
+                    parse_mode: 'Markdown'
+                });
+
+                // Procesar destino automáticamente
+                return this.processDestino(ctx, savedState.destinoCoords, numeroPoliza, threadId);
+            }
+
+            // Flujo normal: pedir destino
             this.awaitingDestino.set(chatId, numeroPoliza, threadId);
             await this.handler.setAwaitingState(
                 chatId,
@@ -310,6 +337,143 @@ class LocationStep {
                 LocationStep.STATE_TYPES.AWAITING_DESTINO,
                 threadId
             );
+            return false;
+        }
+    }
+
+    /**
+     * Procesa el destino directamente con coordenadas (usado para destino previo)
+     */
+    private async processDestino(
+        ctx: Context,
+        destinoCoords: ICoordinates,
+        numeroPoliza: string,
+        threadId: string | null
+    ): Promise<boolean> {
+        const chatId = ctx.chat!.id;
+
+        try {
+            logger.info('Procesando destino previo', { numeroPoliza, destinoCoords });
+
+            // Recuperar origen desde UnifiedStateManager
+            const stateManager = getUnifiedStateManagerSync()!;
+            const threadIdNum = threadId ? parseInt(threadId, 10) : null;
+            const savedState = await stateManager.getFlowState<{ origenCoords?: ICoordinates }>(
+                chatId,
+                numeroPoliza,
+                threadIdNum
+            );
+            const origenCoords = savedState?.origenCoords;
+
+            if (!origenCoords) {
+                logger.error('No se encontraron coordenadas de origen');
+                await ctx.reply(
+                    '❌ Error: No se encontraron las coordenadas del origen. Reinicia el proceso.'
+                );
+                return false;
+            }
+
+            // Calcular ruta con HERE Maps
+            const hereMapsService = this.legendService.getHereMapsService();
+            const rutaInfo = await hereMapsService.calculateRoute(origenCoords, destinoCoords);
+
+            // Obtener póliza
+            const policyCacheData = this.polizaCache.get(chatId, threadId);
+            const policy =
+                policyCacheData?.policy ?? ((await getPolicyByNumber(numeroPoliza)) as IPolicy);
+
+            if (!policy) {
+                await ctx.reply('❌ Error: Póliza no encontrada.');
+                return false;
+            }
+
+            // Generar leyenda mejorada
+            const enhancedData = await this.legendService.generateEnhancedLegend(
+                policy,
+                origenCoords,
+                destinoCoords,
+                rutaInfo
+            );
+
+            // Guardar datos completos en UnifiedStateManager
+            await this.saveCompleteFlowState(
+                chatId,
+                numeroPoliza,
+                threadId,
+                origenCoords,
+                destinoCoords,
+                rutaInfo,
+                enhancedData
+            );
+
+            // Actualizar caché
+            if (policyCacheData) {
+                policyCacheData.destinoCoords = destinoCoords;
+                policyCacheData.coordenadas = { origen: origenCoords, destino: destinoCoords };
+                policyCacheData.rutaInfo = rutaInfo;
+                this.polizaCache.set(chatId, policyCacheData, threadId);
+            }
+
+            // Guardar leyenda pendiente
+            this.pendingLeyendas.set(chatId, enhancedData.leyenda, threadId);
+
+            // Enviar leyenda al grupo en background
+            this.sendLegendToGroupAsync(ctx, policy, enhancedData);
+
+            // Mensaje de confirmación con opciones de servicio
+            const responseMessage = this.buildDestinationResponse(enhancedData, rutaInfo);
+
+            // Generar URLs de WhatsApp
+            const telefono = policy.telefono ?? '';
+            const waOrigenCoordsUrl = whatsAppService.generateWhatsAppUrl(
+                telefono,
+                `${origenCoords.lat}, ${origenCoords.lng}`
+            );
+            const waDestinoCoordsUrl = whatsAppService.generateWhatsAppUrl(
+                telefono,
+                `${destinoCoords.lat}, ${destinoCoords.lng}`
+            );
+
+            const origenDir =
+                enhancedData.origenGeo?.direccionCompleta ??
+                enhancedData.origenGeo?.ubicacionCorta ??
+                'Origen';
+            const destinoDir =
+                enhancedData.destinoGeo?.direccionCompleta ??
+                enhancedData.destinoGeo?.ubicacionCorta ??
+                'Destino';
+            const waOrigenDirUrl = whatsAppService.generateWhatsAppUrl(telefono, origenDir);
+            const waDestinoDirUrl = whatsAppService.generateWhatsAppUrl(telefono, destinoDir);
+
+            await ctx.reply(responseMessage, {
+                parse_mode: 'Markdown',
+                link_preview_options: { is_disabled: true },
+                ...Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback(
+                            '✅ Registrar Servicio',
+                            `registrar_servicio_${numeroPoliza}`
+                        ),
+                        Markup.button.callback('❌ No registrar', `no_registrar_${numeroPoliza}`)
+                    ],
+                    [
+                        Markup.button.url('📍 Coords Origen', waOrigenCoordsUrl),
+                        Markup.button.url('📍 Coords Destino', waDestinoCoordsUrl)
+                    ],
+                    [
+                        Markup.button.url('🏠 Dir. Origen', waOrigenDirUrl),
+                        Markup.button.url('🏠 Dir. Destino', waDestinoDirUrl)
+                    ]
+                ])
+            });
+
+            // Limpiar estados
+            this.pendingLeyendas.delete(chatId, threadId);
+
+            return true;
+        } catch (error) {
+            logger.error('Error procesando destino previo:', error);
+            await ctx.reply('❌ Error al procesar la ubicación del destino.');
             return false;
         }
     }

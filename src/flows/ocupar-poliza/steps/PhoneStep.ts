@@ -14,6 +14,7 @@ import {
 } from '../../../controllers/policyController';
 import StateKeyManager from '../../../utils/StateKeyManager';
 import { whatsAppService, IPolicyInfo } from '../../../services/whatsapp';
+import { getUnifiedStateManagerSync } from '../../../state/UnifiedStateManager';
 import type { IPolicy } from '../../../types/database';
 import type { IThreadSafeStateMap } from '../../../utils/StateKeyManager';
 import type { IPolicyCacheData } from '../types';
@@ -73,6 +74,49 @@ class PhoneStep {
     }
 
     /**
+     * Verifica si la póliza tiene servicio previo con destino válido
+     * y guarda las coordenadas en el state para usarlas después
+     */
+    private async checkAndSavePreviousDestino(
+        policy: IPolicy,
+        chatId: number,
+        threadId: string | number | null
+    ): Promise<{ lat: number; lng: number } | null> {
+        if (!policy.servicios || policy.servicios.length === 0) {
+            return null;
+        }
+
+        const ultimoServicio = policy.servicios[policy.servicios.length - 1];
+
+        if (!ultimoServicio.destinoLat || !ultimoServicio.destinoLng) {
+            return null;
+        }
+
+        const destinoCoords = {
+            lat: ultimoServicio.destinoLat,
+            lng: ultimoServicio.destinoLng
+        };
+
+        // Guardar destino previo en UnifiedStateManager
+        const stateManager = getUnifiedStateManagerSync()!;
+        const threadIdNum = typeof threadId === 'string' ? parseInt(threadId, 10) : threadId;
+        await stateManager.setFlowState(
+            chatId,
+            policy.numeroPoliza,
+            { destinoCoords, hasPreviousDestino: true },
+            threadIdNum
+        );
+
+        logger.info('[PhoneStep] Destino previo guardado', {
+            numeroPoliza: policy.numeroPoliza,
+            destinoLat: destinoCoords.lat,
+            destinoLng: destinoCoords.lng
+        });
+
+        return destinoCoords;
+    }
+
+    /**
      * Callback para mantener el teléfono existente
      */
     private registerKeepPhoneCallback(): void {
@@ -104,6 +148,13 @@ class PhoneStep {
                     threadId
                 );
 
+                // Verificar si tiene destino previo
+                const previousDestino = await this.checkAndSavePreviousDestino(
+                    policy,
+                    chatId,
+                    threadId
+                );
+
                 // Establecer estado de espera de origen (local + Redis)
                 this.awaitingOrigen.set(chatId, numeroPoliza, threadId);
                 await this.handler.setAwaitingState(
@@ -113,15 +164,28 @@ class PhoneStep {
                     threadId
                 );
 
-                logger.info('[keepPhone] Estado actualizado', { chatId, threadId, numeroPoliza });
+                logger.info('[keepPhone] Estado actualizado', {
+                    chatId,
+                    threadId,
+                    numeroPoliza,
+                    hasPreviousDestino: !!previousDestino
+                });
 
                 // Generar URL de WhatsApp
                 const whatsappData = this.generateWhatsAppData(policy);
                 const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
+                // Mensaje diferente si hay destino previo
+                let mensaje = '📍indica *ORIGEN*';
+                if (previousDestino) {
+                    mensaje =
+                        '📍indica *ORIGEN*\n\n' +
+                        `_Destino del servicio anterior será usado automáticamente_`;
+                }
+
                 await withTelegramRetry(
                     () =>
-                        ctx.reply('📍indica *ORIGEN*', {
+                        ctx.reply(mensaje, {
                             parse_mode: 'Markdown',
                             ...Markup.inlineKeyboard([
                                 [Markup.button.url(whatsappButton.text, whatsappButton.url)]
@@ -299,6 +363,14 @@ class PhoneStep {
                 PhoneStep.STATE_TYPES.AWAITING_PHONE_NUMBER,
                 threadId
             );
+
+            // Verificar si tiene destino previo
+            const previousDestino = await this.checkAndSavePreviousDestino(
+                policy,
+                chatId,
+                threadId
+            );
+
             this.awaitingOrigen.set(chatId, numeroPoliza ?? '', threadId);
             await this.handler.setAwaitingState(
                 chatId,
@@ -307,7 +379,9 @@ class PhoneStep {
                 threadId
             );
 
-            logger.info(`Teléfono actualizado para póliza ${numeroPoliza}: ${messageText}`);
+            logger.info(`Teléfono actualizado para póliza ${numeroPoliza}: ${messageText}`, {
+                hasPreviousDestino: !!previousDestino
+            });
 
             // Obtener último servicio
             const ultimoServicio =
@@ -348,9 +422,17 @@ class PhoneStep {
             const whatsappData = whatsAppService.generatePolicyWhatsApp(policyInfo);
             const whatsappButton = whatsAppService.generateTelegramButton(whatsappData);
 
+            // Mensaje diferente si hay destino previo
+            let mensaje = '📍indica *ORIGEN*';
+            if (previousDestino) {
+                mensaje =
+                    '📍indica *ORIGEN*\n\n' +
+                    `_Destino del servicio anterior será usado automáticamente_`;
+            }
+
             await withTelegramRetry(
                 () =>
-                    ctx.reply('📍indica *ORIGEN*', {
+                    ctx.reply(mensaje, {
                         parse_mode: 'Markdown',
                         ...Markup.inlineKeyboard([
                             [Markup.button.url(whatsappButton.text, whatsappButton.url)]
