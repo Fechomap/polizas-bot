@@ -9,7 +9,12 @@ import { prisma } from '../../database/prisma';
 import logger from '../../utils/logger';
 import ExcelJS from 'exceljs';
 import path from 'path';
+import os from 'os';
 import { promises as fs } from 'fs';
+
+// En producción usar /tmp, en desarrollo usar ./scripts
+const isProduction = process.env.NODE_ENV === 'production';
+const SCRIPTS_PATH = isProduction ? os.tmpdir() : path.join(__dirname, '../../../scripts');
 
 // ============================================================================
 // INTERFACES
@@ -368,8 +373,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
 export async function exportarPolizasExcel(): Promise<IExportResult> {
     logger.info('📊 Iniciando exportación de pólizas a Excel');
 
-    const scriptsPath = path.join(__dirname, '../../../scripts');
-    const backupDir = path.join(scriptsPath, 'backup');
+    const backupDir = path.join(SCRIPTS_PATH, 'backup');
     await ensureDirectoryExists(backupDir);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
@@ -598,8 +602,8 @@ export interface IValidationResult {
 export async function validarArchivosPolizas(): Promise<IValidationResult> {
     logger.info('🔍 Iniciando validación de archivos de pólizas');
 
-    const scriptsPath = path.join(__dirname, '../../../scripts');
-    const excelPath = path.join(scriptsPath, 'file-validation-report.xlsx');
+    const excelPath = path.join(SCRIPTS_PATH, 'file-validation-report.xlsx');
+    await ensureDirectoryExists(SCRIPTS_PATH);
 
     try {
         const totalPolizas = await prisma.policy.count({ where: { estado: 'ACTIVO' } });

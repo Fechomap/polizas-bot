@@ -50,12 +50,10 @@ interface ICleanupResult {
 }
 
 class SimpleScriptsHandler {
-    private scriptsPath: string;
     private runningScripts: Map<number, IRunningScript>;
     private autoCleanupService: AutoCleanupService;
 
     constructor() {
-        this.scriptsPath = path.join(__dirname, '../../../scripts');
         this.runningScripts = new Map();
         this.autoCleanupService = new AutoCleanupService();
     }

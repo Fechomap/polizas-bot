@@ -16,6 +16,7 @@ import BaseCommand from './BaseCommand';
 import ExcelJS from 'exceljs';
 import { promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
 import logger from '../../utils/logger';
 import {
     getPaymentCalculatorService,
@@ -582,8 +583,8 @@ class PaymentReportExcelCommand extends BaseCommand {
             // Generar Excel
             const excelBuffer = await this.generateExcel(pendingPolicies);
 
-            // Guardar archivo temporal
-            const tempDir = path.join(__dirname, '../../temp');
+            // Guardar archivo temporal (usar /tmp en producción)
+            const tempDir = os.tmpdir();
             await fs.mkdir(tempDir, { recursive: true });
 
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);

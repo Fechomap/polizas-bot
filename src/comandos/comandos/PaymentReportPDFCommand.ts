@@ -8,6 +8,7 @@ import BaseCommand from './BaseCommand';
 import PDFDocument from 'pdfkit';
 import { promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
 import {
     getPaymentCalculatorService,
     type IPendingPolicy,
@@ -107,8 +108,8 @@ class PaymentReportPDFCommand extends BaseCommand {
             const excelCommand = new PaymentReportExcelCommand(this.handler);
             const excelBuffer = await excelCommand.generateExcel(pendingPolicies);
 
-            // Guardar archivos temporales
-            const tempDir = path.join(__dirname, '../../temp');
+            // Guardar archivos temporales (usar /tmp en producción)
+            const tempDir = os.tmpdir();
             await fs.mkdir(tempDir, { recursive: true });
 
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
